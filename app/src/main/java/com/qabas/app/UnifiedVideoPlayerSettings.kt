@@ -1,22 +1,11 @@
 package com.qabas.app
 
 import android.content.Context
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,8 +14,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.qabas.app.ui.components.AppleGroupedSection
+import com.qabas.app.ui.components.AppleInsetDivider
+import com.qabas.app.ui.components.AppleSegmentedControl
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 
 /**
  * Central preferences and shared configuration for Qabas video playback surfaces.
@@ -79,9 +72,10 @@ object UnifiedVideoPlayerSettings {
 @Composable
 fun UnifiedVideoPlayerSettingsScreen(onBack: () -> Unit, bottomBar: @Composable () -> Unit = {}) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
     var speed by remember { mutableFloatStateOf(prefs.getFloat("unified_video_speed", 1f).coerceIn(0.5f, 2f)) }
-    var resize by remember { mutableStateOf(prefs.getInt("unified_video_resize_mode", AspectRatioFrameLayout.RESIZE_MODE_FIT)) }
+    var resize by remember { mutableIntStateOf(prefs.getInt("unified_video_resize_mode", AspectRatioFrameLayout.RESIZE_MODE_FIT)) }
     var controls by remember { mutableStateOf(prefs.getBoolean("unified_video_controls_enabled", true)) }
 
     SubScreenScaffold(
@@ -90,44 +84,76 @@ fun UnifiedVideoPlayerSettingsScreen(onBack: () -> Unit, bottomBar: @Composable 
         onBack = onBack,
         bottomBar = bottomBar
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+        AppleGroupedSection(
+            header = "سرعة التشغيل",
+            footer = "سرعة افتراضية للمشغلات الداعمة؛ يمكن للمونتاج والريلز فرض سرعة المقطع."
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("سرعة التشغيل: ${"%.2f".format(speed)}×", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("السرعة الافتراضية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("${"%.2f".format(speed)}×", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
                 Slider(
                     value = speed,
                     onValueChange = { speed = it },
                     valueRange = 0.5f..2f,
                     steps = 5,
-                    onValueChangeFinished = { UnifiedVideoPlayerSettings.saveSpeed(context, speed) }
+                    onValueChangeFinished = { UnifiedVideoPlayerSettings.saveSpeed(context, speed) },
+                    colors = SliderDefaults.colors(
+                        thumbColor = theme.primary,
+                        activeTrackColor = theme.primary,
+                        inactiveTrackColor = theme.secondarySurface
+                    )
                 )
-                Text("سرعة افتراضية للمشغلات الداعمة؛ يمكن للمونتاج والريلز فرض سرعة المقطع.", fontFamily = CairoFont, fontSize = 12.sp)
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("طريقة ملاءمة الصورة", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    listOf(
+        }
+
+        AppleGroupedSection(
+            header = "ملاءمة الإطار والتحكم",
+            footer = "الاحتواء يحافظ على كامل الإطار، والملء يقص الأطراف، والتمديد يملأ الشاشة."
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppleSegmentedControl(
+                    items = listOf(
                         AspectRatioFrameLayout.RESIZE_MODE_FIT to "احتواء",
                         AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "ملء/قص",
                         AspectRatioFrameLayout.RESIZE_MODE_FILL to "تمديد"
-                    ).forEach { (mode, label) ->
-                        androidx.compose.material3.FilterChip(
-                            selected = resize == mode,
-                            onClick = { resize = mode; UnifiedVideoPlayerSettings.saveResizeMode(context, mode) },
-                            label = { Text(label, fontFamily = CairoFont) }
-                        )
+                    ),
+                    selectedItem = resize,
+                    onSelect = { mode ->
+                        resize = mode
+                        UnifiedVideoPlayerSettings.saveResizeMode(context, mode)
                     }
-                }
-                Text("الاحتواء يحافظ على كامل الإطار، والملء قد يقص الأطراف، والتمديد قد يغير النسب.", fontFamily = CairoFont, fontSize = 12.sp)
+                )
             }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("إظهار أزرار المشغل", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("إظهار عناصر التحكم القياسية للمشغلات التي تستخدم PlayerView.", fontFamily = CairoFont, fontSize = 12.sp)
+            AppleInsetDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 56.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text("إظهار أزرار المشغل", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("إظهار عناصر التحكم القياسية للمشغلات التي تستخدم PlayerView.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
                 }
-                Switch(checked = controls, onCheckedChange = { controls = it; UnifiedVideoPlayerSettings.saveControlsEnabled(context, it) })
+                Switch(
+                    checked = controls,
+                    onCheckedChange = {
+                        controls = it
+                        UnifiedVideoPlayerSettings.saveControlsEnabled(context, it)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = theme.onPrimary,
+                        checkedTrackColor = theme.success
+                    )
+                )
             }
         }
     }

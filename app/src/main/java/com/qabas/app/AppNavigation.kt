@@ -182,24 +182,9 @@ fun AppNavigation(
     }
 
     val accountService = remember(context) { AccountService(context) }
-    var isDeveloperMode by remember { 
-        mutableStateOf(accountService.isDeveloperOrAdmin) 
-    }
     var tasteProfileReturnToSettings by remember { mutableStateOf(false) }
     var rulesReturnToSettings by remember { mutableStateOf(false) }
     var updateHistoryReturnToSettings by remember { mutableStateOf(false) }
-
-    val restrictedProductionStates = remember {
-        setOf(
-            AppState.STUDIO_GATEWAY, AppState.INPUT, AppState.UNDERSTANDING, AppState.RESOURCES,
-            AppState.PROCESSING, AppState.REVIEW, AppState.ADVANCED_EDIT, AppState.TRANSCRIPT_EDIT,
-            AppState.PRO_EDITOR, AppState.MONEY_PRINTER_TURBO, AppState.VOICE_STUDIO,
-            AppState.PHOTO_STUDIO, AppState.YOUTUBE_STUDIO, AppState.SMART_DIRECTOR,
-            AppState.VIDEO_STYLE_CLONER, AppState.UNIFIED_MASTER_STUDIO, AppState.DIRECTOR_CHAT,
-            AppState.QASAS, AppState.CLIP_EXTRACTOR, AppState.STYLE_SELECTION, AppState.CREATE_STYLE_OBJECT,
-            AppState.TASTE_PROFILE, AppState.TELEPROMPTER, AppState.HADITH_STUDIO, AppState.AI_ASSISTANT
-        )
-    }
 
     // معالجة موحّدة لزر الرجوع في النظام: ترجع للشاشة الأب بدل إغلاق التطبيق.
     // الشاشات التي تعرّف BackHandler خاصاً بها تتقدّم تلقائياً لأنها تُسجّل لاحقاً.
@@ -243,17 +228,6 @@ fun AppNavigation(
             parentBackState[appState] ?: AppState.HOME
         }
         viewModel.updateState { copy(appState = target) }
-    }
-
-    if (!isDeveloperMode && appState in restrictedProductionStates) {
-        StudioMaintenanceView(
-            onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-            onDeveloperAuthenticated = {
-                isDeveloperMode = true
-            },
-            bottomBar = bottomNav
-        )
-        return
     }
 
     when (appState) {

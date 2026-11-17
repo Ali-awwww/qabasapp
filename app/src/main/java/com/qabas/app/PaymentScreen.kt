@@ -1,14 +1,15 @@
 package com.qabas.app
 
-import androidx.compose.animation.*
+import android.app.Activity
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Diamond
@@ -18,18 +19,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.theme.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleGroupedSection
+import com.qabas.app.ui.components.AppleKeyRequiredBanner
+import com.qabas.app.ui.components.AppleListRow
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.components.AppleTopBar
+import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
+import com.qabas.app.ui.theme.RobotoMonoFont
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
     onPaymentSuccess: () -> Unit,
@@ -37,300 +47,311 @@ fun PaymentScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val theme = QabasTheme.current
     val paymentService = remember { AppServices.getPaymentService(context) }
     val accountService = remember { AppServices.getAccountService(context) }
-    
+    val billingManager = remember { BillingManager.getInstance(context) }
+
+    val isBillingReady by billingManager.isReady.collectAsStateWithLifecycle()
+    val productsMap by billingManager.products.collectAsStateWithLifecycle()
+
     val isProOrDev = accountService.isPremium || accountService.isDeveloperOrAdmin || accountService.hasCustomKeys
     val videoCost = if (isProOrDev) 0 else 5
-    
+
     var currentBalance by remember { mutableIntStateOf(paymentService.userBalance) }
     var isProcessing by remember { mutableStateOf(false) }
     var paymentSuccess by remember { mutableStateOf(false) }
     var showRechargeDialog by remember { mutableStateOf(false) }
 
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
+    val canPurchaseCoins = isBillingReady && productsMap.isNotEmpty()
+
+    DisposableEffect(billingManager) {
+        billingManager.onPurchaseSuccess = { productId ->
+            isProcessing = false
+            val coinsAdded = when (productId) {
+                BillingManager.COIN_500 -> 500
+                BillingManager.COIN_1200 -> 1200
+                BillingManager.COIN_3000 -> 3000
+                BillingManager.COIN_10000 -> 10000
+                else -> 0
+            }
+            if (coinsAdded > 0) {
+                scope.launch {
+                    paymentService.recharge(coinsAdded)
+                    currentBalance = paymentService.userBalance
+                    showRechargeDialog = false
+                    Toast.makeText(context, Translator.tr("تم شحن الرصيد بنجاح (+$coinsAdded عملة)"), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        billingManager.onPurchaseCanceled = {
+            isProcessing = false
+            Toast.makeText(context, Translator.tr("تم إلغاء عملية الشراء"), Toast.LENGTH_SHORT).show()
+        }
+        billingManager.onPurchaseError = { msg ->
+            isProcessing = false
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+        onDispose {
+            billingManager.onPurchaseSuccess = null
+            billingManager.onPurchaseCanceled = null
+            billingManager.onPurchaseError = null
+        }
+    }
 
     Scaffold(
+        containerColor = theme.background,
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        Translator.tr("الدفع والتصدير"), 
-                        fontFamily = CairoFont, 
-                        fontWeight = FontWeight.Bold, 
-                        color = GoldPrimary,
-                        fontSize = 20.sp
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+            AppleTopBar(
+                title = Translator.tr("الدفع والتصدير"),
+                onBack = onBack,
+                backTestTag = "payment_back_button"
             )
-        },
-        containerColor = DeepSlate
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Receipt Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (isProOrDev) GoldPrimary.copy(alpha = 0.5f) else Color(0xFF1E293B)),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            AppleCard(cornerRadius = 18.dp) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = if (isProOrDev) Icons.Default.WorkspacePremium else Icons.Default.Diamond,
-                        contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(48.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(theme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isProOrDev) Icons.Default.WorkspacePremium else Icons.Default.Diamond,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
                         text = if (isProOrDev) Translator.tr("تصدير فيديو بدقة عالية") else Translator.tr("تكلفة تصدير الفيديو"),
-                        color = TextSecondary,
-                        fontSize = 15.sp,
-                        fontFamily = CairoFont
+                        color = theme.textSecondary,
+                        fontSize = 14.sp,
+                        fontFamily = NotoSansFont
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (isProOrDev) "0" else "$videoCost",
-                            color = GoldPrimary,
-                            fontSize = 44.sp,
+                            color = theme.primary,
+                            fontSize = 42.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = RobotoMonoFont
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.Default.Diamond, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                        Icon(
+                            imageVector = Icons.Default.Diamond,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                     Text(
-                        text = if (isProOrDev) Translator.tr("ميزة مجانية لمشتركي قبس برو 👑") else Translator.tr("عملات قبس"),
-                        color = if (isProOrDev) Color(0xFF22C55E) else GoldPrimary,
-                        fontSize = 14.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = if (isProOrDev) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
-
-            // User Balance
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(CardSurface)
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = GoldPrimary)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = Translator.tr("رصيدك الحالي"),
-                        color = TextPrimary,
-                        fontSize = 16.sp,
+                        text = if (isProOrDev) Translator.tr("ميزة مجانية لمشتركي قبس برو") else Translator.tr("عملات قبس"),
+                        color = if (isProOrDev) theme.success else theme.primary,
+                        fontSize = 13.sp,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "$currentBalance",
-                        color = if (isProOrDev || currentBalance >= videoCost) Color(0xFF22C55E) else Color(0xFFEF4444),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = RobotoMonoFont
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        Icons.Default.Diamond, 
-                        contentDescription = null, 
-                        tint = if (isProOrDev || currentBalance >= videoCost) Color(0xFF22C55E) else Color(0xFFEF4444), 
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            AppleGroupedSection(header = Translator.tr("الرصيد والفوترة")) {
+                AppleListRow(
+                    title = Translator.tr("رصيدك الحالي"),
+                    icon = Icons.Default.AccountBalanceWallet,
+                    iconBackground = theme.primary,
+                    trailingText = "$currentBalance ${Translator.tr("عملة")}",
+                    showChevron = false
+                )
+            }
 
             if (!isProOrDev && currentBalance < videoCost) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = theme.destructive.copy(alpha = 0.1f)
                 ) {
                     Text(
-                        text = Translator.tr("رصيدك الحالي غير كافٍ لتصدير الفيديو. يرجى شحن الرصيد للمتابعة."),
-                        color = Color(0xFFEF4444),
-                        modifier = Modifier.padding(16.dp),
-                        fontFamily = CairoFont,
+                        text = Translator.tr("رصيدك الحالي غير كافٍ لتصدير الفيديو. يرجى شحن الرصيد عبر Google Play للمتابعة."),
+                        color = theme.destructive,
+                        modifier = Modifier.padding(14.dp),
+                        fontFamily = NotoSansFont,
                         textAlign = TextAlign.Center,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp
                     )
                 }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Button(
-                    onClick = { showRechargeDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = CardSurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(Translator.tr("شحن الرصيد الآن 💰"), color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+                if (!canPurchaseCoins) {
+                    AppleKeyRequiredBanner(
+                        serviceName = Translator.tr("شحن الرصيد عبر Google Play"),
+                        reason = Translator.tr("خدمة Google Play Billing غير متصلة أو منتجات المتجر غير متاحة على هذا الجهاز حالياً.")
+                    )
                 }
+
+                AppleSecondaryButton(
+                    text = Translator.tr("شحن الرصيد عبر Google Play"),
+                    icon = Icons.Default.AccountBalanceWallet,
+                    enabled = canPurchaseCoins,
+                    onClick = { showRechargeDialog = true },
+                    modifier = Modifier.testTag("open_recharge_button")
+                )
             } else {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            isProcessing = true
-                            val success = if (isProOrDev) true else paymentService.processPayment(videoCost)
-                            if (success) {
-                                currentBalance = paymentService.userBalance
-                                paymentSuccess = true
-                                paymentService.generateInvoice(context, "PRJ-${System.currentTimeMillis()}", videoCost)
-                                
-                                // Record transaction in cloud
-                                if (!isProOrDev) {
-                                    CloudServices.Database.recordPurchase("video_export_hd", "coin_spent_${System.currentTimeMillis()}")
-                                }
-                                
-                                delay(1200)
-                                onPaymentSuccess()
-                            } else {
-                                isProcessing = false
-                                android.widget.Toast.makeText(context, Translator.tr("فشلت عملية الدفع!"), android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(0.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    enabled = !isProcessing
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().then(if (isProcessing) Modifier.background(CardSurface) else Modifier.background(goldGradient)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isProcessing) {
-                            if (paymentSuccess) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22C55E))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        if (isProOrDev) Translator.tr("تم التجهيز للتصدير! 🚀") else Translator.tr("تم الدفع بنجاح! 🎉"), 
-                                        color = Color(0xFF22C55E), 
-                                        fontFamily = CairoFont, 
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            } else {
-                                CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(24.dp))
-                            }
-                        } else {
+                if (paymentSuccess) {
+                    AppleCard {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.success)
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isProOrDev) Translator.tr("تصدير الفيديو الآن (مجاناً لمشتركي برو 👑)") else Translator.tr("تأكيد الدفع والتصدير (خصم $videoCost عملات)"), 
-                                color = DeepSlate, 
-                                fontFamily = TajawalFont, 
-                                fontWeight = FontWeight.Bold, 
-                                fontSize = 16.sp
+                                text = if (isProOrDev) Translator.tr("تم التجهيز للتصدير") else Translator.tr("تم الدفع بنجاح"),
+                                color = theme.success,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
+                } else {
+                    ApplePrimaryButton(
+                        text = if (isProOrDev) {
+                            Translator.tr("تصدير الفيديو الآن (مجاناً لمشتركي برو)")
+                        } else {
+                            Translator.tr("تأكيد الدفع والتصدير (خصم $videoCost عملات)")
+                        },
+                        isLoading = isProcessing,
+                        enabled = !isProcessing,
+                        modifier = Modifier.testTag("confirm_export_payment_button"),
+                        onClick = {
+                            scope.launch {
+                                isProcessing = true
+                                val success = if (isProOrDev) true else paymentService.processPayment(videoCost)
+                                if (success) {
+                                    currentBalance = paymentService.userBalance
+                                    paymentSuccess = true
+                                    paymentService.generateInvoice(context, "PRJ-${System.currentTimeMillis()}", videoCost)
+                                    if (!isProOrDev) {
+                                        CloudServices.Database.recordPurchase("video_export_hd", "coin_spent_${System.currentTimeMillis()}")
+                                    }
+                                    delay(900)
+                                    onPaymentSuccess()
+                                } else {
+                                    isProcessing = false
+                                    Toast.makeText(context, Translator.tr("رصيدك غير كافٍ لإتمام التصدير"), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
     }
 
     if (showRechargeDialog) {
+        val coinPacks = listOf(
+            Triple(BillingManager.COIN_500, 500, billingManager.getFormattedPrice(BillingManager.COIN_500, "$0.99")),
+            Triple(BillingManager.COIN_1200, 1200, billingManager.getFormattedPrice(BillingManager.COIN_1200, "$1.99")),
+            Triple(BillingManager.COIN_3000, 3000, billingManager.getFormattedPrice(BillingManager.COIN_3000, "$4.99")),
+            Triple(BillingManager.COIN_10000, 10000, billingManager.getFormattedPrice(BillingManager.COIN_10000, "$14.99"))
+        )
         AlertDialog(
-            onDismissRequest = { showRechargeDialog = false },
-            title = { Text(Translator.tr("شحن رصيد قبس السريع 💰"), fontFamily = CairoFont, color = GoldPrimary) },
+            onDismissRequest = { if (!isProcessing) showRechargeDialog = false },
+            containerColor = theme.cardSurface,
+            title = {
+                Text(
+                    Translator.tr("شحن رصيد قبس"),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    color = theme.textPrimary
+                )
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    RechargeOption(amount = 50, price = "$4.99", onClick = {
-                        scope.launch {
-                            paymentService.recharge(50)
-                            currentBalance = paymentService.userBalance
-                            CloudServices.Database.recordPurchase("coin_50", "token_${System.currentTimeMillis()}")
-                            showRechargeDialog = false
-                            android.widget.Toast.makeText(context, Translator.tr("تم شحن الرصيد بنجاح (+50 عملة)! 🎉"), android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    })
-                    RechargeOption(amount = 100, price = "$8.99", onClick = {
-                        scope.launch {
-                            paymentService.recharge(100)
-                            currentBalance = paymentService.userBalance
-                            CloudServices.Database.recordPurchase("coin_100", "token_${System.currentTimeMillis()}")
-                            showRechargeDialog = false
-                            android.widget.Toast.makeText(context, Translator.tr("تم شحن الرصيد بنجاح (+100 عملة)! 🎉"), android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    })
-                    RechargeOption(amount = 500, price = "$39.99", isPopular = true, onClick = {
-                        scope.launch {
-                            paymentService.recharge(500)
-                            currentBalance = paymentService.userBalance
-                            CloudServices.Database.recordPurchase("coin_500", "token_${System.currentTimeMillis()}")
-                            showRechargeDialog = false
-                            android.widget.Toast.makeText(context, Translator.tr("تم شحن الرصيد بنجاح (+500 عملة)! 🎉"), android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    })
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    coinPacks.forEachIndexed { idx, (sku, amount, formattedPrice) ->
+                        RechargeOption(
+                            amount = amount,
+                            price = formattedPrice,
+                            isPopular = idx == 1,
+                            enabled = canPurchaseCoins && !isProcessing,
+                            onClick = {
+                                val activity = context as? Activity
+                                if (activity == null) {
+                                    Toast.makeText(context, Translator.tr("لا يمكن بدء الشراء خارج النشاط الحالي"), Toast.LENGTH_SHORT).show()
+                                } else {
+                                    isProcessing = true
+                                    billingManager.launchBillingFlow(activity, sku)
+                                }
+                            }
+                        )
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showRechargeDialog = false }) {
-                    Text(Translator.tr("إلغاء"), color = TextSecondary, fontFamily = CairoFont)
+                TextButton(onClick = { if (!isProcessing) showRechargeDialog = false }) {
+                    Text(Translator.tr("إغلاق"), color = theme.textSecondary, fontFamily = CairoFont)
                 }
-            },
-            containerColor = CardSurface
+            }
         )
     }
 }
 
 @Composable
-fun RechargeOption(amount: Int, price: String, isPopular: Boolean = false, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = DeepSlate),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPopular) GoldPrimary else Color(0xFF1E293B)),
-        shape = RoundedCornerShape(12.dp)
+fun RechargeOption(
+    amount: Int,
+    price: String,
+    isPopular: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val theme = QabasTheme.current
+    AppleCard(
+        modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
+        containerColor = if (isPopular) theme.primary.copy(alpha = 0.08f) else theme.secondarySurface
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Diamond, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Diamond, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("$amount ${Translator.tr("عملة")}", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "$amount ${Translator.tr("عملة")}",
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
                 if (isPopular) {
-                    Text(Translator.tr("الأكثر طلبًا"), color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
+                    Text(Translator.tr("الأكثر طلباً"), color = theme.primary, fontSize = 11.sp, fontFamily = CairoFont)
                 }
-                Text(price, color = TextSecondary, fontFamily = RobotoMonoFont, fontWeight = FontWeight.SemiBold)
+                Text(price, color = theme.textSecondary, fontFamily = RobotoMonoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             }
         }
     }

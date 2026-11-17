@@ -94,18 +94,8 @@ object AudioDownloadHelper {
                         }
                     }
                     else -> {
-                        // Fallback sample
-                        val input = try {
-                            context.assets.open("audio/recitation_yusuf.mp3")
-                        } catch (_: Exception) {
-                            null
-                        }
-                        if (input != null) {
-                            input.use { saveStreamWithProgress(context, it, fileName, 6_000_000L, onProgress) }
-                        } else {
-                            onProgress(DownloadProgress(isError = true, errorMessage = "مصدر الصوت غير صالح"))
-                            false
-                        }
+                        onProgress(DownloadProgress(isError = true, errorMessage = "رابط الملف الصوتي غير صالح أو غير متاح للتنزيل"))
+                        false
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

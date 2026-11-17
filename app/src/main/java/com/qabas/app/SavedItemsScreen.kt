@@ -5,13 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,16 +14,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.qabas.app.ui.components.*
+import com.qabas.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +40,7 @@ fun SavedItemsScreen(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val syncMessage by viewModel.syncMessage.collectAsStateWithLifecycle()
     val activeFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
@@ -61,12 +56,31 @@ fun SavedItemsScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF090D16),
+        containerColor = theme.background,
+        contentWindowInsets = WindowInsets.navigationBars,
         topBar = {
-            SavedItemsTopBar(
+            AppleTopBar(
+                title = "المحفوظات السحابية",
+                subtitle = "مزامنة Supabase الآمنة",
                 onBack = onBack,
-                onAddInspiration = { showAddInspirationDialog = true },
-                isAuthenticated = uiState is SavedItemsUiState.Success
+                backTestTag = "saved_items_back_button",
+                actions = {
+                    if (uiState is SavedItemsUiState.Success) {
+                        IconButton(
+                            onClick = { showAddInspirationDialog = true },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("add_inspiration_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AddCircleOutline,
+                                contentDescription = "إضافة خاطرة أو إلهام",
+                                tint = theme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -74,15 +88,7 @@ fun SavedItemsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF090D16),
-                            Color(0xFF0D1527),
-                            Color(0xFF090D16)
-                        )
-                    )
-                )
+                .background(theme.background)
         ) {
             when (val state = uiState) {
                 is SavedItemsUiState.Loading -> {
@@ -91,13 +97,13 @@ fun SavedItemsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(
-                            color = Color(0xFF10B981),
+                            color = theme.primary,
                             modifier = Modifier.testTag("saved_items_loading")
                         )
                     }
                 }
                 is SavedItemsUiState.Unauthenticated -> {
-                    UnauthenticatedHudView(
+                    UnauthenticatedAppleView(
                         onSignIn = { viewModel.signInWithGoogle(context) }
                     )
                 }
@@ -108,12 +114,29 @@ fun SavedItemsScreen(
                             .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = state.message,
-                            color = Color(0xFFEF4444),
-                            fontSize = 15.sp,
-                            textAlign = TextAlign.Center
-                        )
+                        AppleCard {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = theme.destructive,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Text(
+                                    text = state.message,
+                                    color = theme.destructive,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
                     }
                 }
                 is SavedItemsUiState.Success -> {
@@ -121,7 +144,9 @@ fun SavedItemsScreen(
                         state = state,
                         activeFilter = activeFilter,
                         onFilterSelect = { viewModel.setFilter(it) },
-                        onDeleteItem = { itemId -> pendingDeleteItem = state.items.firstOrNull { it.id == itemId } },
+                        onDeleteItem = { itemId ->
+                            pendingDeleteItem = state.items.firstOrNull { it.id == itemId }
+                        },
                         onSignOut = { viewModel.signOut() },
                         context = context
                     )
@@ -143,14 +168,23 @@ fun SavedItemsScreen(
     pendingDeleteItem?.let { item ->
         AlertDialog(
             onDismissRequest = { pendingDeleteItem = null },
-            containerColor = Color(0xFF131D33),
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
-                Text("تأكيد حذف المحفوظ", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "تأكيد حذف المحفوظ",
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
             },
             text = {
                 Text(
-                    "هل تريد حذف «${item.title}»؟ لا يمكن التراجع عن هذا الإجراء.",
-                    color = Color(0xFFCBD5E1)
+                    text = "هل تريد حذف «${item.title}»؟ لا يمكن التراجع عن هذا الإجراء.",
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 14.sp
                 )
             },
             confirmButton = {
@@ -159,103 +193,39 @@ fun SavedItemsScreen(
                         pendingDeleteItem = null
                         viewModel.deleteItem(item.id)
                     },
-                    modifier = Modifier.testTag("confirm_delete_saved_item")
+                    modifier = Modifier
+                        .defaultMinSize(minHeight = 48.dp)
+                        .testTag("confirm_delete_saved_item")
                 ) {
-                    Text("حذف نهائي", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "حذف نهائي",
+                        color = theme.destructive,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDeleteItem = null }) {
-                    Text("إلغاء", color = Color(0xFF94A3B8))
+                TextButton(
+                    onClick = { pendingDeleteItem = null },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                ) {
+                    Text(
+                        text = "إلغاء",
+                        color = theme.textSecondary,
+                        fontFamily = CairoFont
+                    )
                 }
             }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SavedItemsTopBar(
-    onBack: () -> Unit,
-    onAddInspiration: () -> Unit,
-    isAuthenticated: Boolean
-) {
-    TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color(0xFF090D16).copy(alpha = 0.95f)
-        ),
-        navigationIcon = {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .testTag("saved_items_back_button")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "الرجوع",
-                    tint = Color.White
-                )
-            }
-        },
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "المحفوظات السحابية",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                // Cybernetic HUD status chip
-                Box(
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "مزامنة Supabase",
-                        color = Color(0xFF34D399),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        softWrap = false,
-                        maxLines = 1
-                    )
-                }
-            }
-        },
-        actions = {
-            if (isAuthenticated) {
-                IconButton(
-                    onClick = onAddInspiration,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .testTag("add_inspiration_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "إضافة خاطرة أو إلهام",
-                        tint = Color(0xFF10B981)
-                    )
-                }
-            }
-        }
-    )
-}
-
-@Composable
-private fun UnauthenticatedHudView(
+private fun UnauthenticatedAppleView(
     onSignIn: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -263,80 +233,54 @@ private fun UnauthenticatedHudView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Glowing Spatial HUD Icon
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(84.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF10B981).copy(alpha = 0.1f))
-                .border(1.dp, Color(0xFF10B981).copy(alpha = 0.3f), CircleShape),
+                .background(theme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.CloudSync,
                 contentDescription = null,
-                tint = Color(0xFF10B981),
+                tint = theme.primary,
                 modifier = Modifier.size(40.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = "المزامنة السحابية اللحظية",
-            color = Color.White,
+            color = theme.textPrimary,
+            fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
             fontSize = 20.sp,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "سجل الدخول بحساب Google لحفظ الآيات القرآنية، الخواطر الإيمانية والأدعية مع مزامنة لحظية فورية وتخزين يعمل بدون إنترنت.",
-            color = Color(0xFF94A3B8),
+            text = "سجّل الدخول بحساب Google لحفظ الآيات القرآنية والخواطر الإيمانية والأدعية مع مزامنة فورية وتخزين آمن.",
+            color = theme.textSecondary,
+            fontFamily = NotoSansFont,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
             lineHeight = 22.sp,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        // Google Sign-In Button with Cybernetic Glassmorphic Styling
-        Button(
+        ApplePrimaryButton(
+            text = "تسجيل الدخول بحساب Google",
+            icon = Icons.Default.AccountCircle,
             onClick = onSignIn,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF10B981)
-            ),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
+                .widthIn(max = 420.dp)
                 .testTag("google_signin_button")
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "تسجيل الدخول بحساب Google",
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    softWrap = false,
-                    maxLines = 1
-                )
-            }
-        }
+        )
     }
 }
 
@@ -354,17 +298,15 @@ private fun SuccessSavedItemsContent(
             .fillMaxSize()
             .testTag("saved_items_list"),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // User Profile HUD Header
         item {
-            UserProfileHudCard(
+            UserProfileAppleCard(
                 profile = state.userProfile,
                 onSignOut = onSignOut
             )
         }
 
-        // Stats Summary Telemetry Bar
         item {
             SavedItemsStatsBar(
                 ayatCount = state.totalAyatCount,
@@ -373,7 +315,6 @@ private fun SuccessSavedItemsContent(
             )
         }
 
-        // Filter Pills
         item {
             FilterTabsRow(
                 activeFilter = activeFilter,
@@ -381,10 +322,9 @@ private fun SuccessSavedItemsContent(
             )
         }
 
-        // Empty state or Items List
         if (state.items.isEmpty()) {
             item {
-                EmptyItemsHudView(activeFilter = activeFilter)
+                EmptyItemsAppleView()
             }
         } else {
             items(
@@ -396,81 +336,85 @@ private fun SuccessSavedItemsContent(
                     onDelete = { onDeleteItem(item.id) },
                     onCopy = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("Qabas Saved Item", "${item.title}\n\n${item.content}\n${item.reference}")
+                        val clip = ClipData.newPlainText(
+                            "Qabas Saved Item",
+                            "${item.title}\n\n${item.content}\n${item.reference}"
+                        )
                         clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, "تم نسخ النص إلى الحافظة ✦", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "تم نسخ النص إلى الحافظة", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun UserProfileHudCard(
+private fun UserProfileAppleCard(
     profile: UserProfile?,
     onSignOut: () -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131D33)),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val theme = QabasTheme.current
+    AppleCard {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF10B981).copy(alpha = 0.2f))
-                    .border(1.dp, Color(0xFF10B981), CircleShape),
+                    .background(theme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
-                    tint = Color(0xFF10B981),
+                    tint = theme.primary,
                     modifier = Modifier.size(24.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = profile?.displayName ?: "مستخدم قبس",
-                    color = Color.White,
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = profile?.email ?: "",
-                    color = Color(0xFF94A3B8),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (!profile?.email.isNullOrBlank()) {
+                    Text(
+                        text = profile?.email ?: "",
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             IconButton(
                 onClick = onSignOut,
                 modifier = Modifier
-                    .minimumInteractiveComponentSize()
+                    .size(48.dp)
                     .testTag("signout_button")
             ) {
                 Icon(
-                    imageVector = Icons.Default.ExitToApp,
+                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                     contentDescription = "تسجيل الخروج",
-                    tint = Color(0xFF94A3B8)
+                    tint = theme.destructive
                 )
             }
         }
@@ -483,6 +427,7 @@ private fun SavedItemsStatsBar(
     inspirationsCount: Int,
     adhkarCount: Int
 ) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -490,19 +435,19 @@ private fun SavedItemsStatsBar(
         StatPill(
             title = "آيات",
             count = ayatCount,
-            color = Color(0xFF10B981),
+            color = theme.success,
             modifier = Modifier.weight(1f)
         )
         StatPill(
             title = "إلهامات",
             count = inspirationsCount,
-            color = Color(0xFF06B6D4),
+            color = theme.primary,
             modifier = Modifier.weight(1f)
         )
         StatPill(
             title = "أذكار",
             count = adhkarCount,
-            color = Color(0xFFA855F7),
+            color = theme.accent,
             modifier = Modifier.weight(1f)
         )
     }
@@ -512,31 +457,34 @@ private fun SavedItemsStatsBar(
 private fun StatPill(
     title: String,
     count: Int,
-    color: Color,
+    color: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.1f))
-            .border(1.dp, color.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-            .padding(vertical = 10.dp, horizontal = 12.dp),
-        contentAlignment = Alignment.Center
+    val theme = QabasTheme.current
+    AppleCard(
+        modifier = modifier,
+        cornerRadius = 12.dp
     ) {
         Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = count.toString(),
                 color = color,
+                fontFamily = RobotoMonoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
                 maxLines = 1
             )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = title,
-                color = Color(0xFF94A3B8),
-                fontSize = 11.sp,
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 12.sp,
                 softWrap = false,
                 maxLines = 1
             )
@@ -549,59 +497,49 @@ private fun FilterTabsRow(
     activeFilter: SavedItemType?,
     onSelect: (SavedItemType?) -> Unit
 ) {
+    val theme = QabasTheme.current
+    val filters = listOf(
+        null to "الكل",
+        SavedItemType.QURAN_AYAH to "آيات قرآنية",
+        SavedItemType.INSPIRATION to "إلهام وخواطر",
+        SavedItemType.DHIKR to "أذكار وأدعية"
+    )
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        item {
+        items(filters) { (type, label) ->
+            val selected = activeFilter == type
+            val chipTint = when (type) {
+                SavedItemType.QURAN_AYAH -> theme.success
+                SavedItemType.INSPIRATION -> theme.primary
+                SavedItemType.DHIKR -> theme.accent
+                null -> theme.primary
+            }
             FilterChip(
-                selected = activeFilter == null,
-                onClick = { onSelect(null) },
-                label = { Text("الكل", softWrap = false, maxLines = 1) },
+                selected = selected,
+                onClick = { onSelect(type) },
+                label = {
+                    Text(
+                        text = label,
+                        fontFamily = CairoFont,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        softWrap = false,
+                        maxLines = 1
+                    )
+                },
+                shape = RoundedCornerShape(10.dp),
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFF10B981),
-                    selectedLabelColor = Color.Black,
-                    containerColor = Color(0xFF131D33),
-                    labelColor = Color.White
-                )
-            )
-        }
-        item {
-            FilterChip(
-                selected = activeFilter == SavedItemType.QURAN_AYAH,
-                onClick = { onSelect(SavedItemType.QURAN_AYAH) },
-                label = { Text("آيات قرآنية", softWrap = false, maxLines = 1) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFF10B981),
-                    selectedLabelColor = Color.Black,
-                    containerColor = Color(0xFF131D33),
-                    labelColor = Color.White
-                )
-            )
-        }
-        item {
-            FilterChip(
-                selected = activeFilter == SavedItemType.INSPIRATION,
-                onClick = { onSelect(SavedItemType.INSPIRATION) },
-                label = { Text("إلهام وخواطر", softWrap = false, maxLines = 1) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFF06B6D4),
-                    selectedLabelColor = Color.Black,
-                    containerColor = Color(0xFF131D33),
-                    labelColor = Color.White
-                )
-            )
-        }
-        item {
-            FilterChip(
-                selected = activeFilter == SavedItemType.DHIKR,
-                onClick = { onSelect(SavedItemType.DHIKR) },
-                label = { Text("أذكار وأدعية", softWrap = false, maxLines = 1) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFA855F7),
-                    selectedLabelColor = Color.Black,
-                    containerColor = Color(0xFF131D33),
-                    labelColor = Color.White
+                    selectedContainerColor = chipTint,
+                    selectedLabelColor = theme.onPrimary,
+                    containerColor = theme.cardSurface,
+                    labelColor = theme.textPrimary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selected,
+                    borderColor = theme.separator.copy(alpha = 0.5f),
+                    selectedBorderColor = chipTint
                 )
             )
         }
@@ -614,43 +552,34 @@ private fun SavedItemCard(
     onDelete: () -> Unit,
     onCopy: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val accentColor = when (item.type) {
-        SavedItemType.QURAN_AYAH -> Color(0xFF10B981)
-        SavedItemType.INSPIRATION -> Color(0xFF06B6D4)
-        SavedItemType.DHIKR -> Color(0xFFA855F7)
+        SavedItemType.QURAN_AYAH -> theme.success
+        SavedItemType.INSPIRATION -> theme.primary
+        SavedItemType.DHIKR -> theme.accent
     }
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF11192C)),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("saved_item_${item.id}")
+    AppleCard(
+        modifier = Modifier.testTag("saved_item_${item.id}")
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // Header Row: Type Badge + Title + Action Icons
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Type badge with Anti-Vertical-Squishing rules applied
-                Box(
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(accentColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = accentColor.copy(alpha = if (theme.isDark) 0.18f else 0.12f)
                 ) {
                     Text(
                         text = item.type.labelAr,
                         color = accentColor,
+                        fontFamily = CairoFont,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         softWrap = false,
-                        maxLines = 1
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
 
@@ -658,70 +587,68 @@ private fun SavedItemCard(
 
                 Text(
                     text = item.title,
-                    color = Color.White,
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.weight(1f)
                 )
-
-                Spacer(modifier = Modifier.width(8.dp))
 
                 IconButton(
                     onClick = onCopy,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(48.dp)
                         .testTag("copy_item_${item.id}")
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
                         contentDescription = "نسخ",
-                        tint = Color(0xFF94A3B8),
-                        modifier = Modifier.size(18.dp)
+                        tint = theme.textSecondary,
+                        modifier = Modifier.size(19.dp)
                     )
                 }
 
                 IconButton(
                     onClick = onDelete,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(48.dp)
                         .testTag("delete_item_${item.id}")
                 ) {
                     Icon(
                         imageVector = Icons.Default.DeleteOutline,
                         contentDescription = "حذف",
-                        tint = Color(0xFFEF4444),
-                        modifier = Modifier.size(18.dp)
+                        tint = theme.destructive,
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Content Body
             Text(
                 text = item.content,
-                color = Color(0xFFE2E8F0),
+                color = theme.textPrimary,
+                fontFamily = NotoSansFont,
                 fontSize = 15.sp,
                 lineHeight = 24.sp
             )
 
             if (item.reference.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.BookmarkBorder,
                         contentDescription = null,
                         tint = accentColor,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = item.reference,
                         color = accentColor,
+                        fontFamily = CairoFont,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -734,34 +661,39 @@ private fun SavedItemCard(
 }
 
 @Composable
-private fun EmptyItemsHudView(activeFilter: SavedItemType?) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = Icons.Default.BookmarkBorder,
-            contentDescription = null,
-            tint = Color(0xFF475569),
-            modifier = Modifier.size(48.dp)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "لا توجد عناصر محفوظة حالياً",
-            color = Color(0xFF94A3B8),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "احفظ الآيات من المصحف الشريف أو أضف إلهامك اليومي لتتم مزامنته تلقائياً مع السحابة",
-            color = Color(0xFF64748B),
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 32.dp)
-        )
+private fun EmptyItemsAppleView() {
+    val theme = QabasTheme.current
+    AppleCard {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.BookmarkBorder,
+                contentDescription = null,
+                tint = theme.textSecondary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "لا توجد عناصر محفوظة حالياً",
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "احفظ الآيات من المصحف الشريف أو أضف إلهامك اليومي لتتم مزامنته تلقائياً مع السحابة.",
+                color = theme.textSecondary,
+                fontFamily = NotoSansFont,
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
@@ -770,19 +702,22 @@ private fun AddInspirationDialog(
     onDismiss: () -> Unit,
     onConfirm: (title: String, content: String, ref: String) -> Unit
 ) {
+    val theme = QabasTheme.current
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var reference by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF131D33),
+        containerColor = theme.cardSurface,
+        shape = RoundedCornerShape(18.dp),
         title = {
             Text(
                 text = "إضافة خاطرة أو إلهام",
-                color = Color.White,
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                fontSize = 17.sp
             )
         },
         text = {
@@ -793,44 +728,53 @@ private fun AddInspirationDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("العنوان") },
+                    label = { Text("العنوان", fontFamily = CairoFont) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF10B981),
-                        unfocusedBorderColor = Color(0xFF334155)
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary,
+                        focusedBorderColor = theme.primary,
+                        unfocusedBorderColor = theme.separator
                     ),
-                    modifier = Modifier.fillMaxWidth().testTag("inspiration_title_input")
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("inspiration_title_input")
                 )
 
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("مضمون الخاطرة أو التأمل") },
+                    label = { Text("مضمون الخاطرة أو التأمل", fontFamily = CairoFont) },
                     minLines = 3,
                     maxLines = 5,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF10B981),
-                        unfocusedBorderColor = Color(0xFF334155)
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary,
+                        focusedBorderColor = theme.primary,
+                        unfocusedBorderColor = theme.separator
                     ),
-                    modifier = Modifier.fillMaxWidth().testTag("inspiration_content_input")
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("inspiration_content_input")
                 )
 
                 OutlinedTextField(
                     value = reference,
                     onValueChange = { reference = it },
-                    label = { Text("المصدر أو الكاتب (اختياري)") },
+                    label = { Text("المصدر أو الكاتب (اختياري)", fontFamily = CairoFont) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF10B981),
-                        unfocusedBorderColor = Color(0xFF334155)
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary,
+                        focusedBorderColor = theme.primary,
+                        unfocusedBorderColor = theme.separator
                     ),
-                    modifier = Modifier.fillMaxWidth().testTag("inspiration_ref_input")
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("inspiration_ref_input")
                 )
             }
         },
@@ -842,15 +786,28 @@ private fun AddInspirationDialog(
                     }
                 },
                 enabled = title.isNotBlank() && content.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                modifier = Modifier.testTag("save_inspiration_confirm_button")
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = theme.primary,
+                    contentColor = theme.onPrimary
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .defaultMinSize(minHeight = 48.dp)
+                    .testTag("save_inspiration_confirm_button")
             ) {
-                Text("حفظ في السحابة", color = Color.Black, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "حفظ في السحابة",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إلغاء", color = Color(0xFF94A3B8))
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+            ) {
+                Text("إلغاء", color = theme.textSecondary, fontFamily = CairoFont)
             }
         }
     )

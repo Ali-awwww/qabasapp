@@ -297,9 +297,12 @@ object MoneyPrinterTurboService {
                 EdgeTtsService.synthesizeSpeech(context = context, text = script, voiceId = config.voiceName, rate = config.speechRate, outFile = audioFile)
             }
 
-            if (generatedAudio == null || !generatedAudio.exists() || generatedAudio.length() < 1000) {
-                // خطوة بديلة: توليد صوت خفيف إذا انقطع الاتصال
+            val resolvedAudio: File? = if (generatedAudio != null && generatedAudio.exists() && generatedAudio.length() >= 1000) {
+                generatedAudio
+            } else {
                 onProgressUpdate("الاستعانة بالمحرك الاحتياطي لتوليد الصوت...", 0.40f)
+                val backupTtsPath = try { AndroidTTSService.synthesizeSpeech(script) } catch (_: Exception) { null }
+                backupTtsPath?.let { File(it) }?.takeIf { it.exists() && it.length() >= 500 }
             }
 
             // المرحلة 3: جلب لقطات B-Roll السينمائية وتوليد ملف الترجمة (Subtitles)
@@ -309,9 +312,48 @@ object MoneyPrinterTurboService {
                 queryAr = config.subject
             )
 
+            // محاولة تنزيل لقطة B-Roll حقيقية أو صورة خ خلفية وإلا توليد إطار زخرفي احترافي
+            var downloadedBrollVideo: File? = null
+            var downloadedBrollImage: File? = null
+            val firstClip = stockClips.firstOrNull { it.videoUrl.startsWith("http") || it.thumbnailUrl.startsWith("http") }
+            if (firstClip != null) {
+                if (firstClip.videoUrl.startsWith("http")) {
+                    try {
+                        val tmpVid = File(workingDir, "broll_clip.mp4")
+                        val req = Request.Builder().url(firstClip.videoUrl).build()
+                        httpClient.newCall(req).execute().use { resp ->
+                            if (resp.isSuccessful) {
+                                resp.body?.byteStream()?.use { inp ->
+                                    tmpVid.outputStream().use { out -> inp.copyTo(out) }
+                                }
+                                if (tmpVid.exists() && tmpVid.length() > 16_000L) {
+                                    downloadedBrollVideo = tmpVid
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (downloadedBrollVideo == null && firstClip.thumbnailUrl.startsWith("http")) {
+                    try {
+                        val tmpImg = File(workingDir, "broll_img.jpg")
+                        val req = Request.Builder().url(firstClip.thumbnailUrl).build()
+                        httpClient.newCall(req).execute().use { resp ->
+                            if (resp.isSuccessful) {
+                                resp.body?.byteStream()?.use { inp ->
+                                    tmpImg.outputStream().use { out -> inp.copyTo(out) }
+                                }
+                                if (tmpImg.exists() && tmpImg.length() > 4_000L) {
+                                    downloadedBrollImage = tmpImg
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
             // توليد ملف الترجمة المزامنة (SRT Subtitles)
             val srtFile = File(workingDir, "subtitles.srt")
-            val durationSec = 15
+            val durationSec = ProductionPowerKit.estimateArabicSpeechDuration(script).coerceIn(10, 30)
             try {
                 val lines = script.split("\n", "،", ".").map { it.trim() }.filter { it.isNotBlank() }
                 if (lines.isNotEmpty()) {
@@ -332,19 +374,62 @@ object MoneyPrinterTurboService {
             } catch (_: Exception) {}
 
             // المرحلة 4: المعالجة والمونتاج بـ FFmpeg
-            onProgressUpdate("تجميع اللقطات والرندرة النهائية بنظام 9:16 عبر FFmpeg...", 0.80f)
+            onProgressUpdate("تجميع اللقطات والرندرة النهائية عبر FFmpeg...", 0.80f)
             val finalOutput = File(workingDir, "money_printer_reel_${System.currentTimeMillis()}.mp4")
+            val isLandscape = config.aspectRatio.trim() == "16:9"
+            val outW = if (isLandscape) 1920 else 1080
+            val outH = if (isLandscape) 1080 else 1920
 
-            val audioPath = generatedAudio?.absolutePath
-            val ffmpegCmd = if (audioPath != null && File(audioPath).exists()) {
-                "-f lavfi -i color=c=0x0B0F19:s=1080x1920:d=$durationSec -i \"$audioPath\" -c:v libx264 -preset ultrafast -c:a aac -shortest -y \"${finalOutput.absolutePath}\""
-            } else {
-                "-f lavfi -i color=c=0x0B0F19:s=1080x1920:d=10 -c:v libx264 -preset ultrafast -y \"${finalOutput.absolutePath}\""
+            val brollVideo = downloadedBrollVideo
+            val visualVideoPath: String? = when {
+                brollVideo != null -> {
+                    val normFile = File(workingDir, "broll_norm.mp4")
+                    val scaleFilter = "scale=$outW:$outH:force_original_aspect_ratio=increase,crop=$outW:$outH,setsar=1,format=yuv420p"
+                    val normCmd = "-y -stream_loop -1 -i \"${brollVideo.absolutePath}\" -t $durationSec -vf \"$scaleFilter\" -an -c:v libx264 -preset ultrafast -crf 26 \"${normFile.absolutePath}\""
+                    val s = FFmpegKit.execute(normCmd)
+                    if (ReturnCode.isSuccess(s.returnCode) && normFile.exists() && normFile.length() > 5000L) normFile.absolutePath else null
+                }
+                else -> null
+            } ?: run {
+                val frameImg = downloadedBrollImage ?: File(workingDir, "procedural_frame.png").also { outImg ->
+                    ProceduralBackdropEngine.render(
+                        filePath = outImg.absolutePath,
+                        width = outW,
+                        height = outH,
+                        topHex = "#0B1628",
+                        bottomHex = "#050A14",
+                        accentHex = "#38BDF8",
+                        caption = config.subject.ifBlank { script.lineSequence().firstOrNull().orEmpty() },
+                        brandLine = "قَبَس | QABAS STUDIO",
+                        footerText = visualTerms.firstOrNull() ?: "محتوى دعوي هادف"
+                    )
+                }
+                val imgVideo = File(workingDir, "img_motion.mp4")
+                val ok = VideoProcessor.generateVideoFromImage(
+                    context = context,
+                    imagePath = frameImg.absolutePath,
+                    durationInSeconds = durationSec,
+                    outputPath = imgVideo.absolutePath
+                )
+                if (ok && imgVideo.exists() && imgVideo.length() > 5000L) imgVideo.absolutePath else null
             }
 
-            val session = FFmpegKit.execute(ffmpegCmd)
-            if (ReturnCode.isSuccess(session.returnCode) && finalOutput.exists() && finalOutput.length() > 5000) {
-                // حفظ المشروع تلقائياً في قاعدة البيانات المحلية والسحابية (Room & Supabase)
+            val audioPath = resolvedAudio?.absolutePath
+            var renderedOk = false
+            if (visualVideoPath != null) {
+                if (audioPath != null && File(audioPath).exists()) {
+                    val muxCmd = "-y -i \"$visualVideoPath\" -i \"$audioPath\" -c:v copy -c:a aac -shortest \"${finalOutput.absolutePath}\""
+                    val session = FFmpegKit.execute(muxCmd)
+                    renderedOk = ReturnCode.isSuccess(session.returnCode) && finalOutput.exists() && finalOutput.length() > 5000L
+                }
+                if (!renderedOk) {
+                    File(visualVideoPath).copyTo(finalOutput, overwrite = true)
+                    renderedOk = finalOutput.exists() && finalOutput.length() > 5000L
+                }
+            }
+
+            if (renderedOk) {
+                // حفظ المشروع تلقائياً في قاعدة البيانات المحلية والسحابية
                 try {
                     val projectService = ProjectService(context)
                     projectService.saveProject(
@@ -367,16 +452,7 @@ object MoneyPrinterTurboService {
                 onProgressUpdate("تم اكتمال الفيديو الريلز بنجاح بنسبة 100% ✓", 1.0f)
                 Result.success(finalOutput)
             } else {
-                // محاولة ثانية مخففة
-                val fallbackOutput = File(context.cacheDir, "qabas_turbo_fallback_${System.currentTimeMillis()}.mp4")
-                val safeCmd = "-f lavfi -i testsrc=duration=5:size=1080x1920:rate=30 -c:v libx264 -preset ultrafast -y \"${fallbackOutput.absolutePath}\""
-                val safeSession = FFmpegKit.execute(safeCmd)
-                if (ReturnCode.isSuccess(safeSession.returnCode) && fallbackOutput.exists()) {
-                    onProgressUpdate("تم الإنتاج بنجاح عبر خط الإنتاج الآمن ✓", 1.0f)
-                    Result.success(fallbackOutput)
-                } else {
-                    Result.failure(Exception("تعذر استكمال رندرة FFmpeg: ${session.failStackTrace ?: "Unknown error"}"))
-                }
+                Result.failure(Exception("تعذر توليد الإطار البصري أو استكمال رندرة FFmpeg"))
             }
         } catch (e: Exception) {
             Log.e(TAG, "Autonomous pipeline failed", e)

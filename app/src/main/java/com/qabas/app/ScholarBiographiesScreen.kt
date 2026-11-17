@@ -32,6 +32,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.qabas.app.R
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -185,118 +186,62 @@ fun ScholarBiographiesScreen(
         }
     }
 
+    val theme = QabasTheme.current
     var sharingScholar by remember { mutableStateOf<ScholarBiography?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Screen-wide Background Image (Manuscript Texture)
-        AsyncImage(
-            model = R.drawable.scholar_manuscript_bg_1790092377371,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            alpha = 0.15f
-        )
-
-        // Parchment Tint Overlay
-        Box(modifier = Modifier.fillMaxSize().background(AntiqueParchment.copy(alpha = 0.88f)))
-
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                Column {
-                    TopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.HistoryEdu,
-                                    contentDescription = null,
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        "سِيَرُ الأَكَابِر والصالحين",
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 17.sp,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        "سير تاريخية مع التمييز بين الثابت والمختلف فيه",
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.5.sp,
-                                        color = GoldSecondary.copy(alpha = 0.85f)
-                                    )
-                                }
-                            }
-                        },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "الرجوع من شاشة سير الأكابر",
-                                    tint = GoldPrimary
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = qabasCardSurface().copy(alpha = 0.95f)
-                        )
-                    )
-                    HorizontalDivider(
-                        color = GoldPrimary.copy(alpha = 0.35f),
-                        thickness = 1.dp
-                    )
-                }
-            }
-        ) { paddingValues ->
-            Box(
+    Scaffold(
+        containerColor = theme.background,
+        topBar = {
+            AppleTopBar(
+                title = "سِيَرُ الأَكَابِر والصالحين",
+                subtitle = "سير تاريخية مع التمييز بين الثابت والمختلف فيه",
+                onBack = onBack
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.TopCenter
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp),
+                contentPadding = PaddingValues(bottom = 40.dp, start = 16.dp, end = 16.dp, top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 600.dp),
-                    contentPadding = PaddingValues(bottom = 40.dp, start = 16.dp, end = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
-                ) {
                 // Header Hero Banner & Daily Scholar Card
                 item {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = AgedPaper,
-                            shape = RoundedCornerShape(16.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.35f)),
-                            shadowElevation = 3.dp
-                        ) {
+                        AppleCard {
                             Column(
                                 modifier = Modifier.padding(16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.MenuBook,
-                                        contentDescription = null,
-                                        tint = ManuscriptGold,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(GoldPrimary.copy(alpha = 0.14f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.MenuBook,
+                                            contentDescription = null,
+                                            tint = GoldPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         "«رجالٌ صدقوا ما عاهدوا الله عليه»",
-                                        color = OldInk,
+                                        color = theme.textPrimary,
                                         fontFamily = AmiriFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 18.sp
@@ -305,16 +250,15 @@ fun ScholarBiographiesScreen(
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     "نعرض أبرز الوقائع الثابتة في حياة الصحابة والعلماء، ونحذف التفاصيل التي لا يثبت نقلها، ونشير إلى الروايات المختلف فيها دون الجزم بها.",
-                                    color = OldInk.copy(alpha = 0.75f),
-                                    fontFamily = CairoFont,
-                                    fontSize = 12.sp,
-                                    lineHeight = 18.sp,
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 19.sp,
                                     textAlign = TextAlign.Center
                                 )
                             }
                         }
 
-                        // 🌟 Improvement #2: Daily Featured Scholar & Action Tracker Card
                         dailyScholar?.let { daily ->
                             Spacer(modifier = Modifier.height(14.dp))
                             DailyFeaturedScholarCard(
@@ -328,55 +272,25 @@ fun ScholarBiographiesScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Search Bar
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.setSearchQuery(it) },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = {
-                                Text(
-                                    "ابحث عن إمام، صحابي، عصر، أو محنة...",
-                                    color = OldInk.copy(alpha = 0.5f),
-                                    fontFamily = CairoFont,
-                                    fontSize = 13.sp
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = ManuscriptGold)
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "مسح", tint = OldInk.copy(alpha = 0.5f))
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ManuscriptGold,
-                                unfocusedBorderColor = ManuscriptGold.copy(alpha = 0.3f),
-                                focusedContainerColor = AgedPaper,
-                                unfocusedContainerColor = AgedPaper.copy(alpha = 0.8f),
-                                focusedTextColor = OldInk,
-                                unfocusedTextColor = OldInk
-                            )
+                        AppleSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { viewModel.setSearchQuery(it) },
+                            placeholder = "ابحث عن إمام، صحابي، عصر، أو محنة..."
                         )
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // 📅 Improvement #1: Interactive Chronological Timeline (العصور التاريخية)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Timeline, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Timeline, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "الخط الزمني للعصور (Timeline):",
-                                color = ManuscriptGold,
+                                "الخط الزمني للعصور:",
+                                color = theme.textSecondary,
                                 fontFamily = CairoFont,
-                                fontSize = 12.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -394,40 +308,40 @@ fun ScholarBiographiesScreen(
                                         Text(
                                             era,
                                             fontFamily = CairoFont,
-                                            fontSize = 11.5.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = ManuscriptGold,
-                                        selectedLabelColor = Color.White,
-                                        containerColor = AgedPaper,
-                                        labelColor = OldInk
+                                        selectedContainerColor = theme.primary,
+                                        selectedLabelColor = theme.onPrimary,
+                                        containerColor = theme.cardSurface,
+                                        labelColor = theme.textPrimary
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = ManuscriptGold.copy(alpha = if (isSelected) 1f else 0.3f),
+                                        borderColor = if (isSelected) theme.primary else theme.separator,
                                         enabled = true,
                                         selected = isSelected
                                     ),
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // 🔖 Improvement #5: Smart Persecution & Topic Filter + Bookmarks
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.FilterAlt, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.FilterAlt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "المحن والتصنيفات الذكية والمفضلة:",
-                                color = ManuscriptGold,
+                                "المحن والتصنيفات والمفضلة:",
+                                color = theme.textSecondary,
                                 fontFamily = CairoFont,
-                                fontSize = 12.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -436,7 +350,6 @@ fun ScholarBiographiesScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // Favorites Button
                             item {
                                 FilterChip(
                                     selected = onlyFavorites,
@@ -450,25 +363,26 @@ fun ScholarBiographiesScreen(
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                "⭐ المفضلة (${favorites.size})",
+                                                "المفضلة (${favorites.size})",
                                                 fontFamily = CairoFont,
-                                                fontSize = 11.5.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFFD97706),
+                                        selectedContainerColor = GoldPrimary,
                                         selectedLabelColor = Color.White,
-                                        containerColor = AgedPaper,
-                                        labelColor = OldInk
+                                        containerColor = theme.cardSurface,
+                                        labelColor = theme.textPrimary
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = Color(0xFFD97706).copy(alpha = if (onlyFavorites) 1f else 0.4f),
+                                        borderColor = if (onlyFavorites) GoldPrimary else theme.separator,
                                         enabled = true,
                                         selected = onlyFavorites
                                     ),
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
                                 )
                             }
 
@@ -484,39 +398,41 @@ fun ScholarBiographiesScreen(
                                         Text(
                                             trial,
                                             fontFamily = CairoFont,
-                                            fontSize = 11.5.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = ManuscriptGold,
-                                        selectedLabelColor = Color.White,
-                                        containerColor = AgedPaper,
-                                        labelColor = OldInk
+                                        selectedContainerColor = theme.primary,
+                                        selectedLabelColor = theme.onPrimary,
+                                        containerColor = theme.cardSurface,
+                                        labelColor = theme.textPrimary
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = ManuscriptGold.copy(alpha = if (isSelected) 1f else 0.3f),
+                                        borderColor = if (isSelected) theme.primary else theme.separator,
                                         enabled = true,
                                         selected = isSelected
                                     ),
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Results count indicator
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = "عرض ${filteredScholars.size} من أئمة الهدى والصحابة الكرام",
-                                color = OldInk.copy(alpha = 0.65f),
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp
                             )
                             if (onlyFavorites || selectedEra != ScholarEnrichmentData.ERA_ALL || selectedTrialType != ScholarEnrichmentData.TRIAL_ALL) {
                                 TextButton(
@@ -526,13 +442,13 @@ fun ScholarBiographiesScreen(
                                         viewModel.setTrialType(ScholarEnrichmentData.TRIAL_ALL)
                                         viewModel.setCategory("الكل")
                                     },
-                                    contentPadding = PaddingValues(0.dp)
+                                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                                 ) {
                                     Text(
                                         "إعادة ضبط الفلاتر",
-                                        color = ManuscriptGold,
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -556,7 +472,6 @@ fun ScholarBiographiesScreen(
             }
         }
     }
-}
 
     activeScholarForLectures?.let { scholar ->
         ScholarLecturesSheet(
@@ -585,34 +500,27 @@ fun DailyFeaturedScholarCard(
     onToggleChallenge: () -> Unit,
     onReadClick: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp)),
-        color = AgedPaper,
-        border = androidx.compose.foundation.BorderStroke(2.dp, ManuscriptGold),
-        shadowElevation = 5.dp
-    ) {
+    val theme = QabasTheme.current
+    AppleCard(cornerRadius = 18.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header Pill
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = ManuscriptGold,
+                    color = GoldPrimary.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "سِيرَةُ اليَوْمِ وَمَوْقِفُ الثَّبَات",
-                            color = Color.White,
+                            color = GoldPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.5.sp
@@ -621,12 +529,12 @@ fun DailyFeaturedScholarCard(
                 }
 
                 Surface(
-                    color = ManuscriptGold.copy(alpha = 0.12f),
+                    color = theme.secondarySurface,
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        "أنجزت $completedCount اقتداءً ✨",
-                        color = ManuscriptGold,
+                        "أنجزت $completedCount اقتداءً",
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -637,7 +545,6 @@ fun DailyFeaturedScholarCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Scholar Info Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -645,7 +552,7 @@ fun DailyFeaturedScholarCard(
                 Surface(
                     modifier = Modifier.size(54.dp),
                     shape = CircleShape,
-                    border = androidx.compose.foundation.BorderStroke(2.dp, ManuscriptGold)
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.7f))
                 ) {
                     AsyncImage(
                         model = scholar.imageRes,
@@ -660,45 +567,46 @@ fun DailyFeaturedScholarCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = scholar.name,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                        fontSize = 19.sp
                     )
                     scholar.period?.let {
                         Text(
                             text = "العصر: $it",
-                            color = ManuscriptGold,
+                            color = theme.primary,
                             fontFamily = CairoFont,
-                            fontSize = 11.5.sp
+                            fontSize = 12.sp
                         )
                     }
                 }
             }
 
             scholar.enduranceQuote?.let { quote ->
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = "« $quote »",
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = AmiriFont,
-                    fontSize = 14.5.sp,
-                    lineHeight = 22.sp,
+                    fontSize = 15.5.sp,
+                    lineHeight = 24.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp)
                 )
             }
 
-            // Modern Daily Challenge Button & Box
             scholar.modernChallenge?.let { challenge ->
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = if (isChallengeCompleted) Color(0xFF10B981).copy(alpha = 0.12f) else AntiqueParchment.copy(alpha = 0.8f),
+                    color = if (isChallengeCompleted) theme.success.copy(alpha = 0.12f) else theme.secondarySurface,
                     shape = RoundedCornerShape(12.dp),
                     border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isChallengeCompleted) Color(0xFF10B981) else ManuscriptGold.copy(alpha = 0.35f)
+                        0.75.dp,
+                        if (isChallengeCompleted) theme.success.copy(alpha = 0.6f) else theme.separator
                     )
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
@@ -706,13 +614,13 @@ fun DailyFeaturedScholarCard(
                             Icon(
                                 Icons.Default.Lightbulb,
                                 contentDescription = null,
-                                tint = if (isChallengeCompleted) Color(0xFF10B981) else ManuscriptGold,
+                                tint = if (isChallengeCompleted) theme.success else GoldPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "تحدي الاقتداء اليومي المعاصر:",
-                                color = if (isChallengeCompleted) Color(0xFF047857) else ManuscriptGold,
+                                color = if (isChallengeCompleted) theme.success else GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -721,23 +629,26 @@ fun DailyFeaturedScholarCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = challenge,
-                            color = OldInk,
+                            color = theme.textPrimary,
                             fontFamily = NotoSansFont,
                             fontSize = 12.5.sp,
-                            lineHeight = 18.sp
+                            lineHeight = 19.sp
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
                                 onClick = onToggleChallenge,
-                                modifier = Modifier.weight(1.3f).height(38.dp),
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .heightIn(min = 48.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isChallengeCompleted) Color(0xFF10B981) else ManuscriptGold
+                                    containerColor = if (isChallengeCompleted) theme.success else theme.primary,
+                                    contentColor = Color.White
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
                                     imageVector = if (isChallengeCompleted) Icons.Default.CheckCircle else Icons.Default.Check,
@@ -747,26 +658,28 @@ fun DailyFeaturedScholarCard(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (isChallengeCompleted) "أنجزتُه اليوم بحمد الله ✨" else "عزمتُ على تطبيقه اليوم ✅",
+                                    text = if (isChallengeCompleted) "أنجزتُه اليوم" else "عزمتُ على تطبيقه",
                                     color = Color.White,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp
+                                    fontSize = 12.sp
                                 )
                             }
 
                             OutlinedButton(
                                 onClick = onReadClick,
-                                modifier = Modifier.weight(0.9f).height(38.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.2.dp, ManuscriptGold)
+                                modifier = Modifier
+                                    .weight(0.9f)
+                                    .heightIn(min = 48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary.copy(alpha = 0.6f))
                             ) {
                                 Text(
                                     text = "قراءة السيرة",
-                                    color = ManuscriptGold,
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -790,17 +703,12 @@ fun ScholarBiographyCard(
     onShareClick: () -> Unit,
     onClick: () -> Unit
 ) {
-    Surface(
+    val theme = QabasTheme.current
+    AppleCard(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 32.dp, bottomStart = 32.dp, bottomEnd = 6.dp)),
-        color = AgedPaper,
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.35f)),
-        shadowElevation = 4.dp
+        cornerRadius = 18.dp
     ) {
         Column {
-            // Header with Image and Period
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -813,14 +721,14 @@ fun ScholarBiographyCard(
                     contentScale = ContentScale.Crop
                 )
 
-                // Gradient Overlay
+                // Adaptive Gradient Overlay blending smoothly into theme.cardSurface
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, AgedPaper.copy(alpha = 0.95f)),
-                                startY = 100f
+                                colors = listOf(Color.Black.copy(alpha = 0.25f), theme.cardSurface.copy(alpha = 0.96f)),
+                                startY = 80f
                             )
                         )
                 )
@@ -829,20 +737,20 @@ fun ScholarBiographyCard(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(14.dp),
+                        .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     scholar.era?.let { era ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color.Black.copy(alpha = 0.7f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.6f))
+                            color = Color.Black.copy(alpha = 0.65f),
+                            border = androidx.compose.foundation.BorderStroke(0.75.dp, GoldPrimary.copy(alpha = 0.6f))
                         ) {
                             Text(
                                 text = era,
-                                color = ManuscriptGold,
+                                color = Color.White,
                                 fontFamily = CairoFont,
-                                fontSize = 10.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
@@ -852,71 +760,69 @@ fun ScholarBiographyCard(
                     scholar.period?.let {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color.Black.copy(alpha = 0.6f)
+                            color = Color.Black.copy(alpha = 0.55f)
                         ) {
                             Text(
                                 text = it,
                                 color = Color.White,
                                 fontFamily = CairoFont,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
                     }
                 }
 
-                // Top End Action Buttons: Bookmark + Lectures
+                // Top End Action Buttons: Bookmark + Lectures (48dp touch targets)
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(14.dp),
+                        .padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Bookmark Button
                     Surface(
                         onClick = onBookmarkToggle,
                         modifier = Modifier.size(48.dp),
                         shape = CircleShape,
-                        color = if (isBookmarked) ManuscriptGold else Color.White.copy(alpha = 0.92f),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold),
-                        shadowElevation = 4.dp
+                        color = if (isBookmarked) GoldPrimary else theme.cardSurface.copy(alpha = 0.94f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isBookmarked) GoldPrimary else theme.separator),
+                        shadowElevation = 2.dp
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                 contentDescription = if (isBookmarked) "إزالة من المفضلة" else "إضافة للمفضلة",
-                                tint = if (isBookmarked) Color.White else ManuscriptGold,
+                                tint = if (isBookmarked) Color.White else GoldPrimary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
                     }
 
-                    // Lectures Button (بدل المشغل الصوتي)
                     Surface(
                         onClick = onLecturesClick,
-                        modifier = Modifier.height(48.dp),
+                        modifier = Modifier.heightIn(min = 48.dp),
                         shape = RoundedCornerShape(24.dp),
-                        color = Color.White.copy(alpha = 0.95f),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold),
-                        shadowElevation = 4.dp
+                        color = theme.cardSurface.copy(alpha = 0.94f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator),
+                        shadowElevation = 2.dp
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.VideoLibrary,
                                 contentDescription = "الدروس والمحاضرات",
-                                tint = ManuscriptGold,
-                                modifier = Modifier.size(19.dp)
+                                tint = theme.primary,
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (lectureCount > 0) "$lectureCount دروس" else "+ درس/محاضرة",
-                                color = OldInk,
+                                text = if (lectureCount > 0) "$lectureCount دروس" else "+ درس",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -930,35 +836,33 @@ fun ScholarBiographyCard(
                 ) {
                     Text(
                         text = scholar.name,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
+                        fontSize = 23.sp
                     )
                 }
             }
 
             // Card Body
             Column(modifier = Modifier.padding(16.dp)) {
-                // Major Historical Event Tag
                 scholar.majorHistoricalEvent?.let { event ->
                     Surface(
-                        color = AntiqueParchment,
+                        color = GoldPrimary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f)),
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Stars, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Stars, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "الحدث الأبرز: $event",
-                                color = OldInk,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -967,31 +871,30 @@ fun ScholarBiographyCard(
 
                 Text(
                     text = scholar.brief,
-                    color = OldInk.copy(alpha = 0.85f),
+                    color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.5.sp,
-                    lineHeight = 22.sp,
+                    lineHeight = 21.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // 🗺️ Spatial Journey Summary
                 if (scholar.journeyStops.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black.copy(alpha = 0.03f),
-                        shape = RoundedCornerShape(8.dp)
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Explore, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.Explore, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "المسار: ${scholar.journeyStops.first()} ➔ ${scholar.journeyStops.last()}${scholar.estimatedTravelKm?.let { " (~$it كم)" } ?: ""}",
-                                color = OldInk.copy(alpha = 0.8f),
+                                text = "المسار: ${scholar.journeyStops.first()} ← ${scholar.journeyStops.last()}${scholar.estimatedTravelKm?.let { " (~$it كم)" } ?: ""}",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.5.sp
                             )
@@ -999,15 +902,13 @@ fun ScholarBiographyCard(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Persecution & Endurance Quick Callout (المحنة والثبات)
                 scholar.sacrificeSummary?.let { sacrifice ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = AntiqueParchment.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -1016,21 +917,23 @@ fun ScholarBiographyCard(
                             Icon(
                                 Icons.Default.Shield,
                                 contentDescription = null,
-                                tint = ManuscriptGold,
-                                modifier = Modifier.size(18.dp).padding(top = 2.dp)
+                                tint = GoldPrimary,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .padding(top = 2.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
                                     "المحنة والصمود:",
-                                    color = ManuscriptGold,
+                                    color = GoldPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = sacrifice,
-                                    color = OldInk,
+                                    color = theme.textPrimary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 12.5.sp,
                                     lineHeight = 19.sp,
@@ -1042,14 +945,12 @@ fun ScholarBiographyCard(
                     }
                 }
 
-                // Death Scene Quick Preview
                 scholar.deathScene?.let { death ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color.Black.copy(alpha = 0.03f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black.copy(alpha = 0.06f))
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(10.dp),
@@ -1058,21 +959,23 @@ fun ScholarBiographyCard(
                             Icon(
                                 Icons.Default.HourglassBottom,
                                 contentDescription = null,
-                                tint = OldInk.copy(alpha = 0.6f),
-                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                tint = theme.textSecondary,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .padding(top = 2.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
                                     "مشهد الوداع الأخير:",
-                                    color = OldInk.copy(alpha = 0.7f),
+                                    color = theme.textSecondary,
                                     fontFamily = CairoFont,
-                                    fontSize = 11.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = death,
-                                    color = OldInk.copy(alpha = 0.85f),
+                                    color = theme.textPrimary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 12.sp,
                                     lineHeight = 18.sp,
@@ -1086,13 +989,12 @@ fun ScholarBiographyCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Quote
                 scholar.enduranceQuote?.let { quote ->
                     Text(
                         text = "« $quote »",
-                        color = ManuscriptGold,
+                        color = theme.primary,
                         fontFamily = AmiriFont,
-                        fontSize = 15.sp,
+                        fontSize = 15.5.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
@@ -1100,22 +1002,26 @@ fun ScholarBiographyCard(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // Action Buttons Row (Read + Lectures + Share)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = onClick,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                        shape = RoundedCornerShape(10.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = theme.primary,
+                            contentColor = theme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.AutoStories, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.AutoStories, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "اقرأ المخطوطة كاملة",
-                            color = Color.White,
+                            color = theme.onPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -1125,20 +1031,19 @@ fun ScholarBiographyCard(
                     OutlinedButton(
                         onClick = onLecturesClick,
                         modifier = Modifier.height(48.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = AgedPaper)
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
                     ) {
                         Icon(
                             Icons.Default.VideoLibrary,
                             contentDescription = "الدروس والمحاضرات",
-                            tint = ManuscriptGold,
+                            tint = theme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (lectureCount > 0) "$lectureCount" else "+ درس",
-                            color = OldInk,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -1148,14 +1053,14 @@ fun ScholarBiographyCard(
                     OutlinedButton(
                         onClick = onShareClick,
                         modifier = Modifier.size(48.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator),
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(
                             Icons.Default.Share,
                             contentDescription = "مشاركة سيرة الإمام",
-                            tint = ManuscriptGold,
+                            tint = theme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                     }

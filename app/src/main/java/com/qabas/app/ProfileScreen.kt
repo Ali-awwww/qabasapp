@@ -1,12 +1,11 @@
 package com.qabas.app
 
 import android.content.Context
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,11 +13,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,24 +27,33 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleGroupedSection
+import com.qabas.app.ui.components.AppleInsetDivider
+import com.qabas.app.ui.components.AppleListRow
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.components.AppleTopBar
+import com.qabas.app.ui.components.CloudSyncIndicator
+import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
-import coil.compose.AsyncImage
-import com.qabas.app.ui.theme.*
+import java.util.Locale
 
-// Keep editable profile data isolated per authenticated account on shared devices.
 private fun accountProfilePreferences(context: Context, email: String) =
     AccountScopedPreferences.forEmail(context, email)
 
-// Tournament Rank Tier Badge Model
 data class TournamentTierBadge(
     val id: String,
     val title: String,
@@ -64,13 +70,13 @@ data class TournamentTierBadge(
     val perk: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
     onNavigate: (AppState) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
     var userEmail by remember {
         mutableStateOf(
@@ -84,8 +90,7 @@ fun ProfileScreen(
     val authenticatedUid = authenticatedUser?.id?.takeIf { it.isNotBlank() }
         ?: SupabaseServices.Auth.getCurrentUserId()
 
-    // User Profile State with real persistence
-    var displayName by remember { 
+    var displayName by remember {
         val savedName = profilePrefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
             ?: prefs.getString("user_name", "")?.takeIf {
                 prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()
@@ -94,15 +99,14 @@ fun ProfileScreen(
         mutableStateOf(savedName)
     }
     var userBio by remember {
-        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦")
+        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر قبس")
     }
     var userCustomTag by remember {
         val cid = UserIdentifierManager.getCustomId(context, userEmail)
         mutableStateOf(if (cid.isNotBlank()) UserIdentifierManager.formatDisplay(cid) else "@qabas_user")
     }
     var userAccountNumber by remember {
-        val acc = UserIdentifierManager.getAccountNumber(context, userEmail)
-        mutableStateOf(acc)
+        mutableStateOf(UserIdentifierManager.getAccountNumber(context, userEmail))
     }
     var avatarUriString by remember {
         mutableStateOf(profilePrefs.getString("user_avatar_uri", "") ?: "")
@@ -110,14 +114,12 @@ fun ProfileScreen(
     var selectedPresetAvatar by remember {
         mutableIntStateOf(profilePrefs.getInt("user_avatar_preset", 0))
     }
-    
+
     val projectService = remember { ProjectService(context) }
     var projectsCount by remember { mutableIntStateOf(0) }
     var profileViewer by remember { mutableStateOf<CreatorFollowManager.ViewerIdentity?>(null) }
     var followedCreators by remember { mutableStateOf<List<CreatorFollowManager.FollowedCreator>>(emptyList()) }
-    var ownFollowers by remember {
-        mutableStateOf(CreatorFollowManager.FollowerCount(0, isExact = false))
-    }
+    var ownFollowers by remember { mutableStateOf(CreatorFollowManager.FollowerCount(0, isExact = false)) }
     var isLoadingFollowCommunity by remember { mutableStateOf(true) }
     var profileSnapshot by remember { mutableStateOf<SupabaseServices.CurrentProfileSnapshot?>(null) }
     var profileSnapshotOwnerUid by remember { mutableStateOf<String?>(null) }
@@ -128,10 +130,8 @@ fun ProfileScreen(
         profileSnapshot?.followingCount?.toString() ?: "—"
     } else "—"
 
-    // Social Accounts & Analytics State
     var socialAccounts by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
 
-    // Dialog States
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showSwitchAccountDialog by remember { mutableStateOf(false) }
@@ -139,7 +139,6 @@ fun ProfileScreen(
     var editHandleText by remember { mutableStateOf("") }
     var showScheduleDialog by remember { mutableStateOf(false) }
     var showAvatarPickerSheet by remember { mutableStateOf(false) }
-    var showPublishDialogInProfile by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     suspend fun refreshFollowCommunity() {
@@ -169,8 +168,6 @@ fun ProfileScreen(
         }
     }
 
-    // One owner-scoped RPC supplies all Supabase-backed profile, publishing,
-    // follow, and Reels-activity data for this authenticated UID.
     LaunchedEffect(authenticatedUid) {
         isLoadingFollowCommunity = true
         profileSnapshot = null
@@ -192,11 +189,10 @@ fun ProfileScreen(
             val activeEmail = realEmail.orEmpty()
             val activeProfilePrefs = accountProfilePreferences(context, activeEmail)
 
-            // Clear any previous account's visible identity before awaiting Supabase.
             displayName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
                 ?: sbName?.takeIf { expectedUid != null }
                 ?: "مستخدم قبس"
-            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر قبس"
             userCustomTag = UserIdentifierManager.getCustomId(context, activeEmail)
                 .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
             avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
@@ -211,17 +207,16 @@ fun ProfileScreen(
                 SupabaseServices.Auth.getCurrentUserId() == expectedUid
             }
             if (SupabaseServices.Auth.getCurrentUserId() != expectedUid) return@LaunchedEffect
+
             val cloudUser = activeSnapshot?.user
             val cloudProfileMirror = activeSnapshot?.profile
             val cloudDisplayName = cloudUser?.name?.takeIf { it.isNotBlank() }
                 ?: cloudProfileMirror?.fullName?.takeIf { it.isNotBlank() }
-            val realName = cloudDisplayName ?: sbName
-            val realAvatar = sbAvatar
             val savedAccountName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
             val globalIdentityMatches = prefs.getString("user_email", null)?.equals(activeEmail, ignoreCase = true) == true
             val nameSnapshot = savedAccountName ?: if (globalIdentityMatches) {
                 prefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
-                ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
+                    ?: prefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
             } else null
 
             if (identityChanged) {
@@ -229,12 +224,11 @@ fun ProfileScreen(
                 prefs.edit().putString("user_email", activeEmail).apply()
             }
 
-            // Prioritize authoritative cloud name over local cache
             val effectiveName = if (!cloudDisplayName.isNullOrBlank()) {
                 cloudDisplayName.trim()
             } else {
                 val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
-                baseName ?: realName ?: "مستخدم قبس"
+                baseName ?: sbName ?: "مستخدم قبس"
             }
             displayName = effectiveName
             activeProfilePrefs.edit().putString("user_name", effectiveName).apply()
@@ -247,7 +241,7 @@ fun ProfileScreen(
                 userBio = cloudBio
                 activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()
             } else {
-                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر الذكاء الاصطناعي ✦"
+                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر قبس"
             }
 
             if (!cloudUser?.customId.isNullOrBlank()) {
@@ -261,15 +255,15 @@ fun ProfileScreen(
             val savedAvatarUri = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
             val cloudAvatarUrl = cloudProfileMirror?.avatarUrl?.trim()
                 ?.takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
-            avatarUriString = cloudAvatarUrl ?: savedAvatarUri.ifBlank { realAvatar ?: "" }
+            avatarUriString = cloudAvatarUrl ?: savedAvatarUri.ifBlank { sbAvatar ?: "" }
             selectedPresetAvatar = activeProfilePrefs.getInt("user_avatar_preset", 0)
 
             if (!cloudAvatarUrl.isNullOrBlank()) {
                 activeProfilePrefs.edit().putString("user_avatar_uri", cloudAvatarUrl).putInt("user_avatar_preset", -1).apply()
                 selectedPresetAvatar = -1
-            } else if (avatarUriString.isBlank() && realAvatar != null) {
-                avatarUriString = realAvatar
-                activeProfilePrefs.edit().putString("user_avatar_uri", realAvatar).apply()
+            } else if (avatarUriString.isBlank() && sbAvatar != null) {
+                avatarUriString = sbAvatar
+                activeProfilePrefs.edit().putString("user_avatar_uri", sbAvatar).apply()
             }
 
             userAccountNumber = cloudUser?.accountNumber?.takeIf { it.isNotBlank() }
@@ -301,7 +295,6 @@ fun ProfileScreen(
                 avatarUrl = avatarUriString.takeIf { it.isNotBlank() }
             )
 
-            // Keep the existing account-number repair only when the snapshot has no cloud value.
             val targetEmail = activeEmail
             if (cloudUser?.accountNumber.isNullOrBlank() && targetEmail.isNotBlank() && !targetEmail.contains("guest")) {
                 val cloudAcc = UserIdentifierManager.ensureCloudAccountNumber(context, targetEmail, displayName)
@@ -318,39 +311,35 @@ fun ProfileScreen(
         }
     }
 
-    // Image Picker Launcher
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    // Zero-permission Android Photo Picker per Google Play Policy
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
         if (uri != null) {
             coroutineScope.launch {
-                // نقرأ الصورة إلى ملف مؤقت فقط لرفعها؛ النسخة النهائية يجب أن تكون سحابية.
                 val bytes = withContext(Dispatchers.IO) {
                     runCatching {
                         context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     }.getOrNull()
                 }
                 if (bytes == null) {
-                    Toast.makeText(context, "تعذر قراءة الصورة المختارة 📸", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "تعذر قراءة الصورة المختارة", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
                 val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull() ?: "image/jpeg"
                 val localFile = withContext(Dispatchers.IO) {
                     runCatching {
                         val accountKey = MessageDigest.getInstance("SHA-256")
-                            .digest(userEmail.trim().lowercase().toByteArray())
+                            .digest(userEmail.trim().lowercase(Locale.ROOT).toByteArray())
                             .joinToString("") { "%02x".format(it) }
                         val f = File.createTempFile("user_avatar_${accountKey}_", ".jpg", context.cacheDir)
                         FileOutputStream(f).use { it.write(bytes) }
                         f
                     }.getOrNull()
                 }
-                // رفع سحابي: رابط عام دائم يظهر للمستخدمين الآخرين (ريلز/تعليقات/المتابعون)
                 val cloudUrl = if (SupabaseServices.isSupabaseAvailable && localFile != null) {
                     val uploaderId = SupabaseServices.Auth.getCurrentUserId()
-                    if (uploaderId.isNullOrBlank()) {
-                        null
-                    } else {
+                    if (uploaderId.isNullOrBlank()) null else {
                         withContext(Dispatchers.IO) {
                             SupabaseServices.Storage.uploadFileWithProgress(
                                 bucketName = "avatars",
@@ -364,35 +353,28 @@ fun ProfileScreen(
 
                 localFile?.delete()
 
-                // لا نحتفظ بصورة محلية كبديل صامت؛ الأفاتار المخصص يجب أن يكون سحابيًا.
                 if (cloudUrl.isNullOrBlank()) {
                     Toast.makeText(context, "تعذر رفع الصورة إلى السحابة. لم يتم تغيير الأفاتار.", Toast.LENGTH_LONG).show()
                     return@launch
                 }
 
-                val profileMirrorSynced = if (!cloudUrl.isNullOrBlank()) {
-                    val activeUid = SupabaseServices.Auth.getCurrentUserId()
-                    if (activeUid.isNullOrBlank()) {
-                        false
-                    } else {
-                        withContext(Dispatchers.IO) {
-                            SupabaseServices.Profiles.syncUserProfile(
-                                userId = activeUid,
-                                displayName = displayName,
-                                email = userEmail,
-                                avatarUrl = cloudUrl
-                            )
-                        }
+                val profileMirrorSynced = SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { activeUid ->
+                    withContext(Dispatchers.IO) {
+                        SupabaseServices.Profiles.syncUserProfile(
+                            userId = activeUid,
+                            displayName = displayName,
+                            email = userEmail,
+                            avatarUrl = cloudUrl
+                        )
                     }
-                } else false
+                } ?: false
 
-                val finalUri = requireNotNull(cloudUrl)
-                avatarUriString = finalUri
+                avatarUriString = cloudUrl
                 selectedPresetAvatar = -1
-                profilePrefs.edit().putString("user_avatar_uri", finalUri).putInt("user_avatar_preset", -1).apply()
+                profilePrefs.edit().putString("user_avatar_uri", cloudUrl).putInt("user_avatar_preset", -1).apply()
                 AccountIdentityManager.refresh(context)
                 if (profileMirrorSynced) {
-                    Toast.makeText(context, "تم رفع الصورة وحفظ رابطها في الملف السحابي 📸", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "تم رفع الصورة وحفظ رابطها في الملف السحابي", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, "رُفعت الصورة، لكن تعذر مزامنة رابطها مع الملف السحابي", Toast.LENGTH_LONG).show()
                 }
@@ -401,7 +383,6 @@ fun ProfileScreen(
     }
 
     val totalPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
-
     var userLeaguePoints by remember { mutableIntStateOf(prefs.getInt("user_league_points", 0)) }
     var userLeagueRank by remember { mutableIntStateOf(prefs.getInt("user_league_rank", 0)) }
     var isLoadingLeague by remember { mutableStateOf(true) }
@@ -418,7 +399,6 @@ fun ProfileScreen(
             else -> 5
         }
     }
-
     val currentTierTitleOnly = remember(userLeaguePoints) {
         when {
             userLeaguePoints < 500 -> "صانع برونزي"
@@ -429,7 +409,6 @@ fun ProfileScreen(
             else -> "أسطورة قبس"
         }
     }
-
     val currentTierEmoji = remember(userLeaguePoints) {
         when {
             userLeaguePoints < 500 -> "🥉"
@@ -454,31 +433,27 @@ fun ProfileScreen(
     LaunchedEffect(Unit) {
         projectsCount = projectService.getAllProjects().size
         socialAccounts = SocialAccountManager.getAccounts(context)
-        
-        // Fetch league stats from Supabase
         try {
             isLoadingLeague = true
             val leaderboard = CloudServices.Database.getLeaderboard()
             val currentUserId = CloudServices.Auth.getCurrentUserId()
-            
+
             if (leaderboard.isNotEmpty()) {
                 val myEntry = if (currentUserId != null) {
                     leaderboard.find { it.isCurrentUser } ?: leaderboard.find { it.name.contains(displayName, ignoreCase = true) }
                 } else null
-                
+
                 if (myEntry != null) {
                     userLeaguePoints = myEntry.points
                     val calculatedRank = leaderboard.indexOf(myEntry) + 1
                     userLeagueRank = if (myEntry.rank > 0) myEntry.rank else calculatedRank
                 } else {
-                    // Default / Initial points based on projects & published
                     val currentPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
                     val fallbackPoints = (projectsCount * 50) + (currentPublished * 20)
                     userLeaguePoints = if (userLeaguePoints > 0) userLeaguePoints else fallbackPoints
                     userLeagueRank = if (userLeagueRank > 0) userLeagueRank else (leaderboard.size + 1).coerceAtMost(99)
                 }
             } else {
-                // Local fallback
                 val currentPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
                 val fallbackPoints = (projectsCount * 50) + (currentPublished * 20)
                 if (userLeaguePoints == 0) userLeaguePoints = fallbackPoints
@@ -488,7 +463,7 @@ fun ProfileScreen(
                 .putInt("user_league_points", userLeaguePoints)
                 .putInt("user_league_rank", userLeagueRank)
                 .apply()
-            // Profile identity and presentation fields are synchronized through Supabase only.
+
             SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { authUserId ->
                 SupabaseServices.Profiles.syncUserProfile(
                     userId = authUserId,
@@ -500,34 +475,23 @@ fun ProfileScreen(
                         ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
                 )
             }
-        } catch (e: Exception) {
-            // keep cached
+        } catch (_: Exception) {
+            // Keep cached values
         } finally {
             isLoadingLeague = false
         }
     }
 
-    val currentTierName = remember(userLeaguePoints) {
-        when {
-            userLeaguePoints < 500 -> "صانع برونزي 🥉"
-            userLeaguePoints < 1500 -> "صانع فضي 🥈"
-            userLeaguePoints < 3500 -> "صانع ذهبي 🥇"
-            userLeaguePoints < 7000 -> "صانع ماسي 💎"
-            userLeaguePoints < 12000 -> "سفير الدعوة 👑"
-            else -> "أسطورة قبس 🌟"
-        }
-    }
-
-    val tournamentBadges = remember(userLeaguePoints, userLeagueRank) {
+    val tournamentBadges = remember(userLeaguePoints, userLeagueRank, theme) {
         listOf(
             TournamentTierBadge(
                 id = "tier_bronze",
                 title = "وسام الصاعد الواعد",
-                tierTitle = "الرتبة البرونزية 🥉",
+                tierTitle = "الرتبة البرونزية",
                 emoji = "🥉",
                 icon = Icons.Default.Shield,
-                primaryColor = Color(0xFFCD7F32),
-                accentColor = Color(0xFFE5A65D),
+                primaryColor = Color(0xFFB46927),
+                accentColor = Color(0xFFD98A48),
                 pointsRequired = 0,
                 isUnlocked = true,
                 isCurrentTier = userLeaguePoints < 500,
@@ -537,11 +501,11 @@ fun ProfileScreen(
             TournamentTierBadge(
                 id = "tier_silver",
                 title = "وسام النجم الفضي",
-                tierTitle = "الرتبة الفضية 🥈",
+                tierTitle = "الرتبة الفضية",
                 emoji = "🥈",
                 icon = Icons.Default.MilitaryTech,
-                primaryColor = Color(0xFF94A3B8),
-                accentColor = Color(0xFFE2E8F0),
+                primaryColor = Color(0xFF64748B),
+                accentColor = Color(0xFF94A3B8),
                 pointsRequired = 500,
                 isUnlocked = userLeaguePoints >= 500,
                 isCurrentTier = userLeaguePoints in 500..1499,
@@ -551,25 +515,25 @@ fun ProfileScreen(
             TournamentTierBadge(
                 id = "tier_gold",
                 title = "وسام الصانع الذهبي",
-                tierTitle = "الرتبة الذهبية 🥇",
+                tierTitle = "الرتبة الذهبية",
                 emoji = "🥇",
                 icon = Icons.Default.EmojiEvents,
-                primaryColor = GoldPrimary,
-                accentColor = GoldSecondary,
+                primaryColor = theme.warning,
+                accentColor = theme.warning,
                 pointsRequired = 1500,
                 isUnlocked = userLeaguePoints >= 1500,
                 isCurrentTier = userLeaguePoints in 1500..3499,
                 description = "وسام نخبوي للصناع المتميزين الذين حققوا تأثيراً مشهوداً عبر أكثر من 1,500 نقطة.",
-                perk = "إطار ذهبي متوهج للصورة الشخصية ومضاعف نقاط 1.5x."
+                perk = "إطار ذهبي للصورة الشخصية ومضاعف نقاط 1.5x."
             ),
             TournamentTierBadge(
                 id = "tier_diamond",
                 title = "وسام الفارس الماسي",
-                tierTitle = "الرتبة الماسية 💎",
+                tierTitle = "الرتبة الماسية",
                 emoji = "💎",
                 icon = Icons.Default.Diamond,
-                primaryColor = Color(0xFF00E5FF),
-                accentColor = Color(0xFF80D8FF),
+                primaryColor = theme.primary,
+                accentColor = theme.accent,
                 pointsRequired = 3500,
                 isUnlocked = userLeaguePoints >= 3500,
                 isCurrentTier = userLeaguePoints in 3500..6999,
@@ -579,54 +543,54 @@ fun ProfileScreen(
             TournamentTierBadge(
                 id = "tier_master",
                 title = "وسام سفير الدعوة",
-                tierTitle = "رتبة السفير 👑",
+                tierTitle = "رتبة السفير",
                 emoji = "👑",
                 icon = Icons.Default.Stars,
-                primaryColor = Color(0xFFA855F7),
-                accentColor = Color(0xFFC084FC),
+                primaryColor = AppleLightIndigo,
+                accentColor = AppleDarkIndigo,
                 pointsRequired = 7000,
                 isUnlocked = userLeaguePoints >= 7000,
                 isCurrentTier = userLeaguePoints in 7000..11999,
                 description = "أعلى أوسمة التقدير لصناع الأثر الذين حققوا أكثر من 7,000 نقطة بطولة.",
-                perk = "شارة سفير موثقة ذهبية بجانب الاسم والوصول إلى أحدث نماذج الذكاء الاصطناعي التجريبية."
+                perk = "شارة سفير موثقة بجانب الاسم والوصول إلى أحدث الأدوات التجريبية."
             ),
             TournamentTierBadge(
                 id = "tier_legend",
                 title = "وسام أسطورة قبس",
-                tierTitle = "الرتبة الأسطورية 🌟",
+                tierTitle = "الرتبة الأسطورية",
                 emoji = "🌟",
                 icon = Icons.Default.AutoAwesome,
-                primaryColor = Color(0xFFF59E0B),
-                accentColor = Color(0xFFFDE68A),
+                primaryColor = theme.warning,
+                accentColor = theme.warning,
                 pointsRequired = 12000,
                 isUnlocked = userLeaguePoints >= 12000,
                 isCurrentTier = userLeaguePoints >= 12000,
                 description = "تاج البطولة التنافسية الكبرى لمن تجاوزوا 12,000 نقطة من العطاء الاستثنائي.",
-                perk = "تخليد الاسم في لوحة الشرف الخالدة مع إتاحة شارة المطورين الفخرية."
+                perk = "تخليد الاسم في لوحة الشرف الخالدة."
             ),
             TournamentTierBadge(
                 id = "rank_top10",
                 title = "وسام فرسان الصدارة",
-                tierTitle = "نخبة الـ 10 الكبار 🏆",
+                tierTitle = "نخبة الـ 10 الكبار",
                 emoji = "⚡",
                 icon = Icons.Default.Leaderboard,
-                primaryColor = Color(0xFF38BDF8),
-                accentColor = Color(0xFFBAE6FD),
+                primaryColor = theme.accent,
+                accentColor = theme.primary,
                 pointsRequired = 0,
                 rankRequired = 10,
                 isUnlocked = userLeagueRank in 1..10,
                 isCurrentTier = userLeagueRank in 4..10,
                 description = "يُمنح لمن يدخل قائمة أفضل 10 صناع محتوى في الدوري الأسبوعي المباشر.",
-                perk = "شارة مضيئة تظهر في مجتمع قبس العام."
+                perk = "شارة تميز تظهر في مجتمع قبس العام."
             ),
             TournamentTierBadge(
                 id = "rank_top3",
                 title = "وسام منصة التتويج",
-                tierTitle = "فرسان التتويج الثلاثة 🥉🥈🥇",
+                tierTitle = "فرسان التتويج الثلاثة",
                 emoji = "🔥",
                 icon = Icons.Default.WorkspacePremium,
-                primaryColor = Color(0xFFEC4899),
-                accentColor = Color(0xFFF472B6),
+                primaryColor = theme.destructive,
+                accentColor = theme.warning,
                 pointsRequired = 0,
                 rankRequired = 3,
                 isUnlocked = userLeagueRank in 1..3,
@@ -637,11 +601,11 @@ fun ProfileScreen(
             TournamentTierBadge(
                 id = "rank_champion",
                 title = "وسام بطل الدوري الأسبوعي",
-                tierTitle = "بطل البطولة الأول 🏆👑",
+                tierTitle = "بطل البطولة الأول",
                 emoji = "👑",
                 icon = Icons.Default.WorkspacePremium,
-                primaryColor = GoldPrimary,
-                accentColor = Color(0xFFFFFBEB),
+                primaryColor = theme.warning,
+                accentColor = theme.primary,
                 pointsRequired = 0,
                 rankRequired = 1,
                 isUnlocked = userLeagueRank == 1,
@@ -654,101 +618,84 @@ fun ProfileScreen(
 
     var selectedBadgeForDetail by remember { mutableStateOf<TournamentTierBadge?>(null) }
 
-    val badges = remember(projectsCount, totalPublished) {
-        val list = mutableListOf<String>()
-        if (projectsCount >= 1) list.add(Translator.tr("البداية القوية 🚀"))
-        if (projectsCount >= 3) list.add(Translator.tr("صانع محتوى مبدع ✨"))
-        if (totalPublished >= 5) list.add(Translator.tr("ناشر نشط 📤"))
-        if (totalPublished >= 20) list.add(Translator.tr("مؤثر قدير 🌟"))
-        if (list.isEmpty()) list.add(Translator.tr("صانع مبتدئ 🌿"))
-        list
-    }
-
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
-
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        Translator.tr("الملف الشخصي والمنصات"), 
-                        fontFamily = TajawalFont, 
-                        fontWeight = FontWeight.ExtraBold, 
-                        color = qabasTextPrimary(), 
-                        fontSize = 19.sp 
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = qabasPrimary())
-                    }
-                },
+            AppleTopBar(
+                title = Translator.tr("الملف الشخصي"),
+                subtitle = userCustomTag,
+                onBack = onBack,
+                backTestTag = "profile_back_btn",
                 actions = {
-                    com.qabas.app.ui.components.CloudSyncIndicator(
-                        isSyncing = isLoadingLeague,
-                        compact = false
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    IconButton(onClick = { onNavigate(AppState.SETTINGS) }) {
-                        Icon(Icons.Default.Settings, contentDescription = "إعدادات التطبيق", tint = qabasPrimary())
+                    CloudSyncIndicator(isSyncing = isLoadingLeague, compact = true)
+                    IconButton(
+                        onClick = { onNavigate(AppState.SETTINGS) },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("profile_settings_btn")
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = "إعدادات التطبيق", tint = theme.primary)
                     }
-                    IconButton(onClick = { showEditProfileDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "تعديل الملف الشخصي", tint = qabasPrimary())
+                    IconButton(
+                        onClick = { showEditProfileDialog = true },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("profile_edit_btn")
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = "تعديل الملف الشخصي", tint = theme.primary)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
+                }
             )
         },
-        containerColor = qabasBackground()
+        containerColor = theme.background
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Card Header (Full Social Media Profile Experience)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .luxuryCardStyle(shapeRadius = 20.dp, borderAlpha = 0.35f, glowElevation = 6.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
-            ) {
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 1. Apple Profile Identity Header Card
+            AppleCard(cornerRadius = 18.dp) {
                 Column(
                     modifier = Modifier
-                        .wrapContentHeight()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Avatar with Edit Button Overlay
                     Box(
                         modifier = Modifier
-                            .size(88.dp)
-                            .bouncingClickable { showAvatarPickerSheet = true },
+                            .size(92.dp)
+                            .clip(CircleShape)
+                            .clickable { showAvatarPickerSheet = true }
+                            .testTag("profile_avatar_btn"),
                         contentAlignment = Alignment.BottomEnd
                     ) {
                         Surface(
-                            modifier = Modifier.size(88.dp),
+                            modifier = Modifier.size(92.dp),
                             shape = CircleShape,
-                            color = qabasBackground(),
-                            border = androidx.compose.foundation.BorderStroke(3.dp, goldGradient),
-                            shadowElevation = 10.dp
+                            color = theme.secondarySurface,
+                            border = BorderStroke(2.5.dp, theme.primary)
                         ) {
                             if (avatarUriString.isNotBlank()) {
                                 AsyncImage(
                                     model = avatarUriString,
-                                    contentDescription = "Avatar",
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentDescription = "الصورة الشخصية",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Box(
-                                    modifier = Modifier.fillMaxSize().background(goldGradient),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(theme.primary.copy(alpha = 0.12f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -760,93 +707,82 @@ fun ProfileScreen(
                                             else -> Icons.Default.Person
                                         },
                                         contentDescription = null,
-                                        tint = DeepSlate,
-                                        modifier = Modifier.size(54.dp)
+                                        tint = theme.primary,
+                                        modifier = Modifier.size(44.dp)
                                     )
                                 }
                             }
                         }
 
-                        // Camera Badge to indicate editable photo
                         Surface(
                             modifier = Modifier.size(30.dp),
                             shape = CircleShape,
-                            color = qabasPrimary(),
-                            border = androidx.compose.foundation.BorderStroke(2.dp, qabasBackground())
+                            color = theme.primary,
+                            border = BorderStroke(2.dp, theme.cardSurface)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.PhotoCamera,
+                                    contentDescription = "تغيير الصورة",
+                                    tint = theme.onPrimary,
+                                    modifier = Modifier.size(15.dp)
+                                )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Name & Custom Tag
                     Text(
                         text = displayName,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                        textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    val effectiveAccountNumber = userAccountNumber.takeIf { it.isNotBlank() }
+                        ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
+                        ?: "بانتظار المزامنة..."
 
-                    // Row with Username and Account Number side-by-side
+                    @OptIn(ExperimentalLayoutApi::class)
                     FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // 1. User Tag Chip
                         Surface(
-                            color = qabasPrimary().copy(alpha = 0.08f),
+                            color = theme.primary.copy(alpha = 0.10f),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, qabasPrimary().copy(alpha = 0.35f)),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    UserIdentifierManager.copyToClipboard(context, userCustomTag)
-                                }
+                                .clickable { UserIdentifierManager.copyToClipboard(context, userCustomTag) }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = userCustomTag,
-                                    color = qabasPrimary(),
+                                    color = theme.primary,
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Icon(
                                     Icons.Default.ContentCopy,
                                     contentDescription = "نسخ المعرّف",
-                                    tint = qabasPrimary().copy(alpha = 0.7f),
-                                    modifier = Modifier.size(12.dp)
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(13.dp)
                                 )
                             }
                         }
 
-                        // 2. Mandatory Account Number Chip (Always visible & Cloud Verified - Non-Editable)
-                        val effectiveAccountNumber = userAccountNumber.takeIf { it.isNotBlank() }
-                            ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
-                            ?: "بانتظار المزامنة..."
-
-
-
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.12f),
+                            color = theme.warning.copy(alpha = 0.12f),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {
@@ -854,19 +790,19 @@ fun ProfileScreen(
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = "رقم حساب ثابت موثق",
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(11.dp)
+                                    Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = theme.warning,
+                                    modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = UserIdentifierManager.formatAccountNumber(effectiveAccountNumber),
-                                    color = GoldPrimary,
+                                    color = theme.warning,
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -875,7 +811,7 @@ fun ProfileScreen(
                                 Icon(
                                     Icons.Default.ContentCopy,
                                     contentDescription = "نسخ رقم الحساب",
-                                    tint = GoldPrimary.copy(alpha = 0.8f),
+                                    tint = theme.warning,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 if (UserIdentifierManager.isFirstAccount(effectiveAccountNumber)) {
@@ -885,145 +821,119 @@ fun ProfileScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // 3. Verified Maker Badge
                         Surface(
-                            color = qabasPrimary().copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, qabasPrimary().copy(alpha = 0.4f))
+                            color = theme.success.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
                                 text = "صانع موثق ✓",
-                                color = qabasPrimary(),
+                                color = theme.success,
                                 fontFamily = CairoFont,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Bio / Description
                     Text(
                         text = userBio,
-                        color = qabasTextSecondary(),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
                         lineHeight = 20.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(14.dp))
 
-            // Profile cloud status is driven by the Supabase client only.
+            // 2. Supabase Cloud Sync Status
             val isSupabaseActive = SupabaseServices.isSupabaseAvailable
-            Surface(
-                color = Color(0xFF151B2B),
-                shape = CutCornerShape(12.dp),
-                border = BorderStroke(
-                    1.dp,
-                    if (isSupabaseActive) Color(0xFF10B981).copy(alpha = 0.4f)
-                    else GoldPrimary.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            AppleCard(cornerRadius = 14.dp) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background((if (isSupabaseActive) theme.success else theme.warning).copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(if (isSupabaseActive) Color(0xFF064E3B) else Color(0xFF1E293B)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                if (isSupabaseActive) Icons.Default.CloudDone else Icons.Default.CloudQueue,
-                                contentDescription = null,
-                                tint = if (isSupabaseActive) Color(0xFF10B981) else GoldPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                "المزامنة السحابية عبر Supabase",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp
-                            )
-                            Text(
-                                if (isSupabaseActive) "Supabase متصل ومفعّل ☁️" else "التخزين المحلي — Supabase غير مهيأ",
-                                color = if (isSupabaseActive) Color(0xFF10B981) else Color(0xFF94A3B8),
-                                fontFamily = NotoSansFont,
-                                fontSize = 11.sp
-                            )
-                        }
+                        Icon(
+                            if (isSupabaseActive) Icons.Default.CloudDone else Icons.Default.CloudQueue,
+                            contentDescription = null,
+                            tint = if (isSupabaseActive) theme.success else theme.warning,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
-
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "المزامنة السحابية عبر Supabase",
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = if (isSupabaseActive) "حسابك متصل ومزامن مع السحابة" else "التخزين محلي حالياً — Supabase غير مهيأ",
+                            color = if (isSupabaseActive) theme.success else theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.5.sp
+                        )
+                    }
                     Surface(
-                        color = if (isSupabaseActive) Color(0xFF065F46) else Color(0xFF334155),
+                        color = (if (isSupabaseActive) theme.success else theme.textSecondary).copy(alpha = 0.14f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = if (isSupabaseActive) "سحابي ✓" else "محلي",
-                            color = Color.White,
+                            text = if (isSupabaseActive) "متصل" else "محلي",
+                            color = if (isSupabaseActive) theme.success else theme.textSecondary,
                             fontFamily = CairoFont,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Profile Actions Section
-            ProfileSection(
-                title = "إعدادات الحساب والأمان",
-                icon = Icons.Default.Security
-            ) {
-                ProfileActionButton(
-                    label = "تعديل بيانات الملف الشخصي",
+            // 3. Account & Security Settings
+            AppleGroupedSection(header = "إعدادات الحساب والأمان") {
+                AppleListRow(
+                    title = "تعديل بيانات الملف الشخصي",
+                    subtitle = "الاسم، المعرّف الفريد، والنبذة التعريفية",
                     icon = Icons.Default.Edit,
+                    iconBackground = theme.primary,
                     onClick = { showEditProfileDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    isPrimary = true
+                    modifier = Modifier.testTag("profile_row_edit")
                 )
-                
-                Spacer(modifier = Modifier.height(10.dp))
-                
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ProfileActionButton(
-                        label = "تغيير كلمة السر",
-                        icon = Icons.Default.LockReset,
-                        onClick = { showChangePasswordDialog = true },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ProfileActionButton(
-                        label = "تبديل الحساب",
-                        icon = Icons.Default.SwitchAccount,
-                        onClick = { showSwitchAccountDialog = true },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                AppleInsetDivider()
+                AppleListRow(
+                    title = "تغيير كلمة المرور",
+                    subtitle = "تحديث كلمة المرور عبر Supabase",
+                    icon = Icons.Default.LockReset,
+                    iconBackground = AppleLightIndigo,
+                    onClick = { showChangePasswordDialog = true },
+                    modifier = Modifier.testTag("profile_row_password")
+                )
+                AppleInsetDivider()
+                AppleListRow(
+                    title = "تبديل الحساب",
+                    subtitle = userEmail.ifBlank { "إدارة الجلسات والحسابات" },
+                    icon = Icons.Default.SwitchAccount,
+                    iconBackground = theme.warning,
+                    onClick = { showSwitchAccountDialog = true },
+                    modifier = Modifier.testTag("profile_row_switch")
+                )
             }
 
-            // Stats Hero Cards (2x2 Grid)
+            // 4. Stats 2x2 Grid
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1037,14 +947,14 @@ fun ProfileScreen(
                         title = Translator.tr("المشاريع"),
                         value = projectsCount.toString(),
                         icon = Icons.Default.Movie,
-                        color = qabasPrimary()
+                        color = theme.primary
                     )
                     StatCard(
                         modifier = Modifier.weight(1f),
                         title = Translator.tr("المشاركات"),
                         value = totalPublished.toString(),
                         icon = Icons.Default.Publish,
-                        color = Color(0xFF3B82F6)
+                        color = theme.accent
                     )
                 }
                 Row(
@@ -1063,107 +973,82 @@ fun ProfileScreen(
                         title = Translator.tr("الإنجاز"),
                         value = if (projectsCount > 0) "${(totalPublished * 100 / projectsCount).coerceAtMost(100)}%" else "0%",
                         icon = Icons.Default.TrendingUp,
-                        color = Color(0xFF10B981)
+                        color = theme.success
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ─── Supabase Cloud Saved Items Card ───
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.5f, glowElevation = 6.dp)
-                    .bouncingClickable { onNavigate(AppState.SAVED_ITEMS) },
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
+            // 5. Supabase Cloud Saved Items Card (Fixed badge from Firestore HUD -> Supabase)
+            AppleCard(
+                cornerRadius = 16.dp,
+                onClick = { onNavigate(AppState.SAVED_ITEMS) },
+                modifier = Modifier.testTag("profile_saved_items_card")
             ) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF064E3B).copy(alpha = 0.5f),
-                                    Color(0xFF0B1120)
-                                )
-                            )
-                        )
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(theme.success.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF10B981).copy(alpha = 0.18f),
-                            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF10B981)),
-                            modifier = Modifier.size(42.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.CloudDone,
-                                    contentDescription = null,
-                                    tint = Color(0xFF10B981),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "المحفوظات السحابية",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .wrapContentWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF10B981).copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "Firestore HUD",
-                                        color = Color(0xFF34D399),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        softWrap = false,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                            Text(
-                                text = "مزامنة الآيات القرآنية والخواطر والإلهامات لحظياً بدون إنترنت",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            Icons.Default.ChevronLeft,
-                            contentDescription = "فتح المحفوظات",
-                            tint = Color(0xFF94A3B8)
+                            Icons.Default.Bookmarks,
+                            contentDescription = null,
+                            tint = theme.success,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "المحفوظات السحابية",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = theme.success.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "Supabase",
+                                    color = theme.success,
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "مزامنة الآيات القرآنية والأذكار والمفضلات سحابياً",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        Icons.Default.ChevronLeft,
+                        contentDescription = "فتح المحفوظات",
+                        tint = theme.textSecondary
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ─── Qabas Reels & Community Showcase Card ───
-            LaunchedEffect(Unit) {
-                ReelPreferencesManager.init(context)
-            }
+            // 6. Qabas Reels & Community Showcase Card
+            LaunchedEffect(Unit) { ReelPreferencesManager.init(context) }
             val reelStats = ReelPreferencesManager.userStats.collectAsState().value
             val reelSavedCount = if (hasCurrentProfileSnapshot) reelStats.totalSaved.toString() else "—"
             val reelWatchedCount = if (hasCurrentProfileSnapshot) reelStats.totalWatched.toString() else "—"
@@ -1172,230 +1057,123 @@ fun ProfileScreen(
                 profileSnapshot?.publishedReelsCount?.toString() ?: "—"
             } else "—"
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.5f, glowElevation = 6.dp)
-                    .bouncingClickable { onNavigate(AppState.REELS) },
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
-            ) {
-                Box(
+            AppleCard(cornerRadius = 16.dp) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF1E1B4B).copy(alpha = 0.7f),
-                                    Color(0xFF0B1120)
-                                )
-                            )
-                        )
                         .padding(16.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(theme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = GoldPrimary.copy(alpha = 0.18f),
-                                    border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldPrimary),
-                                    modifier = Modifier.size(38.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            Icons.Default.SlowMotionVideo,
-                                            contentDescription = null,
-                                            tint = GoldPrimary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            "ريلز قبس // Qabas Reels",
-                                            color = Color.White,
-                                            fontFamily = CairoFont,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            color = GoldPrimary,
-                                            shape = RoundedCornerShape(4.dp)
-                                        ) {
-                                            Text(
-                                                "TIKTOK 9:16",
-                                                fontFamily = RobotoMonoFont,
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = DeepSlate,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        "مجتمع المقاطع الإيمانية القصيرة وسجل نشاطك الشخصي",
-                                        color = Color.White.copy(alpha = 0.65f),
-                                        fontFamily = CairoFont,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
+                            Icon(
+                                Icons.Default.SlowMotionVideo,
+                                contentDescription = null,
+                                tint = theme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Stats Quick Highlights
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White.copy(alpha = 0.05f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("المحفوظات", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
-                                    Text("$reelSavedCount", fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldPrimary)
-                                }
-                            }
-
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White.copy(alpha = 0.05f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("المشاهدات", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
-                                    Text("$reelWatchedCount", fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
-                                }
-                            }
-
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White.copy(alpha = 0.05f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("الإعجابات", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
-                                    Text("$reelLikedCount", fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF43F5E))
-                                }
-                            }
-
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White.copy(alpha = 0.05f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text("منشورات قبس", fontFamily = CairoFont, fontSize = 9.sp, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
-                                    Text("$reelPublishedCount", fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA78BFA))
-                                }
-                            }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "ريلز قبس",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = "سجل مشاهداتك ومشاركاتك الإيمانية",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp
+                            )
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { onNavigate(AppState.REELS) },
-                                modifier = Modifier.weight(1f).height(38.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
-                            ) {
-                                Icon(Icons.Default.PlayArrow, null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("فتح الريلز", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = DeepSlate)
-                            }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MiniMetricCell("المحفوظات", reelSavedCount, theme.primary, Modifier.weight(1f))
+                        MiniMetricCell("المشاهدات", reelWatchedCount, theme.accent, Modifier.weight(1f))
+                        MiniMetricCell("الإعجابات", reelLikedCount, theme.destructive, Modifier.weight(1f))
+                        MiniMetricCell("المنشورات", reelPublishedCount, AppleLightIndigo, Modifier.weight(1f))
+                    }
 
-                            OutlinedButton(
-                                onClick = { onNavigate(AppState.REELS) },
-                                modifier = Modifier.weight(1f).height(38.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
-                            ) {
-                                Icon(Icons.Default.History, null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("السجل والمحفوظات", fontFamily = CairoFont, fontSize = 11.sp, color = GoldPrimary)
-                            }
-                        }
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ApplePrimaryButton(
+                            text = "فتح الريلز",
+                            icon = Icons.Default.PlayArrow,
+                            onClick = { onNavigate(AppState.REELS) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        AppleSecondaryButton(
+                            text = "المحفوظات",
+                            icon = Icons.Default.Bookmarks,
+                            onClick = { onNavigate(AppState.SAVED_ITEMS) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ─── Creator Follow Community Card ───
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.5f, glowElevation = 6.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            // 7. Creator Follow Community Card
+            AppleCard(cornerRadius = 16.dp) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = GoldPrimary.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                modifier = Modifier.size(36.dp)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(theme.primary.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.Group,
-                                        contentDescription = null,
-                                        tint = GoldPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                Icon(
+                                    Icons.Default.Group,
+                                    contentDescription = null,
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    "مجتمع المتابعة 🤝",
-                                    color = Color.White,
+                                    text = "مجتمع المتابعة",
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
+                                    fontSize = 15.sp
                                 )
                                 Text(
-                                    "ملفك متصل مباشرة بملفات صناع المحتوى",
-                                    color = Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontSize = 11.sp
+                                    text = "اتصال مباشر بصنّاع المحتوى",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 11.5.sp
                                 )
                             }
                         }
@@ -1407,158 +1185,101 @@ fun ProfileScreen(
                                     isLoadingFollowCommunity = false
                                 }
                             },
-                            enabled = !isLoadingFollowCommunity
+                            enabled = !isLoadingFollowCommunity,
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = "تحديث المتابعة",
-                                tint = Color(0xFF94A3B8),
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color.White.copy(alpha = 0.05f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text("أتابع", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
-                                Text(
-                                    if (isLoadingFollowCommunity) "…" else profileFollowingCountText,
-                                    fontFamily = RobotoMonoFont,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GoldPrimary
-                                )
-                            }
-                        }
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color.White.copy(alpha = 0.05f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text("يتابعني", fontFamily = CairoFont, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
-                                Text(
-                                    if (isLoadingFollowCommunity) "…" else if (ownFollowers.isExact) "${ownFollowers.value}" else "—",
-                                    fontFamily = RobotoMonoFont,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF38BDF8)
-                                )
-                                if (!ownFollowers.isExact && !isLoadingFollowCommunity) {
-                                    Text(
-                                        "غير متاح",
-                                        fontFamily = CairoFont,
-                                        fontSize = 8.5.sp,
-                                        color = Color.White.copy(alpha = 0.45f)
-                                    )
-                                }
-                            }
-                        }
+                        MiniMetricCell(
+                            label = "أتابع",
+                            value = if (isLoadingFollowCommunity) "…" else profileFollowingCountText,
+                            accent = theme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MiniMetricCell(
+                            label = "يتابعني",
+                            value = if (isLoadingFollowCommunity) "…" else if (ownFollowers.isExact) "${ownFollowers.value}" else "—",
+                            accent = theme.accent,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
-                        onClick = { showFollowList = !showFollowList },
-                        modifier = Modifier.fillMaxWidth().height(38.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.18f)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f))
-                    ) {
-                        Icon(
-                            if (showFollowList) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            null,
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            if (showFollowList) "إخفاء قائمة المتابَعين" else "عرض قائمة المتابَعين ($profileFollowingCountText)",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.5.sp,
-                            color = GoldPrimary
-                        )
-                    }
+                    AppleSecondaryButton(
+                        text = if (showFollowList) "إخفاء قائمة المتابَعين" else "عرض قائمة المتابَعين ($profileFollowingCountText)",
+                        icon = if (showFollowList) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        onClick = { showFollowList = !showFollowList }
+                    )
 
                     if (showFollowList) {
                         Spacer(modifier = Modifier.height(10.dp))
                         if (followedCreators.isEmpty()) {
                             val emptyFollowMessage = when {
-                                !hasCurrentProfileSnapshot -> "تعذر تأكيد قائمة المتابعة الآن. حدّث الملف وحاول مجددًا."
+                                !hasCurrentProfileSnapshot -> "تعذر تأكيد قائمة المتابعة الآن. حدّث الملف وحاول مجدداً."
                                 profileSnapshot?.followingTruncated == true ->
-                                    "لديك ${profileFollowingCountText} متابعة؛ القائمة أكبر من الحد المعروض في هذا الإصدار، والمتابعات كاملة محفوظة سحابيًا."
+                                    "لديك $profileFollowingCountText متابعة؛ المتابعات كاملة محفوظة سحابياً."
                                 profileSnapshot?.followingCount == 0 ->
                                     "لم تتابع أي صانع محتوى بعد. افتح أي ملف منشئ من الريلز وابدأ المتابعة."
-                                else -> "تعذر عرض عناصر قائمة المتابعة الآن؛ حدّث الملف وحاول مجددًا."
+                                else -> "تعذر عرض عناصر قائمة المتابعة الآن؛ حدّث الملف وحاول مجدداً."
                             }
                             Text(
-                                emptyFollowMessage,
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.65f)
+                                text = emptyFollowMessage,
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp,
+                                color = theme.textSecondary
                             )
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (profileSnapshot?.followingTruncated == true) {
-                                    Text(
-                                        "هذه قائمة محدودة؛ العدد الإجمالي الدقيق هو $profileFollowingCountText والمتابعات كاملة محفوظة سحابيًا.",
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.sp,
-                                        color = GoldPrimary.copy(alpha = 0.85f)
-                                    )
-                                }
                                 followedCreators.sortedByDescending { it.followedAt }.forEach { creator ->
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = Color.White.copy(alpha = 0.04f),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                        color = theme.secondarySurface.copy(alpha = 0.55f),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             AsyncImage(
-                                                model = creator.avatarUrl ?: "https://ui-avatars.com/api/?name=${creator.displayName}&background=D4AF37&color=0B0F19",
+                                                model = creator.avatarUrl ?: "https://ui-avatars.com/api/?name=${creator.displayName}&background=006EE6&color=FFFFFF",
                                                 contentDescription = null,
-                                                modifier = Modifier.size(34.dp).clip(CircleShape),
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .clip(CircleShape),
                                                 contentScale = ContentScale.Crop
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Spacer(modifier = Modifier.width(10.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     creator.displayName,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp,
-                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    color = theme.textPrimary,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
                                                     creator.id,
                                                     fontFamily = RobotoMonoFont,
-                                                    fontSize = 9.sp,
-                                                    color = Color.White.copy(alpha = 0.55f),
+                                                    fontSize = 10.sp,
+                                                    color = theme.textSecondary,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -1598,9 +1319,9 @@ fun ProfileScreen(
                                                 Text(
                                                     if (followActionId == creator.id) "جارٍ..." else "إلغاء المتابعة",
                                                     fontFamily = CairoFont,
-                                                    fontSize = 11.sp,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFFF87171)
+                                                    color = theme.destructive
                                                 )
                                             }
                                         }
@@ -1612,400 +1333,188 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // League Championship Points & Rank Hero Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.45f, glowElevation = 6.dp)
-                    .bouncingClickable { onNavigate(AppState.LEADERBOARD) },
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
+            // 8. League Championship Points & Rank Hero Card
+            AppleCard(
+                cornerRadius = 16.dp,
+                onClick = { onNavigate(AppState.LEADERBOARD) }
             ) {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF1E1B4B).copy(alpha = 0.6f),
-                                    Color(0xFF0F172A)
-                                )
-                            )
-                        )
                         .padding(16.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = GoldPrimary.copy(alpha = 0.15f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            Icons.Default.EmojiEvents,
-                                            contentDescription = null,
-                                            tint = GoldPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        "دوري صنّاع الأثر الأسبوعي 🏆",
-                                        color = Color.White,
-                                        fontFamily = TajawalFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        "تنافس مع نخبة صناع المحتوى الدعوي",
-                                        color = Color(0xFF94A3B8),
-                                        fontFamily = NotoSansFont,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = { showTournamentInfoSheet = true },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Info,
-                                        contentDescription = "Tournament Info",
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.width(4.dp))
-
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                color = GoldPrimary.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(theme.warning.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF10B981))
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        "مباشر",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
-                                    )
-                                }
+                                Icon(
+                                    Icons.Default.EmojiEvents,
+                                    contentDescription = null,
+                                    tint = theme.warning,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    "دوري صنّاع الأثر",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    "لوحة الترتيب والنقاط الأسبوعية",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { showTournamentInfoSheet = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "دليل الدوري",
+                                tint = theme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        RankHighlightCard(
+                            label = "الترتيب الحالي",
+                            value = if (isLoadingLeague) "..." else "#$userLeagueRank",
+                            icon = Icons.Default.Leaderboard,
+                            accent = theme.primary
+                        )
+                        RankHighlightCard(
+                            label = "رصيد النقاط",
+                            value = if (isLoadingLeague) "..." else "$userLeaguePoints نقطة",
+                            icon = Icons.Default.Stars,
+                            accent = theme.warning
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val nextMilestone = remember(userLeaguePoints) {
+                        when {
+                            userLeaguePoints < 500 -> Triple(0, 500, "صانع برونزي")
+                            userLeaguePoints < 1500 -> Triple(500, 1500, "صانع فضي")
+                            userLeaguePoints < 3500 -> Triple(1500, 3500, "صانع ذهبي")
+                            userLeaguePoints < 7000 -> Triple(3500, 7000, "صانع ماسي")
+                            userLeaguePoints < 12000 -> Triple(7000, 12000, "سفير الدعوة")
+                            else -> Triple(12000, userLeaguePoints + 2000, "أسطورة قبس")
+                        }
+                    }
+                    val minPoints = nextMilestone.first
+                    val targetPoints = nextMilestone.second
+                    val nextMilestoneName = nextMilestone.third
+                    val pointsNeeded = (targetPoints - userLeaguePoints).coerceAtLeast(0)
+                    val progressFraction = if (targetPoints > minPoints) {
+                        ((userLeaguePoints - minPoints).toFloat() / (targetPoints - minPoints).toFloat()).coerceIn(0.05f, 1f)
+                    } else 1f
+                    val progressPercent = ((userLeaguePoints.toFloat() / targetPoints.toFloat()) * 100).toInt().coerceIn(1, 100)
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = theme.secondarySurface.copy(alpha = 0.55f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "الرتبة القادمة: $nextMilestoneName",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp
+                                )
+                                Text(
+                                    "$progressPercent%",
+                                    color = theme.primary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { progressFraction },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = theme.primary,
+                                trackColor = theme.cardSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "متبقي $pointsNeeded نقطة",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    "$userLeaguePoints / $targetPoints",
+                                    color = theme.textSecondary,
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 11.sp
+                                )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                        // Stats Highlights: Points & Rank
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Rank Card
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF1E293B).copy(alpha = 0.7f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF3B82F6).copy(alpha = 0.2f),
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Icons.Default.Leaderboard,
-                                                contentDescription = null,
-                                                tint = Color(0xFF60A5FA),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            "الترتيب الحالي",
-                                            color = Color(0xFF94A3B8),
-                                            fontFamily = CairoFont,
-                                            fontSize = 10.sp
-                                        )
-                                        Text(
-                                            if (isLoadingLeague) "..." else "#$userLeagueRank",
-                                            color = Color.White,
-                                            fontFamily = CairoFont,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 16.sp
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Points Card
-                            Surface(
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF1E293B).copy(alpha = 0.7f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = GoldPrimary.copy(alpha = 0.2f),
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Icons.Default.Stars,
-                                                contentDescription = null,
-                                                tint = GoldPrimary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            "رصيد النقاط",
-                                            color = Color(0xFF94A3B8),
-                                            fontFamily = CairoFont,
-                                            fontSize = 10.sp
-                                        )
-                                        Text(
-                                            if (isLoadingLeague) "..." else "$userLeaguePoints نقطة",
-                                            color = GoldPrimary,
-                                            fontFamily = CairoFont,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Next Rank Milestone & Visual Progress Indicator
-                        val nextMilestone = remember(userLeaguePoints) {
-                            when {
-                                userLeaguePoints < 500 -> Triple(0, 500, "صانع برونزي 🥉")
-                                userLeaguePoints < 1500 -> Triple(500, 1500, "صانع فضي 🥈")
-                                userLeaguePoints < 3500 -> Triple(1500, 3500, "صانع ذهبي 🥇")
-                                userLeaguePoints < 7000 -> Triple(3500, 7000, "صانع ماسي 💎")
-                                userLeaguePoints < 12000 -> Triple(7000, 12000, "سفير الدعوة 👑")
-                                else -> Triple(12000, (userLeaguePoints + 2000), "أسطورة قبس 🌟")
-                            }
-                        }
-                        val minPoints = nextMilestone.first
-                        val targetPoints = nextMilestone.second
-                        val nextMilestoneName = nextMilestone.third
-                        val pointsNeeded = (targetPoints - userLeaguePoints).coerceAtLeast(0)
-                        val progressFraction = if (targetPoints > minPoints) {
-                            ((userLeaguePoints - minPoints).toFloat() / (targetPoints - minPoints).toFloat()).coerceIn(0.05f, 1f)
-                        } else 1f
-                        val progressPercent = ((userLeaguePoints.toFloat() / targetPoints.toFloat()) * 100).toInt().coerceIn(1, 100)
-
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF131D31),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            Icons.Default.TrendingUp,
-                                            contentDescription = null,
-                                            tint = GoldPrimary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            "الرتبة القادمة: $nextMilestoneName",
-                                            color = Color.White,
-                                            fontFamily = CairoFont,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                    Text(
-                                        "$progressPercent%",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // Custom Gradient Progress Bar
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(10.dp)
-                                        .clip(RoundedCornerShape(5.dp))
-                                        .background(Color(0xFF0F172A))
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(fraction = progressFraction)
-                                            .fillMaxHeight()
-                                            .clip(RoundedCornerShape(5.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    colors = listOf(
-                                                        Color(0xFF3B82F6),
-                                                        Color(0xFF8B5CF6),
-                                                        GoldPrimary
-                                                    )
-                                                )
-                                            )
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "متبقي $pointsNeeded نقطة للترقية",
-                                        color = Color(0xFF94A3B8),
-                                        fontFamily = NotoSansFont,
-                                        fontSize = 11.sp
-                                    )
-                                    Text(
-                                        "$userLeaguePoints / $targetPoints",
-                                        color = Color(0xFFCBD5E1),
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Action Buttons: Leaderboard & Celebration Trigger
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { onNavigate(AppState.LEADERBOARD) },
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .height(44.dp)
-                                    .bouncingClickable { onNavigate(AppState.LEADERBOARD) },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.MilitaryTech,
-                                        contentDescription = null,
-                                        tint = DeepSlate,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        "صالة البطولة 🌟",
-                                        color = DeepSlate,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-
-                            Button(
-                                onClick = { showRankMilestoneCelebration = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .bouncingClickable { showRankMilestoneCelebration = true },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF1E293B)
-                                ),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Celebration,
-                                        contentDescription = null,
-                                        tint = GoldPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "احتفال الرتبة 🎉",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ApplePrimaryButton(
+                            text = "صالة البطولة",
+                            icon = Icons.Default.MilitaryTech,
+                            onClick = { onNavigate(AppState.LEADERBOARD) },
+                            modifier = Modifier.weight(1.2f)
+                        )
+                        AppleSecondaryButton(
+                            text = "الاحتفال",
+                            icon = Icons.Default.Celebration,
+                            onClick = { showRankMilestoneCelebration = true },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Social Platforms Section
+            // 9. Social Platforms Section
             ProfileSection(
                 title = "ربط منصات التواصل",
                 icon = Icons.Default.Share
@@ -2037,9 +1546,7 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Badges Section
+            // 10. Badges Section
             ProfileSection(
                 title = "الأوسمة والإنجازات",
                 icon = Icons.Default.WorkspacePremium
@@ -2051,7 +1558,7 @@ fun ProfileScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     tournamentBadges.forEach { badge ->
-                        Box(modifier = Modifier.width(130.dp)) {
+                        Box(modifier = Modifier.width(136.dp)) {
                             TournamentBadgeCard(
                                 badge = badge,
                                 userPoints = userLeaguePoints,
@@ -2063,29 +1570,21 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Account Plan Section
+            // 11. Account Plan & Quota Section
             val accountService = remember { AppServices.getAccountService(context) }
             val planTitle = when {
-                accountService.isDeveloperOrAdmin -> "باقة المطور 🛠️"
-                accountService.hasCustomKeys -> "المفاتيح الخاصة (BYOK) 🔑"
-                accountService.isPremium -> "قبس برو 👑"
-                else -> "باقة مجانية ⚡"
+                accountService.isDeveloperOrAdmin -> "باقة المطور"
+                accountService.hasCustomKeys -> "المفاتيح الخاصة (BYOK)"
+                accountService.isPremium -> "قبس برو"
+                else -> "باقة مجانية"
             }
             val isUnlimited = accountService.isDeveloperOrAdmin || accountService.hasCustomKeys || accountService.isPremium
-            
+
             ProfileSection(
                 title = "باقة الحساب والرصيد",
                 icon = Icons.Default.AccountBalanceWallet
             ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.3f, glowElevation = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = qabasCardSurface()),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
+                AppleCard(cornerRadius = 16.dp) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -2094,790 +1593,193 @@ fun ProfileScreen(
                         ) {
                             Text(
                                 Translator.tr("خطة الاشتراك الحالية"),
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
+                                fontSize = 14.sp
                             )
-                            
                             Surface(
-                                color = if (isUnlimited) qabasPrimary().copy(alpha = 0.2f) else Color(0xFF1E293B),
-                                shape = RoundedCornerShape(8.dp),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isUnlimited) qabasPrimary() else Color(0xFF64748B)
-                                )
+                                color = (if (isUnlimited) theme.primary else theme.textSecondary).copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
                                     text = planTitle,
-                                    color = if (isUnlimited) qabasPrimary() else qabasTextSecondary(),
+                                    color = if (isUnlimited) theme.primary else theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    fontSize = 11.5.sp,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
-                        
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(qabasBackground().copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .background(theme.secondarySurface.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("الرصيد 💰", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 10.sp)
-                                Text("${accountService.walletBalance}", color = qabasPrimary(), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("الرصيد", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("${accountService.walletBalance}", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
-                            Box(modifier = Modifier.width(1.dp).height(20.dp).background(qabasTextSecondary().copy(alpha = 0.2f)))
+                            VerticalDivider(modifier = Modifier.height(24.dp), color = theme.separator)
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("فيديوهات 🎬", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("فيديوهات", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                                 Text(
                                     if (isUnlimited) "∞" else "${accountService.dailyVideoCount}/${AccountService.MAX_DAILY_VIDEOS}",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
+                                    fontSize = 14.sp
                                 )
                             }
-                            Box(modifier = Modifier.width(1.dp).height(20.dp).background(qabasTextSecondary().copy(alpha = 0.2f)))
+                            VerticalDivider(modifier = Modifier.height(24.dp), color = theme.separator)
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("صور 🖼️", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("صور", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                                 Text(
                                     if (isUnlimited) "∞" else "${accountService.dailyImageCount}/${AccountService.MAX_DAILY_IMAGES}",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
+                                    fontSize = 14.sp
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        ProfileActionButton(
-                            label = "المتجر والترقية 👑",
+                        AppleSecondaryButton(
+                            text = "المتجر والترقية",
                             icon = Icons.Default.ShoppingCart,
-                            onClick = { onNavigate(AppState.PREMIUM_UPGRADE) },
-                            modifier = Modifier.fillMaxWidth()
+                            onClick = { onNavigate(AppState.PREMIUM_UPGRADE) }
                         )
                     }
                 }
             }
 
-            // If 0 projects, show an actionable empty state banner
             if (projectsCount == 0) {
-                Spacer(modifier = Modifier.height(20.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.25f, glowElevation = 3.dp),
-                    colors = CardDefaults.cardColors(containerColor = qabasCardSurface()),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
+                AppleCard(cornerRadius = 16.dp) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Default.MovieFilter, contentDescription = null, tint = qabasPrimary(), modifier = Modifier.size(40.dp))
+                        Icon(Icons.Default.MovieFilter, contentDescription = null, tint = theme.primary, modifier = Modifier.size(38.dp))
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "ابدأ رحلتك الدعوية الأولى 🌿",
-                            color = Color.White,
+                            "ابدأ رحلتك الدعوية الأولى",
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "حوّل أي فكرة إلى مقطع ريلز احترافي في ثوانٍ",
-                            color = qabasTextSecondary(),
-                            fontFamily = TajawalFont,
-                            fontSize = 12.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.5.sp,
+                            textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        ProfileActionButton(
-                            label = "بدء مشروع جديد 🚀",
+                        Spacer(modifier = Modifier.height(14.dp))
+                        ApplePrimaryButton(
+                            text = "بدء مشروع جديد",
                             icon = Icons.Default.Add,
-                            onClick = { onNavigate(AppState.INPUT) },
-                            modifier = Modifier.fillMaxWidth(),
-                            isPrimary = true
+                            onClick = { onNavigate(AppState.INPUT) }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 
-    // Change Password Dialog (Supabase connected)
+    // Dialogs & Sheets delegated to ProfileDialogsAndCards.kt
     if (showChangePasswordDialog) {
-        var currentPw by remember { mutableStateOf("") }
-        var newPw by remember { mutableStateOf("") }
-        var confirmNewPw by remember { mutableStateOf("") }
-        var isUpdatingPw by remember { mutableStateOf(false) }
-
-        AlertDialog(
-            onDismissRequest = { if (!isUpdatingPw) showChangePasswordDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LockReset, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("تغيير كلمة المرور 🔐", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("الحساب الحالي: $userEmail", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-
-                    OutlinedTextField(
-                        value = newPw,
-                        onValueChange = { newPw = it },
-                        label = { Text("كلمة المرور الجديدة", color = Color.Gray, fontFamily = CairoFont) },
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = confirmNewPw,
-                        onValueChange = { confirmNewPw = it },
-                        label = { Text("تأكيد كلمة المرور الجديدة", color = Color.Gray, fontFamily = CairoFont) },
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newPw.length < 6) {
-                            Toast.makeText(context, "كلمة المرور يجب ألا تقل عن 6 أحرف", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        if (newPw != confirmNewPw) {
-                            Toast.makeText(context, "كلمتا المرور غير متطابقتين", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        isUpdatingPw = true
-                        coroutineScope.launch {
-                            val success = runCatching {
-                                SupabaseServices.isSupabaseAvailable &&
-                                    SupabaseServices.Auth.updatePassword(newPw.trim())
-                            }.getOrDefault(false)
-                            isUpdatingPw = false
-                            if (success) {
-                                showChangePasswordDialog = false
-                                Toast.makeText(context, "تم تحديث كلمة المرور في Supabase بنجاح 🔒", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "تعذر تحديث كلمة المرور. تحقق من اتصال Supabase ومن تسجيل الدخول الحالي.", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    },
-                    enabled = !isUpdatingPw,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    if (isUpdatingPw) {
-                        CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(18.dp))
-                    } else {
-                        Text("تحديث كلمة السر", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showChangePasswordDialog = false },
-                    enabled = !isUpdatingPw
-                ) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
-                }
-            },
-            containerColor = DeepSlate
+        ProfileChangePasswordDialog(
+            userEmail = userEmail,
+            onDismiss = { showChangePasswordDialog = false }
         )
     }
 
-    // Switch Account Dialog
     if (showSwitchAccountDialog) {
-        AlertDialog(
-            onDismissRequest = { showSwitchAccountDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.SwitchAccount, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("تبديل الحساب 👥", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            },
-            text = {
-                val registeredAccounts = remember { LocalAccountRegistry.getAllAccounts(context) }
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "الحساب الحالي النشط:",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontSize = 12.5.sp
-                    )
-                    Surface(
-                        color = Color(0xFF1E293B),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(displayName, color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 13.sp)
-                                Text(userEmail, color = GoldPrimary, fontFamily = RobotoMonoFont, fontSize = 11.sp)
-                            }
-                            Surface(color = GoldPrimary.copy(alpha = 0.2f), shape = RoundedCornerShape(6.dp)) {
-                                Text("نشط حالياً", color = GoldPrimary, fontSize = 10.sp, fontFamily = CairoFont, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                            }
-                        }
-                    }
-
-                    if (registeredAccounts.size > 1) {
-                        Text(
-                            "الحسابات المسجلة الأخرى (${registeredAccounts.size - 1}):",
-                            color = TextSecondary,
-                            fontFamily = CairoFont,
-                            fontSize = 11.5.sp
-                        )
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.verticalScroll(rememberScrollState()).heightIn(max = 240.dp)
-                        ) {
-                            registeredAccounts.filter { !it.email.equals(userEmail, ignoreCase = true) }.forEach { otherAcc ->
-                                Surface(
-                                    onClick = {
-                                        showSwitchAccountDialog = false
-                                        coroutineScope.launch {
-                                            // Complete release, cloud sign-out, and local cleanup before navigation.
-                                            ActiveSessionManager.endLocalSession(context)
-                                            prefs.edit().putString("saved_login_email", otherAcc.email).apply()
-                                            Toast.makeText(context, "يرجى تسجيل الدخول لتأكيد كلمة المرور للحساب: ${otherAcc.email} 🔐", Toast.LENGTH_LONG).show()
-                                            onNavigate(AppState.LOGIN)
-                                        }
-                                    },
-                                    color = CardSurface,
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.12f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column {
-                                            Text(otherAcc.name, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            Text(otherAcc.email, color = TextSecondary, fontFamily = RobotoMonoFont, fontSize = 10.sp)
-                                        }
-                                        Text("تبديل ➔", color = GoldSecondary, fontSize = 11.sp, fontFamily = CairoFont)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "أو يمكنك تسجيل الخروج لإنشاء حساب جديد أو تسجيل الدخول ببريد آخر:",
-                        color = TextSecondary,
-                        fontFamily = NotoSansFont,
-                        fontSize = 11.sp
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showSwitchAccountDialog = false
-                        coroutineScope.launch {
-                            ActiveSessionManager.endLocalSession(context)
-                            onNavigate(AppState.LOGIN)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("خروج / حساب جديد ➕", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSwitchAccountDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
-                }
-            },
-            containerColor = DeepSlate
+        ProfileSwitchAccountDialog(
+            displayName = displayName,
+            userEmail = userEmail,
+            onDismiss = { showSwitchAccountDialog = false },
+            onNavigateToLogin = { onNavigate(AppState.LOGIN) }
         )
     }
 
-    // Comprehensive Profile Edit Dialog (Name, Bio, Tag) - with Mandatory Locked Account Number & Unique Tag Check
     if (showEditProfileDialog) {
-        var tempName by remember { mutableStateOf(displayName) }
-        var tempTag by remember { mutableStateOf(userCustomTag) }
-        var tempBio by remember { mutableStateOf(userBio) }
-        var tagError by remember { mutableStateOf<String?>(null) }
-        var isCheckingTag by remember { mutableStateOf(false) }
-
-        val activeAccountNumber = userAccountNumber.takeIf { it.isNotBlank() }
-            ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
-            ?: UserIdentifierManager.peekNextAccountNumber(context)
-
-        AlertDialog(
-            onDismissRequest = { if (!isCheckingTag) showEditProfileDialog = false },
-            title = {
-                Text("تعديل بيانات الملف الشخصي 👤", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // 1. Mandatory & Non-Editable Account Number (Locked & Cloud Verified)
-                    Text(
-                        "رقم الحساب المعتمد (ثابت وموثق سحابياً - غير قابل للتعديل 🔒):",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontFamily = NotoSansFont,
-                        fontSize = 12.sp
-                    )
-                    Surface(
-                        color = Color(0xFF0F172A),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = "رقم الحساب مقفول وموثق",
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = UserIdentifierManager.formatAccountNumber(activeAccountNumber),
-                                    color = GoldPrimary,
-                                    fontFamily = RobotoMonoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                            Surface(
-                                color = GoldPrimary.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text(
-                                    text = "موثق سحابياً ☁️",
-                                    color = GoldPrimary,
-                                    fontSize = 10.sp,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = "🔒 رقم الحساب متسلسل ومربوط بحسابك في السحابة ولا يمكن تغييره لحماية الهوية، بينما يمكنك تعديل اسم الحساب والمعرّف الرقمي بحرية.",
-                        color = Color.Gray,
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // 2. Display Name (Editable)
-                    Text("اسم الحساب / القناة الدعوية (قابل للتعديل):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = tempName,
-                        onValueChange = { tempName = it },
-                        placeholder = { Text("مثال: قبس للإنتاج الدعوي", color = Color.Gray) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true
-                    )
-
-                    // 3. User Tag / Identifier (Editable with uniqueness check to prevent duplicates)
-                    Text("المعرف الرقمي الفريد (Tag) (قابل للتعديل - يمنع التكرار):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = tempTag,
-                        onValueChange = {
-                            tempTag = it
-                            tagError = null
-                        },
-                        placeholder = { Text("@qabas_creator", color = Color.Gray) },
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = tagError != null,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = if (tagError != null) Color(0xFFEF4444) else GoldPrimary,
-                            unfocusedBorderColor = if (tagError != null) Color(0xFFEF4444) else Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true
-                    )
-                    if (tagError != null) {
-                        Text(
-                            text = "⚠️ $tagError",
-                            color = Color(0xFFEF4444),
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp
-                        )
-                    } else {
-                        Text(
-                            text = "يجب أن يكون فريداً وغير مستخدم من قبل أي صانع محتوى آخر في السحابة.",
-                            color = Color.Gray.copy(alpha = 0.8f),
-                            fontFamily = CairoFont,
-                            fontSize = 10.sp
-                        )
-                    }
-
-                    // 4. Bio
-                    Text("النبذة التعريفية (Bio):", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = tempBio,
-                        onValueChange = { tempBio = it },
-                        placeholder = { Text("اكتب نبذة عن رسالتك وهدفك الدعوي...", color = Color.Gray) },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
-                        maxLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    enabled = !isCheckingTag,
-                    onClick = {
-                        val cleanId = UserIdentifierManager.normalize(tempTag)
-                        if (cleanId.isBlank()) {
-                            tagError = "يرجى إدخال معرّف صحيح"
-                            return@Button
-                        }
-
-                        isCheckingTag = true
-                        coroutineScope.launch {
-                            val checkResult = UserIdentifierManager.checkCustomIdAvailability(
-                                context = context,
-                                customId = cleanId,
-                                currentEmail = userEmail
-                            )
-
-                            when (checkResult) {
-                                is UserIdentifierManager.CustomIdAvailabilityResult.Taken -> {
-                                    isCheckingTag = false
-                                    tagError = checkResult.reason
-                                }
-                                is UserIdentifierManager.CustomIdAvailabilityResult.Invalid -> {
-                                    isCheckingTag = false
-                                    tagError = checkResult.reason
-                                }
-                                is UserIdentifierManager.CustomIdAvailabilityResult.Available,
-                                is UserIdentifierManager.CustomIdAvailabilityResult.CurrentUserOwnsIt -> {
-                                    val authUid = SupabaseServices.Auth.getCurrentUserId()
-                                    if (authUid.isNullOrBlank()) {
-                                        isCheckingTag = false
-                                        tagError = "يجب تسجيل الدخول إلى السحابة لتعديل ملفك الشخصي."
-                                        return@launch
-                                    }
-
-                                    val sessionEmail = SupabaseServices.Auth.getCurrentUserEmail()?.trim()?.lowercase(java.util.Locale.ROOT)
-                                    val activeEmail = sessionEmail ?: userEmail
-                                    val normalizedCleanId = UserIdentifierManager.normalize(cleanId)
-
-                                    val nextDisplayName = tempName.ifBlank { "مستخدم قبس" }
-                                    val profileSaveResult = SupabaseServices.Database.saveOwnProfile(
-                                        id = authUid,
-                                        name = nextDisplayName,
-                                        email = activeEmail,
-                                        customId = normalizedCleanId
-                                    )
-
-                                    if (profileSaveResult.isFailure) {
-                                        val errorText = profileSaveResult.exceptionOrNull()?.message.orEmpty()
-                                        val normalizedError = errorText.lowercase(java.util.Locale.ROOT)
-                                        tagError = when {
-                                            "users_custom_id_lower_unique" in normalizedError ||
-                                                "duplicate key" in normalizedError ||
-                                                "23505" in normalizedError ->
-                                                "هذا اليوزر مستخدم بالفعل. اختر معرفاً آخر."
-                                            "requested username is invalid" in normalizedError ||
-                                                "22023" in normalizedError ->
-                                                "صيغة اليوزر غير مقبولة. استخدم أحرفاً إنجليزية وأرقاماً أو _ أو -."
-                                            "42501" in normalizedError ||
-                                                "permission denied" in normalizedError ->
-                                                "رفضت صلاحيات الحساب التحديث. أعد تسجيل الدخول ثم حاول مجدداً."
-                                            "انتهت جلسة الدخول" in errorText ->
-                                                "انتهت جلسة الدخول. سجّل الدخول مجدداً ثم حاول."
-                                            else ->
-                                                "تعذر حفظ بيانات الملف في السحابة. تحقق من الاتصال وحاول مجدداً."
-                                        }
-                                        isCheckingTag = false
-                                        Toast.makeText(context, tagError, Toast.LENGTH_LONG).show()
-                                        return@launch
-                                    }
-
-                                    val cloudUser = profileSaveResult.getOrNull()
-                                    if (cloudUser == null || cloudUser.id != authUid) {
-                                        isCheckingTag = false
-                                        tagError = "لم تؤكد السحابة حفظ بيانات الحساب. لم يتم اعتماد التغيير."
-                                        Toast.makeText(context, tagError, Toast.LENGTH_LONG).show()
-                                        return@launch
-                                    }
-
-                                    // The canonical users row is saved above. Keep the profile mirror in sync too,
-                                    // because profile surfaces read full_name from public.profiles.
-                                    val profileMirrorSynced = SupabaseServices.Profiles.syncUserProfile(
-                                        userId = authUid,
-                                        displayName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName,
-                                        email = activeEmail,
-                                        avatarUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
-                                            ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
-                                    )
-
-                                    // Bio is stored separately in user_settings.
-                                    val bioSaved = SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
-
-                                    val resolvedAccNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
-                                        ?: UserIdentifierManager.getAccountNumber(context, activeEmail)
-                                        ?: "QBS-0001"
-
-                                    displayName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName
-                                    userCustomTag = UserIdentifierManager.formatDisplay(cloudUser.customId!!)
-                                    userBio = tempBio
-                                    UserIdentifierManager.saveCustomId(context, cloudUser.customId, activeEmail)
-                                    UserIdentifierManager.saveAccountNumber(context, activeEmail, resolvedAccNumber)
-
-                                    profilePrefs.edit().putString("user_name", displayName).apply()
-                                    prefs.edit()
-                                        .putString("user_id", authUid)
-                                        .putString("user_display_name", displayName)
-                                        .putString("user_name", displayName)
-                                        .putString("user_tag", userCustomTag)
-                                        .putString("user_custom_id", cloudUser.customId)
-                                        .putString("user_account_number", cloudUser.accountNumber)
-                                        .apply()
-                                    profilePrefs.edit().putString("user_bio", userBio).apply()
-                                    AccountIdentityManager.refresh(context)
-
-                                    isCheckingTag = false
-                                    showEditProfileDialog = false
-                                    Toast.makeText(
-                                        context,
-                                        when {
-                                            !profileMirrorSynced ->
-                                                "تم حفظ الاسم في الحساب، لكن تعذرت مزامنة ملف العرض السحابي."
-                                            bioSaved ->
-                                                "تم حفظ الملف الشخصي واليوزر السحابي بنجاح! 💾"
-                                            else ->
-                                                "تم حفظ الاسم واليوزر، لكن تعذرت مزامنة النبذة."
-                                        },
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    if (isCheckingTag) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("جاري التحقق...", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    } else {
-                        Text("حفظ التغييرات", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { if (!isCheckingTag) showEditProfileDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
-                }
-            },
-            containerColor = DeepSlate
+        ProfileEditDialog(
+            userEmail = userEmail,
+            currentName = displayName,
+            currentTag = userCustomTag,
+            currentBio = userBio,
+            currentAccountNumber = userAccountNumber,
+            onDismiss = { showEditProfileDialog = false },
+            onProfileUpdated = { newName, newTag, newBio, accNum ->
+                displayName = newName
+                userCustomTag = newTag
+                userBio = newBio
+                userAccountNumber = accNum
+                showEditProfileDialog = false
+            }
         )
     }
 
-    // Avatar Selection Dialog (Upload image from device or choose preset icons)
     if (showAvatarPickerSheet) {
-        AlertDialog(
-            onDismissRequest = { showAvatarPickerSheet = false },
-            title = {
-                Text("تغيير الصورة الشخصية 📸", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        ProfileAvatarPickerDialog(
+            selectedPresetAvatar = selectedPresetAvatar,
+            hasCustomUri = avatarUriString.isNotBlank(),
+            onPickFromGallery = {
+                showAvatarPickerSheet = false
+                photoPickerLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Upload from gallery button
-                    Button(
-                        onClick = {
-                            showAvatarPickerSheet = false
-                            imagePickerLauncher.launch("image/*")
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.Upload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("رفع صورة من المعرض (Gallery)", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-
-                    HorizontalDivider(color = Color(0xFF1E293B))
-
-                    Text("أو اختر رمزاً دعوياً معتمداً:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-
-                    // Preset Avatars Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        val presets = listOf(
-                            0 to Icons.Default.Person,
-                            1 to Icons.Default.AutoAwesome,
-                            2 to Icons.Default.MovieFilter,
-                            3 to Icons.Default.MenuBook,
-                            4 to Icons.Default.Psychology
+            onSelectPreset = { index ->
+                selectedPresetAvatar = index
+                avatarUriString = ""
+                profilePrefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
+                showAvatarPickerSheet = false
+                SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { userId ->
+                    coroutineScope.launch(Dispatchers.IO) {
+                        SupabaseServices.Profiles.syncUserProfile(
+                            userId = userId,
+                            displayName = displayName,
+                            email = userEmail,
+                            avatarUrl = ""
                         )
-
-                        presets.forEach { (index, icon) ->
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(CircleShape)
-                                    .background(if (selectedPresetAvatar == index && avatarUriString.isBlank()) GoldPrimary else Color(0xFF151B2B))
-                                    .border(1.dp, GoldPrimary, CircleShape)
-                                    .clickable {
-                                        selectedPresetAvatar = index
-                                        avatarUriString = ""
-                                        profilePrefs.edit().putString("user_avatar_uri", "").putInt("user_avatar_preset", index).apply()
-                                        showAvatarPickerSheet = false
-                                        SupabaseServices.Auth.getCurrentUserId()?.takeIf { it.isNotBlank() }?.let { userId ->
-                                            coroutineScope.launch(Dispatchers.IO) {
-                                                SupabaseServices.Profiles.syncUserProfile(
-                                                    userId = userId,
-                                                    displayName = displayName,
-                                                    email = userEmail,
-                                                    avatarUrl = ""
-                                                )
-                                                AccountIdentityManager.refresh(context)
-                                            }
-                                        }
-                                        Toast.makeText(context, "تم تعيين الرمز الشخصي ✦", Toast.LENGTH_SHORT).show()
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    icon,
-                                    contentDescription = null,
-                                    tint = if (selectedPresetAvatar == index && avatarUriString.isBlank()) DeepSlate else GoldPrimary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
+                        AccountIdentityManager.refresh(context)
                     }
                 }
+                Toast.makeText(context, "تم تعيين الرمز الشخصي", Toast.LENGTH_SHORT).show()
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showAvatarPickerSheet = false }) {
-                    Text("إغلاق", color = Color.Gray, fontFamily = CairoFont)
-                }
-            },
-            containerColor = DeepSlate
+            onDismiss = { showAvatarPickerSheet = false }
         )
     }
 
-    // Handle Edit Modal Dialog
     selectedEditAccount?.let { account ->
-        AlertDialog(
-            onDismissRequest = { selectedEditAccount = null },
-            title = {
-                Text("تعديل معرف ${account.name} ✏️", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        SocialHandleEditDialog(
+            account = account,
+            handleText = editHandleText,
+            onHandleChange = { editHandleText = it },
+            onSave = {
+                SocialAccountManager.toggleConnection(context, account.id, isConnected = true, handle = editHandleText)
+                socialAccounts = SocialAccountManager.getAccounts(context)
+                selectedEditAccount = null
+                Toast.makeText(context, "تم حفظ الحساب بنجاح", Toast.LENGTH_SHORT).show()
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("أدخل اسم المستخدم على منصة ${account.name}:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = editHandleText,
-                        onValueChange = { editHandleText = it },
-                        placeholder = { Text("@user", color = Color.Gray, fontFamily = RobotoMonoFont) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        SocialAccountManager.toggleConnection(context, account.id, isConnected = true, handle = editHandleText)
-                        socialAccounts = SocialAccountManager.getAccounts(context)
-                        selectedEditAccount = null
-                        Toast.makeText(context, "تم حفظ الحساب بنجاح! 💾", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("حفظ", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedEditAccount = null }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
-                }
-            },
-            containerColor = DeepSlate
+            onDismiss = { selectedEditAccount = null }
         )
     }
 
@@ -2888,7 +1790,6 @@ fun ProfileScreen(
         )
     }
 
-    // Tournament Badge Detail Dialog Modal
     selectedBadgeForDetail?.let { badge ->
         TournamentBadgeDetailDialog(
             badge = badge,
@@ -2902,7 +1803,6 @@ fun ProfileScreen(
         )
     }
 
-    // Tournament Milestone Rank Celebration Dialog Modal (Lottie Animation Sequence)
     if (showRankMilestoneCelebration) {
         TournamentRankMilestoneCelebrationDialog(
             newTierTitle = currentTierTitleOnly,
@@ -2917,815 +1817,30 @@ fun ProfileScreen(
         )
     }
 
-    // Tournament Information Bottom Sheet
     if (showTournamentInfoSheet) {
-        TournamentInfoBottomSheet(
-            onDismiss = { showTournamentInfoSheet = false }
-        )
+        TournamentInfoBottomSheet(onDismiss = { showTournamentInfoSheet = false })
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TournamentInfoBottomSheet(
-    onDismiss: () -> Unit
+private fun MiniMetricCell(
+    label: String,
+    value: String,
+    accent: Color,
+    modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = DeepSlate,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = GoldPrimary.copy(alpha = 0.3f)) }
+    val theme = QabasTheme.current
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = theme.secondarySurface.copy(alpha = 0.55f)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 40.dp)
-        ) {
-            // Header
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.EmojiEvents,
-                    contentDescription = null,
-                    tint = GoldPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    "دليل دوري صنّاع الأثر 🏆",
-                    color = Color.White,
-                    fontFamily = TajawalFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(20.dp))
-            
-            // Section: How to earn points
-            Text(
-                "كيف تجمع النقاط؟ 📈",
-                color = GoldPrimary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            PointRuleItem("إنشاء مشروع دعوي جديد", "50 نقطة")
-            PointRuleItem("نشر فيديو على منصات التواصل", "20 نقطة")
-            PointRuleItem("تحقيق 1000 مشاهدة (تلقائي)", "100 نقطة")
-            PointRuleItem("التفاعل مع مجتمع صُنّاع قبس", "10 نقاط")
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Section: Tiers and Rewards
-            Text(
-                "الرتب والمكافآت 🎁",
-                color = GoldPrimary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            TierInfoItem("البرونزية 🥉", "0 - 499 نقطة", "بداية الرحلة والظهور الأولي")
-            TierInfoItem("الفضية 🥈", "500 - 1499 نقطة", "مضاعف نقاط 1.2x وأولوية معالجة")
-            TierInfoItem("الذهبية 🥇", "1500 - 3499 نقطة", "إطار ذهبي متوهج ومضاعف 1.5x")
-            TierInfoItem("الماسية 💎", "3500 - 6999 نقطة", "توليد فوري غير محدود للمشاهد")
-            TierInfoItem("السفير 👑", "7000 - 11999 نقطة", "شارة توثيق ذهبية ونماذج تجريبية")
-            TierInfoItem("الأسطورية 🌟", "12000+ نقطة", "تخليد في لوحة الشرف الخالدة")
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Prize Note
-            Surface(
-                color = GoldPrimary.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.2f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Celebration,
-                        contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        "يتم توزيع جوائز عينية ومادية (اشتراكات Pro) لأفضل 3 صناع في لوحة الشرف نهاية كل شهر! 🎉",
-                        color = Color.White,
-                        fontFamily = NotoSansFont,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("فهمت، لننطلق! 🚀", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-fun PointRuleItem(title: String, points: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, color = Color.White.copy(alpha = 0.9f), fontFamily = NotoSansFont, fontSize = 13.sp)
-        Text(points, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-    }
-}
-
-@Composable
-fun TierInfoItem(tier: String, range: String, perk: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(tier, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(range, color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 12.sp)
-        }
-        Text(perk, color = Color(0xFF60A5FA), fontFamily = NotoSansFont, fontSize = 11.sp)
-    }
-}
-
-@Composable
-fun TournamentBadgeCard(
-    badge: TournamentTierBadge,
-    userPoints: Int,
-    userRank: Int,
-    onClick: () -> Unit
-) {
-    val isUnlocked = badge.isUnlocked
-    val isCurrent = badge.isCurrentTier
-    val cardBorderColor = when {
-        isCurrent -> badge.primaryColor
-        isUnlocked -> badge.primaryColor.copy(alpha = 0.5f)
-        else -> Color(0xFF1E293B)
-    }
-    val cardBgColor = if (isUnlocked) Color(0xFF0F172A) else Color(0xFF0B0F19)
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .luxuryCardStyle(
-                shapeRadius = 14.dp,
-                borderAlpha = if (isCurrent) 0.8f else if (isUnlocked) 0.4f else 0.15f,
-                glowElevation = if (isCurrent) 4.dp else 1.dp
-            )
-            .bouncingClickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBgColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Medallion Icon Box
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isUnlocked) badge.primaryColor.copy(alpha = 0.2f)
-                        else Color(0xFF151B2B)
-                    )
-                    .border(
-                        1.2.dp,
-                        if (isUnlocked) badge.primaryColor else Color(0xFF334155),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isUnlocked) {
-                    Icon(
-                        badge.icon,
-                        contentDescription = null,
-                        tint = badge.primaryColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = Color.Gray,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Title
-            Text(
-                badge.title,
-                color = if (isUnlocked) Color.White else Color(0xFF94A3B8),
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                maxLines = 1
-            )
-
-            // Subtitle Tier
-            Text(
-                badge.tierTitle,
-                color = if (isUnlocked) badge.accentColor else Color.Gray,
-                fontFamily = NotoSansFont,
-                fontSize = 10.sp,
-                maxLines = 1
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Status Tag
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = when {
-                    isCurrent -> badge.primaryColor.copy(alpha = 0.25f)
-                    isUnlocked -> Color(0xFF10B981).copy(alpha = 0.18f)
-                    else -> Color(0xFF1E293B)
-                },
-                border = androidx.compose.foundation.BorderStroke(
-                    0.6.dp,
-                    when {
-                        isCurrent -> badge.primaryColor
-                        isUnlocked -> Color(0xFF10B981).copy(alpha = 0.5f)
-                        else -> Color(0xFF334155)
-                    }
-                )
-            ) {
-                Text(
-                    text = when {
-                        isCurrent -> "الرتبة الحالية ⭐"
-                        isUnlocked -> "مفتوح ✓"
-                        badge.rankRequired != null -> "الترتيب #${badge.rankRequired}"
-                        else -> "${badge.pointsRequired} نقطة"
-                    },
-                    color = when {
-                        isCurrent -> badge.primaryColor
-                        isUnlocked -> Color(0xFF10B981)
-                        else -> Color(0xFF94A3B8)
-                    },
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 9.sp,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun TournamentBadgeDetailDialog(
-    badge: TournamentTierBadge,
-    userPoints: Int,
-    userRank: Int,
-    onDismiss: () -> Unit,
-    onNavigateToLeague: () -> Unit
-) {
-    val isUnlocked = badge.isUnlocked
-    val isCurrent = badge.isCurrentTier
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = null,
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Big Glowing Medallion
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    badge.primaryColor.copy(alpha = 0.4f),
-                                    Color(0xFF0F172A)
-                                )
-                            )
-                        )
-                        .border(
-                            2.dp,
-                            if (isUnlocked) badge.primaryColor else Color(0xFF475569),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        if (isUnlocked) badge.icon else Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = if (isUnlocked) badge.primaryColor else Color.Gray,
-                        modifier = Modifier.size(38.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Badge Title & Tier
-                Text(
-                    text = "${badge.title} ${badge.emoji}",
-                    color = Color.White,
-                    fontFamily = TajawalFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-
-                Text(
-                    text = badge.tierTitle,
-                    color = badge.accentColor,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Status Chip
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = when {
-                        isCurrent -> badge.primaryColor.copy(alpha = 0.2f)
-                        isUnlocked -> Color(0xFF10B981).copy(alpha = 0.18f)
-                        else -> Color(0xFFEF4444).copy(alpha = 0.15f)
-                    },
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        when {
-                            isCurrent -> badge.primaryColor
-                            isUnlocked -> Color(0xFF10B981).copy(alpha = 0.6f)
-                            else -> Color(0xFFEF4444).copy(alpha = 0.4f)
-                        }
-                    )
-                ) {
-                    Text(
-                        text = when {
-                            isCurrent -> "رتبتك المعتمدة الحالية في البطولة ⭐"
-                            isUnlocked -> "تم استحقاق هذا الوسام بنجاح 🎖️"
-                            else -> "وسام مقفل - بحاجة لمزيد من النقاط 🔒"
-                        },
-                        color = when {
-                            isCurrent -> badge.primaryColor
-                            isUnlocked -> Color(0xFF10B981)
-                            else -> Color(0xFFFCA5A5)
-                        },
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Description Box
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF0F172A),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            "عن الوسام:",
-                            color = Color(0xFF94A3B8),
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            badge.description,
-                            color = Color(0xFFE2E8F0),
-                            fontFamily = NotoSansFont,
-                            fontSize = 12.sp,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Perk Box
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF1E1B4B).copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4338CA).copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = Color(0xFFA5B4FC),
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "المزايا والمكافآت الممنوحة:",
-                                color = Color(0xFFA5B4FC),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            badge.perk,
-                            color = Color.White,
-                            fontFamily = NotoSansFont,
-                            fontSize = 12.sp,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Requirement & Progress
-                if (!isUnlocked) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF131D31),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            if (badge.rankRequired != null) {
-                                Text(
-                                    "متطلب الترتيب: الوصول للمركز #${badge.rankRequired} أو أفضل",
-                                    color = Color(0xFF94A3B8),
-                                    fontFamily = CairoFont,
-                                    fontSize = 11.sp
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    "ترتيبك الحالي: #$userRank",
-                                    color = Color.White,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                            } else {
-                                val remaining = (badge.pointsRequired - userPoints).coerceAtLeast(0)
-                                val fraction = (userPoints.toFloat() / badge.pointsRequired.toFloat()).coerceIn(0.05f, 1f)
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        "التقدم نحو الوسام",
-                                        color = Color(0xFF94A3B8),
-                                        fontFamily = CairoFont,
-                                        fontSize = 11.sp
-                                    )
-                                    Text(
-                                        "$userPoints / ${badge.pointsRequired}",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF0F172A))
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(fraction = fraction)
-                                            .fillMaxHeight()
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    listOf(Color(0xFF3B82F6), GoldPrimary)
-                                                )
-                                            )
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    "متبقي $remaining نقطة لفتح هذا الوسام",
-                                    color = Color(0xFFCBD5E1),
-                                    fontFamily = NotoSansFont,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onNavigateToLeague,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Leaderboard,
-                        contentDescription = null,
-                        tint = DeepSlate,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "عرض الترتيب في البطولة 🏆",
-                        color = DeepSlate,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق", color = Color.Gray, fontFamily = CairoFont)
-            }
-        },
-        containerColor = DeepSlate,
-        shape = RoundedCornerShape(18.dp)
-    )
-}
-
-@Composable
-fun SocialPlatformItemCard(
-    account: SocialPlatformAccount,
-    onToggleConnect: () -> Unit,
-    onEditHandle: () -> Unit,
-    onOpenProfile: () -> Unit = {}
-) {
-    val platformColor = when (account.id) {
-        "youtube" -> Color(0xFFF44336)
-        "tiktok" -> Color(0xFF00F2FE)
-        "instagram" -> Color(0xFFE1306C)
-        "twitter" -> Color(0xFF1DA1F2)
-        else -> Color(0xFF1877F2)
-    }
-
-    val platformIcon: ImageVector = when (account.id) {
-        "youtube" -> Icons.Default.OndemandVideo
-        "tiktok" -> Icons.Default.MusicVideo
-        "instagram" -> Icons.Default.CameraAlt
-        "twitter" -> Icons.Default.Tag
-        else -> Icons.Default.Share
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-            .border(1.dp, if (account.isConnected) platformColor.copy(alpha = 0.4f) else Color(0xFF151B2B), RoundedCornerShape(10.dp))
-            .padding(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(platformColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(platformIcon, contentDescription = null, tint = platformColor, modifier = Modifier.size(16.dp))
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(account.name, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(if (account.isConnected) account.handle else "غير مربوط", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (account.isConnected) {
-                    // زر فتح الملف الشخصي مباشرة على المنصة
-                    IconButton(onClick = onOpenProfile, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = "فتح الملف الشخصي", tint = platformColor, modifier = Modifier.size(15.dp))
-                    }
-                    IconButton(onClick = onEditHandle, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "تعديل", tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                    }
-                }
-
-                Button(
-                    onClick = onToggleConnect,
-                    colors = ButtonDefaults.buttonColors(containerColor = if (account.isConnected) platformColor.copy(alpha = 0.2f) else Color(0xFF151B2B)),
-                    shape = RoundedCornerShape(6.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(26.dp)
-                ) {
-                    Text(
-                        text = if (account.isConnected) "مربوط 🟢" else "ربط ⚪",
-                        color = if (account.isConnected) platformColor else Color.Gray,
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun RowScope.RankHighlightCard(label: String, value: String, icon: ImageVector, accent: Color) {
-    Surface(
-        modifier = Modifier.weight(1f),
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF1E293B).copy(alpha = 0.7f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = accent.copy(alpha = 0.2f),
-                modifier = Modifier.size(34.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-                }
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(label, color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 10.sp)
-                Text(value, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun HudCornerDecor(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.size(24.dp).padding(4.dp)) {
-        Box(modifier = Modifier.align(Alignment.TopStart).size(8.dp).border(1.5.dp, qabasPrimary().copy(alpha = 0.5f), RoundedCornerShape(topStart = 4.dp)))
-    }
-}
-
-fun formatStatNumber(num: Int): String {
-    return when {
-        num >= 1_000_000 -> String.format("%.1fM", num / 1_000_000.0)
-        num >= 1_000 -> String.format("%.1fK", num / 1_000.0)
-        else -> num.toString()
-    }
-}
-
-@Composable
-fun StatCard(modifier: Modifier = Modifier, title: String, value: String, icon: ImageVector, color: Color) {
-    Card(
-        modifier = modifier
-            .luxuryCardStyle(shapeRadius = 16.dp, borderAlpha = 0.25f, glowElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface()),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = CircleShape,
-                color = color.copy(alpha = 0.15f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(value, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(title, color = qabasTextSecondary(), fontFamily = TajawalFont, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
-fun ProfileSection(
-    title: String,
-    icon: ImageVector,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = qabasPrimary(),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                title,
-                color = qabasTextPrimary(),
-                fontFamily = TajawalFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                letterSpacing = 0.5.sp
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .height(1.dp)
-                    .width(40.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(qabasPrimary().copy(alpha = 0.4f), Color.Transparent)
-                        )
-                    )
-            )
-        }
-        content()
-    }
-}
-
-@Composable
-fun ProfileActionButton(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isPrimary: Boolean = false
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier
-            .height(46.dp)
-            .bouncingClickable { onClick() },
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isPrimary) qabasPrimary() else qabasSurface(),
-            contentColor = if (isPrimary) DeepSlate else qabasTextPrimary()
-        ),
-        shape = RoundedCornerShape(12.dp),
-        border = if (!isPrimary) androidx.compose.foundation.BorderStroke(1.dp, qabasPrimary().copy(alpha = 0.2f)) else null,
-        contentPadding = PaddingValues(horizontal = 16.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = if (isPrimary) DeepSlate else qabasPrimary()
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                label,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
+            Text(label, fontFamily = CairoFont, fontSize = 10.5.sp, color = theme.textSecondary, maxLines = 1)
+            Text(value, fontFamily = RobotoMonoFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }

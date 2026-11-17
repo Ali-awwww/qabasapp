@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -206,7 +208,7 @@ private fun SectionFullScreenHeader(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(48.dp)
                         .clip(GeoShape.Circle)
                         .background(entry.color.copy(alpha = 0.10f), GeoShape.Circle)
                         .border(Geo.B_HAIRLINE, entry.color.copy(alpha = 0.34f), GeoShape.Circle)
@@ -717,7 +719,7 @@ private fun PrayerNotificationConfigDialog(
         else "${(bytes / 1024f).toInt()} ك.ب"
     }
     val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             backgroundScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -733,7 +735,7 @@ private fun PrayerNotificationConfigDialog(
         }
     }
     val videoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             backgroundScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -759,9 +761,10 @@ private fun PrayerNotificationConfigDialog(
         SoundOption("SILENT", "صامت", Icons.Default.NotificationsNone, "إشعار صامت بلا صوت")
     )
 
+    val theme = QabasTheme.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
+        containerColor = theme.cardSurface,
         shape = GeoShape.CardLg,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -817,8 +820,8 @@ private fun PrayerNotificationConfigDialog(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = GoldPrimary,
-                            uncheckedThumbColor = Color.LightGray,
-                            uncheckedTrackColor = Color.DarkGray
+                            uncheckedThumbColor = theme.textSecondary,
+                            uncheckedTrackColor = theme.secondarySurface
                         )
                     )
                 }
@@ -953,7 +956,7 @@ private fun PrayerNotificationConfigDialog(
                         },
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Text("حذف الخلفية واستعادة اللون الافتراضي", color = Color(0xFFFF8A80), fontFamily = CairoFont, fontSize = 10.sp)
+                        Text("حذف الخلفية واستعادة اللون الافتراضي", color = theme.destructive, fontFamily = CairoFont, fontSize = 11.sp)
                     }
                 }
                 Row(
@@ -966,7 +969,9 @@ private fun PrayerNotificationConfigDialog(
                         accent = GeoColor.Quran,
                         variant = GeoButtonStyle.Outline,
                         modifier = Modifier.weight(1f),
-                        onClick = { imagePicker.launch("image/*") }
+                        onClick = {
+                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
                     )
                     GeoButton(
                         text = "فيديو",
@@ -974,7 +979,9 @@ private fun PrayerNotificationConfigDialog(
                         accent = GeoColor.Prayer,
                         variant = GeoButtonStyle.Outline,
                         modifier = Modifier.weight(1f),
-                        onClick = { videoPicker.launch("video/*") }
+                        onClick = {
+                            videoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                        }
                     )
                 }
                 Text(
@@ -1000,19 +1007,24 @@ private fun PrayerNotificationConfigDialog(
                                 backgroundSelection = AdhanBackgroundPreferences.get(context)
                                 backgroundInfo = null
                             },
-                            color = if (selected) GoldPrimary.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f),
+                            color = if (selected) GoldPrimary.copy(alpha = 0.22f) else GeoColor.surfaceSunken(),
                             shape = GeoShape.CardSm,
                             border = BorderStroke(Geo.B_HAIRLINE, if (selected) GoldPrimary else GeoColor.hairline()),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
                         ) {
-                            Text(
-                                text = label,
-                                color = if (selected) GoldPrimary else GeoColor.textSecondary(),
-                                fontFamily = CairoFont,
-                                fontSize = 9.sp,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = label,
+                                    color = if (selected) GoldPrimary else GeoColor.textSecondary(),
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1094,7 +1106,7 @@ fun HeroPrayerCountdownCard(
                 // زر مشاركة هندسي دائري
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(48.dp)
                         .clip(GeoShape.Circle)
                         .background(GoldPrimary.copy(alpha = 0.12f), GeoShape.Circle)
                         .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
@@ -1117,7 +1129,7 @@ fun HeroPrayerCountdownCard(
                 progress = prayerTimes.progressToNextPrayer,
                 size = 172.dp,
                 strokeWidth = Geo.RING_STROKE,
-                trackColor = Color.White.copy(alpha = 0.07f),
+                trackColor = GeoColor.hairline().copy(alpha = 0.55f),
                 progressColor = GoldPrimary
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1147,7 +1159,7 @@ fun HeroPrayerCountdownCard(
             // ── شريط الأرقام السريعة ──
             Surface(
                 shape = GeoShape.CardSm,
-                color = Color.White.copy(alpha = 0.04f),
+                color = GeoColor.surfaceSunken(),
                 border = BorderStroke(Geo.B_HAIRLINE, GeoColor.hairline()),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1423,7 +1435,7 @@ fun TimetableAndControlsTab(
                     // زر التنبيه
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(48.dp)
                             .clip(GeoShape.Circle)
                             .clickable {
                                 isNotifyEnabled = !isNotifyEnabled
@@ -1500,7 +1512,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
                         progress = if (totalObligatory > 0) completedCount.toFloat() / totalObligatory else 0f,
                         size = 76.dp,
                         strokeWidth = Geo.RING_TRACK_STROKE,
-                        trackColor = Color.White.copy(alpha = 0.08f),
+                        trackColor = GeoColor.hairline().copy(alpha = 0.55f),
                         progressColor = GoldPrimary
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1696,10 +1708,10 @@ fun PrayerCheckCard(
             // زر دائري هندسي للتحقق
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(48.dp)
                     .clip(GeoShape.Circle)
                     .background(
-                        if (isDone) GoldPrimary else Color.White.copy(alpha = 0.06f),
+                        if (isDone) GoldPrimary else GeoColor.surfaceSunken(),
                         GeoShape.Circle
                     )
                     .border(
@@ -1776,10 +1788,10 @@ fun SunnahCheckCard(
             // زر دائري هندسي
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(48.dp)
                     .clip(GeoShape.Circle)
                     .background(
-                        if (isChecked) color else Color.White.copy(alpha = 0.06f),
+                        if (isChecked) color else GeoColor.surfaceSunken(),
                         GeoShape.Circle
                     )
                     .border(
@@ -1884,7 +1896,7 @@ fun SpiritualTopicCard(
                 )
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(48.dp)
                         .clip(GeoShape.Circle)
                         .clickable(onClick = onShare),
                     contentAlignment = Alignment.Center
@@ -2194,7 +2206,7 @@ fun QiblaAndKhushooTab(
                     // ── شريط المسافة ──
                     Surface(
                         shape = GeoShape.CardSm,
-                        color = Color.White.copy(alpha = 0.04f),
+                        color = GeoColor.surfaceSunken(),
                         border = BorderStroke(Geo.B_HAIRLINE, GeoColor.hairline()),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -2447,6 +2459,7 @@ fun AzanVoicesDialog(
                 GeoDivider()
 
                 // ── جسم قابل للتمرير ──
+                val dialogTheme = QabasTheme.current
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2457,10 +2470,10 @@ fun AzanVoicesDialog(
                 ) {
                 Text(
                     "أصوات الأذان الحية المعتمدة حصراً بصوت كبار المؤذنين، ويمكنك تعيين المؤذن الافتراضي أو إضافة أصوات أخرى لاحقاً:",
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontFamily = CairoFont,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
+                    color = dialogTheme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp
                 )
 
                 voicesList.forEach { voice ->
@@ -2480,10 +2493,10 @@ fun AzanVoicesDialog(
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isDefault) GoldPrimary.copy(alpha = 0.14f) else Color(0xFF1E293B),
+                        color = if (isDefault) GoldPrimary.copy(alpha = 0.14f) else dialogTheme.cardSurface,
                         border = BorderStroke(
-                            1.dp,
-                            if (isDefault) GoldPrimary.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.08f)
+                            0.75.dp,
+                            if (isDefault) GoldPrimary.copy(alpha = 0.6f) else dialogTheme.separator
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -2501,14 +2514,14 @@ fun AzanVoicesDialog(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(CircleShape)
-                                            .background(if (isDefault) GoldPrimary.copy(alpha = 0.25f) else Color(0xFF0F172A))
-                                            .border(1.dp, if (isDefault) GoldPrimary else Color(0xFF334155), CircleShape),
+                                            .background(if (isDefault) GoldPrimary.copy(alpha = 0.22f) else dialogTheme.secondarySurface)
+                                            .border(0.75.dp, if (isDefault) GoldPrimary else dialogTheme.separator, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Mosque,
                                             contentDescription = null,
-                                            tint = if (isDefault) GoldPrimary else Color.White,
+                                            tint = if (isDefault) GoldPrimary else dialogTheme.textPrimary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -2517,49 +2530,43 @@ fun AzanVoicesDialog(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 voice.nameAr,
-                                                color = if (isDefault) GoldPrimary else Color.White,
+                                                color = if (isDefault) GoldPrimary else dialogTheme.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 13.5.sp
+                                                fontSize = 14.sp
                                             )
                                             if (isDefault) {
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Surface(
-                                                    color = Color(0xFF10B981).copy(alpha = 0.2f),
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    border = BorderStroke(0.6.dp, Color(0xFF10B981))
+                                                    color = dialogTheme.success.copy(alpha = 0.16f),
+                                                    shape = RoundedCornerShape(4.dp)
                                                 ) {
                                                     Text(
-                                                        "الافتراضي 🕋",
-                                                        color = Color(0xFF10B981),
-                                                        fontSize = 9.sp,
+                                                        "الافتراضي",
+                                                        color = dialogTheme.success,
+                                                        fontSize = 10.sp,
                                                         fontFamily = CairoFont,
                                                         fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                                     )
                                                 }
                                             }
                                         }
                                         Text(
                                             voice.muezzinAr,
-                                            color = if (isDefault) GoldSecondary else Color.White.copy(alpha = 0.65f),
+                                            color = if (isDefault) GoldPrimary else dialogTheme.textSecondary,
                                             fontFamily = NotoSansFont,
-                                            fontSize = 10.5.sp
+                                            fontSize = 11.sp
                                         )
                                     }
                                 }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // Play/Pause button
                                     IconButton(
                                         onClick = {
-                                            if (isPlaying) {
-                                                onStopVoice()
-                                            } else {
-                                                onPlayVoice(voice)
-                                            }
+                                            if (isPlaying) onStopVoice() else onPlayVoice(voice)
                                         },
-                                        modifier = Modifier.size(38.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         if (isLoading) {
                                             CircularProgressIndicator(
@@ -2584,9 +2591,9 @@ fun AzanVoicesDialog(
                                                 reloadVoices()
                                                 Toast.makeText(context, "تم حذف الصوت المحلي من الهاتف", Toast.LENGTH_SHORT).show()
                                             },
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف محلي", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف محلي", tint = dialogTheme.destructive, modifier = Modifier.size(18.dp))
                                         }
                                     } else if (isPersonalCloudVoice) {
                                         IconButton(
@@ -2594,15 +2601,15 @@ fun AzanVoicesDialog(
                                                 editingPersonalVoice = voice
                                                 personalVoiceTitle = voice.nameAr
                                             },
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
                                             Icon(Icons.Default.Edit, contentDescription = "تعديل عنوان الصوت الشخصي", tint = GoldPrimary, modifier = Modifier.size(18.dp))
                                         }
                                         IconButton(
                                             onClick = { personalVoicePendingDelete = voice },
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف من السحابة الشخصية", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف من السحابة الشخصية", tint = dialogTheme.destructive, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
@@ -2611,13 +2618,14 @@ fun AzanVoicesDialog(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = voice.description,
-                                color = Color.White.copy(alpha = 0.55f),
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp,
-                                lineHeight = 14.sp
+                                color = dialogTheme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
                             )
 
                             if (isCloudVoice && isDeveloper) {
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2627,37 +2635,36 @@ fun AzanVoicesDialog(
                                             editingCloudVoice = voice
                                             editCloudDescription = voice.description
                                         },
-                                        modifier = Modifier.weight(1f).height(36.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                     ) {
                                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
                                         Spacer(Modifier.width(5.dp))
-                                        Text("تعديل الوصف", fontFamily = CairoFont, fontSize = 10.sp, maxLines = 1)
+                                        Text("تعديل الوصف", fontFamily = CairoFont, fontSize = 11.sp, maxLines = 1)
                                     }
                                     OutlinedButton(
                                         onClick = { cloudVoicePendingDelete = voice },
-                                        modifier = Modifier.weight(1f).height(36.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = dialogTheme.destructive)
                                     ) {
                                         Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(15.dp))
                                         Spacer(Modifier.width(5.dp))
-                                        Text("حذف من السحابة", fontFamily = CairoFont, fontSize = 10.sp, maxLines = 1)
+                                        Text("حذف من السحابة", fontFamily = CairoFont, fontSize = 11.sp, maxLines = 1)
                                     }
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // عدّاد تنزيل الأذان السحابي — عبر مدير التنزيلات نفسه
-                            val isCloudVoice = voice.id.startsWith("cloud_") && voice.streamUrl.startsWith("http")
+                            val isCloudDownloadable = voice.id.startsWith("cloud_") && voice.streamUrl.startsWith("http")
                             val dlProgress = mediaDownloads[voice.id]
                             val isDownloaded = downloadedMedia.any {
                                 it.id == voice.id && java.io.File(it.localFilePath).let { file ->
                                     file.isFile && file.length() > 0L
                                 }
                             }
-                            if (isCloudVoice) {
+                            if (isCloudDownloadable) {
                                 if (dlProgress != null && !dlProgress.isError && !dlProgress.isCompleted) {
                                     TransferCounterBar(
                                         label = "تنزيل الأذان",
@@ -2669,9 +2676,9 @@ fun AzanVoicesDialog(
                                     Spacer(modifier = Modifier.height(8.dp))
                                 } else if (isDownloaded) {
                                     Text(
-                                        text = "تم تنزيل صوت الأذان — جاهز للعمل دون إنترنت ✅",
-                                        color = Color(0xFF7BE495),
-                                        fontSize = 10.5.sp,
+                                        text = "تم تنزيل صوت الأذان — جاهز للعمل دون إنترنت",
+                                        color = dialogTheme.success,
+                                        fontSize = 11.sp,
                                         fontFamily = CairoFont,
                                         modifier = Modifier.fillMaxWidth(),
                                         textAlign = TextAlign.Center
@@ -2685,24 +2692,23 @@ fun AzanVoicesDialog(
                                                 val local = DownloadsHubManager.downloadMedia(
                                                     context, voice.id, voice.nameAr, voice.streamUrl
                                                 )
-                                                if (local != null) Toast.makeText(context, "اكتمل تنزيل الأذان ✅", Toast.LENGTH_SHORT).show()
+                                                if (local != null) Toast.makeText(context, "اكتمل تنزيل الأذان", Toast.LENGTH_SHORT).show()
                                                 else Toast.makeText(context, "تعذر التنزيل — تحقق من الاتصال", Toast.LENGTH_SHORT).show()
                                             }
                                         },
                                         shape = GeoShape.ButtonSmCompat,
-                                        border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.36f)),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                        modifier = Modifier.fillMaxWidth().height(34.dp)
+                                        border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.45f)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                                     ) {
                                         Icon(Icons.Default.CloudDownload, contentDescription = null, tint = GeoColor.Quran, modifier = Modifier.size(Geo.I_XS))
                                         Spacer(modifier = Modifier.width(5.dp))
-                                        Text("تنزيل للاستماع دون إنترنت", color = GeoColor.Quran, fontSize = 10.5.sp, fontFamily = CairoFont, maxLines = 1)
+                                        Text("تنزيل للاستماع دون إنترنت", color = GeoColor.Quran, fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1)
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                 }
                             }
 
-                            // Set as default Azan button
                             if (!isDefault) {
                                 OutlinedButton(
                                     onClick = {
@@ -2723,12 +2729,12 @@ fun AzanVoicesDialog(
                                     },
                                     shape = GeoShape.ButtonSmCompat,
                                     border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline()),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                    modifier = Modifier.fillMaxWidth().height(34.dp)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                                 ) {
                                     Icon(Icons.Default.Check, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(Geo.I_XS))
                                     Spacer(modifier = Modifier.width(5.dp))
-                                    Text("تعيين كأذان افتراضي للصلوات", color = GoldPrimary, fontSize = 10.5.sp, fontFamily = CairoFont, maxLines = 1)
+                                    Text("تعيين كأذان افتراضي للصلوات", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1)
                                 }
                             }
                         }
@@ -3191,8 +3197,8 @@ fun AddCustomMuezzinDialog(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = GoldPrimary,
-                            uncheckedThumbColor = Color.LightGray,
-                            uncheckedTrackColor = Color.DarkGray
+                            uncheckedThumbColor = GeoColor.textMuted(),
+                            uncheckedTrackColor = GeoColor.surfaceSunken()
                         )
                     )
                 }
@@ -3361,8 +3367,8 @@ fun DevAzanUploadDialog(onDismiss: () -> Unit, onUploaded: () -> Unit) {
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = GeoColor.Quran,
-                            uncheckedThumbColor = Color.LightGray,
-                            uncheckedTrackColor = Color.DarkGray
+                            uncheckedThumbColor = GeoColor.textMuted(),
+                            uncheckedTrackColor = GeoColor.surfaceSunken()
                         )
                     )
                 }

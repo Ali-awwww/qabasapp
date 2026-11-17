@@ -3,38 +3,41 @@ package com.qabas.app
 import android.content.Intent
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,10 +46,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleSearchBar
+import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.theme.*
+import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HasanatHubScreen(
     onBack: () -> Unit,
@@ -55,10 +61,10 @@ fun HasanatHubScreen(
     viewModel: HasanatHubViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val hapticFeedback = LocalHapticFeedback.current
-    
-    // ViewModel state
+
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isGridView by viewModel.isGridView.collectAsState()
     val tasbeehCount by viewModel.tasbeehCount.collectAsState()
@@ -66,44 +72,43 @@ fun HasanatHubScreen(
     val prayerTimeInfo by viewModel.prayerTimeInfo.collectAsState()
     val dateInfo by viewModel.dateInfo.collectAsState()
     val filteredSections by viewModel.filteredSections.collectAsState()
-    
+
     val hadithStats by viewModel.hadithStats.collectAsState()
     val azkarStats by viewModel.azkarStats.collectAsState()
-    
+
     val isWirdDone by viewModel.isWirdDone.collectAsState()
     val isMorningAzkarDone by viewModel.isMorningAzkarDone.collectAsState()
     val isEveningAzkarDone by viewModel.isEveningAzkarDone.collectAsState()
     val isTasbeehDone by viewModel.isTasbeehDone.collectAsState()
     val dailyProgressPercent by viewModel.dailyProgressPercent.collectAsState()
-    
+
     val recentDesign by viewModel.recentDesign.collectAsState()
-    
+
     val currentAyah by viewModel.currentAyah.collectAsState()
     val isAutoRotating by viewModel.isAutoRotating.collectAsState()
     val autoRotateProgress by viewModel.autoRotateProgress.collectAsState()
     val activeToolDialog by viewModel.activeToolDialog.collectAsState()
     val engine = viewModel.muslimToolsEngine
+    val upcomingEvents by viewModel.upcomingEvents.collectAsState()
 
-    // TTS for Pearl
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
-    // وضع الاستماع: عند تفعيله لمسُ أي نص ينطقه صوتياً لمن لا يحسن القراءة
     var listenMode by remember { mutableStateOf(false) }
     var hasShownTtsInstallPrompt by remember { mutableStateOf(false) }
     var showVoicePicker by remember { mutableStateOf(false) }
     val voicePrefs = remember { context.getSharedPreferences("mishkat_voice_prefs", android.content.Context.MODE_PRIVATE) }
 
     fun applySavedVoice() {
-        val engine = tts ?: return
+        val ttsEngine = tts ?: return
         try {
-            engine.language = Locale("ar")
-            engine.setSpeechRate(voicePrefs.getFloat("rate", 0.9f))
-            engine.setPitch(voicePrefs.getFloat("pitch", 1.0f))
+            ttsEngine.language = Locale("ar")
+            ttsEngine.setSpeechRate(voicePrefs.getFloat("rate", 0.9f))
+            ttsEngine.setPitch(voicePrefs.getFloat("pitch", 1.0f))
             val savedName = voicePrefs.getString("voice_name", null)
             if (!savedName.isNullOrBlank()) {
-                engine.voices?.firstOrNull { it.name == savedName }?.let { engine.voice = it }
+                ttsEngine.voices?.firstOrNull { it.name == savedName }?.let { ttsEngine.voice = it }
             }
-        } catch (_: Exception) { }
+        } catch (_: Exception) {}
     }
 
     fun speakText(text: String, utteranceId: String = "mishkat_listen") {
@@ -117,7 +122,7 @@ fun HasanatHubScreen(
                         Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     )
-                    Toast.makeText(context, "ثبّت الصوت العربي من النافذة ثم عُد والمس النص مجدداً 🔊", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "ثبّت الصوت العربي من النافذة ثم عُد والمس النص مجدداً", Toast.LENGTH_LONG).show()
                 } catch (_: Exception) {
                     Toast.makeText(context, "محرك الصوت غير متوفر في جهازك", Toast.LENGTH_SHORT).show()
                 }
@@ -127,7 +132,6 @@ fun HasanatHubScreen(
             return
         }
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-        Unit
     }
 
     DisposableEffect(context) {
@@ -145,7 +149,6 @@ fun HasanatHubScreen(
         }
     }
 
-    // تطبيق الصوت المحفوظ فور جهوزية المحرك
     LaunchedEffect(isTtsReady) {
         if (isTtsReady) {
             hasShownTtsInstallPrompt = false
@@ -159,25 +162,26 @@ fun HasanatHubScreen(
     if (showHelpDialog) {
         AlertDialog(
             onDismissRequest = { showHelpDialog = false },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.45f), CircleShape),
+                            .background(theme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Info, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         Translator.tr("حول مِشكاة الهُدى"),
-                        color = GoldPrimary,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                        fontSize = 17.sp
                     )
                 }
             },
@@ -185,45 +189,39 @@ fun HasanatHubScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         Translator.tr("مِشكاة الهُدى هو ركنك الإيماني المتكامل ضمن تطبيق قبس، يهدف إلى تيسير الوصول إلى كنوز الوحيين الشريفين وعلوم سلف الأمة."),
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
-                        fontSize = 13.sp,
-                        lineHeight = 20.sp
+                        fontSize = 13.5.sp,
+                        lineHeight = 21.sp
                     )
                     Text(
                         Translator.tr("يحتوي هذا الركن على المصحف المرتل، شروحات الأحاديث، مواقيت الصلاة، الأذكار، وسير العلماء، لتكون لك عوناً في رحلتك الإيمانية اليومية."),
-                        color = qabasTextSecondary(),
+                        color = theme.textSecondary,
                         fontFamily = NotoSansFont,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
+                        fontSize = 12.5.sp,
+                        lineHeight = 19.sp
                     )
-                    Divider(color = Color(0xFF1E2D4A))
+                    HorizontalDivider(color = theme.separator.copy(alpha = 0.5f))
                     Text(
                         Translator.tr("نسخة التطبيق: 1.2.5 (الإصدار الذهبي)"),
-                        color = GoldPrimary,
+                        color = theme.primary,
                         fontFamily = CairoFont,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
             confirmButton = {
-                Button(
+                TextButton(
                     onClick = { showHelpDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = CutCornerShape(8.dp)
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                 ) {
-                    Text(Translator.tr("حسناً"), color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(Translator.tr("حسناً"), color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
-            },
-            containerColor = Color(0xFF141C2B),
-            shape = CutCornerShape(16.dp)
+            }
         )
     }
 
-    val upcomingEvents by viewModel.upcomingEvents.collectAsState()
-
-    // Muslim Tools Dialogs & Direct Routes
     when (activeToolDialog) {
         "zakat" -> ZakatCalculatorDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "fasting" -> FastingTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
@@ -233,39 +231,13 @@ fun HasanatHubScreen(
         "tasbeeh" -> SmartTasbeehDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "habits" -> HabitsTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "stats" -> WorshipAnalyticsDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
-        "qibla" -> {
-            LaunchedEffect(activeToolDialog) {
-                onNavigate(AppState.PRAYER_TIMES)
-                viewModel.dismissToolDialog()
-            }
-        }
-        "hadith" -> {
-            LaunchedEffect(activeToolDialog) {
-                onNavigate(AppState.ISLAMIC_LIBRARY)
-                viewModel.dismissToolDialog()
-            }
-        }
-        "learn" -> {
-            LaunchedEffect(activeToolDialog) {
-                onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
-                viewModel.dismissToolDialog()
-            }
-        }
-        "share" -> {
-            LaunchedEffect(activeToolDialog) {
-                onNavigate(AppState.PHOTO_STUDIO)
-                viewModel.dismissToolDialog()
-            }
-        }
-        "reward" -> {
-            LaunchedEffect(activeToolDialog) {
-                onNavigate(AppState.REWARDS)
-                viewModel.dismissToolDialog()
-            }
-        }
+        "qibla" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.PRAYER_TIMES); viewModel.dismissToolDialog() }
+        "hadith" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.ISLAMIC_LIBRARY); viewModel.dismissToolDialog() }
+        "learn" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.SCHOLAR_BIOGRAPHIES); viewModel.dismissToolDialog() }
+        "share" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.PHOTO_STUDIO); viewModel.dismissToolDialog() }
+        "reward" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.REWARDS); viewModel.dismissToolDialog() }
     }
 
-    // Pulse animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -278,263 +250,197 @@ fun HasanatHubScreen(
     )
 
     Scaffold(
-        containerColor = qabasBackground(),
+        containerColor = theme.background,
         bottomBar = bottomBar,
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.15f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.45f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Mosque, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                Translator.tr("مِشكاة الهُدى"),
-                                color = GoldPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                maxLines = 1
-                            )
-                            Text(
-                                Translator.tr("رحاب القرآن والسنة وعلوم سلف الأمة"),
-                                color = qabasTextSecondary(),
-                                fontFamily = NotoSansFont,
-                                fontSize = 10.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("رجوع"), tint = GoldPrimary)
-                    }
-                },
+            AppleTopBar(
+                title = Translator.tr("مِشكاة الهُدى"),
+                subtitle = Translator.tr("رحاب القرآن والسنة وعلوم سلف الأمة"),
+                onBack = onBack,
                 actions = {
-                    IconButton(onClick = { isSearchExpanded = !isSearchExpanded }) {
+                    IconButton(
+                        onClick = { isSearchExpanded = !isSearchExpanded },
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
                             contentDescription = Translator.tr("بحث"),
-                            tint = if (isSearchExpanded) GoldPrimary else qabasTextSecondary()
+                            tint = if (isSearchExpanded) theme.primary else theme.textSecondary
                         )
                     }
-                    IconButton(onClick = { viewModel.toggleViewMode() }) {
+                    IconButton(
+                        onClick = { viewModel.toggleViewMode() },
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
                             contentDescription = Translator.tr("نمط العرض"),
-                            tint = GoldPrimary
+                            tint = theme.primary
                         )
                     }
-                    IconButton(onClick = { showHelpDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = Translator.tr("حول مشكاة الهدى"), tint = qabasTextSecondary())
+                    IconButton(
+                        onClick = { showHelpDialog = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            contentDescription = Translator.tr("حول مشكاة الهدى"),
+                            tint = theme.textSecondary
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
+                }
             )
         }
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentAlignment = Alignment.TopCenter
         ) {
-            item(key = "mishkat_reminder") {
-                MishkatReminderCard()
-            }
-
-            // Search Bar
-            if (isSearchExpanded) {
-                item {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        placeholder = { Text(Translator.tr("ابحث في أبواب ومحتويات مشكاة الهدى..."), color = GoldSecondary.copy(alpha = 0.7f), fontSize = 12.sp, fontFamily = CairoFont) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = CutCornerShape(12.dp),
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary) },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = null, tint = GoldSecondary)
-                                }
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = GoldPrimary.copy(alpha = 0.35f),
-                            focusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.95f),
-                            unfocusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.8f),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        singleLine = true
-                    )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item(key = "mishkat_reminder") {
+                    MishkatReminderCard()
                 }
-            }
 
-            // Hero Header
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.95f)),
-                    border = BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(GoldPrimary.copy(alpha = 0.55f), Color(0x33B89758), GoldSecondary.copy(alpha = 0.35f))
+                if (isSearchExpanded) {
+                    item {
+                        AppleSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { viewModel.updateSearchQuery(it) },
+                            placeholder = Translator.tr("ابحث في أبواب ومحتويات مشكاة الهدى...")
                         )
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFF162035), Color(0xFF0F1626), Color(0xFF090D18))
-                                )
-                            )
-                            .padding(14.dp)
-                    ) {
-                        Column {
+                    }
+                }
+
+                // Hero Card: Date + Next Prayer + Audio Assist
+                item {
+                    AppleCard(cornerRadius = 18.dp) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = dateInfo.hijriStr,
-                                        color = GoldPrimary,
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontSize = 13.sp
                                     )
                                 }
                                 Surface(
-                                    color = GoldPrimary.copy(alpha = 0.15f),
-                                    shape = CircleShape,
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                    color = theme.primary.copy(alpha = 0.12f),
+                                    shape = CircleShape
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
-                                        Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Default.Verified, contentDescription = null, tint = theme.primary, modifier = Modifier.size(13.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text(Translator.tr("مشكاة الهدى"), color = GoldPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                        Text(
+                                            Translator.tr("مشكاة الهدى"),
+                                            color = theme.primary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = CairoFont
+                                        )
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            // Next Prayer
-                            // Next Prayer & Countdown Timer (Notifications Screen Style)
                             Surface(
-                                color = Color(0xFF0A0F1D).copy(alpha = 0.9f),
-                                shape = CutCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.35f)),
+                                color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.45f),
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         if (listenMode) speakText(
                                             "الصلاة القادمة: صلاة ${prayerTimeInfo.nextName} في ${prayerTimeInfo.nextTime}. متبقي على النداء: ${prayerTimeInfo.countdown}.",
                                             "prayer_info"
-                                        )
-                                        else onNavigate(AppState.PRAYER_TIMES)
+                                        ) else onNavigate(AppState.PRAYER_TIMES)
                                     }
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp)
-                                ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(32.dp)
+                                                    .size(36.dp)
                                                     .clip(CircleShape)
-                                                    .background(Color(0xFF0EA5E9).copy(alpha = 0.15f))
-                                                    .border(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.4f), CircleShape),
+                                                    .background(theme.primary.copy(alpha = 0.14f)),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(17.dp))
+                                                Icon(Icons.Default.AccessTime, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                                             }
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Spacer(modifier = Modifier.width(10.dp))
                                             Column {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
                                                         Translator.tr("الصلاة القادمة: صلاة") + " ${Translator.tr(prayerTimeInfo.nextName)}",
-                                                        color = Color.White,
+                                                        color = theme.textPrimary,
                                                         fontFamily = CairoFont,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp
+                                                        fontSize = 14.sp
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Canvas(modifier = Modifier.size(7.dp)) {
-                                                        drawCircle(color = Color(0xFF10B981).copy(alpha = pulseAlpha))
+                                                        drawCircle(color = theme.success.copy(alpha = pulseAlpha))
                                                     }
                                                 }
                                                 Text(
-                                                    "(${prayerTimeInfo.nextTime})",
-                                                    color = Color(0xFF38BDF8),
-                                                    fontFamily = NotoSansFont,
-                                                    fontSize = 11.sp,
+                                                    prayerTimeInfo.nextTime,
+                                                    color = theme.primary,
+                                                    fontFamily = RobotoMonoFont,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Medium
                                                 )
                                             }
                                         }
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(18.dp))
                                     }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                                    // Countdown Timer HUD Surface (Matching Notifications Section Style)
                                     Surface(
-                                        shape = CutCornerShape(8.dp),
-                                        color = Color.Black.copy(alpha = 0.35f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = theme.cardSurface,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Text(
                                                 text = Translator.tr("المتبقي حتى الأذان"),
                                                 fontFamily = CairoFont,
-                                                fontSize = 11.sp,
-                                                color = Color.White.copy(alpha = 0.65f)
+                                                fontSize = 12.sp,
+                                                color = theme.textSecondary
                                             )
                                             Text(
                                                 text = prayerTimeInfo.countdown,
                                                 fontFamily = RobotoMonoFont,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 22.sp,
-                                                color = Color.White,
+                                                fontSize = 20.sp,
+                                                color = theme.textPrimary,
                                                 letterSpacing = 1.sp
                                             )
                                         }
@@ -544,105 +450,120 @@ fun HasanatHubScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Metrics
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(DeepSlate.copy(alpha = 0.75f), CutCornerShape(10.dp))
-                                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(theme.secondarySurface.copy(alpha = if (theme.isDark) 0.5f else 0.35f))
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Box(Modifier.weight(1f)) {
-                                    QuickMishkatMetric(Icons.Default.AutoStories, Translator.tr("الأحاديث"), hadithStats, GoldPrimary)
+                                    QuickMishkatMetric(Icons.Default.AutoStories, Translator.tr("الأحاديث"), hadithStats, theme.primary)
                                 }
                                 Box(Modifier.weight(1f)) {
-                                    QuickMishkatMetric(Icons.Default.TouchApp, Translator.tr("الأذكار"), azkarStats, Color(0xFFF59E0B))
+                                    QuickMishkatMetric(Icons.Default.TouchApp, Translator.tr("الأذكار"), azkarStats, theme.warning)
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            // زر وضع الاستماع — لمن لا يحسنون القراءة: فعّله ثم المس أي نص لسماعه 👆🔊
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Button(
                                     onClick = {
                                         listenMode = !listenMode
                                         if (!listenMode) tts?.stop()
-                                        else Toast.makeText(context, "وضع الاستماع مفعّل 👆 المس أي نص في المشكاة لسماعه صوتياً", Toast.LENGTH_LONG).show()
+                                        else Toast.makeText(context, "وضع الاستماع مفعّل — المس أي نص لسماعه", Toast.LENGTH_LONG).show()
                                     },
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (listenMode) Color(0xFF10B981) else Color(0xFF0EA5E9)
+                                        containerColor = if (listenMode) theme.success else theme.primary,
+                                        contentColor = Color.White
                                     ),
-                                    shape = CutCornerShape(10.dp)
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(
                                         if (listenMode) Icons.Default.Hearing else Icons.Default.TouchApp,
                                         contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        if (listenMode) Translator.tr("وضع الاستماع مفعّل — المس أي نص 👆") else Translator.tr("تفعيل وضع الاستماع 🔊"),
-                                        color = Color.White,
+                                        if (listenMode) Translator.tr("وضع الاستماع مفعّل") else Translator.tr("وضع الاستماع"),
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontSize = 12.5.sp
                                     )
                                 }
                                 OutlinedButton(
                                     onClick = {
-                                        // قراءة الشاشة كاملة دفعة واحدة
                                         val screenText = buildString {
                                             append("السلام عليكم. أنت في مشكاة الهدى. ")
                                             append("اليوم ${dateInfo.hijriStr}. ")
                                             append("الصلاة القادمة: صلاة ${prayerTimeInfo.nextName} في ${prayerTimeInfo.nextTime}، متبقي ${prayerTimeInfo.countdown}. ")
-                                            currentAyah?.let {
-                                                append("آية اليوم من سورة ${it.surahName}: ${it.text}. ")
-                                            }
+                                            append("آية اليوم من سورة ${currentAyah.surahName}: ${currentAyah.text}. ")
                                         }
                                         speakText(screenText, "mishkat_screen_reader")
                                     },
-                                    border = BorderStroke(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.5f)),
-                                    shape = CutCornerShape(10.dp)
+                                    modifier = Modifier.size(48.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = Translator.tr("قراءة الشاشة كاملة"), tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.PlayArrow, contentDescription = Translator.tr("قراءة الشاشة كاملة"), tint = theme.primary, modifier = Modifier.size(20.dp))
                                 }
                                 OutlinedButton(
                                     onClick = { showVoicePicker = true },
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                    shape = CutCornerShape(10.dp)
+                                    modifier = Modifier.size(48.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    border = BorderStroke(1.dp, theme.separator),
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = Translator.tr("تغيير الصوت"), tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = Translator.tr("تغيير الصوت"), tint = theme.primary, modifier = Modifier.size(20.dp))
                                 }
                             }
 
-                            // نافذة اختيار الصوت العربي 🎙️
                             if (showVoicePicker) {
                                 val arabicVoices = remember(tts, isTtsReady) {
                                     runCatching {
-                                        tts?.voices?.filter { it.locale.language == "ar" }
-                                            ?.sortedBy { it.name }.orEmpty()
+                                        tts?.voices?.filter { it.locale.language == "ar" }?.sortedBy { it.name }.orEmpty()
                                     }.getOrDefault(emptyList())
                                 }
                                 var rate by remember { mutableFloatStateOf(voicePrefs.getFloat("rate", 0.9f)) }
                                 var pitch by remember { mutableFloatStateOf(voicePrefs.getFloat("pitch", 1.0f)) }
                                 AlertDialog(
                                     onDismissRequest = { showVoicePicker = false },
+                                    containerColor = theme.cardSurface,
+                                    shape = RoundedCornerShape(18.dp),
                                     confirmButton = {
-                                        TextButton(onClick = { showVoicePicker = false }) { Text(Translator.tr("تم"), fontFamily = CairoFont) }
+                                        TextButton(
+                                            onClick = { showVoicePicker = false },
+                                            modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                                        ) {
+                                            Text(Translator.tr("تم"), fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.primary)
+                                        }
                                     },
-                                    title = { Text(Translator.tr("اختر صوت القراءة 🎙️"), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                                    title = {
+                                        Text(
+                                            Translator.tr("اختر صوت القراءة"),
+                                            color = theme.textPrimary,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
+                                    },
                                     text = {
                                         Column(modifier = Modifier.fillMaxWidth()) {
                                             if (arabicVoices.isEmpty()) {
                                                 Text(
                                                     Translator.tr("لا توجد أصوات عربية مثبتة — ثبّت حزمة الصوت العربي من إعدادات تحويل النص إلى كلام في جهازك ثم عُد."),
-                                                    color = qabasTextSecondary(),
+                                                    color = theme.textSecondary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 12.sp
                                                 )
@@ -657,23 +578,25 @@ fun HasanatHubScreen(
                                                                 tts?.speak("السلام عليكم، هذا صوتي الجديد للقراءة", TextToSpeech.QUEUE_FLUSH, null, "voice_preview")
                                                             },
                                                             shape = RoundedCornerShape(10.dp),
-                                                            color = if (selected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF1E293B),
-                                                            border = BorderStroke(1.dp, if (selected) GoldPrimary else Color.Transparent),
-                                                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                                                            color = if (selected) theme.primary.copy(alpha = 0.14f) else theme.secondarySurface.copy(alpha = 0.6f),
+                                                            border = BorderStroke(1.dp, if (selected) theme.primary else Color.Transparent),
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(vertical = 3.dp)
                                                         ) {
                                                             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                                                 Icon(
                                                                     if (selected) Icons.Default.CheckCircle else Icons.Default.RecordVoiceOver,
-                                                                    null,
-                                                                    tint = if (selected) GoldPrimary else qabasTextSecondary(),
+                                                                    contentDescription = null,
+                                                                    tint = if (selected) theme.primary else theme.textSecondary,
                                                                     modifier = Modifier.size(18.dp)
                                                                 )
                                                                 Spacer(modifier = Modifier.width(8.dp))
                                                                 Text(
                                                                     voice.name.take(40),
-                                                                    color = Color.White,
+                                                                    color = theme.textPrimary,
                                                                     fontFamily = NotoSansFont,
-                                                                    fontSize = 11.sp,
+                                                                    fontSize = 11.5.sp,
                                                                     maxLines = 1,
                                                                     overflow = TextOverflow.Ellipsis
                                                                 )
@@ -683,7 +606,7 @@ fun HasanatHubScreen(
                                                 }
                                             }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            Text(Translator.tr("سرعة النطق: ") + String.format("%.1f", rate), color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                            Text(Translator.tr("سرعة النطق: ") + String.format("%.1f", rate), color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                                             Slider(
                                                 value = rate,
                                                 onValueChange = {
@@ -696,7 +619,7 @@ fun HasanatHubScreen(
                                                     tts?.speak("هذه سرعة النطق الجديدة", TextToSpeech.QUEUE_FLUSH, null, "rate_preview")
                                                 }
                                             )
-                                            Text(Translator.tr("طبقة الصوت: ") + String.format("%.1f", pitch), color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                            Text(Translator.tr("طبقة الصوت: ") + String.format("%.1f", pitch), color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                                             Slider(
                                                 value = pitch,
                                                 onValueChange = {
@@ -716,29 +639,11 @@ fun HasanatHubScreen(
                         }
                     }
                 }
-            }
 
-            // آية وتفسيرها الميسر مع التدوير التلقائي والعشوائي
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CutCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFF0F172A), Color(0xFF090D18))
-                                )
-                            )
-                            .padding(14.dp)
-                    ) {
-                        Column {
-                            // الرأس: شارة الآية والتفسير + سورة وآية + أزرار التحكم
+                // Ayah & Tafsir Card
+                item {
+                    AppleCard(cornerRadius = 16.dp) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -746,22 +651,22 @@ fun HasanatHubScreen(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Surface(
-                                        color = GoldPrimary.copy(alpha = 0.15f),
-                                        shape = CutCornerShape(6.dp),
-                                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f))
+                                        color = theme.primary.copy(alpha = 0.12f),
+                                        shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         ) {
-                                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = theme.primary, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 text = "آية وتفسيرها",
-                                                color = GoldPrimary,
+                                                color = theme.primary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.5.sp
@@ -771,127 +676,110 @@ fun HasanatHubScreen(
 
                                     Crossfade(targetState = currentAyah, label = "surah_badge_transition") { ayah ->
                                         Surface(
-                                            color = Color(0xFF10B981).copy(alpha = 0.12f),
-                                            shape = CutCornerShape(6.dp),
-                                            border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.35f))
+                                            color = theme.success.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = "سورة ${ayah.surahName} • آية ${ayah.ayahNumber}",
-                                                color = Color(0xFF34D399),
+                                                text = "سورة ${ayah.surahName} • ${ayah.ayahNumber}",
+                                                color = theme.success,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.sp,
-                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
                                         }
                                     }
                                 }
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // زر تبديل التدوير التلقائي (إيقاف مؤقت / استئناف)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
                                         onClick = {
                                             AppSoundManager.playToggle()
                                             viewModel.toggleAutoRotate()
                                             Toast.makeText(
                                                 context,
-                                                if (!isAutoRotating) Translator.tr("تم تفعيل التغيير التلقائي للآيات ⏱️")
-                                                else Translator.tr("تم إيقاف التغيير التلقائي مؤقتاً ⏸️"),
+                                                if (!isAutoRotating) Translator.tr("تم تفعيل التغيير التلقائي للآيات")
+                                                else Translator.tr("تم إيقاف التغيير التلقائي مؤقتاً"),
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         },
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (isAutoRotating) Icons.Default.Autorenew else Icons.Default.PauseCircle,
                                             contentDescription = Translator.tr("التدوير التلقائي"),
-                                            tint = if (isAutoRotating) GoldPrimary else qabasTextSecondary(),
-                                            modifier = Modifier.size(18.dp)
+                                            tint = if (isAutoRotating) theme.primary else theme.textSecondary,
+                                            modifier = Modifier.size(19.dp)
                                         )
                                     }
 
-                                    // قراءة صوتية
                                     IconButton(
                                         onClick = {
                                             AppSoundManager.playClick()
-                                            if (isTtsReady && tts != null) {
-                                                tts?.speak(currentAyah.text, TextToSpeech.QUEUE_FLUSH, null, "ayah_tts")
-                                                Toast.makeText(context, Translator.tr("جاري تلاوة الآية الكريمة 🔊"), Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, Translator.tr("محرك الصوت غير متوفر في جهازك"), Toast.LENGTH_SHORT).show()
-                                            }
+                                            speakText("قال الله تعالى من سورة ${currentAyah.surahName}: ${currentAyah.text}", "ayah_tts")
                                         },
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
-                                        Icon(Icons.Default.VolumeUp, contentDescription = Translator.tr("استماع"), tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.VolumeUp, contentDescription = Translator.tr("استماع"), tint = theme.primary, modifier = Modifier.size(19.dp))
                                     }
 
-                                    // نسخ الآية مع تفسيرها
                                     IconButton(
                                         onClick = {
                                             AppSoundManager.playClick()
-                                            val fullText = "«${currentAyah.text}»\nسورة ${currentAyah.surahName} • آية ${currentAyah.ayahNumber}\n\n💡 التفسير الميسر:\n${currentAyah.tafsir}\n\n✨ تطبيق قبس — مشكاة الهدى"
+                                            val fullText = "«${currentAyah.text}»\nسورة ${currentAyah.surahName} • آية ${currentAyah.ayahNumber}\n\nالتفسير الميسر:\n${currentAyah.tafsir}\n\nتطبيق قبس"
                                             clipboardManager.setText(AnnotatedString(fullText))
-                                            Toast.makeText(context, Translator.tr("تم نسخ الآية وتفسيرها إلى الحافظة 📋"), Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, Translator.tr("تم نسخ الآية وتفسيرها إلى الحافظة"), Toast.LENGTH_SHORT).show()
                                         },
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = Translator.tr("نسخ"), tint = qabasTextSecondary(), modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.ContentCopy, contentDescription = Translator.tr("نسخ"), tint = theme.textSecondary, modifier = Modifier.size(19.dp))
                                     }
 
-                                    // زر التبديل العشوائي الفوري
                                     IconButton(
                                         onClick = {
                                             AppSoundManager.playClick()
                                             viewModel.nextRandomAyah()
-                                            Toast.makeText(context, Translator.tr("آية عشوائية جديدة مع التفسير ✨"), Toast.LENGTH_SHORT).show()
                                         },
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
-                                        Icon(Icons.Default.Shuffle, contentDescription = Translator.tr("آية عشوائية"), tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Shuffle, contentDescription = Translator.tr("آية عشوائية"), tint = theme.primary, modifier = Modifier.size(19.dp))
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                            // المحتوى المتحرك بسلاسة عبر Crossfade للآية وتفسيرها
                             Crossfade(targetState = currentAyah, label = "ayah_content_transition") { ayah ->
-                                Column {
-                                    // نص الآية الكريمة — اللمس في وضع الاستماع يتلوها صوتياً
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(Color(0xFF090D18).copy(alpha = 0.65f), CutCornerShape(10.dp))
-                                            .border(1.dp, GoldPrimary.copy(alpha = 0.25f), CutCornerShape(10.dp))
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(theme.secondarySurface.copy(alpha = if (theme.isDark) 0.65f else 0.4f))
                                             .clickable(enabled = listenMode) {
                                                 speakText("قال الله تعالى من سورة ${ayah.surahName}: ${ayah.text}", "ayah_tts")
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                            .padding(horizontal = 14.dp, vertical = 12.dp)
                                     ) {
                                         Text(
                                             text = "« ${ayah.text} »",
-                                            color = Color(0xFFFDE68A),
+                                            color = theme.textPrimary,
                                             fontFamily = AmiriFont,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 16.5.sp,
-                                            lineHeight = 28.sp,
+                                            fontSize = 18.sp,
+                                            lineHeight = 31.sp,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    // قسم التفسير الميسر — اللمس في وضع الاستماع يقرؤه صوتياً
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(Color(0xFF0D1424).copy(alpha = 0.75f), CutCornerShape(10.dp))
-                                            .border(0.8.dp, GoldPrimary.copy(alpha = 0.15f), CutCornerShape(10.dp))
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(theme.secondarySurface.copy(alpha = if (theme.isDark) 0.4f else 0.25f))
                                             .clickable(enabled = listenMode) {
                                                 speakText("التفسير الميسر: ${ayah.tafsir}", "tafsir_tts")
                                             }
@@ -901,21 +789,21 @@ fun HasanatHubScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
-                                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(15.dp))
+                                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
                                             Text(
                                                 text = "التفسير الميسر:",
-                                                color = GoldPrimary,
+                                                color = theme.primary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp
+                                                fontSize = 12.5.sp
                                             )
                                         }
-                                        Spacer(modifier = Modifier.height(5.dp))
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = ayah.tafsir,
-                                            color = qabasTextPrimary(),
+                                            color = theme.textPrimary,
                                             fontFamily = NotoSansFont,
-                                            fontSize = 12.5.sp,
+                                            fontSize = 13.sp,
                                             lineHeight = 21.sp,
                                             textAlign = TextAlign.Start
                                         )
@@ -923,43 +811,26 @@ fun HasanatHubScreen(
                                 }
                             }
 
-                            // شريط تقدم التدوير التلقائي الناعم
                             if (isAutoRotating) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 LinearProgressIndicator(
                                     progress = { autoRotateProgress },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(2.5.dp)
+                                        .height(3.dp)
                                         .clip(CircleShape),
-                                    color = GoldPrimary.copy(alpha = 0.85f),
-                                    trackColor = GoldPrimary.copy(alpha = 0.15f)
+                                    color = theme.primary,
+                                    trackColor = theme.separator.copy(alpha = 0.4f)
                                 )
                             }
                         }
                     }
                 }
-            }
 
-            // Tasbeeh
-            item {
-                Surface(
-                    color = Color.Transparent,
-                    shape = CutCornerShape(16.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFF0F172A), Color(0xFF090D18))
-                                )
-                            )
-                            .padding(12.dp)
-                    ) {
-                        Column {
+                // Embedded Smart Tasbeeh
+                item {
+                    AppleCard(cornerRadius = 16.dp) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -968,46 +839,50 @@ fun HasanatHubScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
-                                            .size(28.dp)
+                                            .size(32.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFFEAB308).copy(alpha = 0.15f)),
+                                            .background(theme.warning.copy(alpha = 0.14f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.TouchApp, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.TouchApp, contentDescription = null, tint = theme.warning, modifier = Modifier.size(16.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         Translator.tr("السبحة الذكية المدمجة"),
-                                        color = qabasTextPrimary(),
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontSize = 13.5.sp
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    // Vibration Toggle
-                                    Icon(
-                                        imageVector = if (vibrateEvery33) Icons.Default.Vibration else Icons.Default.DoNotDisturbOn,
-                                        contentDescription = null,
-                                        tint = if (vibrateEvery33) GoldPrimary else qabasTextSecondary().copy(alpha = 0.5f),
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .clickable { 
-                                                AppSoundManager.playClick()
-                                                viewModel.toggleVibrateEvery33() 
-                                            }
-                                    )
+                                    IconButton(
+                                        onClick = {
+                                            AppSoundManager.playClick()
+                                            viewModel.toggleVibrateEvery33()
+                                        },
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (vibrateEvery33) Icons.Default.Vibration else Icons.Default.DoNotDisturbOn,
+                                            contentDescription = Translator.tr("الاهتزاز"),
+                                            tint = if (vibrateEvery33) theme.primary else theme.textSecondary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
-                                TextButton(onClick = {
-                                    AppSoundManager.playClick()
-                                    viewModel.resetTasbeeh()
-                                }) {
-                                    Icon(Icons.Default.RestartAlt, contentDescription = null, tint = qabasTextSecondary(), modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(Translator.tr("تصفير"), color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 10.sp)
+                                TextButton(
+                                    onClick = {
+                                        AppSoundManager.playClick()
+                                        viewModel.resetTasbeeh()
+                                    },
+                                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                                ) {
+                                    Icon(Icons.Default.RestartAlt, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(Translator.tr("تصفير"), color = theme.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Button(
                                 onClick = {
@@ -1023,84 +898,75 @@ fun HasanatHubScreen(
                                     }
                                     viewModel.incrementTasbeeh()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF152035)),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                shape = CutCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = theme.primary,
+                                    contentColor = theme.onPrimary
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 50.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(Translator.tr("اضغط للسبحة"), color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(Translator.tr("اضغط للتسبيح"), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    VerticalDivider(modifier = Modifier.height(20.dp), color = GoldPrimary.copy(alpha = 0.3f))
+                                    VerticalDivider(modifier = Modifier.height(20.dp), color = theme.onPrimary.copy(alpha = 0.35f))
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text(tasbeehCount.toString(), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                                    Text(tasbeehCount.toString(), fontFamily = RobotoMonoFont, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // Daily Progress
-            item {
-                val animatedProgress by animateFloatAsState(
-                    targetValue = dailyProgressPercent / 100f,
-                    animationSpec = tween(800, easing = FastOutSlowInEasing),
-                    label = "daily_progress_anim"
-                )
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CutCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFF0F172A), Color(0xFF090D18))
-                                )
-                            )
-                            .padding(14.dp)
-                    ) {
-                        Column {
+                // Daily Progress
+                item {
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = dailyProgressPercent / 100f,
+                        animationSpec = tween(800, easing = FastOutSlowInEasing),
+                        label = "daily_progress_anim"
+                    )
+                    AppleCard(cornerRadius = 16.dp) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.TrackChanges, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.TrackChanges, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         Translator.tr("إنجاز اليوم الإيماني"),
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
+                                        fontSize = 14.sp
                                     )
                                 }
                                 Text(
                                     "$dailyProgressPercent%",
-                                    color = GoldPrimary,
+                                    color = theme.primary,
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 14.sp,
-                                    fontFamily = CairoFont
+                                    fontFamily = RobotoMonoFont
                                 )
                             }
-                            
+
                             Spacer(modifier = Modifier.height(10.dp))
-                            
+
                             LinearProgressIndicator(
                                 progress = { animatedProgress },
-                                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                                color = GoldPrimary,
-                                trackColor = Color(0xFF1E2D4A)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(CircleShape),
+                                color = theme.primary,
+                                trackColor = theme.separator.copy(alpha = 0.45f)
                             )
-                            
+
                             Spacer(modifier = Modifier.height(12.dp))
-                            
+
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -1148,221 +1014,210 @@ fun HasanatHubScreen(
                         }
                     }
                 }
-            }
 
-            // Upcoming Islamic Events Banner
-            item {
-                IslamicEventsBanner(events = upcomingEvents)
-            }
-
-            // --- Unified Mishkat Hub Grid ---
-            item {
-                Text(
-                    Translator.tr("استكشف رحاب المشكاة"),
-                    color = GoldPrimary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            if (filteredSections.isEmpty() && searchQuery.isNotBlank()) {
+                // Upcoming Islamic Events Banner
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.1f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.25f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(40.dp))
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = Translator.tr("لم نجد ما تبحث عنه في رياض المشكاة"),
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = Translator.tr("جرب البحث بكلمات أخرى أو تصفح كافة الأبواب أدناه"),
-                            color = qabasTextSecondary(),
-                            fontFamily = CairoFont,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-                        OutlinedButton(
-                            onClick = {
-                                AppSoundManager.playClick()
-                                viewModel.updateSearchQuery("")
-                            },
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                            shape = CutCornerShape(10.dp)
-                        ) {
-                            Text(Translator.tr("عرض جميع الأبواب"), color = GoldPrimary, fontFamily = CairoFont)
-                        }
-                    }
+                    IslamicEventsBanner(events = upcomingEvents)
                 }
-            } else {
-                // Combine Tools and Sections for a unified look
-                val combinedItems = mutableListOf<Any>()
-                
-                // Add Sections (filtered)
-                combinedItems.addAll(filteredSections)
-                
-                // Add Tools (filtered by search if active)
-                val filteredTools = if (searchQuery.isBlank()) {
-                    viewModel.muslimToolsList
-                } else {
-                    viewModel.muslimToolsList.filter { 
-                        Translator.tr(it.title).contains(searchQuery, ignoreCase = true) 
-                    }
-                }
-                combinedItems.addAll(filteredTools)
 
-                if (isGridView) {
+                // Unified Hub Header
+                item {
+                    Text(
+                        Translator.tr("استكشف رحاب المشكاة"),
+                        color = theme.textPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                if (filteredSections.isEmpty() && searchQuery.isNotBlank()) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            combinedItems.chunked(2).forEach { rowItems ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
-                                    rowItems.forEach { item ->
-                                        when (item) {
-                                            is HasanatSectionItem -> {
-                                                UnifiedHasanatGridItem(
-                                                    title = item.titleKey,
-                                                    subtitle = item.badgeKey,
-                                                    icon = item.icon,
-                                                    color = item.accentColor,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
-                                                    else onNavigate(item.route)
+                        AppleCard {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp, horizontal = 20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(Icons.Default.MenuBook, contentDescription = null, tint = theme.primary, modifier = Modifier.size(40.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = Translator.tr("لم نجد ما تبحث عنه في رياض المشكاة"),
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = Translator.tr("جرب البحث بكلمات أخرى أو تصفح كافة الأبواب أدناه"),
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        AppSoundManager.playClick()
+                                        viewModel.updateSearchQuery("")
+                                    },
+                                    modifier = Modifier.heightIn(min = 48.dp),
+                                    border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.6f)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(Translator.tr("عرض جميع الأبواب"), color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    val combinedItems = mutableListOf<Any>()
+                    combinedItems.addAll(filteredSections)
+                    val filteredTools = if (searchQuery.isBlank()) {
+                        viewModel.muslimToolsList
+                    } else {
+                        viewModel.muslimToolsList.filter {
+                            Translator.tr(it.title).contains(searchQuery, ignoreCase = true)
+                        }
+                    }
+                    combinedItems.addAll(filteredTools)
+
+                    if (isGridView) {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                combinedItems.chunked(2).forEach { rowItems ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                        rowItems.forEach { item ->
+                                            when (item) {
+                                                is HasanatSectionItem -> {
+                                                    UnifiedHasanatGridItem(
+                                                        title = item.titleKey,
+                                                        subtitle = item.badgeKey,
+                                                        icon = item.icon,
+                                                        color = item.accentColor,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
+                                                        else onNavigate(item.route)
+                                                    }
                                                 }
-                                            }
-                                            is HasanatHubViewModel.MuslimToolItem -> {
-                                                UnifiedHasanatGridItem(
-                                                    title = item.title,
-                                                    subtitle = "أداة ذكية مفعّلة",
-                                                    icon = item.icon,
-                                                    color = item.color,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    if (listenMode) speakText(item.title, "tool_title")
-                                                    else {
-                                                        when (item.id) {
-                                                            "qibla" -> onNavigate(AppState.PRAYER_TIMES)
-                                                            "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
-                                                            "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
-                                                            "share" -> onNavigate(AppState.PHOTO_STUDIO)
-                                                            "reward" -> onNavigate(AppState.REWARDS)
-                                                            else -> viewModel.showToolDialog(item.id)
+                                                is HasanatHubViewModel.MuslimToolItem -> {
+                                                    UnifiedHasanatGridItem(
+                                                        title = item.title,
+                                                        subtitle = "أداة ذكية مفعّلة",
+                                                        icon = item.icon,
+                                                        color = item.color,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        if (listenMode) speakText(item.title, "tool_title")
+                                                        else {
+                                                            when (item.id) {
+                                                                "qibla" -> onNavigate(AppState.PRAYER_TIMES)
+                                                                "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
+                                                                "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
+                                                                "share" -> onNavigate(AppState.PHOTO_STUDIO)
+                                                                "reward" -> onNavigate(AppState.REWARDS)
+                                                                else -> viewModel.showToolDialog(item.id)
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                    if (rowItems.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    items(combinedItems) { item ->
-                        when (item) {
-                            is HasanatSectionItem -> {
-                                UnifiedHasanatListItem(
-                                    title = item.titleKey,
-                                    subtitle = item.subtitleKey,
-                                    badge = item.badgeKey,
-                                    icon = item.icon,
-                                    color = item.accentColor
-                                ) {
-                                    if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
-                                    else onNavigate(item.route)
-                                }
-                            }
-                            is HasanatHubViewModel.MuslimToolItem -> {
-                                UnifiedHasanatListItem(
-                                    title = item.title,
-                                    subtitle = "أداة ذكية ميسرة للعبادات",
-                                    badge = "مفعلة بالكامل",
-                                    icon = item.icon,
-                                    color = item.color
-                                ) {
-                                    if (listenMode) speakText(item.title, "tool_title")
-                                    else {
-                                        when (item.id) {
-                                            "qibla" -> onNavigate(AppState.PRAYER_TIMES)
-                                            "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
-                                            "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
-                                            "share" -> onNavigate(AppState.PHOTO_STUDIO)
-                                            "reward" -> onNavigate(AppState.REWARDS)
-                                            else -> viewModel.showToolDialog(item.id)
+                                        if (rowItems.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
+                    } else {
+                        items(combinedItems) { item ->
+                            when (item) {
+                                is HasanatSectionItem -> {
+                                    UnifiedHasanatListItem(
+                                        title = item.titleKey,
+                                        subtitle = item.subtitleKey,
+                                        badge = item.badgeKey,
+                                        icon = item.icon,
+                                        color = item.accentColor
+                                    ) {
+                                        if (listenMode) speakText("${item.titleKey}. ${item.subtitleKey}", "section_title")
+                                        else onNavigate(item.route)
+                                    }
+                                }
+                                is HasanatHubViewModel.MuslimToolItem -> {
+                                    UnifiedHasanatListItem(
+                                        title = item.title,
+                                        subtitle = "أداة ذكية ميسرة للعبادات",
+                                        badge = "مفعلة بالكامل",
+                                        icon = item.icon,
+                                        color = item.color
+                                    ) {
+                                        if (listenMode) speakText(item.title, "tool_title")
+                                        else {
+                                            when (item.id) {
+                                                "qibla" -> onNavigate(AppState.PRAYER_TIMES)
+                                                "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
+                                                "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
+                                                "share" -> onNavigate(AppState.PHOTO_STUDIO)
+                                                "reward" -> onNavigate(AppState.REWARDS)
+                                                else -> viewModel.showToolDialog(item.id)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            // Recent Design Section
-            recentDesign?.let { design ->
-                item {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        Text(
-                            Translator.tr("آخر تصاميمك الإبداعية"),
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(bottom = 10.dp)
-                        )
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(100.dp)
-                                .clickable { onNavigate(AppState.PROJECTS) },
-                            shape = CutCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(12.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(76.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color.Black)
+                // Recent Design Section
+                recentDesign?.let { design ->
+                    item {
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Text(
+                                Translator.tr("آخر تصاميمك الإبداعية"),
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                modifier = Modifier.padding(bottom = 10.dp)
+                            )
+                            AppleCard(onClick = { onNavigate(AppState.PROJECTS) }) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(12.dp)
                                 ) {
-                                    AsyncImage(
-                                        model = design.imagePath,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(68.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(theme.secondarySurface)
+                                    ) {
+                                        AsyncImage(
+                                            model = design.imagePath,
+                                            contentDescription = design.text,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(design.text, color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+                                        Text(design.styleName, color = theme.primary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                                        Text(
+                                            Translator.tr("منذ ") + SimpleDateFormat("d MMMM", Locale.getDefault()).format(Date(design.createdAt)),
+                                            color = theme.textSecondary,
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = theme.textSecondary)
                                 }
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(design.text, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-                                    Text(design.styleName, color = GoldPrimary, fontSize = 10.sp)
-                                    Text(Translator.tr("منذ ") + java.text.SimpleDateFormat("d MMMM", java.util.Locale.getDefault()).format(java.util.Date(design.createdAt)), color = qabasTextSecondary(), fontSize = 9.sp)
-                                }
-                                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = qabasTextSecondary())
                             }
                         }
                     }
@@ -1379,39 +1234,45 @@ fun DailyGoalChip(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = if (isDone) GoldPrimary.copy(alpha = 0.2f) else Color(0xFF1E2D4A).copy(alpha = 0.35f),
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, if (isDone) GoldPrimary.copy(alpha = 0.5f) else Color(0xFF1E2D4A).copy(alpha = 0.5f)),
-        modifier = modifier.then(
-            if (onClick != null) {
-                Modifier.clickable {
-                    AppSoundManager.playClick()
-                    onClick()
-                }
-            } else Modifier
-        )
+        color = if (isDone) theme.primary.copy(alpha = 0.14f) else theme.secondarySurface.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(
+            width = 0.75.dp,
+            color = if (isDone) theme.primary else theme.separator.copy(alpha = 0.45f)
+        ),
+        modifier = modifier
+            .defaultMinSize(minHeight = 44.dp)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable {
+                        AppSoundManager.playClick()
+                        onClick()
+                    }
+                } else Modifier
+            )
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
         ) {
             Icon(
                 if (isDone) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                 contentDescription = null,
-                tint = if (isDone) GoldPrimary else qabasTextSecondary(),
-                modifier = Modifier.size(13.dp)
+                tint = if (isDone) theme.primary else theme.textSecondary,
+                modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 label,
-                color = if (isDone) GoldPrimary else qabasTextSecondary(),
-                fontSize = 11.sp,
+                color = if (isDone) theme.primary else theme.textPrimary,
+                fontSize = 12.sp,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -1419,14 +1280,17 @@ fun DailyGoalChip(
 
 @Composable
 fun QuickMishkatMetric(icon: ImageVector, label: String, value: String, accent: Color) {
+    val theme = QabasTheme.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth().padding(4.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(4.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.height(4.dp))
-        Text(label, color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp, fontFamily = CairoFont)
-        Text(value, color = accent, fontWeight = FontWeight.Bold, fontSize = 10.sp, fontFamily = NotoSansFont)
+        Text(label, color = theme.textSecondary, fontSize = 10.sp, fontFamily = CairoFont)
+        Text(value, color = accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = NotoSansFont)
     }
 }
 
@@ -1439,53 +1303,47 @@ fun UnifiedHasanatGridItem(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .height(160.dp)
-            .clickable {
-                AppSoundManager.playClick()
-                onClick()
-            },
-        shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+    val theme = QabasTheme.current
+    AppleCard(
+        modifier = modifier.heightIn(min = 148.dp),
+        onClick = {
+            AppSoundManager.playClick()
+            onClick()
+        }
     ) {
-        Box(
+        Column(
+            verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF1E293B).copy(alpha = 0.8f), Color(0xFF0F172A).copy(alpha = 0.9f))
-                    )
-                )
-                .padding(12.dp)
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 148.dp)
+                .padding(14.dp)
         ) {
-            Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(color.copy(alpha = 0.15f), CutCornerShape(8.dp))
-                        .border(1.dp, color.copy(alpha = 0.35f), CutCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
-                }
-                Column {
-                    Text(
-                        text = Translator.tr(title),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        fontFamily = CairoFont,
-                        maxLines = 2,
-                        lineHeight = 18.sp
-                    )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(color.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+            }
+            Column {
+                Text(
+                    text = Translator.tr(title),
+                    color = theme.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    fontFamily = CairoFont,
+                    maxLines = 2,
+                    lineHeight = 19.sp
+                )
+                if (subtitle.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = Translator.tr(subtitle),
-                        color = color.copy(alpha = 0.85f),
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold,
+                        color = color,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         fontFamily = CairoFont
                     )
                 }
@@ -1503,46 +1361,38 @@ fun UnifiedHasanatListItem(
     color: Color,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                AppSoundManager.playClick()
-                onClick()
-            },
-        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f))
+    val theme = QabasTheme.current
+    AppleCard(
+        onClick = {
+            AppSoundManager.playClick()
+            onClick()
+        }
     ) {
-        Box(
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color(0xFF1E293B).copy(alpha = 0.7f), Color(0xFF0F172A).copy(alpha = 0.8f))
-                    )
-                )
-                .padding(12.dp)
+                .padding(14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(color.copy(alpha = 0.15f), CutCornerShape(10.dp))
-                        .border(1.dp, color.copy(alpha = 0.3f), CutCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
-                }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(Translator.tr(title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
-                    Text(Translator.tr(subtitle), color = qabasTextSecondary(), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(Translator.tr(badge), color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
-                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = qabasTextSecondary().copy(alpha = 0.5f))
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(color.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
             }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(Translator.tr(title), color = theme.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, fontFamily = CairoFont)
+                Text(Translator.tr(subtitle), color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (badge.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(Translator.tr(badge), color = color, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = theme.textSecondary)
         }
     }
 }
@@ -1567,37 +1417,35 @@ fun MuslimToolCard(
 
 @Composable
 fun IslamicEventsBanner(events: List<MuslimToolsEngine.IslamicEvent>) {
-    Text(
-        Translator.tr("المناسبات الإسلامية القادمة"),
-        color = GoldPrimary,
-        fontFamily = CairoFont,
-        fontWeight = FontWeight.Bold,
-        fontSize = 14.sp,
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(events) { event ->
-            Surface(
-                color = Color(0xFF0F172A).copy(alpha = 0.8f),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
-                modifier = Modifier.width(180.dp)
-            ) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Celebration, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(event.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont, maxLines = 1)
-                        Text("${event.daysRemaining} ${Translator.tr("يوم متبقي")}", color = GoldPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text(event.dateHijri, color = qabasTextSecondary(), fontSize = 9.sp)
+    val theme = QabasTheme.current
+    Column {
+        Text(
+            Translator.tr("المناسبات الإسلامية القادمة"),
+            color = theme.textPrimary,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(events) { event ->
+                AppleCard(modifier = Modifier.width(190.dp)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(theme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Celebration, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(event.name, color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont, maxLines = 1)
+                            Text("${event.daysRemaining} ${Translator.tr("يوم متبقي")}", color = theme.primary, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                            Text(event.dateHijri, color = theme.textSecondary, fontSize = 10.sp, fontFamily = NotoSansFont)
+                        }
                     }
                 }
             }

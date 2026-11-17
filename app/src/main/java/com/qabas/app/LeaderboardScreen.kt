@@ -1,11 +1,11 @@
 package com.qabas.app
 
 import android.content.Context
-import androidx.compose.animation.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,22 +13,21 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -52,7 +51,7 @@ data class FeedItem(
     val likesCount: Int,
     val viewsCount: String,
     val ratio: String = "9:16",
-    val duration: String = "30s",
+    val duration: String = "30 ثانية",
     val isLikedByMe: Boolean = false
 )
 
@@ -63,132 +62,121 @@ fun LeaderboardScreen(
     onUseInspirationScript: (String, String) -> Unit = { _, _ -> },
     onOpenRewards: () -> Unit = {}
 ) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
-    val silverGradient = Brush.horizontalGradient(colors = listOf(Color(0xFF94A3B8), Color(0xFFE2E8F0)))
-    val bronzeGradient = Brush.horizontalGradient(colors = listOf(Color(0xFFB45309), Color(0xFFF5D76E)))
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: لوحة الشرف, 1: مجتمع الإلهام, 2: تحديات الأسبوع
-    var timeFilter by remember { mutableStateOf("الأسبوع") } // الأسبوع, الشهر, الكل
-    
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var timeFilter by remember { mutableStateOf("الأسبوع") }
+
     var topCreators by remember { mutableStateOf<List<CreatorStats>>(emptyList()) }
     var feedProjects by remember { mutableStateOf<List<FeedItem>>(emptyList()) }
     var currentMission by remember { mutableStateOf<PointsManager.WeeklyMission?>(null) }
     var isMissionCompleted by remember { mutableStateOf(false) }
-    
+
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
 
-    // حساب الأيام المتبقية في دوري الأسبوع
     val daysLeft = remember {
         val calendar = Calendar.getInstance()
-        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK) // 1 = Sunday, 7 = Saturday
+        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
         val left = (Calendar.FRIDAY - dayOfWeek + 7) % 7
         if (left == 0) 7 else left
     }
 
-    // جلب البيانات الحقيقية من قواعد البيانات وحذف أي بيانات وهمية
     val loadData: () -> Unit = {
         coroutineScope.launch {
             isLoading = true
-            
-            // 1. حساب بيانات المستخدم الحالي الفعلية
+
             val currentUserName = CloudServices.Auth.currentUser.value?.displayName
                 ?: prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
+                ?: prefs.getString("local_user_name", "")?.takeIf { it.isNotBlank() }
                 ?: "أنت (صانع الأثر)"
-            
-            val currentUserPoints = prefs.getInt("local_points", 0).coerceAtLeast(
-                if (prefs.getBoolean("user_has_pro", false)) 250 else 50
+
+            // Read synced PointsManager key ("local_user_points") cleanly without fabricated score floors
+            val currentUserPoints = prefs.getInt(
+                "local_user_points",
+                prefs.getInt("local_points", 0)
             )
-            
+
             val userProjects = ProjectService(context).getLocalProjects()
-            val totalViews = (userProjects.size * 35 + (currentUserPoints / 10)).coerceAtLeast(1)
             val userBadge = when {
-                currentUserPoints >= 1000 -> "سفير النور 🌟"
-                currentUserPoints >= 500 -> "مبدع ذهبي 🥇"
-                currentUserPoints >= 200 -> "مبدع فضي 🥈"
-                else -> "صانع أثر 🚀"
+                currentUserPoints >= 1000 -> "سفير النور"
+                currentUserPoints >= 500 -> "مبدع ذهبي"
+                currentUserPoints >= 200 -> "مبدع فضي"
+                else -> "صانع أثر"
             }
 
-            // 2. جلب المتصدرين الفعليين من السحابة إذا كانت مهيأة
             val fetchedCreators = CloudServices.Database.getLeaderboard()
-            
+
             if (fetchedCreators.isNotEmpty()) {
-                // دمج المستخدم الحالي إذا لم يكن مسجلاً في القائمة
                 val hasUser = fetchedCreators.any { it.isCurrentUser || it.name == currentUserName }
                 val list = if (!hasUser) {
                     (fetchedCreators + CreatorStats(
                         name = currentUserName,
                         rank = fetchedCreators.size + 1,
                         points = currentUserPoints,
-                        views = "${totalViews}K",
+                        views = "${userProjects.size} مشروع",
                         badge = userBadge,
                         isCurrentUser = true,
-                        avatarColor = GoldPrimary
+                        avatarColor = theme.primary
                     )).sortedByDescending { it.points }
                 } else {
-                    fetchedCreators.map { 
-                        if (it.name == currentUserName) it.copy(isCurrentUser = true) else it 
+                    fetchedCreators.map {
+                        if (it.name == currentUserName) it.copy(isCurrentUser = true) else it
                     }.sortedByDescending { it.points }
                 }
-                
+
                 topCreators = list.mapIndexed { idx, item -> item.copy(rank = idx + 1) }
             } else {
-                // إذا لم توجد بيانات سحابية بعد، نعرض الحساب الفعلي للمستخدم فقط بدون أسماء وهمية
                 topCreators = listOf(
                     CreatorStats(
                         name = currentUserName,
                         rank = 1,
                         points = currentUserPoints,
-                        views = "${totalViews}K",
+                        views = "${userProjects.size} مشروع",
                         badge = userBadge,
                         isCurrentUser = true,
-                        avatarColor = GoldPrimary
+                        avatarColor = theme.primary
                     )
                 )
             }
 
-            // Leaderboard reads/writes are powered by Supabase.
-
-            // 3. جلب المشاريع الحقيقية للمجتمع أو مشاريع المستخدم المحفوظة
             val cloudProjects = CloudServices.Database.getFeedProjects()
-            if (cloudProjects.isNotEmpty()) {
-                feedProjects = cloudProjects.mapIndexed { idx, p ->
+            feedProjects = if (cloudProjects.isNotEmpty()) {
+                cloudProjects.mapIndexed { idx, p ->
                     FeedItem(
-                        id = if (p.id.isNotBlank()) p.id else "proj_$idx",
-                        title = if (p.title.isNotBlank()) p.title else "مشروع إسلامي ملهم",
+                        id = p.id.ifBlank { "proj_$idx" },
+                        title = p.title.ifBlank { "مشروع إسلامي ملهم" },
                         creatorName = "صانع محتوى",
-                        scriptPreview = if (p.script.isNotBlank()) p.script else if (p.idea.isNotBlank()) p.idea else "سيناريو دعوي مبارك",
+                        scriptPreview = p.script.ifBlank { p.idea.ifBlank { "سيناريو دعوي مبارك" } },
                         category = "إنتاج دعوي",
-                        likesCount = 15 + idx * 8,
-                        viewsCount = "${(idx + 1) * 2}.4K",
+                        likesCount = 0,
+                        viewsCount = "منشور سحابياً",
                         ratio = "9:16",
-                        duration = "30 ثانية"
+                        duration = "سحابي"
                     )
                 }
             } else if (userProjects.isNotEmpty()) {
-                // عرض مشاريع المستخدم المحلية الحقيقية في ساحة الإلهام
-                feedProjects = userProjects.mapIndexed { idx, p ->
+                userProjects.mapIndexed { idx, p ->
                     FeedItem(
-                        id = if (p.id.isNotBlank()) p.id else "local_$idx",
-                        title = if (p.title.isNotBlank()) p.title else "مشروع دعوي مبارك",
+                        id = p.id.ifBlank { "local_$idx" },
+                        title = p.title.ifBlank { "مشروع دعوي مبارك" },
                         creatorName = currentUserName,
-                        scriptPreview = if (p.script.isNotBlank()) p.script else if (p.idea.isNotBlank()) p.idea else "سيناريو دعوي تم إنتاجه عبر قبس",
-                        category = "مشاريعي المنشورة",
-                        likesCount = 12 + idx * 5,
-                        viewsCount = "${(idx + 1) * 3}.5K",
+                        scriptPreview = p.script.ifBlank { p.idea.ifBlank { "سيناريو دعوي تم إنتاجه عبر قبس" } },
+                        category = "مشاريعي المحفوظة",
+                        likesCount = 0,
+                        viewsCount = "محفوظ محلياً",
                         ratio = "9:16",
-                        duration = "45 ثانية"
+                        duration = "محلي"
                     )
                 }
             } else {
-                feedProjects = emptyList()
+                emptyList()
             }
 
-            // 4. جلب مهمة الأسبوع الحالية
             val mission = PointsManager.getCurrentWeeklyMission()
             currentMission = mission
             isMissionCompleted = PointsManager.isWeeklyMissionCompleted(context, mission.id)
@@ -203,83 +191,59 @@ fun LeaderboardScreen(
     }
 
     Scaffold(
+        containerColor = theme.background,
+        contentWindowInsets = WindowInsets.navigationBars,
         topBar = {
-            Column(modifier = Modifier.background(DeepSlate)) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            Translator.tr("مجتمع قبس ولوحة الشرف"),
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            fontSize = 18.sp
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = GoldPrimary)
-                        }
-                    },
+            Column(modifier = Modifier.background(theme.background)) {
+                AppleTopBar(
+                    title = Translator.tr("مجتمع قبس ولوحة الشرف"),
+                    onBack = onBack,
                     actions = {
-                        com.qabas.app.ui.components.CloudSyncIndicator(
-                            isSyncing = isRefreshing || isLoading
-                        )
-                        IconButton(onClick = onOpenRewards) {
-                            Icon(Icons.Default.CardGiftcard, contentDescription = "المكافآت", tint = GoldPrimary)
+                        CloudSyncIndicator(isSyncing = isRefreshing || isLoading)
+                        IconButton(
+                            onClick = onOpenRewards,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CardGiftcard,
+                                contentDescription = "المكافآت",
+                                tint = theme.primary
+                            )
                         }
-                        IconButton(onClick = {
-                            isRefreshing = true
-                            loadData()
-                        }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = TextSecondary)
+                        IconButton(
+                            onClick = {
+                                isRefreshing = true
+                                loadData()
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "تحديث",
+                                tint = theme.textSecondary
+                            )
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                    }
                 )
 
-                // التبويبات الثلاثة المنسقة بهندسة متوازنة
-                val tabTitles = listOf(
-                    "🏆 " + Translator.tr("لوحة الشرف"),
-                    "✨ " + Translator.tr("مجتمع الإلهام"),
-                    "🎯 " + Translator.tr("مهمة الأسبوع")
+                AppleSegmentedControl(
+                    items = listOf(
+                        0 to Translator.tr("لوحة الشرف"),
+                        1 to Translator.tr("مجتمع الإلهام"),
+                        2 to Translator.tr("مهمة الأسبوع")
+                    ),
+                    selectedItem = selectedTab,
+                    onSelect = { selectedTab = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
-
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = DeepSlate,
-                    contentColor = GoldPrimary,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.Indicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = GoldPrimary,
-                            height = 3.dp
-                        )
-                    }
-                ) {
-                    tabTitles.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = {
-                                Text(
-                                    title,
-                                    fontFamily = CairoFont,
-                                    fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selectedTab == index) GoldPrimary else TextSecondary,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        )
-                    }
-                }
             }
-        },
-        containerColor = DeepSlate
+        }
     ) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(theme.background)
         ) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -289,16 +253,13 @@ fun LeaderboardScreen(
                     )
                 }
             } else {
-                Crossfade(targetState = selectedTab, label = "TabTransition") { tabIndex ->
+                Crossfade(targetState = selectedTab, label = "LeaderboardTabTransition") { tabIndex ->
                     when (tabIndex) {
                         0 -> LeaderboardTab(
                             topCreators = topCreators,
                             timeFilter = timeFilter,
                             daysLeft = daysLeft,
-                            onTimeFilterChanged = { timeFilter = it },
-                            goldGradient = goldGradient,
-                            silverGradient = silverGradient,
-                            bronzeGradient = bronzeGradient
+                            onTimeFilterChanged = { timeFilter = it }
                         )
                         1 -> InspirationFeedTab(
                             feedProjects = feedProjects,
@@ -307,9 +268,7 @@ fun LeaderboardScreen(
                         2 -> WeeklyMissionTab(
                             mission = currentMission,
                             isCompleted = isMissionCompleted,
-                            onStartMission = { prompt, topic ->
-                                onUseInspirationScript(prompt, topic)
-                            }
+                            onStartMission = onUseInspirationScript
                         )
                     }
                 }
@@ -318,158 +277,108 @@ fun LeaderboardScreen(
     }
 }
 
-/**
- * 🏆 تبويب لوحة الشرف بتناسق هندسي كامل وبدون بيانات وهمية
- */
 @Composable
 private fun LeaderboardTab(
     topCreators: List<CreatorStats>,
     timeFilter: String,
     daysLeft: Int,
-    onTimeFilterChanged: (String) -> Unit,
-    goldGradient: Brush,
-    silverGradient: Brush,
-    bronzeGradient: Brush
+    onTimeFilterChanged: (String) -> Unit
 ) {
+    val theme = QabasTheme.current
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 28.dp)
+        contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp)
     ) {
-        // ==========================================
-        // 🥇 بطاقة الدوري الأسبوعي والجوائز (Geometric HUD Header)
-        // ==========================================
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF1E1B4B), Color(0xFF0F172A), Color(0xFF1E293B))
-                            )
-                        )
-                        .border(1.2.dp, GoldPrimary.copy(alpha = 0.45f), RoundedCornerShape(18.dp))
-                        .padding(16.dp)
-                ) {
-                    Column {
+            AppleCard(cornerRadius = 16.dp) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(theme.warning.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = null,
+                                    tint = theme.warning,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = Translator.tr("دوري قبس الأسبوعي"),
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = Translator.tr("أعلى 7 مبدعين ينالون ترقية Pro مجانية"),
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Surface(
+                            color = theme.warning.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(GoldPrimary.copy(alpha = 0.15f))
-                                        .border(1.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.EmojiEvents,
-                                        contentDescription = null,
-                                        tint = GoldPrimary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        Translator.tr("دوري قبس الأسبوعي"),
-                                        color = TextPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                    Text(
-                                        Translator.tr("أعلى 7 مبدعين ينالون ترقية Pro مجانية"),
-                                        color = GoldSecondary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-                            }
-
-                            // كبسولة العد التنازلي الأنيقة والمستقيمة
-                            Surface(
-                                color = GoldPrimary.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.HourglassBottom,
-                                        contentDescription = null,
-                                        tint = GoldPrimary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "متبقي $daysLeft أيام",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // أزرار فلتر الوقت المتناسقة هندسياً
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("الأسبوع", "الشهر", "الكل").forEach { filter ->
-                                val isSelected = timeFilter == filter
-                                Surface(
-                                    onClick = { onTimeFilterChanged(filter) },
-                                    color = if (isSelected) GoldPrimary else Color(0xFF0F172A),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (isSelected) GoldPrimary else Color(0xFF334155)
-                                    ),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        filter,
-                                        color = if (isSelected) DeepSlate else TextSecondary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        fontSize = 12.sp,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(vertical = 7.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.HourglassBottom,
+                                    contentDescription = null,
+                                    tint = theme.warning,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "متبقي $daysLeft أيام",
+                                    color = theme.warning,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    maxLines = 1
+                                )
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    AppleSegmentedControl(
+                        items = listOf(
+                            "الأسبوع" to "الأسبوع",
+                            "الشهر" to "الشهر",
+                            "الكل" to "الكل"
+                        ),
+                        selectedItem = timeFilter,
+                        onSelect = onTimeFilterChanged
+                    )
                 }
             }
         }
 
-        // ==========================================
-        // 🏛️ منصة التتويج البصرية الموزعة هندسياً بدقة
-        // ==========================================
         if (topCreators.size >= 3) {
             item {
                 PodiumSection(
@@ -479,7 +388,6 @@ private fun LeaderboardTab(
                 )
             }
         } else if (topCreators.isNotEmpty()) {
-            // حالة بطل الصدارة الفردي (المستخدم الفعلي)
             item {
                 SingleLeaderHeroCard(creator = topCreators[0])
             }
@@ -494,75 +402,56 @@ private fun LeaderboardTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    Translator.tr("قائمة المتصدرين وسفراء النور"),
-                    color = TextPrimary,
+                    text = Translator.tr("قائمة المتصدرين وسفراء النور"),
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.5.sp
+                    fontSize = 15.sp
                 )
                 Text(
-                    "${topCreators.size} مبدع",
-                    color = GoldSecondary,
-                    fontFamily = RobotoMonoFont,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "${topCreators.size} مبدع ($timeFilter)",
+                    color = theme.primary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
 
-        // ==========================================
-        // 📋 بطاقات قائمة المتصدرين (Clean Live Creator Cards)
-        // ==========================================
         itemsIndexed(topCreators) { _, creator ->
-            val rankGradient = when (creator.rank) {
-                1 -> goldGradient
-                2 -> silverGradient
-                3 -> bronzeGradient
-                else -> null
-            }
-            val badgeColor = when (creator.rank) {
-                1 -> GoldPrimary
-                2 -> Color(0xFFE2E8F0)
-                3 -> Color(0xFFF5D76E)
-                else -> TextSecondary
+            val rankColor = when (creator.rank) {
+                1 -> theme.warning
+                2 -> theme.textSecondary
+                3 -> theme.accent
+                else -> theme.primary
             }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (creator.isCurrentUser) Color(0xFF131E33) else CardSurface
-                ),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(
-                    1.2.dp,
-                    if (creator.isCurrentUser) GoldPrimary.copy(alpha = 0.8f)
-                    else if (creator.rank <= 3) GoldPrimary.copy(alpha = 0.3f)
-                    else Color(0xFF1E293B)
-                )
+            AppleCard(
+                containerColor = if (creator.isCurrentUser) {
+                    theme.primary.copy(alpha = if (theme.isDark) 0.14f else 0.08f)
+                } else {
+                    theme.cardSurface
+                }
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(
-                            if (rankGradient != null) Modifier.background(rankGradient, alpha = 0.06f) else Modifier
-                        )
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // شارة الترتيب
                     Box(
                         modifier = Modifier
                             .size(34.dp)
+                            .clip(CircleShape)
                             .background(
-                                if (rankGradient != null) rankGradient
-                                else Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A))),
-                                CircleShape
+                                if (creator.rank <= 3) rankColor.copy(alpha = 0.18f)
+                                else theme.secondarySurface
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "${creator.rank}",
-                            color = if (creator.rank <= 3) DeepSlate else Color.White,
+                            text = "${creator.rank}",
+                            color = if (creator.rank <= 3) rankColor else theme.textPrimary,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
@@ -571,51 +460,50 @@ private fun LeaderboardTab(
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    // الصورة الرمزية بالحرف الأول
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
-                            .background(creator.avatarColor.copy(alpha = 0.15f), CircleShape)
-                            .border(1.dp, creator.avatarColor.copy(alpha = 0.5f), CircleShape),
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(creator.avatarColor.copy(alpha = 0.14f))
+                            .border(1.dp, creator.avatarColor.copy(alpha = 0.45f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            creator.name.take(1),
+                            text = creator.name.take(1),
                             color = creator.avatarColor,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 16.sp
                         )
                     }
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    // الاسم والوسام
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                creator.name,
-                                color = if (creator.isCurrentUser) GoldPrimary else Color.White,
+                                text = creator.name,
+                                color = if (creator.isCurrentUser) theme.primary else theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (creator.isCurrentUser) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
-                                    color = GoldPrimary.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(4.dp),
-                                    border = BorderStroke(0.5.dp, GoldPrimary)
+                                    color = theme.primary.copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        Translator.tr("أنت"),
-                                        color = GoldPrimary,
-                                        fontSize = 9.sp,
+                                        text = Translator.tr("أنت"),
+                                        color = theme.primary,
+                                        fontSize = 10.sp,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
@@ -623,46 +511,36 @@ private fun LeaderboardTab(
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Default.WorkspacePremium,
+                                imageVector = Icons.Default.WorkspacePremium,
                                 contentDescription = null,
-                                tint = badgeColor,
-                                modifier = Modifier.size(12.dp)
+                                tint = rankColor,
+                                modifier = Modifier.size(13.dp)
                             )
-                            Spacer(modifier = Modifier.width(3.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                creator.badge,
-                                color = badgeColor,
-                                fontFamily = CairoFont,
-                                fontSize = 10.5.sp
+                                text = creator.badge,
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp
                             )
                         }
                     }
 
-                    // الإحصائيات (النقاط والمشاهدات)
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            "${creator.points} ${Translator.tr("نقطة")}",
-                            color = GoldPrimary,
+                            text = "${creator.points} ${Translator.tr("نقطة")}",
+                            color = theme.primary,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
+                            fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Visibility,
-                                contentDescription = null,
-                                tint = TextSecondary,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                creator.views,
-                                color = TextSecondary,
-                                fontFamily = RobotoMonoFont,
-                                fontSize = 10.5.sp
-                            )
-                        }
+                        Text(
+                            text = creator.views,
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.sp
+                        )
                     }
                 }
             }
@@ -670,88 +548,76 @@ private fun LeaderboardTab(
     }
 }
 
-/**
- * 👑 بطاقة بطل الصدارة الفردي (عند بدء الدوري أو المستخدم الفردي)
- */
 @Composable
 private fun SingleLeaderHeroCard(creator: CreatorStats) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color(0xDD0C1322),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(
-            1.2.dp,
-            Brush.horizontalGradient(
-                listOf(GoldPrimary, Color(0xFF38BDF8).copy(alpha = 0.4f), Color.Transparent)
-            )
-        )
-    ) {
+    val theme = QabasTheme.current
+    AppleCard {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(58.dp)
                     .clip(CircleShape)
-                    .background(GoldPrimary.copy(alpha = 0.15f))
-                    .border(2.dp, GoldPrimary, CircleShape),
+                    .background(theme.primary.copy(alpha = 0.14f))
+                    .border(1.5.dp, theme.primary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    creator.name.take(1),
-                    color = GoldPrimary,
+                    text = creator.name.take(1),
+                    color = theme.primary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Star, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = theme.warning,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
                 Text(
-                    "فارس الصدارة الحالي: ${creator.name}",
-                    color = Color.White,
+                    text = "فارس الصدارة الحالي: ${creator.name}",
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.5.sp
+                    fontSize = 15.sp
                 )
             }
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "رصيدك الحالي: ${creator.points} نقطة أثر • وسامك: ${creator.badge}",
-                color = GoldSecondary,
+                text = "رصيدك الحالي: ${creator.points} نقطة أثر • الوسام: ${creator.badge}",
+                color = theme.primary,
                 fontFamily = CairoFont,
-                fontSize = 11.5.sp
+                fontSize = 12.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "أنت متصدر دوري هذا الأسبوع! استمر في إنتاج المقاطع وخوض مهام الأسبوع لضمان ترقية Pro المجانية 🚀",
-                color = Color(0xFF94A3B8),
-                fontFamily = CairoFont,
-                fontSize = 11.sp,
+                text = "استمر في إنتاج المقاطع وخوض مهام الأسبوع لكسب المزيد من النقاط.",
+                color = theme.textSecondary,
+                fontFamily = NotoSansFont,
+                fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
         }
     }
 }
 
-/**
- * 🥇 منصة التتويج البصرية للمراكز الثلاثة الأولى بتناسق هندسي كامل
- */
 @Composable
 private fun PodiumSection(
     first: CreatorStats,
     second: CreatorStats,
     third: CreatorStats
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
-    ) {
+    val theme = QabasTheme.current
+    AppleCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -759,11 +625,16 @@ private fun PodiumSection(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = theme.warning,
+                    modifier = Modifier.size(16.dp)
+                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    Translator.tr("فرسان الصدارة لهذا الأسبوع"),
-                    color = GoldPrimary,
+                    text = Translator.tr("فرسان الصدارة لهذا الأسبوع"),
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
@@ -772,37 +643,28 @@ private fun PodiumSection(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // منصة التتويج المتناظرة هندسياً (فضة - ذهب - برونز)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
-                // المركز الثاني (فضي)
                 PodiumColumn(
                     creator = second,
                     rankNumber = 2,
-                    height = 90.dp,
-                    color = Color(0xFFCBD5E1),
-                    gradient = Brush.verticalGradient(listOf(Color(0xFF64748B), Color(0xFF334155)))
+                    height = 86.dp,
+                    color = theme.textSecondary
                 )
-
-                // المركز الأول (ذهبي - الأطول في المنتصف)
                 PodiumColumn(
                     creator = first,
                     rankNumber = 1,
-                    height = 120.dp,
-                    color = GoldPrimary,
-                    gradient = Brush.verticalGradient(listOf(GoldPrimary, Color(0xFFB45309)))
+                    height = 116.dp,
+                    color = theme.warning
                 )
-
-                // المركز الثالث (برونزي)
                 PodiumColumn(
                     creator = third,
                     rankNumber = 3,
-                    height = 70.dp,
-                    color = Color(0xFFF59E0B),
-                    gradient = Brush.verticalGradient(listOf(Color(0xFFB45309), Color(0xFF78350F)))
+                    height = 68.dp,
+                    color = theme.accent
                 )
             }
         }
@@ -813,39 +675,35 @@ private fun PodiumSection(
 private fun PodiumColumn(
     creator: CreatorStats,
     rankNumber: Int,
-    height: androidx.compose.ui.unit.Dp,
-    color: Color,
-    gradient: Brush
+    height: Dp,
+    color: Color
 ) {
+    val theme = QabasTheme.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(96.dp)
     ) {
-        // ارتفاع موحد للمنطقة العلوية لضمان محاذاة الصور والأسماء هندسياً
-        Box(
-            modifier = Modifier.height(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = Modifier.height(20.dp), contentAlignment = Alignment.Center) {
             if (rankNumber == 1) {
                 Icon(
-                    Icons.Default.Star,
+                    imageVector = Icons.Default.Star,
                     contentDescription = null,
-                    tint = GoldPrimary,
+                    tint = theme.warning,
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
 
-        // الصورة الرمزية
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .background(color.copy(alpha = 0.2f), CircleShape)
-                .border(2.dp, color, CircleShape),
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.14f))
+                .border(1.5.dp, color, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                creator.name.take(1),
+                text = creator.name.take(1),
                 color = color,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
@@ -855,36 +713,36 @@ private fun PodiumColumn(
 
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            creator.name.split(" ").firstOrNull() ?: creator.name,
-            color = Color.White,
+            text = creator.name.split(" ").firstOrNull() ?: creator.name,
+            color = theme.textPrimary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.5.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            "${creator.points}ن",
-            color = GoldSecondary,
+            text = "${creator.points} ن",
+            color = theme.primary,
             fontFamily = RobotoMonoFont,
-            fontSize = 10.5.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // عامود المنصة المصقول
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height)
-                .background(gradient, RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                .background(color.copy(alpha = if (theme.isDark) 0.25f else 0.18f))
                 .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "#$rankNumber",
-                color = Color.White,
+                text = "#$rankNumber",
+                color = color,
                 fontFamily = RobotoMonoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp
@@ -893,31 +751,27 @@ private fun PodiumColumn(
     }
 }
 
-/**
- * ✨ تبويب مجتمع الإلهام (Inspiration Community Feed) بدون بيانات وهمية
- */
 @Composable
 private fun InspirationFeedTab(
     feedProjects: List<FeedItem>,
     onUseScript: (String, String) -> Unit
 ) {
-    var likedSet by remember { mutableStateOf(setOf<String>()) }
+    val context = LocalContext.current
+    val theme = QabasTheme.current
+    val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
+    var likedSet by remember {
+        mutableStateOf(prefs.getStringSet("liked_feed_ids", emptySet()) ?: emptySet())
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 28.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp)
     ) {
         item {
-            // شريط إرشادي ملهم
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = BorderStroke(1.dp, Color(0xFF1E293B))
-            ) {
+            AppleCard {
                 Row(
                     modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -925,25 +779,31 @@ private fun InspirationFeedTab(
                     Box(
                         modifier = Modifier
                             .size(42.dp)
-                            .background(GoldPrimary.copy(alpha = 0.15f), CircleShape),
+                            .clip(CircleShape)
+                            .background(theme.primary.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            Translator.tr("استلهم وأنتج مقطعك فوراً 💡"),
-                            color = TextPrimary,
+                            text = Translator.tr("استلهم وأنتج مقطعك فوراً"),
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
-                            Translator.tr("تصفح سيناريوهات المشاريع المنجزة، واقتبس الفكرة بضغطة زر واحدة."),
-                            color = TextSecondary,
-                            fontFamily = CairoFont,
-                            fontSize = 11.5.sp
+                            text = Translator.tr("تصفح سيناريوهات المشاريع المنجزة، واقتبس الفكرة بضغطة زر."),
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp
                         )
                     }
                 }
@@ -952,46 +812,43 @@ private fun InspirationFeedTab(
 
         if (feedProjects.isEmpty()) {
             item {
-                Surface(
-                    color = Color(0xFF0D1527),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                AppleCard {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(40.dp))
+                        Icon(
+                            imageVector = Icons.Default.MovieCreation,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(40.dp)
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "لا توجد مشاريع منشورة في المجتمع حتى الآن",
-                            color = Color.White,
+                            text = "لا توجد مشاريع منشورة في المجتمع حتى الآن",
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
+                            fontSize = 14.sp,
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "أنشئ مشروعك الدعوي الأول واحفظه ليظهر في مجتمع قبس وتكسب نقاط الأثر المباركة.",
-                            color = Color(0xFF94A3B8),
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp,
+                            text = "أنشئ مشروعك الدعوي الأول واحفظه ليظهر في مجتمع قبس وتكسب نقاط الأثر.",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
                             textAlign = TextAlign.Center
                         )
                     }
                 }
             }
         } else {
-            items(feedProjects) { item ->
+            items(feedProjects, key = { it.id }) { item ->
                 val isLiked = item.id in likedSet
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = CardSurface),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B))
-                ) {
+                AppleCard {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1004,13 +861,14 @@ private fun InspirationFeedTab(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(34.dp)
-                                        .background(GoldPrimary.copy(alpha = 0.2f), CircleShape),
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(theme.primary.copy(alpha = 0.14f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        item.creatorName.take(1),
-                                        color = GoldPrimary,
+                                        text = item.creatorName.take(1),
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
@@ -1019,31 +877,31 @@ private fun InspirationFeedTab(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        item.creatorName,
-                                        color = TextPrimary,
+                                        text = item.creatorName,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.5.sp
+                                        fontSize = 14.sp
                                     )
                                     Text(
-                                        item.category,
-                                        color = GoldSecondary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.5.sp
+                                        text = item.category,
+                                        color = theme.textSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 11.sp
                                     )
                                 }
                             }
 
                             Surface(
-                                color = Color(0xFF1E293B),
-                                shape = RoundedCornerShape(6.dp)
+                                color = theme.secondarySurface,
+                                shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
-                                    item.duration,
-                                    color = TextSecondary,
-                                    fontSize = 10.5.sp,
-                                    fontFamily = RobotoMonoFont,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    text = item.viewsCount,
+                                    color = theme.textSecondary,
+                                    fontSize = 11.sp,
+                                    fontFamily = NotoSansFont,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
@@ -1051,98 +909,61 @@ private fun InspirationFeedTab(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            item.title,
-                            color = Color.White,
+                            text = item.title,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp
+                            fontSize = 15.sp
                         )
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // معاينة السكريبت
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
-                                .border(1.dp, Color(0xFF1E2D4A), RoundedCornerShape(10.dp))
-                                .padding(12.dp)
+                        Surface(
+                            color = theme.secondarySurface,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                item.scriptPreview,
-                                color = Color(0xFFCBD5E1),
-                                fontFamily = CairoFont,
-                                fontSize = 12.sp,
-                                lineHeight = 18.sp,
+                                text = item.scriptPreview,
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
                                 maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(12.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // الإحصائيات وأزرار الإجراءات
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable {
-                                        likedSet = if (isLiked) likedSet - item.id else likedSet + item.id
-                                    }
-                                ) {
-                                    Icon(
-                                        if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                        contentDescription = null,
-                                        tint = if (isLiked) Color(0xFFEF4444) else TextSecondary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "${item.likesCount + if (isLiked) 1 else 0}",
-                                        color = if (isLiked) Color(0xFFEF4444) else TextSecondary,
-                                        fontFamily = RobotoMonoFont,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Visibility, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(15.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        item.viewsCount,
-                                        color = TextSecondary,
-                                        fontFamily = RobotoMonoFont,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-                            }
-
-                            Button(
+                            IconButton(
                                 onClick = {
-                                    onUseScript(item.scriptPreview, item.title)
+                                    val updated = if (isLiked) likedSet - item.id else likedSet + item.id
+                                    likedSet = updated
+                                    prefs.edit().putStringSet("liked_feed_ids", updated).apply()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    Translator.tr("استخدام الفكرة 🎬"),
-                                    color = DeepSlate,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                Icon(
+                                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = if (isLiked) "إلغاء الإعجاب" else "إعجاب",
+                                    tint = if (isLiked) theme.destructive else theme.textSecondary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
+
+                            AppleSecondaryButton(
+                                text = Translator.tr("استخدام الفكرة"),
+                                icon = Icons.Default.PlayArrow,
+                                onClick = { onUseScript(item.scriptPreview, item.title) },
+                                modifier = Modifier.fillMaxWidth(0.55f)
+                            )
                         }
                     }
                 }
@@ -1151,15 +972,14 @@ private fun InspirationFeedTab(
     }
 }
 
-/**
- * 🎯 تبويب مهمة الأسبوع وتحديات النقاط
- */
 @Composable
 private fun WeeklyMissionTab(
     mission: PointsManager.WeeklyMission?,
     isCompleted: Boolean,
     onStartMission: (String, String) -> Unit
 ) {
+    val theme = QabasTheme.current
+
     if (mission == null) {
         LazyColumn(
             modifier = Modifier
@@ -1176,203 +996,183 @@ private fun WeeklyMissionTab(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 28.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp)
     ) {
         item { VerificationMissionCard() }
 
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF064E3B), Color(0xFF0F172A), Color(0xFF1E293B))
-                            )
-                        )
-                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.5f), RoundedCornerShape(18.dp))
-                        .padding(20.dp)
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            AppleCard(cornerRadius = 18.dp) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = theme.success.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "مهمة الأسبوع ${mission.weekNumber}",
-                                        color = Color(0xFF10B981),
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                color = GoldPrimary.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = theme.success,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    "+${mission.points} " + Translator.tr("نقطة أثر"),
-                                    color = GoldPrimary,
+                                    text = "مهمة الأسبوع ${mission.weekNumber}",
+                                    color = theme.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    fontSize = 12.sp
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            mission.topic,
-                            color = TextPrimary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            mission.description,
-                            color = Color(0xFFE2E8F0),
-                            fontFamily = CairoFont,
-                            fontSize = 12.5.sp,
-                            lineHeight = 20.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            Translator.tr("الموجه الذكي (AI Prompt) المخصص للتحدي:"),
-                            color = GoldSecondary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(10.dp))
-                                .padding(12.dp)
+                        Surface(
+                            color = theme.warning.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                mission.prompt,
-                                color = Color(0xFF94A3B8),
+                                text = "+${mission.points} " + Translator.tr("نقطة أثر"),
+                                color = theme.warning,
                                 fontFamily = CairoFont,
-                                fontSize = 11.5.sp,
-                                lineHeight = 17.sp
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                             )
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                        if (isCompleted) {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981))
+                    Text(
+                        text = mission.topic,
+                        color = theme.textPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = mission.description,
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 13.5.sp,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = theme.separator.copy(alpha = 0.5f), thickness = 0.5.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = Translator.tr("الموجه الذكي المخصص للتحدي:"),
+                        color = theme.primary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Surface(
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = mission.prompt,
+                            color = theme.textPrimary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.5.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (isCompleted) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = theme.success.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, theme.success)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        Translator.tr("تم إنجاز هذا التحدي وحصد النقاط بنجاح! 🎉"),
-                                        color = Color(0xFF10B981),
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.5.sp
-                                    )
-                                }
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    onStartMission(mission.prompt, mission.topic)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth().height(44.dp)
-                            ) {
-                                Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = theme.success,
+                                    modifier = Modifier.size(18.dp)
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    Translator.tr("خوض التحدي وإنتاج الفيديو الآن 🚀"),
-                                    color = DeepSlate,
+                                    text = Translator.tr("تم إنجاز هذا التحدي وحصد النقاط بنجاح"),
+                                    color = theme.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
                             }
                         }
+                    } else {
+                        ApplePrimaryButton(
+                            text = Translator.tr("خوض التحدي وإنتاج الفيديو الآن"),
+                            icon = Icons.Default.RocketLaunch,
+                            onClick = { onStartMission(mission.prompt, mission.topic) }
+                        )
                     }
                 }
             }
         }
 
-        // قائمة مهام النقاط اليومية
         item {
             Text(
-                Translator.tr("طرق أخرى لكسب نقاط الأثر اليومية"),
-                color = TextPrimary,
+                text = Translator.tr("طرق كسب نقاط الأثر اليومية"),
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.5.sp,
+                fontSize = 15.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
 
-        items(PointAction.values().toList()) { action ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = BorderStroke(1.dp, Color(0xFF1E293B))
-            ) {
+        items(PointAction.entries) { action ->
+            AppleCard {
                 Row(
-                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    modifier = Modifier
+                        .padding(14.dp)
+                        .fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .background(GoldPrimary.copy(alpha = 0.12f), CircleShape),
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(theme.primary.copy(alpha = 0.12f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                when (action) {
+                                imageVector = when (action) {
                                     PointAction.EXPORT_VIDEO -> Icons.Default.Movie
                                     PointAction.USE_AI_HOOK -> Icons.Default.Lightbulb
                                     PointAction.SEARCH_DALEEL -> Icons.Default.Search
@@ -1381,35 +1181,35 @@ private fun WeeklyMissionTab(
                                     PointAction.WEEKLY_CHALLENGE -> Icons.Default.EmojiEvents
                                     PointAction.SAHIH_QUIZ_CORRECT -> Icons.Default.School
                                     PointAction.SAHIH_QUIZ_PERFECT -> Icons.Default.EmojiEvents
-                                    else -> Icons.Default.Star
                                 },
                                 contentDescription = null,
-                                tint = GoldPrimary,
-                                modifier = Modifier.size(17.dp)
+                                tint = theme.primary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            action.description,
-                            color = Color.White,
+                            text = action.description,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.5.sp
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp
                         )
                     }
 
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     Surface(
-                        color = Color(0xFF0F172A),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                        color = theme.success.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            "+${action.points}",
-                            color = GoldPrimary,
+                            text = "+${action.points}",
+                            color = theme.success,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.5.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -1418,13 +1218,10 @@ private fun WeeklyMissionTab(
     }
 }
 
-/**
- * 🛡️ بطاقة شارة التوثيق ومهام الريلز داخل قسم الدوري.
- * تُظهر القواعد والمهام الصعبة والتقدم، ولوحة المطوّر لمنح/سحب الشارة.
- */
 @Composable
 private fun VerificationMissionCard() {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     var refresh by remember { mutableIntStateOf(0) }
     val tasks = VerificationManager.TASKS
     val completed = remember(refresh) { VerificationManager.completedTasks(context) }
@@ -1437,76 +1234,82 @@ private fun VerificationMissionCard() {
         refresh++
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-    ) {
-        Column(
-            modifier = Modifier
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF111827))
-                    )
-                )
-                .border(1.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
-                .padding(18.dp)
-        ) {
+    AppleCard(cornerRadius = 18.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                Icon(
+                    imageVector = Icons.Default.Verified,
+                    contentDescription = null,
+                    tint = theme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "شارة التوثيق ومهام الريلز",
-                        color = TextPrimary,
+                        text = "شارة التوثيق ومهام الريلز",
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Text(
-                        "أكمل المهام الصعبة ثم يمنحها المطوّر",
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp
+                        text = "أكمل المهام المطلوبة ثم تُمنح الشارة بعد المراجعة",
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp
                     )
                 }
                 Surface(
-                    color = if (selfVerified) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF0F172A),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, if (selfVerified) Color(0xFF10B981) else Color(0xFF334155))
+                    color = if (selfVerified) theme.success.copy(alpha = 0.14f) else theme.secondarySurface,
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        if (selfVerified) "موثّق ✓" else "$completed/${tasks.size}",
-                        color = if (selfVerified) Color(0xFF10B981) else GoldPrimary,
+                        text = if (selfVerified) "موثّق ✓" else "$completed/${tasks.size}",
+                        color = if (selfVerified) theme.success else theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text("قواعد التوثيق", color = GoldSecondary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(
+                text = "قواعد التوثيق",
+                color = theme.primary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
             Spacer(modifier = Modifier.height(4.dp))
             VerificationManager.RULES.forEach { rule ->
-                Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 2.dp)) {
-                    Text("•", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                ) {
+                    Text("•", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        rule,
-                        color = Color(0xFFE2E8F0),
-                        fontFamily = CairoFont,
-                        fontSize = 11.5.sp,
-                        lineHeight = 17.sp
+                        text = rule,
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text("المهام المطلوبة", color = GoldSecondary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(
+                text = "المهام المطلوبة",
+                color = theme.primary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
             Spacer(modifier = Modifier.height(6.dp))
             tasks.forEach { task ->
                 val cur = remember(refresh, task.id) { VerificationManager.progressFor(context, task) }
@@ -1514,21 +1317,33 @@ private fun VerificationMissionCard() {
                 Column(modifier = Modifier.padding(vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                             contentDescription = null,
-                            tint = if (done) Color(0xFF10B981) else TextSecondary,
-                            modifier = Modifier.size(15.dp)
+                            tint = if (done) theme.success else theme.textSecondary,
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(task.title, color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                            Text(task.description, color = TextSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
+                            Text(
+                                text = task.title,
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = task.description,
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp
+                            )
                         }
                         Text(
-                            "${cur.coerceAtMost(task.target)}/${task.target}",
-                            color = if (done) Color(0xFF10B981) else GoldPrimary,
+                            text = "${cur.coerceAtMost(task.target)}/${task.target}",
+                            color = if (done) theme.success else theme.primary,
                             fontFamily = RobotoMonoFont,
-                            fontSize = 11.sp
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
                         )
                     }
                     Spacer(modifier = Modifier.height(5.dp))
@@ -1538,35 +1353,43 @@ private fun VerificationMissionCard() {
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
-                        color = if (done) Color(0xFF10B981) else GoldPrimary,
-                        trackColor = Color(0xFF1E293B)
+                        color = if (done) theme.success else theme.primary,
+                        trackColor = theme.secondarySurface
                     )
                 }
             }
 
             if (isDev) {
                 Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0xFF334155))
+                HorizontalDivider(color = theme.separator.copy(alpha = 0.5f), thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "لوحة المطوّر — منح/سحب التوثيق",
-                    color = GoldPrimary,
+                    text = "لوحة المطوّر — منح/سحب التوثيق",
+                    color = theme.primary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    fontSize = 13.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = targetInput,
                     onValueChange = { targetInput = it },
-                    placeholder = { Text("معرّف المستخدم أو بريده", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp) },
+                    placeholder = {
+                        Text(
+                            text = "معرّف المستخدم أو بريده",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp
+                        )
+                    },
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = theme.primary,
+                        unfocusedBorderColor = theme.separator,
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary
                     )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1578,9 +1401,14 @@ private fun VerificationMissionCard() {
                                 refresh++
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = theme.primary,
+                            contentColor = theme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     ) {
-                        Text("توثيق", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("توثيق", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     OutlinedButton(
                         onClick = {
@@ -1588,9 +1416,18 @@ private fun VerificationMissionCard() {
                                 targetInput = ""
                                 refresh++
                             }
-                        }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, theme.destructive),
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     ) {
-                        Text("سحب التوثيق", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFEF4444))
+                        Text(
+                            text = "سحب التوثيق",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = theme.destructive
+                        )
                     }
                 }
             }

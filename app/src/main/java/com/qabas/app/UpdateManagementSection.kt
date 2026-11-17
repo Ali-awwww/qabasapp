@@ -1,47 +1,35 @@
 package com.qabas.app
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
 fun UpdateManagementSection() {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val scope = rememberCoroutineScope()
     val verifiedDeveloper = UpdateChannelFacade.isVerifiedDeveloper()
 
@@ -67,8 +55,6 @@ fun UpdateManagementSection() {
         error = null
         githubError = null
         try {
-            // Supabase is the source of truth for published/active updates.
-            // Load it independently so a GitHub outage cannot hide the live release.
             val fetchedHistory = SupabaseServices.Database.getAppUpdateHistoryOrThrow()
             val current = SupabaseServices.Database.getLatestActiveUpdateOrThrow()
             history = fetchedHistory
@@ -77,8 +63,6 @@ fun UpdateManagementSection() {
                 SupabaseServices.Database.getAppUpdateAuditOrThrow()
             }.getOrDefault(emptyList())
 
-            // GitHub only supplies candidate releases. Preserve the last known list
-            // if this request fails; never interpret a timeout as "no APK releases".
             try {
                 val fetchedReleases = UpdateManager.getAdminGitHubReleases(context).getOrThrow()
                 releases = fetchedReleases
@@ -108,14 +92,18 @@ fun UpdateManagementSection() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("إدارة الإصدارات متاحة للمطور الموثّق فقط", color = Color.White, fontWeight = FontWeight.Bold)
-            Text("يتم التحقق من الصلاحية مرة أخرى على خادم Supabase عند النشر.", color = Color.LightGray, fontSize = 12.sp)
+            Icon(Icons.Default.Lock, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(36.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("إدارة الإصدارات متاحة للمطور الموثّق فقط", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("يتم التحقق من الصلاحية على خادم Supabase عند النشر.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
         }
         return
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -125,31 +113,39 @@ fun UpdateManagementSection() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("إدارة إصدارات قبس", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("GitHub للتخزين وSupabase لاعتماد الإصدار وسياسة التحديث", color = Color.LightGray, fontSize = 11.sp)
+                    Text("إدارة إصدارات قبس", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("GitHub للتخزين وSupabase لاعتماد الإصدار وسياسة التحديث", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
                 }
-                OutlinedButton(onClick = { scope.launch { refresh() } }, enabled = !isLoading) {
-                    Text("تحديث القائمة")
+                IconButton(onClick = { scope.launch { refresh() } }, enabled = !isLoading, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = "تحديث القائمة", tint = theme.primary)
                 }
             }
         }
 
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155))
-            ) {
+            AppleCard {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("الإصدار الذي يصل للمستخدمين", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("الإصدار المعتمد للمستخدمين", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    }
                     if (activeUpdate != null) {
                         val active = activeUpdate!!
-                        Text("v${active.versionName}  •  Build ${active.versionCode}", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text(if (active.isMandatory) "تحديث إجباري" else "تحديث اختياري", color = if (active.isMandatory) Color(0xFFF87171) else Color(0xFF34D399), fontSize = 12.sp)
-                        Text("APK: ${active.asset_name ?: active.downloadUrl.substringAfterLast('/')}", color = Color.LightGray, fontSize = 11.sp)
-                        Text("الحجم: ${formatUpdateBytes(active.fileSizeBytes)}", color = Color.LightGray, fontSize = 11.sp)
-                        OutlinedButton(
+                        Text("v${active.versionName} • Build ${active.versionCode}", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (active.isMandatory) "تحديث إجباري" else "تحديث اختياري",
+                            color = if (active.isMandatory) theme.destructive else theme.success,
+                            fontFamily = CairoFont,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text("APK: ${active.asset_name ?: active.downloadUrl.substringAfterLast('/')}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
+                        Text("الحجم: ${formatUpdateBytes(active.fileSizeBytes)}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
+                        AppleSecondaryButton(
+                            text = "إيقاف التحديث مؤقتاً",
+                            tint = theme.warning,
+                            enabled = !isPublishing,
                             onClick = {
                                 scope.launch {
                                     isPublishing = true
@@ -158,21 +154,22 @@ fun UpdateManagementSection() {
                                     try {
                                         SupabaseServices.Database.setAppUpdateActive(null, false)
                                         refresh()
-                                        message = "تم إيقاف توزيع التحديث مؤقتاً. لم يتم حذف الإصدار أو التراجع عنه."
+                                        message = "تم إيقاف توزيع التحديث مؤقتاً."
                                     } catch (e: Exception) {
                                         error = e.message ?: "تعذر إيقاف التحديث"
                                     } finally {
                                         isPublishing = false
                                     }
                                 }
-                            },
-                            enabled = !isPublishing
-                        ) { Text("إيقاف التحديث مؤقتاً") }
+                            }
+                        )
                     } else {
-                        Text("لا يوجد إصدار معتمد حالياً.", color = Color.LightGray)
+                        Text("لا يوجد إصدار معتمد حالياً.", color = theme.textSecondary, fontFamily = NotoSansFont)
                         val latest = history.maxByOrNull { it.versionCode }
                         if (latest != null) {
-                            OutlinedButton(
+                            AppleSecondaryButton(
+                                text = "إعادة تفعيل أحدث إصدار منشور",
+                                enabled = !isPublishing,
                                 onClick = {
                                     scope.launch {
                                         isPublishing = true
@@ -188,9 +185,8 @@ fun UpdateManagementSection() {
                                             isPublishing = false
                                         }
                                     }
-                                },
-                                enabled = !isPublishing
-                            ) { Text("إعادة تفعيل أحدث إصدار منشور") }
+                                }
+                            )
                         }
                     }
                 }
@@ -198,37 +194,41 @@ fun UpdateManagementSection() {
         }
 
         if (isLoading) {
-            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } }
+            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = theme.primary) } }
         }
 
         if (!error.isNullOrBlank()) {
-            item { Text("خطأ في بيانات Supabase: $error", color = Color(0xFFF87171), fontSize = 12.sp) }
+            item { Text("خطأ في بيانات Supabase: $error", color = theme.destructive, fontFamily = NotoSansFont, fontSize = 12.sp) }
         }
         if (!githubError.isNullOrBlank()) {
             item {
                 Text(
                     "تعذر تحديث قائمة GitHub: $githubError. بيانات الإصدار المعتمد وسجل Supabase ما زالت معروضة.",
-                    color = Color(0xFFFBBF24),
+                    color = theme.warning,
+                    fontFamily = NotoSansFont,
                     fontSize = 12.sp
                 )
             }
         }
         if (!message.isNullOrBlank()) {
-            item { Text(message!!, color = Color(0xFF34D399), fontSize = 12.sp) }
+            item { Text(message!!, color = theme.success, fontFamily = CairoFont, fontSize = 12.sp) }
         }
 
         item {
-            Text("إصدارات GitHub التي لم تُنشر بعد", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text("لا يصل أي إصدار للمستخدمين بمجرد نشره على GitHub. يجب اختياره واعتماده هنا.", color = Color.LightGray, fontSize = 11.sp)
+            Column {
+                Text("إصدارات GitHub التي لم تُنشر بعد", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("لا يصل أي إصدار للمستخدمين بمجرد نشره على GitHub. يجب اختياره واعتماده هنا.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
+            }
         }
 
         if (!isLoading && eligibleReleases.isEmpty()) {
             item {
                 Text(
-                    if (githubError != null) "تعذر التحقق من إصدارات GitHub حالياً؛ أعد المحاولة لاحقاً. لا يعني ذلك عدم وجود APK."
+                    if (githubError != null) "تعذر التحقق من إصدارات GitHub حالياً؛ أعد المحاولة لاحقاً."
                     else if (releases.isEmpty()) "لم يتم العثور على إصدارات منشورة تحتوي على APK صالح."
                     else "لا توجد إصدارات أحدث من آخر بناء منشور في Supabase.",
-                    color = Color.LightGray,
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
                     fontSize = 12.sp
                 )
             }
@@ -236,50 +236,51 @@ fun UpdateManagementSection() {
 
         items(eligibleReleases, key = { it.tagName }) { release ->
             val selected = release.tagName == selectedTag
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = if (selected) Color(0xFF1E293B) else Color(0xFF111827)),
-                border = BorderStroke(1.dp, if (selected) Color(0xFFFBBF24) else Color(0xFF334155)),
-                shape = RoundedCornerShape(14.dp)
+            AppleCard(
+                containerColor = if (selected) theme.primary.copy(alpha = 0.08f) else theme.cardSurface,
+                onClick = {
+                    if (!isPublishing) {
+                        selectedTag = release.tagName
+                        releaseNotes = release.releaseNotes
+                        isMandatory = false
+                        error = null
+                        message = null
+                    }
+                }
             ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(release.tagName, color = Color.White, fontWeight = FontWeight.Bold)
-                    Text("Build ${release.versionCode}  •  ${formatUpdateBytes(release.apkSize)}", color = Color.LightGray, fontSize = 11.sp)
-                    Text("APK: ${release.assetName}", color = Color.LightGray, fontSize = 11.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(release.tagName, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        if (selected) {
+                            Text("محدد", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                    Text("Build ${release.versionCode} • ${formatUpdateBytes(release.apkSize)}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
+                    Text("APK: ${release.assetName}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
                     Text(
-                        if (release.sha256Hash != null) "SHA-256: متوفر للتحقق من سلامة الملف" else "SHA-256: غير متوفر في بيانات GitHub لهذا الإصدار",
-                        color = Color.LightGray,
-                        fontSize = 10.sp
+                        if (release.sha256Hash != null) "SHA-256: متوفر للتحقق من سلامة الملف" else "SHA-256: غير متوفر لهذا الإصدار",
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.5.sp
                     )
-                    Text("تاريخ النشر: ${release.publishedAt.ifBlank { "غير متاح" }}", color = Color.LightGray, fontSize = 10.sp)
-                    OutlinedButton(
-                        onClick = {
-                            selectedTag = release.tagName
-                            releaseNotes = release.releaseNotes
-                            isMandatory = false
-                            error = null
-                            message = null
-                        },
-                        enabled = !isPublishing
-                    ) { Text(if (selected) "الإصدار المحدد" else "اختيار هذا الإصدار") }
+                    Text("تاريخ النشر: ${release.publishedAt.ifBlank { "غير متاح" }}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 10.5.sp)
                 }
             }
         }
 
         if (selectedRelease != null) {
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                    border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.7f)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
+                AppleCard {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("اعتماد ${selectedRelease.tagName}", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold)
+                        Text("اعتماد ${selectedRelease.tagName}", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("تحديث إجباري", color = Color.White, fontWeight = FontWeight.Bold)
-                                Text("يبدأ التنزيل الخلفي تلقائياً لدى المستخدمين", color = Color.LightGray, fontSize = 10.sp)
+                                Text("تحديث إجباري", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                Text("يبدأ التنزيل الخلفي تلقائياً لدى المستخدمين", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                             }
                             Switch(checked = isMandatory, onCheckedChange = { isMandatory = it }, enabled = !isPublishing)
                         }
@@ -287,18 +288,23 @@ fun UpdateManagementSection() {
                             value = releaseNotes,
                             onValueChange = { releaseNotes = it },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("ملاحظات الإصدار") },
+                            label = { Text("ملاحظات الإصدار", fontFamily = CairoFont) },
+                            shape = RoundedCornerShape(12.dp),
                             minLines = 3,
                             maxLines = 7
                         )
-                        Text("سيتم اعتماد APK: ${selectedRelease.assetName} (${formatUpdateBytes(selectedRelease.apkSize)})", color = Color.LightGray, fontSize = 11.sp)
+                        Text("سيتم اعتماد APK: ${selectedRelease.assetName} (${formatUpdateBytes(selectedRelease.apkSize)})", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                         Text(
-                            if (selectedRelease.deltaUrl != null) "Delta: ${formatUpdateBytes(selectedRelease.deltaSize)} • أساس Build ${selectedRelease.baseVersionCode} • بصمات SHA-256 متوفرة"
-                            else "Delta: غير متاح أو بلا بصمات أساس موثوقة — سيُستخدم APK الكامل",
-                            color = Color.LightGray,
-                            fontSize = 10.sp
+                            if (selectedRelease.deltaUrl != null) "Delta: ${formatUpdateBytes(selectedRelease.deltaSize)} • أساس Build ${selectedRelease.baseVersionCode}"
+                            else "Delta: غير متاح — سيُستخدم APK الكامل",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 10.5.sp
                         )
-                        Button(
+                        ApplePrimaryButton(
+                            text = "اعتماد الإصدار للمستخدمين",
+                            isLoading = isPublishing,
+                            enabled = !isPublishing && selectedRelease.apkUrl.isNotBlank(),
                             onClick = {
                                 scope.launch {
                                     isPublishing = true
@@ -322,7 +328,7 @@ fun UpdateManagementSection() {
                                             baseVersionCode = selectedRelease.baseVersionCode,
                                             baseSha256Hash = selectedRelease.baseSha256Hash
                                         )
-                                        message = "تم اعتماد الإصدار بنجاح. سيحصل المستخدمون عليه عند فحص التحديثات."
+                                        message = "تم اعتماد الإصدار بنجاح."
                                         selectedTag = null
                                         refresh()
                                     } catch (e: Exception) {
@@ -331,14 +337,8 @@ fun UpdateManagementSection() {
                                         isPublishing = false
                                     }
                                 }
-                            },
-                            enabled = !isPublishing && !selectedRelease.apkUrl.isBlank(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB45309)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (isPublishing) CircularProgressIndicator()
-                            else Text("اعتماد الإصدار للمستخدمين", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
+                            }
+                        )
                     }
                 }
             }
@@ -346,26 +346,31 @@ fun UpdateManagementSection() {
 
         if (history.isNotEmpty()) {
             item {
-                Divider(color = Color(0xFF334155))
-                Text("سجل الإصدارات المنشورة", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                HorizontalDivider(color = theme.separator.copy(alpha = 0.5f), thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("سجل الإصدارات المنشورة", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             items(history.take(10), key = { it.id }) { release ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("v${release.versionName} • Build ${release.versionCode}", color = Color.White, fontSize = 12.sp)
-                        Text(if (release.isActive) "معتمد حالياً" else "منشور سابقاً", color = if (release.isActive) Color(0xFF34D399) else Color.LightGray, fontSize = 10.sp)
+                AppleCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("v${release.versionName} • Build ${release.versionCode}", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                            Text(if (release.isActive) "معتمد حالياً" else "منشور سابقاً", color = if (release.isActive) theme.success else theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                        }
+                        Text(if (release.isMandatory) "إجباري" else "اختياري", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
-                    Text(if (release.isMandatory) "إجباري" else "اختياري", color = Color.LightGray, fontSize = 10.sp)
                 }
             }
         }
+
         if (audit.isNotEmpty()) {
             item {
-                Divider(color = Color(0xFF334155))
-                Text("سجل عمليات النشر والتحكم", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                HorizontalDivider(color = theme.separator.copy(alpha = 0.5f), thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("سجل عمليات النشر والتحكم", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             items(audit, key = { "audit-${it.id}" }) { entry ->
                 val actionLabel = when (entry.action) {
@@ -375,11 +380,12 @@ fun UpdateManagementSection() {
                     else -> entry.action
                 }
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(actionLabel, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(actionLabel, color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         "${entry.actorRole} • حساب ${entry.actorId.take(8)} • ${entry.createdAt} • Build ${entry.newVersionCode ?: entry.oldVersionCode ?: "—"}",
-                        color = Color.LightGray,
-                        fontSize = 10.sp
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.5.sp
                     )
                 }
             }

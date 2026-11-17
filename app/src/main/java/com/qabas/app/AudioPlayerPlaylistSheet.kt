@@ -1,10 +1,10 @@
 package com.qabas.app
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,15 +26,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.*
+import java.util.Locale
 
 /**
- * نافذة قائمة التشغيل الاحترافية (Playlist Bottom Sheet) مع مميزات متقدمة:
- * - إعادة وترتيب وحذف من الطابور
- * - الوضع العشوائي والوضع التكراري (الكل، واحد، إيقاف)
- * - مؤقت النوم الذكي (Sleep Timer)
- * - مؤشر التشغيل بالخلفية الآمن
- * - شريط زمني رقمي فاخر للتقديم والتأخير
+ * نافذة قائمة التشغيل (Playlist Bottom Sheet) بنمط Apple HIG في الوضعين الفاتح والداكن.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +41,7 @@ fun AudioPlaylistBottomSheet(
     onOpenStudioWithTrack: ((PlayableAudioTrack) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val currentTrack by AudioPlaybackManager.currentTrack.collectAsState()
     val playlist by AudioPlaybackManager.playlist.collectAsState()
     val currentIndex by AudioPlaybackManager.currentIndex.collectAsState()
@@ -53,34 +53,29 @@ fun AudioPlaylistBottomSheet(
     val isShuffle by AudioPlaybackManager.isShuffle.collectAsState()
     val sleepTimerSeconds by AudioPlaybackManager.sleepTimerRemainingSeconds.collectAsState()
 
-    val isDarkTheme by ThemeManager.isDarkTheme.collectAsState()
-
-    val surfaceColor = if (isDarkTheme) Color(0xFF111726) else Color(0xFFFFFFFF)
-    val cardColor = if (isDarkTheme) Color(0xFF1A2234) else Color(0xFFF1F5F9)
-    val textColor = if (isDarkTheme) Color.White else Color(0xFF0F172A)
-    val subTextColor = if (isDarkTheme) TextSecondary else Color(0xFF64748B)
-
     var showSleepTimerMenu by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = surfaceColor,
+        containerColor = theme.background,
+        contentColor = theme.textPrimary,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
             Surface(
                 modifier = Modifier
                     .padding(vertical = 12.dp)
-                    .width(44.dp)
+                    .width(40.dp)
                     .height(4.dp),
                 shape = CircleShape,
-                color = GoldPrimary.copy(alpha = 0.5f)
+                color = theme.separator.copy(alpha = 0.7f)
             ) {}
         }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 4.dp)
         ) {
             // Header Row
             Row(
@@ -88,34 +83,34 @@ fun AudioPlaylistBottomSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.2f)),
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(theme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.QueueMusic,
                             contentDescription = null,
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(20.dp)
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "قائمة التشغيل الذكية",
-                            color = textColor,
+                            text = "قائمة التشغيل",
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
-                            text = "${playlist.size} مقاطع • يدعم التشغيل بالخلفية",
-                            color = EmeraldGreen,
-                            fontFamily = CairoFont,
+                            text = "${playlist.size} مقاطع • تشغيل بالخلفية",
+                            color = theme.success,
+                            fontFamily = NotoSansFont,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -123,21 +118,24 @@ fun AudioPlaylistBottomSheet(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Sleep Timer Button
                     Box {
-                        IconButton(onClick = { showSleepTimerMenu = true }) {
+                        IconButton(
+                            onClick = { showSleepTimerMenu = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(
                                 Icons.Default.Bedtime,
                                 contentDescription = "مؤقت النوم",
-                                tint = if (sleepTimerSeconds > 0) EmeraldGreen else subTextColor
+                                tint = if (sleepTimerSeconds > 0) theme.success else theme.textSecondary
                             )
                         }
                         DropdownMenu(
                             expanded = showSleepTimerMenu,
-                            onDismissRequest = { showSleepTimerMenu = false }
+                            onDismissRequest = { showSleepTimerMenu = false },
+                            modifier = Modifier.background(theme.cardSurface)
                         ) {
                             DropdownMenuItem(
-                                text = { Text("إيقاف مؤقت النوم", fontFamily = CairoFont) },
+                                text = { Text("إيقاف مؤقت النوم", fontFamily = CairoFont, color = theme.textPrimary) },
                                 onClick = {
                                     AudioPlaybackManager.setSleepTimer(0)
                                     showSleepTimerMenu = false
@@ -145,7 +143,7 @@ fun AudioPlaylistBottomSheet(
                             )
                             listOf(5, 10, 15, 30, 45, 60).forEach { mins ->
                                 DropdownMenuItem(
-                                    text = { Text("$mins دقيقة", fontFamily = CairoFont) },
+                                    text = { Text("$mins دقيقة", fontFamily = CairoFont, color = theme.textPrimary) },
                                     onClick = {
                                         AudioPlaybackManager.setSleepTimer(mins)
                                         showSleepTimerMenu = false
@@ -155,20 +153,20 @@ fun AudioPlaylistBottomSheet(
                         }
                     }
 
-                    // Shuffle Button
                     IconButton(
-                        onClick = { AudioPlaybackManager.toggleShuffle() }
+                        onClick = { AudioPlaybackManager.toggleShuffle() },
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             Icons.Default.Shuffle,
                             contentDescription = "خلط المقاطع",
-                            tint = if (isShuffle) GoldPrimary else subTextColor
+                            tint = if (isShuffle) theme.primary else theme.textSecondary
                         )
                     }
 
-                    // Repeat Button
                     IconButton(
-                        onClick = { AudioPlaybackManager.cycleRepeatMode() }
+                        onClick = { AudioPlaybackManager.cycleRepeatMode() },
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             when (repeatMode) {
@@ -177,7 +175,7 @@ fun AudioPlaylistBottomSheet(
                                 AudioRepeatMode.OFF -> Icons.Default.Repeat
                             },
                             contentDescription = "تكرار",
-                            tint = if (repeatMode != AudioRepeatMode.OFF) GoldPrimary else subTextColor
+                            tint = if (repeatMode != AudioRepeatMode.OFF) theme.primary else theme.textSecondary
                         )
                     }
                 }
@@ -187,24 +185,18 @@ fun AudioPlaylistBottomSheet(
                 val mins = sleepTimerSeconds / 60
                 val secs = sleepTimerSeconds % 60
                 Text(
-                    text = "مؤقت النوم نشط: ${String.format("%02d:%02d", mins, secs)} متبقية",
-                    color = EmeraldGreen,
+                    text = "مؤقت النوم نشط: ${String.format(Locale.US, "%02d:%02d", mins, secs)} متبقية",
+                    color = theme.success,
                     fontFamily = CairoFont,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 6.dp)
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Currently Playing Card with Timeline & Controls
             currentTrack?.let { track ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = cardColor,
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
-                ) {
+                AppleCard(cornerRadius = 18.dp) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -215,14 +207,19 @@ fun AudioPlaylistBottomSheet(
                                     .size(44.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(
-                                        Brush.linearGradient(listOf(GoldPrimary.copy(alpha = 0.3f), AiCyan.copy(alpha = 0.2f)))
+                                        Brush.linearGradient(
+                                            listOf(
+                                                theme.primary.copy(alpha = 0.22f),
+                                                theme.accent.copy(alpha = 0.16f)
+                                            )
+                                        )
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Default.GraphicEq,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = theme.primary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -230,7 +227,7 @@ fun AudioPlaylistBottomSheet(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = track.title,
-                                    color = textColor,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
@@ -239,34 +236,30 @@ fun AudioPlaylistBottomSheet(
                                 )
                                 Text(
                                     text = track.artist,
-                                    color = subTextColor,
-                                    fontFamily = CairoFont,
-                                    fontSize = 12.sp
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
-                            // Use in Studio Button
                             if (onOpenStudioWithTrack != null) {
-                                OutlinedButton(
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AppleSecondaryButton(
+                                    text = "للاستوديو",
                                     onClick = {
                                         onOpenStudioWithTrack(track)
                                         onDismiss()
                                     },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, GoldPrimary),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(34.dp)
-                                ) {
-                                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("اعتماد للاستوديو", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont)
-                                }
+                                    icon = Icons.Default.MovieFilter,
+                                    modifier = Modifier.width(120.dp)
+                                )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Luxury Timeline Seekbar
                         LuxuryAudioTimelineBar(
                             currentPositionMs = currentPositionMs,
                             totalDurationMs = totalDurationMs,
@@ -276,7 +269,6 @@ fun AudioPlaylistBottomSheet(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Accurate Live Countdown & Elapsed Timer HUD
                         AccurateAudioCountdownHud(
                             currentPositionMs = currentPositionMs,
                             totalDurationMs = totalDurationMs,
@@ -285,71 +277,70 @@ fun AudioPlaylistBottomSheet(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Playback Controls Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            // Speed Chip
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(GoldPrimary.copy(alpha = 0.15f))
-                                    .clickable {
-                                            val nextSpeed = when (playbackSpeed) {
-                                                0.5f -> 0.75f
-                                                0.75f -> 1.0f
-                                                1.0f -> 1.25f
-                                                1.25f -> 1.5f
-                                                1.5f -> 1.75f
-                                                1.75f -> 2.0f
-                                                2.0f -> 0.5f
-                                                else -> 1.25f
-                                            }
-                                        AudioPlaybackManager.setPlaybackSpeed(nextSpeed)
+                            Surface(
+                                onClick = {
+                                    val nextSpeed = when (playbackSpeed) {
+                                        0.5f -> 0.75f
+                                        0.75f -> 1.0f
+                                        1.0f -> 1.25f
+                                        1.25f -> 1.5f
+                                        1.5f -> 1.75f
+                                        1.75f -> 2.0f
+                                        2.0f -> 0.5f
+                                        else -> 1.25f
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    AudioPlaybackManager.setPlaybackSpeed(nextSpeed)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = theme.primary.copy(alpha = 0.14f),
+                                modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
                             ) {
-                                Text(
-                                    "${playbackSpeed}x",
-                                    color = GoldPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
+                                    Text(
+                                        "${playbackSpeed}x",
+                                        color = theme.primary,
+                                        fontSize = 12.sp,
+                                        fontFamily = RobotoMonoFont,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
-                            // 10s Rewind
-                            IconButton(onClick = {
-                                val target = (currentPositionMs - 10000L).coerceAtLeast(0L)
-                                AudioPlaybackManager.seekTo(context, target)
-                            }) {
-                                Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = textColor)
+                            IconButton(
+                                onClick = {
+                                    val target = (currentPositionMs - 10000L).coerceAtLeast(0L)
+                                    AudioPlaybackManager.seekTo(context, target)
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = theme.textPrimary)
                             }
 
-                            // Previous Track
-                            IconButton(onClick = { AudioPlaybackManager.previous(context) }) {
-                                Icon(Icons.Default.SkipPrevious, contentDescription = "المقطع السابق", tint = textColor)
+                            IconButton(
+                                onClick = { AudioPlaybackManager.previous(context) },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Default.SkipPrevious, contentDescription = "المقطع السابق", tint = theme.textPrimary)
                             }
 
-                            // Play / Pause FAB (#play-pause-btn)
                             val playPauseFabBg by animateColorAsState(
-                                targetValue = if (isPlaying) Color(0xFF10B981) else GoldPrimary,
-                                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+                                targetValue = if (isPlaying) theme.success else theme.primary,
+                                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
                                 label = "fab_play_pause_bg"
-                            )
-                            val playPauseFabIconTint by animateColorAsState(
-                                targetValue = if (isPlaying) Color.White else DeepSlate,
-                                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-                                label = "fab_play_pause_icon"
                             )
 
                             FloatingActionButton(
                                 onClick = { AudioPlaybackManager.togglePlayState(context) },
                                 containerColor = playPauseFabBg,
-                                contentColor = playPauseFabIconTint,
+                                contentColor = Color.White,
                                 shape = CircleShape,
-                                modifier = Modifier.size(48.dp)
+                                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp),
+                                modifier = Modifier.size(52.dp)
                             ) {
                                 Icon(
                                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -358,17 +349,21 @@ fun AudioPlaylistBottomSheet(
                                 )
                             }
 
-                            // Next Track
-                            IconButton(onClick = { AudioPlaybackManager.next(context) }) {
-                                Icon(Icons.Default.SkipNext, contentDescription = "المقطع التالي", tint = textColor)
+                            IconButton(
+                                onClick = { AudioPlaybackManager.next(context) },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Default.SkipNext, contentDescription = "المقطع التالي", tint = theme.textPrimary)
                             }
 
-                            // 10s Forward
-                            IconButton(onClick = {
-                                val target = (currentPositionMs + 10000L).coerceAtMost(totalDurationMs)
-                                AudioPlaybackManager.seekTo(context, target)
-                            }) {
-                                Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = textColor)
+                            IconButton(
+                                onClick = {
+                                    val target = (currentPositionMs + 10000L).coerceAtMost(totalDurationMs)
+                                    AudioPlaybackManager.seekTo(context, target)
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = theme.textPrimary)
                             }
                         }
                     }
@@ -378,8 +373,8 @@ fun AudioPlaylistBottomSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "طابور المقاطع القادمة:",
-                color = subTextColor,
+                text = "طابور المقاطع",
+                color = theme.textSecondary,
                 fontFamily = CairoFont,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
@@ -387,21 +382,25 @@ fun AudioPlaylistBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Playlist Queue Items
             if (playlist.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp),
+                        .height(120.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("لا توجد مقاطع في قائمة التشغيل حالياً", color = subTextColor, fontFamily = CairoFont, fontSize = 14.sp)
+                    Text(
+                        "لا توجد مقاطع في قائمة التشغيل حالياً",
+                        color = theme.textSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 14.sp
+                    )
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 280.dp),
+                        .heightIn(max = 260.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     itemsIndexed(playlist) { index, track ->
@@ -409,62 +408,69 @@ fun AudioPlaylistBottomSheet(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .defaultMinSize(minHeight = 52.dp)
                                 .clickable { AudioPlaybackManager.playTrack(context, track) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isCurrent) GoldPrimary.copy(alpha = 0.15f) else cardColor,
-                            border = if (isCurrent) BorderStroke(1.dp, GoldPrimary) else null
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isCurrent) theme.primary.copy(alpha = 0.12f) else theme.cardSurface,
+                            border = BorderStroke(
+                                if (isCurrent) 1.dp else 0.5.dp,
+                                if (isCurrent) theme.primary else theme.separator.copy(alpha = 0.5f)
+                            )
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = "${index + 1}",
-                                    color = if (isCurrent) GoldPrimary else subTextColor,
-                                    fontSize = 12.sp,
+                                    color = if (isCurrent) theme.primary else theme.textSecondary,
+                                    fontSize = 13.sp,
+                                    fontFamily = RobotoMonoFont,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.width(22.dp)
+                                    modifier = Modifier.width(24.dp)
                                 )
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = track.title,
-                                        color = if (isCurrent) GoldPrimary else textColor,
+                                        color = if (isCurrent) theme.primary else theme.textPrimary,
                                         fontFamily = CairoFont,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                                         fontSize = 14.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = "${track.artist} • ${track.category}",
-                                        color = subTextColor,
-                                        fontFamily = CairoFont,
-                                        fontSize = 11.sp
+                                        color = theme.textSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
                                 if (isCurrent && isPlaying) {
                                     Icon(
-                                        Icons.Default.VolumeUp,
+                                        Icons.AutoMirrored.Filled.VolumeUp,
                                         contentDescription = "يعمل الآن",
-                                        tint = GoldPrimary,
+                                        tint = theme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                 }
 
                                 IconButton(
                                     onClick = { AudioPlaybackManager.removeFromPlaylist(track.id) },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "إزالة",
-                                        tint = subTextColor,
-                                        modifier = Modifier.size(16.dp)
+                                        tint = theme.textSecondary,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
@@ -473,7 +479,7 @@ fun AudioPlaylistBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

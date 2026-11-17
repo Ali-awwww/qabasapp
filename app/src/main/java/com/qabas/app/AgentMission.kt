@@ -72,7 +72,7 @@ suspend fun executeAgentMission(
     prompt: String,
     spec: AgentSpecialization,
     repo: RepoVaultEntry?,
-    selectedModel: String = "gemini-3.5-flash",
+    selectedModel: String = "gemini-2.5-flash",
     onUpdate: (AgentMissionSession) -> Unit,
     onFinished: (AgentMissionSession) -> Unit
 ) = withContext(Dispatchers.IO) {

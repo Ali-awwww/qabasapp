@@ -3,10 +3,8 @@ package com.qabas.app
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
-import io.github.jan.supabase.auth.auth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,27 +18,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.launch
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.delay
-
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.Stroke
-import com.qabas.app.ui.components.GlassmorphicSurface
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +41,7 @@ fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToRules: () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
@@ -62,16 +55,13 @@ fun RegisterScreen(
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
-    // Public registration pre-checks only usernames; email existence stays private.
     var isCustomIdTaken by remember { mutableStateOf<Boolean?>(null) }
     var isCheckingAvailability by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // A password must never be persisted in SharedPreferences.
         prefs.edit().remove("draft_register_email").remove("draft_register_password").apply()
     }
 
-    // Debounced availability lookup checks public handles only, never email addresses.
     LaunchedEffect(customId) {
         val trimmedId = customId.trim()
         if (trimmedId.length < 3 || !SupabaseServices.isSupabaseAvailable) {
@@ -94,83 +84,74 @@ fun RegisterScreen(
         }
     }
 
-    val primaryColor = qabasPrimary()
-    val accentColor = qabasAccent()
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = theme.primary,
+        unfocusedBorderColor = theme.separator,
+        focusedLabelColor = theme.primary,
+        unfocusedLabelColor = theme.textSecondary,
+        focusedTextColor = theme.textPrimary,
+        unfocusedTextColor = theme.textPrimary,
+        cursorColor = theme.primary,
+        focusedContainerColor = theme.secondarySurface.copy(alpha = 0.25f),
+        unfocusedContainerColor = theme.secondarySurface.copy(alpha = 0.15f)
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeepSlate)
+            .background(theme.background)
     ) {
-        // Background HUD
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            val step = 60.dp.toPx()
-            for (i in 0..(w / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
-            }
-            for (i in 0..(h / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(0f, i * step), Offset(w, i * step), 1f)
-            }
-        }
-
-        HudCornerDecor(modifier = Modifier.fillMaxSize(), color = primaryColor.copy(alpha = 0.15f))
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 560.dp)
+                .align(Alignment.Center)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Back Button (Minimalist)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                IconButton(onClick = onNavigateToLogin) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = primaryColor)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                IconButton(
+                    onClick = onNavigateToLogin,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = theme.primary)
                 }
             }
 
             Text(
-                text = "بناء هوية جديدة",
-                color = Color.White,
+                text = "إنشاء حساب جديد",
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.Bold,
                 fontSize = 26.sp
             )
-            
+
             Text(
                 text = "سجل انضمامك لمجتمع قبس الرقمي",
-                color = TextSecondary.copy(alpha = 0.7f),
-                fontFamily = CairoFont,
-                fontSize = 13.sp
+                color = theme.textSecondary,
+                fontFamily = NotoSansFont,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 2.dp)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            GlassmorphicSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.linearGradient(listOf(primaryColor.copy(alpha = 0.4f), Color.Transparent)),
-                        shape = CutCornerShape(16.dp)
-                    ),
-                shape = CutCornerShape(16.dp),
-                backgroundColor = CardSurface.copy(alpha = 0.7f),
-                borderColor = Color.White.copy(alpha = 0.05f)
-            ) {
+            AppleCard(cornerRadius = 18.dp) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Live Identity Preview Card (Username + App Account Number side-by-side)
+                    // Live Identity Preview Card
                     Surface(
-                        color = Color(0xFF101726),
-                        shape = CutCornerShape(10.dp),
-                        border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.35f)),
+                        color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.72f else 0.55f),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
@@ -179,56 +160,44 @@ fun RegisterScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(8.dp, 8.dp).background(primaryColor, CircleShape))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "الهوية الرقمية المخصصة للمستخدم الجديد",
-                                        color = Color.White,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
+                                Text(
+                                    text = "معاينة الهوية الرقمية",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
                                 Surface(
-                                    color = primaryColor.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(4.dp)
+                                    color = theme.primary.copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = "توليد فوري تلقائي",
-                                        color = primaryColor,
+                                        text = "توليد تلقائي",
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                     )
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Username and Account Number Side-by-Side
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // 1. Username (اليوزر)
                                 Surface(
-                                    color = Color.White.copy(alpha = 0.04f),
-                                    shape = CutCornerShape(6.dp),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                                    color = theme.cardSurface,
+                                    shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                        Text(
-                                            text = "اسم المستخدم (اليوزر)",
-                                            color = Color.White.copy(alpha = 0.5f),
-                                            fontFamily = CairoFont,
-                                            fontSize = 9.sp
-                                        )
+                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                        Text("اسم المستخدم", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                                         Text(
                                             text = "@${customId.ifBlank { "qbs_user" }}",
-                                            color = primaryColor,
+                                            color = theme.primary,
                                             fontFamily = RobotoMonoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
@@ -237,26 +206,19 @@ fun RegisterScreen(
                                     }
                                 }
 
-                                // 2. App Account Number (رقم الحساب بالتطبيق)
                                 Surface(
-                                    color = Color.White.copy(alpha = 0.04f),
-                                    shape = CutCornerShape(6.dp),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
+                                    color = theme.cardSurface,
+                                    shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                        Text("رقم الحساب", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                                         Text(
-                                            text = "رقم الحساب بالتطبيق",
-                                            color = Color.White.copy(alpha = 0.5f),
-                                            fontFamily = CairoFont,
-                                            fontSize = 9.sp
-                                        )
-                                        Text(
-                                            text = "يُنشأ بعد التسجيل",
-                                            color = GoldPrimary,
+                                            text = "يُنشأ تلقائياً",
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
+                                            fontSize = 12.5.sp,
                                             maxLines = 1
                                         )
                                     }
@@ -271,114 +233,91 @@ fun RegisterScreen(
                             name = newName
                             if (customId.isBlank() || customId == "qbs_user") {
                                 val norm = UserIdentifierManager.normalize(newName)
-                                if (norm.isNotBlank()) {
-                                    customId = norm
-                                }
+                                if (norm.isNotBlank()) customId = norm
                             }
                         },
                         label = { Text("الاسم الكامل / اسم الحساب", fontFamily = CairoFont, fontSize = 12.sp) },
+                        textStyle = TextStyle(fontFamily = CairoFont, fontSize = 14.sp, color = theme.textPrimary),
                         modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                            focusedLabelColor = primaryColor,
-                            unfocusedLabelColor = Color.Gray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = CutCornerShape(8.dp),
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
 
-                    // Custom Identifier Field (Unique Handle / User ID)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         OutlinedTextField(
                             value = customId,
                             onValueChange = { customId = it.trim().removePrefix("@").replace(" ", "_") },
-                            label = { Text("اسم المستخدم / المعرّف (اليوزر - Handle)", fontFamily = CairoFont, fontSize = 12.sp) },
-                            placeholder = { Text("مثال: aliwalead أو qbs_ahmed", color = Color.Gray.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = CairoFont) },
+                            label = { Text("اسم المستخدم / المعرّف (Handle)", fontFamily = CairoFont, fontSize = 12.sp) },
+                            placeholder = {
+                                Text("مثال: aliwalead أو qbs_ahmed", color = theme.textSecondary.copy(alpha = 0.65f), fontSize = 12.sp, fontFamily = NotoSansFont)
+                            },
+                            textStyle = TextStyle(fontFamily = RobotoMonoFont, fontSize = 14.sp, color = theme.textPrimary),
                             leadingIcon = {
-                                Icon(Icons.Default.Person, contentDescription = null, tint = primaryColor.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Person, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                             },
                             trailingIcon = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (isCheckingAvailability) {
-                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp, color = primaryColor)
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = theme.primary)
+                                        Spacer(modifier = Modifier.width(6.dp))
                                     }
-                                    IconButton(onClick = {
-                                        customId = UserIdentifierManager.generateUniqueId(name.ifBlank { email })
-                                    }) {
-                                        Icon(Icons.Default.Refresh, contentDescription = "توليد معرّف تلقائي", tint = primaryColor, modifier = Modifier.size(18.dp))
+                                    IconButton(
+                                        onClick = { customId = UserIdentifierManager.generateUniqueId(name.ifBlank { email }) },
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "توليد معرّف تلقائي", tint = theme.primary, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = if (isCustomIdTaken == true) Color.Red else primaryColor,
-                                unfocusedBorderColor = if (isCustomIdTaken == true) Color.Red.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f),
-                                focusedLabelColor = if (isCustomIdTaken == true) Color.Red else primaryColor,
-                                unfocusedLabelColor = Color.Gray,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            shape = CutCornerShape(8.dp),
+                            colors = fieldColors,
+                            shape = RoundedCornerShape(12.dp),
                             singleLine = true
                         )
                         if (isCustomIdTaken == true) {
-                            Text("⚠️ هذا المعرف مستخدم بالفعل، اختر واحداً آخر", color = Color.Red, fontSize = 9.sp, fontFamily = CairoFont, modifier = Modifier.padding(start = 8.dp))
+                            Text("هذا المعرف مستخدم بالفعل، اختر واحداً آخر", color = theme.destructive, fontSize = 11.sp, fontFamily = CairoFont, modifier = Modifier.padding(start = 6.dp))
                         } else if (isCustomIdTaken == false && customId.length >= 3) {
-                            Text("✓ هذا المعرف متاح للاستخدام", color = Color(0xFF10B981), fontSize = 9.sp, fontFamily = CairoFont, modifier = Modifier.padding(start = 8.dp))
+                            Text("هذا المعرف متاح للاستخدام", color = theme.success, fontSize = 11.sp, fontFamily = CairoFont, modifier = Modifier.padding(start = 6.dp))
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
-                            leadingIcon = {
-                                Icon(Icons.Default.Email, contentDescription = null, tint = primaryColor.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryColor,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                                focusedLabelColor = primaryColor,
-                                unfocusedLabelColor = Color.Gray,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            shape = CutCornerShape(8.dp),
-                            singleLine = true
-                        )
-                    }
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
+                        textStyle = TextStyle(fontFamily = NotoSansFont, fontSize = 14.sp, color = theme.textPrimary),
+                        leadingIcon = {
+                            Icon(Icons.Default.Email, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
 
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
                         label = { Text("كلمة المرور", fontFamily = CairoFont, fontSize = 12.sp) },
+                        textStyle = TextStyle(fontFamily = NotoSansFont, fontSize = 14.sp, color = theme.textPrimary),
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
-                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                            IconButton(
+                                onClick = { isPasswordVisible = !isPasswordVisible },
+                                modifier = Modifier.size(48.dp)
+                            ) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (isPasswordVisible) "إخفاء كلمة المرور" else "إظهار كلمة المرور",
-                                    tint = Color.White.copy(alpha = 0.4f),
+                                    tint = theme.textSecondary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                            focusedLabelColor = primaryColor,
-                            unfocusedLabelColor = Color.Gray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = CutCornerShape(8.dp),
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
 
@@ -386,47 +325,47 @@ fun RegisterScreen(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
                         label = { Text("تأكيد كلمة المرور", fontFamily = CairoFont, fontSize = 12.sp) },
+                        textStyle = TextStyle(fontFamily = NotoSansFont, fontSize = 14.sp, color = theme.textPrimary),
                         visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
-                            IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                            IconButton(
+                                onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible },
+                                modifier = Modifier.size(48.dp)
+                            ) {
                                 Icon(
                                     imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (isConfirmPasswordVisible) "إخفاء تأكيد كلمة المرور" else "إظهار تأكيد كلمة المرور",
-                                    tint = Color.White.copy(alpha = 0.4f),
+                                    tint = theme.textSecondary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                            focusedLabelColor = primaryColor,
-                            unfocusedLabelColor = Color.Gray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        shape = CutCornerShape(8.dp),
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                    Button(
+                    ApplePrimaryButton(
+                        text = "إنشاء وتفعيل الحساب",
+                        icon = Icons.Default.CheckCircle,
+                        isLoading = isLoading,
                         onClick = {
-                            if (isLoading) return@Button
+                            if (isLoading) return@ApplePrimaryButton
                             val trimmedEmail = email.trim()
                             if (name.isBlank() || trimmedEmail.isBlank() || password.isBlank()) {
                                 Toast.makeText(context, "الرجاء تعبئة جميع الحقول", Toast.LENGTH_SHORT).show()
-                                return@Button
+                                return@ApplePrimaryButton
                             }
                             if (password.trim() != confirmPassword.trim()) {
                                 Toast.makeText(context, "كلمتا المرور غير متطابقتين", Toast.LENGTH_SHORT).show()
-                                return@Button
+                                return@ApplePrimaryButton
                             }
                             if (password.length < 6) {
                                 Toast.makeText(context, "كلمة المرور يجب أن تكون 6 أحرف على الأقل", Toast.LENGTH_SHORT).show()
-                                return@Button
+                                return@ApplePrimaryButton
                             }
 
                             val rawCustom = customId.trim().ifBlank {
@@ -440,7 +379,7 @@ fun RegisterScreen(
                                     !requestedCustomId.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9_-]{2,24}$")))
                             ) {
                                 Toast.makeText(context, "المعرّف يجب أن يكون بين 3 و25 حرفاً أو رقماً بالإنجليزية", Toast.LENGTH_LONG).show()
-                                return@Button
+                                return@ApplePrimaryButton
                             }
 
                             isLoading = true
@@ -448,7 +387,6 @@ fun RegisterScreen(
                             authRepository.beginInteractiveAuthFlow()
                             var authFlowAccepted = false
                             val authJob = coroutineScope.launch {
-                                // 🔍 فحص جازم أخير قبل محاولة التسجيل الفعلي
                                 val finalCheck = if (SupabaseServices.isSupabaseAvailable && requestedCustomId != null) {
                                     SupabaseServices.Database.checkAccountAvailability(null, requestedCustomId).getOrNull()
                                 } else null
@@ -459,8 +397,6 @@ fun RegisterScreen(
                                     return@launch
                                 }
 
-                                // The server performs the final unique check and atomically
-                                // allocates the account number. A local pre-check is not authoritative.
                                 val success = SupabaseServices.isSupabaseAvailable &&
                                     SupabaseServices.Auth.register(
                                         email = trimmedEmail,
@@ -514,7 +450,6 @@ fun RegisterScreen(
                                     UserIdentifierManager.saveCustomId(context, cloudCustomId, lowerEmail)
                                     UserIdentifierManager.saveAccountNumber(context, lowerEmail, accountNumber)
 
-                                    // Active-session ownership is keyed by the immutable Auth UID.
                                     when (ActiveSessionManager.claim(context, authUid)) {
                                         ActiveSessionClaimResult.CLAIMED -> Unit
                                         ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
@@ -555,8 +490,8 @@ fun RegisterScreen(
                                         )
                                     )
 
-                                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                                    prefs.edit().apply {
+                                    val prefsEdit = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                                    prefsEdit.edit().apply {
                                         putBoolean("is_logged_in", true)
                                         putBoolean("is_guest", false)
                                         putBoolean("is_admin", isAdmin)
@@ -571,10 +506,10 @@ fun RegisterScreen(
                                         putString("user_name_with_account", nameWithAccount)
                                         apply()
                                     }
-                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
+                                    val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل)" else ""
                                     Toast.makeText(
                                         context,
-                                        "تم إنشاء الحساب بنجاح 🚀! اليوزر: @${cloudCustomId} | رقم الحساب: $accountNumber$firstBadge",
+                                        "تم إنشاء الحساب بنجاح! اليوزر: @$cloudCustomId | رقم الحساب: $accountNumber$firstBadge",
                                         Toast.LENGTH_LONG
                                     ).show()
                                     onRegisterSuccess()
@@ -599,47 +534,30 @@ fun RegisterScreen(
                             authJob.invokeOnCompletion {
                                 authRepository.completeInteractiveAuthFlow(accepted = authFlowAccepted)
                             }
-                        },
-                        enabled = !isLoading,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
-                        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
-                            Text(
-                                text = "تفعيل الحساب والبدء",
-                                color = DeepSlate,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp
-                            )
                         }
-                    }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس 📜",
-                color = primaryColor.copy(alpha = 0.85f),
-                fontFamily = CairoFont,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .padding(horizontal = 20.dp)
-                    .clickable { onNavigateToRules() }
-            )
+            Spacer(modifier = Modifier.height(12.dp))
+            TextButton(onClick = onNavigateToRules) {
+                Text(
+                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
+                    color = theme.primary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.5.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
 
-            Spacer(modifier = Modifier.height(18.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "لديك حساب بالفعل؟ ", color = Color.Gray, fontFamily = CairoFont, fontSize = 13.sp)
+                Text(text = "لديك حساب بالفعل؟ ", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 13.sp)
                 TextButton(onClick = onNavigateToLogin) {
-                    Text("سجل دخولك هنا", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("سجل دخولك هنا", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
@@ -651,6 +569,7 @@ fun RegisterScreen(
 fun ForgotPasswordScreen(
     onNavigateToLogin: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val isRecoveryVerified by PasswordRecoveryManager.isRecoveryVerified.collectAsState()
@@ -663,37 +582,39 @@ fun ForgotPasswordScreen(
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isResetComplete by remember { mutableStateOf(false) }
 
-    val primaryColor = qabasPrimary()
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = theme.primary,
+        unfocusedBorderColor = theme.separator,
+        focusedLabelColor = theme.primary,
+        unfocusedLabelColor = theme.textSecondary,
+        focusedTextColor = theme.textPrimary,
+        unfocusedTextColor = theme.textPrimary,
+        cursorColor = theme.primary,
+        focusedContainerColor = theme.secondarySurface.copy(alpha = 0.25f),
+        unfocusedContainerColor = theme.secondarySurface.copy(alpha = 0.15f)
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeepSlate)
+            .background(theme.background)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val step = 60.dp.toPx()
-            for (i in 0..(w / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
-            }
-            for (i in 0..(h / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(0f, i * step), Offset(w, i * step), 1f)
-            }
-        }
-
-        HudCornerDecor(modifier = Modifier.fillMaxSize(), color = primaryColor.copy(alpha = 0.15f))
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 560.dp)
+                .align(Alignment.Center)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.Start
+            ) {
                 IconButton(
                     onClick = {
                         coroutineScope.launch {
@@ -703,75 +624,70 @@ fun ForgotPasswordScreen(
                             }
                             onNavigateToLogin()
                         }
-                    }
+                    },
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = primaryColor)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = theme.primary)
                 }
             }
 
+            Spacer(modifier = Modifier.height(24.dp))
+
             if (isResetComplete) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = primaryColor,
-                    modifier = Modifier.size(64.dp)
-                )
+                Surface(
+                    shape = CircleShape,
+                    color = theme.success.copy(alpha = 0.14f),
+                    modifier = Modifier.size(72.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.success, modifier = Modifier.size(40.dp))
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "تم تغيير كلمة المرور بنجاح!",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     text = "يمكنك الآن تسجيل الدخول باستخدام كلمة المرور الجديدة.",
-                    color = TextSecondary.copy(alpha = 0.8f),
-                    fontFamily = CairoFont,
-                    fontSize = 13.sp,
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 13.5.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 6.dp)
                 )
-                Spacer(modifier = Modifier.height(32.dp))
-                Button(
-                    onClick = onNavigateToLogin,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
-                    shape = CutCornerShape(12.dp)
-                ) {
-                    Text("العودة لتسجيل الدخول", fontFamily = CairoFont, fontWeight = FontWeight.Black)
-                }
+                Spacer(modifier = Modifier.height(28.dp))
+                ApplePrimaryButton(
+                    text = "العودة لتسجيل الدخول",
+                    onClick = onNavigateToLogin
+                )
             } else if (isRecoveryVerified) {
                 Text(
                     text = "تعيين كلمة مرور جديدة",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
-                    fontWeight = FontWeight.Black,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 24.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     text = "تم التحقق من رابط Supabase بنجاح. أدخل كلمة مرور جديدة ثم أكدها.",
-                    color = TextSecondary.copy(alpha = 0.85f),
-                    fontFamily = CairoFont,
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
                     fontSize = 13.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp)
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                GlassmorphicSurface(
-                    modifier = Modifier.fillMaxWidth().border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.05f),
-                        CutCornerShape(16.dp)
-                    ),
-                    shape = CutCornerShape(16.dp),
-                    backgroundColor = CardSurface.copy(alpha = 0.7f)
-                ) {
+                AppleCard(cornerRadius = 18.dp) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         OutlinedTextField(
                             value = newPassword,
@@ -779,19 +695,20 @@ fun ForgotPasswordScreen(
                             label = { Text("كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
                             visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             trailingIcon = {
-                                IconButton(onClick = { isNewPasswordVisible = !isNewPasswordVisible }) {
+                                IconButton(
+                                    onClick = { isNewPasswordVisible = !isNewPasswordVisible },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(
                                         imageVector = if (isNewPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = if (isNewPasswordVisible) "إخفاء كلمة المرور الجديدة" else "إظهار كلمة المرور الجديدة"
+                                        contentDescription = if (isNewPasswordVisible) "إخفاء كلمة المرور الجديدة" else "إظهار كلمة المرور الجديدة",
+                                        tint = theme.textSecondary
                                     )
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryColor,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
-                            ),
-                            shape = CutCornerShape(8.dp),
+                            colors = fieldColors,
+                            shape = RoundedCornerShape(12.dp),
                             singleLine = true
                         )
                         OutlinedTextField(
@@ -800,44 +717,39 @@ fun ForgotPasswordScreen(
                             label = { Text("تأكيد كلمة المرور الجديدة", fontFamily = CairoFont, fontSize = 12.sp) },
                             visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             trailingIcon = {
-                                IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                                IconButton(
+                                    onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(
                                         imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = if (isConfirmPasswordVisible) "إخفاء تأكيد كلمة المرور" else "إظهار تأكيد كلمة المرور"
+                                        contentDescription = if (isConfirmPasswordVisible) "إخفاء تأكيد كلمة المرور" else "إظهار تأكيد كلمة المرور",
+                                        tint = theme.textSecondary
                                     )
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryColor,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
-                            ),
-                            shape = CutCornerShape(8.dp),
+                            colors = fieldColors,
+                            shape = RoundedCornerShape(12.dp),
                             singleLine = true
                         )
-                        Button(
+                        ApplePrimaryButton(
+                            text = "حفظ كلمة المرور الجديدة",
+                            isLoading = isLoading,
                             onClick = {
-                                val password = newPassword
-                                if (password.length < 6) {
-                                    Toast.makeText(
-                                        context,
-                                        "يجب أن تكون كلمة المرور 6 أحرف/أرقام على الأقل",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@Button
+                                val pass = newPassword
+                                if (pass.length < 6) {
+                                    Toast.makeText(context, "يجب أن تكون كلمة المرور 6 أحرف/أرقام على الأقل", Toast.LENGTH_SHORT).show()
+                                    return@ApplePrimaryButton
                                 }
-                                if (password != confirmPassword) {
-                                    Toast.makeText(
-                                        context,
-                                        "كلمتا المرور غير متطابقتين",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@Button
+                                if (pass != confirmPassword) {
+                                    Toast.makeText(context, "كلمتا المرور غير متطابقتين", Toast.LENGTH_SHORT).show()
+                                    return@ApplePrimaryButton
                                 }
 
                                 isLoading = true
                                 coroutineScope.launch {
-                                    val updated = SupabaseServices.Auth.updateRecoveredPassword(password)
+                                    val updated = SupabaseServices.Auth.updateRecoveredPassword(pass)
                                     isLoading = false
                                     if (updated) {
                                         runCatching { SupabaseConfig.client.auth.signOut() }
@@ -853,111 +765,103 @@ fun ForgotPasswordScreen(
                                         ).show()
                                     }
                                 }
-                            },
-                            enabled = !isLoading,
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = primaryColor,
-                                contentColor = DeepSlate
-                            ),
-                            shape = CutCornerShape(12.dp)
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
-                            } else {
-                                Text("حفظ كلمة المرور الجديدة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
                             }
-                        }
+                        )
                     }
                 }
             } else if (isSubmitted) {
+                Surface(
+                    shape = CircleShape,
+                    color = theme.primary.copy(alpha = 0.14f),
+                    modifier = Modifier.size(72.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.MarkEmailRead, contentDescription = null, tint = theme.primary, modifier = Modifier.size(38.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "تم إرسال رابط الاستعادة",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 23.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق قبس، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
-                    color = TextSecondary.copy(alpha = 0.9f),
-                    fontFamily = CairoFont,
-                    fontSize = 13.sp,
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 13.5.sp,
+                    lineHeight = 20.sp,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = { isSubmitted = false },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
-                    shape = CutCornerShape(12.dp)
-                ) {
-                    Text("إرسال رابط آخر", fontFamily = CairoFont, fontWeight = FontWeight.Black)
-                }
+                ApplePrimaryButton(
+                    text = "إرسال رابط آخر",
+                    onClick = { isSubmitted = false }
+                )
             } else {
                 Text(
                     text = "استعادة كلمة المرور",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
-                    fontWeight = FontWeight.Black,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 26.sp
                 )
                 Text(
                     text = "أدخل بريدك الإلكتروني لإرسال رابط آمن لإعادة التعيين",
-                    color = TextSecondary.copy(alpha = 0.7f),
-                    fontFamily = CairoFont,
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
                     fontSize = 13.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp)
                 )
-                Spacer(modifier = Modifier.height(32.dp))
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = primaryColor,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
-                    ),
-                    shape = CutCornerShape(8.dp),
-                    singleLine = true
-                )
-
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Button(
-                    onClick = {
-                        if (email.isBlank()) {
-                            Toast.makeText(context, "الرجاء إدخال البريد الإلكتروني", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        isLoading = true
-                        coroutineScope.launch {
-                            val success = SupabaseServices.Auth.resetPassword(email.trim())
-                            isLoading = false
-                            if (success) {
-                                isSubmitted = true
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "فشل إرسال رابط الاستعادة. تحقق من الاتصال ثم حاول مجدداً.",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                AppleCard(cornerRadius = 18.dp) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("البريد الإلكتروني", fontFamily = CairoFont, fontSize = 12.sp) },
+                            leadingIcon = {
+                                Icon(Icons.Default.Email, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = fieldColors,
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+
+                        ApplePrimaryButton(
+                            text = "إرسال رابط الاستعادة",
+                            isLoading = isLoading,
+                            onClick = {
+                                if (email.isBlank()) {
+                                    Toast.makeText(context, "الرجاء إدخال البريد الإلكتروني", Toast.LENGTH_SHORT).show()
+                                    return@ApplePrimaryButton
+                                }
+                                isLoading = true
+                                coroutineScope.launch {
+                                    val success = SupabaseServices.Auth.resetPassword(email.trim())
+                                    isLoading = false
+                                    if (success) {
+                                        isSubmitted = true
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "فشل إرسال رابط الاستعادة. تحقق من الاتصال ثم حاول مجدداً.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
                             }
-                        }
-                    },
-                    enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = DeepSlate),
-                    shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
-                    } else {
-                        Text("إرسال رابط الاستعادة", fontFamily = CairoFont, fontWeight = FontWeight.Black)
+                        )
                     }
                 }
             }

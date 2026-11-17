@@ -36,7 +36,7 @@ object CodingPlatformDirectory {
             badgeColor = Color(0xFF00E5FF),
             powerScore = "9.9 / 10",
             speedScore = "9.4 / 10",
-            keyModels = listOf("gemini-3.5-flash", "gemini-3.1-pro-preview"),
+            keyModels = listOf("gemini-2.5-flash", "gemini-2.5-pro"),
             description = "المنصة الرسمية من Google لبيئة Gemini. توفر أقوى قدرات التفكير المعماري، تحليل كود Android و Kotlin، ونافذة سياق ضخمة تتجاوز مليون رمز.",
             apiKeyUrl = "https://aistudio.google.com/app/apikey",
             freeTierInfo = "مجاني تماماً للاستخدام الشخصي والمطورين (حتى 15 طلب/دقيقة) بدون اشتراط بطاقة بنكية.",

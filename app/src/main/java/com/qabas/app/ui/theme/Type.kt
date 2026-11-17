@@ -6,10 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.Font
 import com.qabas.app.R
 
 private val AmiriFontBase = FontFamily(
@@ -78,26 +78,26 @@ object FontManager {
     }
 }
 
-/** أسماء التوافق القديمة أصبحت تعكس الاختيار العالمي فورًا في كامل الواجهة. */
 val CairoFont: FontFamily get() = FontManager.current.family
 val TajawalFont: FontFamily get() = FontManager.current.family
 val NotoSansFont: FontFamily get() = FontManager.current.family
 
+// Apple HIG Dynamic Type Hierarchy calibrated with generous Arabic line heights (prevents tashkeel clipping)
 val Typography: Typography
     get() = Typography(
-    displayLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Normal, fontSize = 24.sp, lineHeight = 64.sp),
-    displayMedium = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Normal, fontSize = 24.sp, lineHeight = 52.sp),
-    displaySmall = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Normal, fontSize = 24.sp, lineHeight = 44.sp),
-    headlineLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 40.sp),
-    headlineMedium = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 36.sp),
-    headlineSmall = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 32.sp),
-    titleLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp),
-    titleMedium = TextStyle(fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 24.sp),
-    titleSmall = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 20.sp),
-    bodyLarge = TextStyle(fontFamily = TajawalFont, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp),
-    bodyMedium = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.25.sp),
-    bodySmall = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp),
-    labelLarge = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
-    labelMedium = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp),
-    labelSmall = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp)
-)
+        displayLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 46.sp),
+        displayMedium = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 38.sp),
+        displaySmall = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 34.sp),
+        headlineLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 32.sp),
+        headlineMedium = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 29.sp),
+        headlineSmall = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 26.sp),
+        titleLarge = TextStyle(fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 28.sp),
+        titleMedium = TextStyle(fontFamily = TajawalFont, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 24.sp),
+        titleSmall = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 21.sp),
+        bodyLarge = TextStyle(fontFamily = TajawalFont, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 25.sp),
+        bodyMedium = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 22.sp),
+        bodySmall = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 18.sp),
+        labelLarge = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 20.sp),
+        labelMedium = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
+        labelSmall = TextStyle(fontFamily = NotoSansFont, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 15.sp)
+    )

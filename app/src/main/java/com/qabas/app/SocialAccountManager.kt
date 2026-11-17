@@ -565,53 +565,30 @@ object SocialAccountManager {
         onProgressUpdate: (String) -> Unit = {}
     ): List<PublishResult> {
         val results = mutableListOf<PublishResult>()
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val editor = prefs.edit()
-
         val accountsMap = getAccounts(context).associateBy { it.id }
 
         for (platformId in selectedPlatformIds) {
             val account = accountsMap[platformId] ?: continue
-            onProgressUpdate("جاري الاتصال بـ ${account.name} واختبار OAuth Token...")
-            delay(600)
+            onProgressUpdate("التحقق من صلاحية اتصال API لـ ${account.name}...")
 
-            onProgressUpdate("رفع المقطع والمعالجة على سحابة ${account.name}...")
-            delay(1000)
-
-            onProgressUpdate("تطبيق الكابشنز والوسوم ($hashtags)...")
-            delay(600)
-
-            // Increment published count & stats (حقيقي فقط)
-            when (platformId) {
-                "youtube" -> editor.putInt("yt_published", account.publishedCount + 1)
-                "tiktok" -> editor.putInt("tiktok_published", account.publishedCount + 1)
-                "instagram" -> editor.putInt("insta_published", account.publishedCount + 1)
-                "twitter" -> editor.putInt("twitter_published", account.publishedCount + 1)
-                "facebook" -> editor.putInt("fb_published", account.publishedCount + 1)
-            }
-
-            // معرف نشر حقيقي مبني على الوقت وليس عشوائياً
-            val timestamp = System.currentTimeMillis()
-            val postUrl = when (platformId) {
-                "youtube" -> "https://youtube.com/shorts/qabas_$timestamp"
-                "tiktok" -> "https://tiktok.com/@${account.handle.removePrefix("@")}/video/$timestamp"
-                "instagram" -> "https://instagram.com/reel/C_$timestamp"
-                "twitter" -> "https://x.com/${account.handle.removePrefix("@")}/status/$timestamp"
-                else -> "https://facebook.com/reel/$timestamp"
+            val hasToken = getAccessToken(context, platformId)?.isNotBlank() == true
+            val reason = if (!hasToken) {
+                "الحساب غير مربوط برمز وصول OAuth صالح."
+            } else {
+                "النشر الآلي المباشر يتطلب تفعيل واجهة رفع الفيديو الرسمية (Client ID / API Secret) — استخدم المشاركة الأصلية للنظام أدناه."
             }
 
             results.add(
                 PublishResult(
                     platformId = platformId,
                     platformName = account.name,
-                    isSuccess = true,
-                    postUrl = postUrl,
-                    message = "تم النشر المباشر بنجاح 🚀"
+                    isSuccess = false,
+                    postUrl = "",
+                    message = reason
                 )
             )
         }
 
-        editor.apply()
         return results
     }
 

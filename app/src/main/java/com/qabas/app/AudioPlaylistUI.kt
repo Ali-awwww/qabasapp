@@ -7,7 +7,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +14,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,17 +23,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.theme.*
 import com.qabas.app.ui.TestTags
-import androidx.compose.ui.platform.testTag
+import com.qabas.app.ui.theme.*
+import java.util.Locale
 
 /**
- * شريط التحكم الصوتي المتقدم — يعمل في الخلفية مع قائمة التشغيل والخصائص الاحترافية
+ * شريط التحكم الصوتي بنمط Apple Mini Player — يعمل في الخلفية مع قائمة التشغيل والخصائص المتقدمة.
  */
 @Composable
 fun ProAudioPlayerBar(
@@ -43,6 +42,7 @@ fun ProAudioPlayerBar(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val currentTrack by AudioPlaybackManager.currentTrack.collectAsState()
     val isPlaying by AudioPlaybackManager.isPlaying.collectAsState()
     val currentPositionMs by AudioPlaybackManager.currentPositionMs.collectAsState()
@@ -55,7 +55,6 @@ fun ProAudioPlayerBar(
 
     var showPlaylistSheet by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
-    var isMuted by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
         visible = currentTrack != null,
@@ -66,18 +65,21 @@ fun ProAudioPlayerBar(
         val track = currentTrack ?: return@AnimatedVisibility
 
         Surface(
-            modifier = Modifier.testTag(TestTags.AUDIO_PLAYER_BAR),
-            color = Color(0xFF0F172A).copy(alpha = 0.98f),
-            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(TestTags.AUDIO_PLAYER_BAR),
+            color = theme.cardSurface.copy(alpha = 0.98f),
+            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.65f)),
             shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
-            shadowElevation = 16.dp
+            shadowElevation = if (theme.isDark) 4.dp else 10.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                // 1. Header: Track info + Apply button + Sleep Timer badge + Playlist icon + Close
+                // 1. Header: Track info + Quick actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -89,26 +91,24 @@ fun ProAudioPlayerBar(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.15f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape),
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(theme.primary.copy(alpha = 0.14f)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isPlaying) {
-                                // Animated HUD Visualizer Icon
                                 val infiniteTransition = rememberInfiniteTransition(label = "visualizer")
                                 Row(
                                     modifier = Modifier.padding(4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                                     verticalAlignment = Alignment.Bottom
                                 ) {
-                                    listOf(0.4f, 0.9f, 0.6f, 0.8f).forEachIndexed { index, heightFactor ->
+                                    listOf(0.4f, 0.9f, 0.6f, 0.8f).forEachIndexed { index, _ ->
                                         val height by infiniteTransition.animateFloat(
                                             initialValue = 4f,
                                             targetValue = 16f,
                                             animationSpec = infiniteRepeatable(
-                                                animation = tween(durationMillis = 400 + (index * 150), easing = FastOutSlowInEasing),
+                                                animation = tween(durationMillis = 420 + (index * 140), easing = FastOutSlowInEasing),
                                                 repeatMode = RepeatMode.Reverse
                                             ),
                                             label = "bar_$index"
@@ -117,7 +117,7 @@ fun ProAudioPlayerBar(
                                             modifier = Modifier
                                                 .width(2.dp)
                                                 .height(height.dp)
-                                                .background(GoldPrimary, RoundedCornerShape(1.dp))
+                                                .background(theme.primary, RoundedCornerShape(1.dp))
                                         )
                                     }
                                 }
@@ -125,43 +125,45 @@ fun ProAudioPlayerBar(
                                 Icon(
                                     Icons.Default.GraphicEq,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = track.title,
-                                color = TextPrimary,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 13.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = track.artist.ifBlank { "قبس" },
-                                    color = TextSecondary,
+                                    color = theme.textSecondary,
                                     fontFamily = NotoSansFont,
-                                    fontSize = 10.sp
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 if (sleepTimerSeconds > 0) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     val mins = sleepTimerSeconds / 60
                                     val secs = sleepTimerSeconds % 60
                                     Surface(
-                                        color = Color(0xFF1E293B),
-                                        shape = RoundedCornerShape(4.dp)
+                                        color = theme.success.copy(alpha = 0.14f),
+                                        shape = RoundedCornerShape(6.dp)
                                     ) {
                                         Text(
-                                            text = "⏱️ ${String.format(java.util.Locale.US, "%02d:%02d", mins, secs)}",
-                                            color = GoldPrimary,
-                                            fontFamily = NotoSansFont,
-                                            fontSize = 9.sp,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            text = String.format(Locale.US, "%02d:%02d", mins, secs),
+                                            color = theme.success,
+                                            fontFamily = RobotoMonoFont,
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                         )
                                     }
                                 }
@@ -169,15 +171,11 @@ fun ProAudioPlayerBar(
                         }
                     }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // YouTube Link Button
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = {
                                 val ytUrl = if (!track.youtubeUrl.isNullOrBlank()) {
-                                    track.youtubeUrl!!
+                                    track.youtubeUrl
                                 } else {
                                     "https://www.youtube.com/results?search_query=${Uri.encode("${track.title} ${track.artist}")}"
                                 }
@@ -190,38 +188,36 @@ fun ProAudioPlayerBar(
                                     Toast.makeText(context, "تعذر فتح يوتيوب", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 Icons.Default.OndemandVideo,
-                                contentDescription = "مشاهدة / استماع عبر يوتيوب 📺",
-                                tint = Color(0xFFFF4444),
-                                modifier = Modifier.size(18.dp)
+                                contentDescription = "مشاهدة عبر يوتيوب",
+                                tint = theme.destructive,
+                                modifier = Modifier.size(19.dp)
                             )
                         }
 
-                        // Sleep Timer trigger button
                         IconButton(
                             onClick = { showSleepTimerDialog = true },
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 Icons.Default.Bedtime,
                                 contentDescription = "مؤقت النوم",
-                                tint = if (sleepTimerSeconds > 0) GoldPrimary else TextSecondary,
-                                modifier = Modifier.size(17.dp)
+                                tint = if (sleepTimerSeconds > 0) theme.primary else theme.textSecondary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
-                        // Playlist Sheet button
                         IconButton(
                             onClick = { showPlaylistSheet = true },
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             BadgedBox(
                                 badge = {
                                     if (playlist.size > 1) {
-                                        Badge(containerColor = GoldPrimary, contentColor = DeepSlate) {
+                                        Badge(containerColor = theme.primary, contentColor = Color.White) {
                                             Text("${playlist.size}", fontSize = 9.sp)
                                         }
                                     }
@@ -230,157 +226,135 @@ fun ProAudioPlayerBar(
                                 Icon(
                                     Icons.Default.QueueMusic,
                                     contentDescription = "قائمة التشغيل",
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
 
-                        // Apply to Project Button
                         Button(
                             onClick = { onApplyToProject(track.audioUrl, track.title) },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            modifier = Modifier.height(30.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.heightIn(min = 36.dp)
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(13.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text("اعتماد", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("اعتماد", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
 
-                        // Close button
                         IconButton(
                             onClick = { AudioPlaybackManager.clearPlaylist() },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق المشغل", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "إغلاق المشغل",
+                                tint = theme.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 2. Luxury Waveform Timeline Bar with Live Progress
                 LuxuryAudioTimelineBar(
                     currentPositionMs = currentPositionMs,
                     totalDurationMs = totalDurationMs,
                     isPlaying = isPlaying,
-                    onSeek = { targetMs ->
-                        AudioPlaybackManager.seekTo(context, targetMs)
-                    }
+                    onSeek = { targetMs -> AudioPlaybackManager.seekTo(context, targetMs) }
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 3. Accurate Live Countdown & Elapsed Timer HUD
                 AccurateAudioCountdownHud(
                     currentPositionMs = currentPositionMs,
                     totalDurationMs = totalDurationMs,
                     isPlaying = isPlaying
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Dynamic fluid transition for Play/Pause visual feedback (#play-pause-btn)
                 val playPauseBtnBg by animateColorAsState(
-                    targetValue = if (isPlaying) Color(0xFF10B981) else GoldPrimary,
-                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+                    targetValue = if (isPlaying) theme.success else theme.primary,
+                    animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
                     label = "play_pause_bg"
                 )
-                val playPauseIconTint by animateColorAsState(
-                    targetValue = if (isPlaying) Color.White else DeepSlate,
-                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-                    label = "play_pause_icon_tint"
-                )
                 val playPauseScale by animateFloatAsState(
-                    targetValue = if (isPlaying) 1.06f else 1.0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
+                    targetValue = if (isPlaying) 1.05f else 1.0f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
                     label = "play_pause_scale"
                 )
 
-                fun togglePlayState() {
-                    AudioPlaybackManager.togglePlayState(context)
-                }
-
-                // 4. Pro Playback Controls & Speed/Mode Selectors
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Live Status Chip
                     Surface(
-                        color = if (isPlaying) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1E293B),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, if (isPlaying) Color(0xFF10B981).copy(alpha = 0.4f) else Color(0xFF334155))
+                        color = if (isPlaying) theme.success.copy(alpha = 0.14f) else theme.secondarySurface,
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(5.dp)
+                                    .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(if (isPlaying) Color(0xFF10B981) else TextSecondary)
+                                    .background(if (isPlaying) theme.success else theme.textSecondary)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = if (isPlaying) "تشغيل حي ⚡" else "متوقف مؤقتاً",
-                                color = if (isPlaying) Color(0xFF10B981) else TextSecondary,
+                                text = if (isPlaying) "يعمل الآن" else "متوقف",
+                                color = if (isPlaying) theme.success else theme.textSecondary,
                                 fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.5.sp
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 10.sp
                             )
                         }
                     }
 
-                    // Pro Controls: Shuffle | Prev | -10s | Play/Pause | +10s | Next | Repeat
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        // Shuffle
                         IconButton(
                             onClick = { AudioPlaybackManager.toggleShuffle() },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 Icons.Default.Shuffle,
                                 contentDescription = "خلط عشوائي",
-                                tint = if (isShuffle) GoldPrimary else TextSecondary.copy(alpha = 0.5f),
-                                modifier = Modifier.size(16.dp)
+                                tint = if (isShuffle) theme.primary else theme.textSecondary,
+                                modifier = Modifier.size(17.dp)
                             )
                         }
 
-                        // Prev Track
                         IconButton(
                             onClick = { AudioPlaybackManager.previous(context) },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "المقطع السابق", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.SkipPrevious, contentDescription = "المقطع السابق", tint = theme.textPrimary, modifier = Modifier.size(20.dp))
                         }
 
-                        // -10s
                         IconButton(
                             onClick = {
                                 val target = (currentPositionMs - 10000L).coerceAtLeast(0L)
                                 AudioPlaybackManager.seekTo(context, target)
                             },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = GoldPrimary.copy(alpha = 0.8f), modifier = Modifier.size(17.dp))
+                            Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = theme.primary, modifier = Modifier.size(19.dp))
                         }
 
-                        // Play/Pause button (#play-pause-btn)
                         IconButton(
-                            onClick = { togglePlayState() },
+                            onClick = { AudioPlaybackManager.togglePlayState(context) },
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(48.dp)
                                 .scale(playPauseScale)
                                 .clip(CircleShape)
                                 .background(playPauseBtnBg)
@@ -390,34 +364,31 @@ fun ProAudioPlayerBar(
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (isPlaying) "إيقاف مؤقت" else "تشغيل",
-                                tint = playPauseIconTint,
-                                modifier = Modifier.size(22.dp)
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
-                        // +10s
                         IconButton(
                             onClick = {
                                 val target = (currentPositionMs + 10000L).coerceAtMost(totalDurationMs)
                                 AudioPlaybackManager.seekTo(context, target)
                             },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = GoldPrimary.copy(alpha = 0.8f), modifier = Modifier.size(17.dp))
+                            Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = theme.primary, modifier = Modifier.size(19.dp))
                         }
 
-                        // Next Track
                         IconButton(
                             onClick = { AudioPlaybackManager.next(context) },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "المقطع التالي", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.SkipNext, contentDescription = "المقطع التالي", tint = theme.textPrimary, modifier = Modifier.size(20.dp))
                         }
 
-                        // Repeat Mode
                         IconButton(
                             onClick = { AudioPlaybackManager.cycleRepeatMode() },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = when (repeatMode) {
@@ -426,38 +397,36 @@ fun ProAudioPlayerBar(
                                     AudioRepeatMode.OFF -> Icons.Default.Repeat
                                 },
                                 contentDescription = "وضع التكرار",
-                                tint = if (repeatMode != AudioRepeatMode.OFF) GoldPrimary else TextSecondary.copy(alpha = 0.5f),
-                                modifier = Modifier.size(16.dp)
+                                tint = if (repeatMode != AudioRepeatMode.OFF) theme.primary else theme.textSecondary,
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
 
-                    // Speed chip
                     Surface(
-                        color = Color(0xFF1E293B),
-                        shape = RoundedCornerShape(5.dp),
-                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.clickable {
-                                val nextSpeed = when (playbackSpeed) {
-                                    0.5f -> 0.75f
-                                    0.75f -> 1.0f
-                                    1.0f -> 1.25f
-                                    1.25f -> 1.5f
-                                    1.5f -> 1.75f
-                                    1.75f -> 2.0f
-                                    2.0f -> 0.5f
-                                    else -> 1.25f
-                                }
+                            val nextSpeed = when (playbackSpeed) {
+                                0.5f -> 0.75f
+                                0.75f -> 1.0f
+                                1.0f -> 1.25f
+                                1.25f -> 1.5f
+                                1.5f -> 1.75f
+                                1.75f -> 2.0f
+                                2.0f -> 0.5f
+                                else -> 1.25f
+                            }
                             AudioPlaybackManager.setPlaybackSpeed(nextSpeed)
                         }
                     ) {
                         Text(
                             text = "${playbackSpeed}x",
-                            color = GoldPrimary,
-                            fontFamily = NotoSansFont,
+                            color = theme.primary,
+                            fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -465,14 +434,12 @@ fun ProAudioPlayerBar(
         }
     }
 
-    // Playlist Bottom Sheet Dialog
     if (showPlaylistSheet) {
         AudioPlaylistBottomSheet(
             onDismiss = { showPlaylistSheet = false }
         )
     }
 
-    // Sleep Timer Dialog
     if (showSleepTimerDialog) {
         SleepTimerDialog(
             currentSeconds = sleepTimerSeconds,
@@ -486,13 +453,14 @@ fun ProAudioPlayerBar(
 }
 
 /**
- * نافذة قائمة التشغيل الاحترافية (Playlist Sheet)
+ * نافذة قائمة التشغيل المختصرة
  */
 @Composable
 fun AudioPlaylistBottomSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val playlist by AudioPlaybackManager.playlist.collectAsState()
     val currentTrack by AudioPlaybackManager.currentTrack.collectAsState()
     val isPlaying by AudioPlaybackManager.isPlaying.collectAsState()
@@ -501,7 +469,7 @@ fun AudioPlaylistBottomSheet(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(20.dp),
         title = {
             Row(
@@ -509,28 +477,28 @@ fun AudioPlaylistBottomSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f)),
+                            .background(theme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.QueueMusic, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.QueueMusic, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             "قائمة التشغيل الحالية",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
                             "${playlist.size} مقاطع في الطابور",
-                            color = TextSecondary,
+                            color = theme.textSecondary,
                             fontFamily = NotoSansFont,
                             fontSize = 11.sp
                         )
@@ -540,18 +508,18 @@ fun AudioPlaylistBottomSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { AudioPlaybackManager.toggleShuffle() },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             Icons.Default.Shuffle,
                             contentDescription = "خلط",
-                            tint = if (isShuffle) GoldPrimary else TextSecondary,
+                            tint = if (isShuffle) theme.primary else theme.textSecondary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                     IconButton(
                         onClick = { AudioPlaybackManager.cycleRepeatMode() },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = when (repeatMode) {
@@ -560,7 +528,7 @@ fun AudioPlaylistBottomSheet(
                                 AudioRepeatMode.OFF -> Icons.Default.Repeat
                             },
                             contentDescription = "تكرار",
-                            tint = if (repeatMode != AudioRepeatMode.OFF) GoldPrimary else TextSecondary,
+                            tint = if (repeatMode != AudioRepeatMode.OFF) theme.primary else theme.textSecondary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -576,10 +544,10 @@ fun AudioPlaylistBottomSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "قائمة التشغيل فارغة حالياً.\nاختر أي تلاوة أو مؤثر صوتي للبدء.",
-                        color = TextSecondary,
+                        "قائمة التشغيل فارغة حالياً.\nاختر أي تلاوة أو مقطع صوتي للبدء.",
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -588,19 +556,20 @@ fun AudioPlaylistBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     itemsIndexed(playlist) { index, item ->
                         val isCurrent = currentTrack?.id == item.id
                         Surface(
-                            color = if (isCurrent) GoldPrimary.copy(alpha = 0.12f) else Color(0xFF1E293B),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, if (isCurrent) GoldPrimary.copy(alpha = 0.6f) else Color(0xFF2A344A)),
+                            color = if (isCurrent) theme.primary.copy(alpha = 0.12f) else theme.secondarySurface,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                if (isCurrent) 1.dp else 0.5.dp,
+                                if (isCurrent) theme.primary else theme.separator.copy(alpha = 0.45f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    AudioPlaybackManager.playTrack(context, item)
-                                }
+                                .clickable { AudioPlaybackManager.playTrack(context, item) }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -617,16 +586,16 @@ fun AudioPlaylistBottomSheet(
                                         modifier = Modifier
                                             .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(if (isCurrent) GoldPrimary else Color(0xFF0F172A)),
+                                            .background(if (isCurrent) theme.primary else theme.cardSurface),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (isCurrent && isPlaying) {
-                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                         } else {
                                             Text(
                                                 "${index + 1}",
-                                                color = if (isCurrent) DeepSlate else TextSecondary,
-                                                fontFamily = NotoSansFont,
+                                                color = if (isCurrent) Color.White else theme.textSecondary,
+                                                fontFamily = RobotoMonoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.sp
                                             )
@@ -636,27 +605,34 @@ fun AudioPlaylistBottomSheet(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = item.title,
-                                            color = if (isCurrent) GoldPrimary else TextPrimary,
+                                            color = if (isCurrent) theme.primary else theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                            fontSize = 12.sp,
+                                            fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = "${item.artist} • ${item.category}",
-                                            color = TextSecondary,
+                                            color = theme.textSecondary,
                                             fontFamily = NotoSansFont,
-                                            fontSize = 10.sp
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
 
                                 IconButton(
                                     onClick = { AudioPlaybackManager.removeFromPlaylist(item.id) },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444).copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                                    Icon(
+                                        Icons.Default.DeleteOutline,
+                                        contentDescription = "حذف",
+                                        tint = theme.destructive,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }
@@ -667,26 +643,28 @@ fun AudioPlaylistBottomSheet(
         confirmButton = {
             if (playlist.isNotEmpty()) {
                 TextButton(
-                    onClick = { AudioPlaybackManager.clearPlaylist() }
+                    onClick = { AudioPlaybackManager.clearPlaylist() },
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text("مسح القائمة", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("مسح القائمة", color = theme.destructive, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         },
         dismissButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                shape = RoundedCornerShape(8.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.heightIn(min = 48.dp)
             ) {
-                Text("إغلاق", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("إغلاق", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     )
 }
 
 /**
- * نافذة مؤقت النوم الذكي (Smart Sleep Timer Dialog)
+ * نافذة مؤقت النوم (Sleep Timer Dialog)
  */
 @Composable
 fun SleepTimerDialog(
@@ -694,6 +672,7 @@ fun SleepTimerDialog(
     onDismiss: () -> Unit,
     onSelectMinutes: (Int) -> Unit
 ) {
+    val theme = QabasTheme.current
     val presets = listOf(
         Pair("إيقاف المؤقت", 0),
         Pair("15 دقيقة", 15),
@@ -704,49 +683,54 @@ fun SleepTimerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(20.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Bedtime, contentDescription = null, tint = GoldPrimary)
+                Icon(Icons.Default.Bedtime, contentDescription = null, tint = theme.primary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("مؤقت النوم الذكي ⏱️", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 16.sp)
+                Text("مؤقت النوم الذكي", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.textPrimary, fontSize = 16.sp)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "يقوم بإيقاف تشغيل الصوت والتلاوة في الخلفية تلقائياً عند انتهاء الوقت المحدد لمساعدتك على الاسترخاء والنوم.",
-                    color = TextSecondary,
-                    fontFamily = CairoFont,
-                    fontSize = 12.sp
+                    "يوقف تشغيل الصوت والتلاوة في الخلفية تلقائياً عند انتهاء الوقت المحدد.",
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 presets.forEach { (label, minutes) ->
                     val isSelected = if (minutes == 0) currentSeconds == 0 else (currentSeconds in (minutes * 60 - 59)..(minutes * 60))
                     Surface(
-                        color = if (isSelected) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF1E293B),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF2A344A)),
+                        color = if (isSelected) theme.primary.copy(alpha = 0.14f) else theme.secondarySurface,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            if (isSelected) 1.dp else 0.5.dp,
+                            if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
                             .clickable { onSelectMinutes(minutes) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
                                 text = label,
-                                color = if (isSelected) GoldPrimary else TextPrimary,
+                                color = if (isSelected) theme.primary else theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 13.sp
                             )
                             if (isSelected) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -755,8 +739,11 @@ fun SleepTimerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق", color = TextSecondary, fontFamily = CairoFont)
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text("إغلاق", color = theme.textSecondary, fontFamily = CairoFont)
             }
         }
     )

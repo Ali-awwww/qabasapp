@@ -167,7 +167,7 @@ object RealGeminiService {
             
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
                 .post(requestBody)
                 .build()
                 
@@ -266,7 +266,7 @@ object RealGeminiService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -359,7 +359,7 @@ object RealGeminiService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -537,7 +537,7 @@ object RealGeminiService {
                     put("generationConfig", JSONObject().apply { put("responseMimeType", "application/json") })
                 }
                 val request = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
                     .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                     .build()
                 val response = ApiUsageTracker.track(AppServices.appContext, "Gemini") { client.newCall(request).execute() }
@@ -812,7 +812,7 @@ object RealGeminiService {
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             
             val httpRequest = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
                 .post(requestBody)
                 .build()
                 
@@ -1003,7 +1003,14 @@ object RealMediaLibraryService {
 
         val apiKey = KeyVault.gemini
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
-            return@withContext "عذراً، تعذر إتمام الرد بالذكاء الاصطناعي حالياً."
+            val lastUserPrompt = messages.lastOrNull()?.second.orEmpty()
+            if (lastUserPrompt.isNotBlank()) {
+                val groqReply = try { RealGroqService.chatOrGenerate(lastUserPrompt) } catch (_: Exception) { null }
+                if (!groqReply.isNullOrBlank()) return@withContext groqReply
+                val openaiReply = try { RealOpenAIService.chatOrGenerate(lastUserPrompt) } catch (_: Exception) { null }
+                if (!openaiReply.isNullOrBlank()) return@withContext openaiReply
+            }
+            return@withContext "يرجى إعداد مفتاح Gemini أو Groq أو OpenAI من شاشة مفاتيح API."
         }
         
         return@withContext NetworkUtils.safeApiCallWithRetry(
@@ -1037,7 +1044,7 @@ object RealMediaLibraryService {
             
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
                 .post(requestBody)
                 .build()
                 

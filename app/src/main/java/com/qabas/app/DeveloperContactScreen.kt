@@ -87,6 +87,7 @@ import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -172,13 +173,14 @@ fun DeveloperContactScreen(
     val localAvatarUrl = accountIdentity.avatarUrl
     val developerDisplayName = if (accountIdentity.isDeveloper) accountIdentity.displayName else "المطور"
     val developerAvatarUrl = if (accountIdentity.isDeveloper) accountIdentity.avatarUrl else null
+    val theme = QabasTheme.current
     val isDeveloper = accountIdentity.isDeveloper
-    val contactBackground = if (isDeveloper) DeveloperInboxBackground else DeepSlate
-    val contactCard = if (isDeveloper) DeveloperInboxCard else Color(0xFF132238)
-    val contactBorder = if (isDeveloper) DeveloperInboxBorder else Color.White.copy(alpha = 0.12f)
-    val contactAccent = if (isDeveloper) DeveloperInboxAccent else GoldPrimary
-    val contactPrimaryText = if (isDeveloper) DeveloperInboxPrimaryText else Color.White
-    val contactSecondaryText = if (isDeveloper) DeveloperInboxSecondaryText else TextSecondary
+    val contactBackground = theme.background
+    val contactCard = theme.cardSurface
+    val contactBorder = theme.separator.copy(alpha = 0.5f)
+    val contactAccent = theme.primary
+    val contactPrimaryText = theme.textPrimary
+    val contactSecondaryText = theme.textSecondary
     var identityLoading by remember { mutableStateOf(true) }
     var threads by remember { mutableStateOf<Map<String, List<DevChatRepository.DevChatMessage>>>(emptyMap()) }
     var selectedThreadEmail by remember { mutableStateOf(userEmail) }
@@ -765,11 +767,9 @@ fun DeveloperContactScreen(
                             }
                             Surface(
                                 color = if (isMine) {
-                                    if (isDeveloper) Color(0xFF12333D) else Color(0xFF1C3B45)
-                                } else if (isDeveloper) {
-                                    DeveloperInboxCard
+                                    contactAccent.copy(alpha = 0.16f)
                                 } else {
-                                    Color(0xFF263449)
+                                    theme.secondarySurface
                                 },
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.fillMaxWidth(0.78f)

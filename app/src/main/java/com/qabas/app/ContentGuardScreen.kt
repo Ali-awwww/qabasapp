@@ -1,10 +1,9 @@
 package com.qabas.app
 
+import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -12,15 +11,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -29,13 +25,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleKeyRequiredBanner
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.components.AppleSegmentedControl
+import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 data class ActiveTrendAlert(
     val id: String,
     val title: String,
-    val threatLevel: String, // حرج، مرتفع، متوسط
+    val threatLevel: String,
     val category: String,
     val trendSummary: String,
     val coreArgument: String,
@@ -51,36 +53,37 @@ fun ContentGuardScreen(
     onOpenTeleprompterWithText: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val hasAiEngine = remember { ServiceAvailabilityRegistry.hasAnyAiAssistantEngine(context) }
+
+    val guardPrefs = remember { context.getSharedPreferences("qabas_content_guard_prefs", Context.MODE_PRIVATE) }
+    var inspectionsCount by remember { mutableIntStateOf(guardPrefs.getInt("inspections_count", 0)) }
+    var approvedCount by remember { mutableIntStateOf(guardPrefs.getInt("approved_count", 0)) }
+    var refutationsCount by remember { mutableIntStateOf(guardPrefs.getInt("refutations_count", 0)) }
+    val alertsSharedCount by remember { mutableIntStateOf(guardPrefs.getInt("alerts_shared_count", 0)) }
+
+    val impactPercent = ((inspectionsCount * 10) + (approvedCount * 15) + (refutationsCount * 20) + (alertsSharedCount * 5)).coerceIn(0, 100)
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf(
-        "🔍 فاحص النصوص والسكريبتات",
-        "🚨 مرصد الثغور والتريندات",
-        "⚡ تفنيد التريندات بالذكاء الاصطناعي",
-        "🏅 وسام المُرابط والأثر"
-    )
 
-    // --- Script Inspector State ---
     var inspectInputText by remember {
         mutableStateOf("عن أبي هريرة رضي الله عنه قال: قال رسول الله ﷺ: «من كان يؤمن بالله واليوم الآخر فليقل خيراً أو ليصمت». مقطع قصير يوضح أثر الكلمة الطيبة في بناء القلوب وتجنب الفتن في وسائل التواصل.")
     }
     var inspectionResult by remember { mutableStateOf<ContentInspectionResult?>(null) }
     var isInspecting by remember { mutableStateOf(false) }
 
-    // Run initial inspection once
     LaunchedEffect(Unit) {
         inspectionResult = ContentFilterService.quickInspect(inspectInputText)
     }
 
-    // --- Active Trend Alerts Data ---
     val activeAlerts = remember {
         listOf(
             ActiveTrendAlert(
                 id = "alert_1",
                 title = "موجة التشكيك في جدوى الاستقامة والالتزام",
-                threatLevel = "حرج 🚨",
+                threatLevel = "حرج",
                 category = "تزكية وعقيدة",
                 trendSummary = "انتشار فيديوهات تدعي أن الالتزام بالدين يسبب التضييق والاكتئاب، والترويج للانفلات بدعوى الحرية.",
                 coreArgument = "السعادة الحقيقية والطمأنينة هي في الاتساق مع فطرة الله {أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ}، وملاحقة الشهوات بلا ضابط تورث الشتات والضياع.",
@@ -90,7 +93,7 @@ fun ContentGuardScreen(
             ActiveTrendAlert(
                 id = "alert_2",
                 title = "تريند السخرية من القيم الأسرية وبر الوالدين",
-                threatLevel = "مرتفع ⚡",
+                threatLevel = "مرتفع",
                 category = "أخلاق واجتماع",
                 trendSummary = "مقاطع كوميدية تعزز عقوق الوالدين وتصور الأب والأم كعائق أمام طموح الشاب وسعادته.",
                 coreArgument = "الوالدان هم الباب الأوسط للجنة، والعقوق سبب محق البركة والتوفيق في الدنيا قبل الآخرة. النجاح الحقيقي يبدأ من رضاهما.",
@@ -99,8 +102,8 @@ fun ContentGuardScreen(
             ),
             ActiveTrendAlert(
                 id = "alert_3",
-                title = "موجة اليأس والاحباط من واقع الأمة",
-                threatLevel = "متوسط 🟡",
+                title = "موجة اليأس والإحباط من واقع الأمة",
+                threatLevel = "متوسط",
                 category = "وعي وأمل",
                 trendSummary = "نشر مقاطع تبث العجز وتوحي بانتصار الباطل الدائم وعدم جدوى أي عمل إصلاحي.",
                 coreArgument = "المسلم لا يعرف اليأس، وسنة الله متجددة في تداول الأيام. الواجب على كل مسلم غرس غراسه وبذل وسعه دون انتظار النتائج.",
@@ -110,43 +113,39 @@ fun ContentGuardScreen(
         )
     }
 
-    // --- Refutation Engine State ---
     var inputTrendText by remember { mutableStateOf("") }
     var selectedTone by remember { mutableStateOf("رد عقلاني ودعوي هادئ") }
     val tones = listOf("رد عقلاني ودعوي هادئ", "رد حماسي وقوي", "كشف التناقض والبديل الإيجابي")
-    
     var isGeneratingRefutation by remember { mutableStateOf(false) }
     var generatedRefutationScript by remember { mutableStateOf("") }
+    var refutationError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        containerColor = DeepSlate,
+        containerColor = theme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Brush.horizontalGradient(listOf(Color(0xFFDC2626), GoldPrimary))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("مرصد الثغور ومدافعة الفتن", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("قمع الشبهات والتريندات بالحق والجمال 🛡️", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
-            )
+            Column(modifier = Modifier.background(theme.background)) {
+                AppleTopBar(
+                    title = "مرصد الثغور ومدافعة الفتن",
+                    subtitle = "فحص المحتوى وتفنيد الشبهات بالحق والحكمة",
+                    onBack = onBack
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    AppleSegmentedControl(
+                        items = listOf(
+                            0 to "الفاحص",
+                            1 to "المرصد",
+                            2 to "التفنيد",
+                            3 to "الأوسمة"
+                        ),
+                        selectedItem = selectedTab,
+                        onSelect = { selectedTab = it }
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         Column(
@@ -154,136 +153,106 @@ fun ContentGuardScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Rank Status Banner
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                shape = RoundedCornerShape(0.dp),
-                modifier = Modifier.fillMaxWidth()
+            AppleCard(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                cornerRadius = 14.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .background(GoldPrimary.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                        }
+                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("رتبتك الحالية: ", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        Text("مُرابط الثغور الرقمية ⚔️", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("النشاط الفعلي:", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            if (refutationsCount >= 5) "مُرابط متقدم" else "حارس المحتوى",
+                            color = theme.primary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF151B2B), RoundedCornerShape(8.dp))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Surface(
+                        color = theme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("مستوى الأثر: 84%", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            // Tabs Bar
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = CardSurface,
-                contentColor = GoldPrimary,
-                indicator = { tabPositions ->
-                    if (selectedTab < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = GoldPrimary,
-                            height = 3.dp
+                        Text(
+                            "الأثر: $impactPercent%",
+                            color = theme.primary,
+                            fontFamily = RobotoMonoFont,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Text(
-                                title,
-                                color = if (selectedTab == index) GoldPrimary else TextSecondary,
-                                fontFamily = CairoFont,
-                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp
-                            )
-                        }
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             when (selectedTab) {
                 0 -> {
-                    // TAB 0: Script & Text Guard Inspector
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                            AppleCard(cornerRadius = 18.dp) {
                                 Column(modifier = Modifier.padding(18.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
-                                                .size(36.dp)
-                                                .background(GoldPrimary.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(theme.primary.copy(alpha = 0.14f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Icons.Default.Security, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                                            Icon(Icons.Default.Security, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                         }
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column {
-                                            Text("فاحص النصوص والضوابط الشرعية 🛡️", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                            Text("فحص فوري للنص قبل التوليد والتصدير لضمان السلامة والجاذبية.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                                            Text("فاحص النصوص والضوابط الشرعية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.5.sp)
+                                            Text("تحقق فوري من سلامة النص قبل التوليد والنشر.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                         }
                                     }
 
                                     Spacer(modifier = Modifier.height(14.dp))
 
-                                    // Input Field
                                     OutlinedTextField(
                                         value = inspectInputText,
-                                        onValueChange = { 
+                                        onValueChange = {
                                             inspectInputText = it
                                             inspectionResult = ContentFilterService.quickInspect(it)
                                         },
-                                        modifier = Modifier.fillMaxWidth().heightIn(min = 110.dp),
-                                        placeholder = { Text("الصق هنا فكرة الفيديو، الآية، الحديث، أو السكريبت الكامل لفحصه...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp) },
-                                        label = { Text("نص الفكرة أو السيناريو", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 110.dp),
+                                        placeholder = { Text("الصق هنا فكرة الفيديو أو الآية أو السيناريو لفحصه...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        label = { Text("نص الفكرة أو السيناريو", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp) },
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color(0xFF1E293B),
-                                            focusedTextColor = TextPrimary,
-                                            unfocusedTextColor = TextPrimary,
-                                            focusedContainerColor = Color(0xFF141C27),
-                                            unfocusedContainerColor = Color(0xFF141C27)
+                                            focusedBorderColor = theme.primary,
+                                            unfocusedBorderColor = theme.separator.copy(alpha = 0.6f),
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary,
+                                            focusedContainerColor = theme.secondarySurface,
+                                            unfocusedContainerColor = theme.secondarySurface
                                         ),
                                         shape = RoundedCornerShape(12.dp)
                                     )
 
                                     Spacer(modifier = Modifier.height(12.dp))
-
-                                    // Demo presets
-                                    Text("أمثلة سريعة للتجربة:", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("أمثلة سريعة للتجربة:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                     Spacer(modifier = Modifier.height(6.dp))
+
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -294,8 +263,8 @@ fun ContentGuardScreen(
                                                 inspectInputText = "مقطع تدبر في قوله تعالى: {أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ}، يوضح أثر المداومة على أذكار الصباح والمساء في نزول السكينة."
                                                 inspectionResult = ContentFilterService.quickInspect(inspectInputText)
                                             },
-                                            label = { Text("مناسب ✅", fontSize = 11.sp, fontFamily = NotoSansFont) },
-                                            colors = FilterChipDefaults.filterChipColors(containerColor = Color(0xFF151B2B), labelColor = Color(0xFF4CAF50))
+                                            label = { Text("مناسب", fontSize = 11.5.sp, fontFamily = CairoFont) },
+                                            colors = FilterChipDefaults.filterChipColors(containerColor = theme.success.copy(alpha = 0.14f), labelColor = theme.success)
                                         )
 
                                         FilterChip(
@@ -304,8 +273,8 @@ fun ContentGuardScreen(
                                                 inspectInputText = "أقسم عليك أن تنشر هذا المقطع لعشرة أشخاص وإلا ستحل عليك مصيبة اليوم! معجزة حقيقية حدثت لشخص بعد قراءة هذا المنشور."
                                                 inspectionResult = ContentFilterService.quickInspect(inspectInputText)
                                             },
-                                            label = { Text("يحتاج مراجعة ⚠️", fontSize = 11.sp, fontFamily = NotoSansFont) },
-                                            colors = FilterChipDefaults.filterChipColors(containerColor = Color(0xFF151B2B), labelColor = Color(0xFFF59E0B))
+                                            label = { Text("يحتاج مراجعة", fontSize = 11.5.sp, fontFamily = CairoFont) },
+                                            colors = FilterChipDefaults.filterChipColors(containerColor = theme.warning.copy(alpha = 0.14f), labelColor = theme.warning)
                                         )
 
                                         FilterChip(
@@ -314,27 +283,37 @@ fun ContentGuardScreen(
                                                 inspectInputText = "فيديو يحتوي على ألفاظ بذيئة وشتم وسخرية من الأنبياء والدين وتحديات راقصة عارية."
                                                 inspectionResult = ContentFilterService.quickInspect(inspectInputText)
                                             },
-                                            label = { Text("مرفوض ❌", fontSize = 11.sp, fontFamily = NotoSansFont) },
-                                            colors = FilterChipDefaults.filterChipColors(containerColor = Color(0xFF151B2B), labelColor = Color(0xFFEF4444))
+                                            label = { Text("مرفوض", fontSize = 11.5.sp, fontFamily = CairoFont) },
+                                            colors = FilterChipDefaults.filterChipColors(containerColor = theme.destructive.copy(alpha = 0.14f), labelColor = theme.destructive)
                                         )
                                     }
 
                                     Spacer(modifier = Modifier.height(14.dp))
 
-                                    // Deep AI inspect button
-                                    Button(
+                                    ApplePrimaryButton(
+                                        text = if (isInspecting) "جاري الفحص المعمق..." else "فحص وتدقيق عميق بالذكاء الاصطناعي",
+                                        icon = Icons.Default.Verified,
+                                        isLoading = isInspecting,
+                                        enabled = !isInspecting,
                                         onClick = {
                                             if (inspectInputText.isBlank()) {
                                                 Toast.makeText(context, "يرجى كتابة نص للفحص أولاً", Toast.LENGTH_SHORT).show()
-                                                return@Button
+                                                return@ApplePrimaryButton
                                             }
                                             isInspecting = true
                                             scope.launch {
                                                 val res = ContentFilterService.inspectWithAI(inspectInputText)
                                                 inspectionResult = res
                                                 isInspecting = false
-                                                
-                                                // Sync with Cloud & Analytics
+
+                                                inspectionsCount += 1
+                                                val editor = guardPrefs.edit().putInt("inspections_count", inspectionsCount)
+                                                if (res.verdict == GuardVerdict.APPROPRIATE) {
+                                                    approvedCount += 1
+                                                    editor.putInt("approved_count", approvedCount)
+                                                }
+                                                editor.apply()
+
                                                 CloudServices.Database.recordContentGuardCheck(
                                                     text = inspectInputText,
                                                     verdict = res.verdict.name,
@@ -343,66 +322,36 @@ fun ContentGuardScreen(
                                                 )
                                                 AppServices.getAnalyticsService(context).logEvent(
                                                     "content_guard_inspection",
-                                                    mapOf(
-                                                        "verdict" to res.verdict.name,
-                                                        "score" to res.score,
-                                                        "source" to "guard_hub"
-                                                    )
+                                                    mapOf("verdict" to res.verdict.name, "score" to res.score, "source" to "guard_hub")
                                                 )
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(12.dp),
-                                        enabled = !isInspecting
-                                    ) {
-                                        if (isInspecting) {
-                                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = DeepSlate, strokeWidth = 2.dp)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("جاري الفحص المعمق بحارس المحتوى...", color = DeepSlate, fontFamily = CairoFont)
-                                        } else {
-                                            Icon(Icons.Default.Verified, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(20.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("فحص وتدقيق عميق بالذكاء الاصطناعي ✨", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                         }
-                                    }
+                                    )
                                 }
                             }
                         }
 
-                        // Inspection Result Card
                         inspectionResult?.let { res ->
                             item {
                                 val verdictColor = when (res.verdict) {
-                                    GuardVerdict.APPROPRIATE -> Color(0xFF22C55E)
-                                    GuardVerdict.NEEDS_REVIEW -> Color(0xFFF59E0B)
-                                    GuardVerdict.REJECTED -> Color(0xFFEF4444)
+                                    GuardVerdict.APPROPRIATE -> theme.success
+                                    GuardVerdict.NEEDS_REVIEW -> theme.warning
+                                    GuardVerdict.REJECTED -> theme.destructive
                                 }
 
-                                val verdictBg = when (res.verdict) {
-                                    GuardVerdict.APPROPRIATE -> Color(0xFF064E3B)
-                                    GuardVerdict.NEEDS_REVIEW -> Color(0xFF451A03)
-                                    GuardVerdict.REJECTED -> Color(0xFF450A0A)
-                                }
-
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                    shape = RoundedCornerShape(18.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.5.dp, verdictColor.copy(alpha = 0.8f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
+                                AppleCard(cornerRadius = 18.dp) {
                                     Column(modifier = Modifier.padding(18.dp)) {
-                                        // Header
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(34.dp)
-                                                        .background(verdictBg, CircleShape),
+                                                        .size(36.dp)
+                                                        .clip(CircleShape)
+                                                        .background(verdictColor.copy(alpha = 0.16f)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
@@ -418,27 +367,14 @@ fun ContentGuardScreen(
                                                 }
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Column {
-                                                    Text(
-                                                        text = res.verdict.badge,
-                                                        color = verdictColor,
-                                                        fontFamily = CairoFont,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 16.sp
-                                                    )
-                                                    Text(
-                                                        text = res.title,
-                                                        color = Color.White,
-                                                        fontFamily = NotoSansFont,
-                                                        fontSize = 12.sp
-                                                    )
+                                                    Text(res.verdict.badge, color = verdictColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                    Text(res.title, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                                 }
                                             }
 
-                                            // Score Badge
                                             Surface(
-                                                color = verdictBg,
-                                                shape = RoundedCornerShape(10.dp),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor)
+                                                color = verdictColor.copy(alpha = 0.14f),
+                                                shape = RoundedCornerShape(10.dp)
                                             ) {
                                                 Text(
                                                     "${res.score}%",
@@ -451,70 +387,57 @@ fun ContentGuardScreen(
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Spacer(modifier = Modifier.height(12.dp))
 
-                                        // Concise Reason Box
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(Color(0xFF0B0F19), RoundedCornerShape(12.dp))
-                                                .padding(12.dp)
+                                        Surface(
+                                            color = theme.secondarySurface,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Column {
-                                                Text("السبب والنتيجة المباشرة:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Text("السبب والنتيجة:", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text(res.reason, color = Color.White, fontFamily = NotoSansFont, fontSize = 13.sp, lineHeight = 18.sp)
+                                                Text(res.reason, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 13.sp, lineHeight = 19.sp)
                                             }
                                         }
 
-                                        // Warnings
                                         if (res.warnings.isNotEmpty()) {
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            Text("ملاحظات تدقيقية:", color = Color(0xFFEF4444), fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("ملاحظات تدقيقية:", color = theme.destructive, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                             Spacer(modifier = Modifier.height(4.dp))
                                             res.warnings.forEach { warning ->
-                                                Row(
-                                                    modifier = Modifier.padding(vertical = 2.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(8.dp))
+                                                Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(8.dp))
                                                     Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(warning, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                    Text(warning, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                                 }
                                             }
                                         }
 
-                                        // Suggestions
                                         if (res.suggestions.isNotEmpty()) {
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            Text("توصيات التحسين والجاذبية:", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("توصيات التحسين:", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                             Spacer(modifier = Modifier.height(4.dp))
                                             res.suggestions.forEach { sug ->
-                                                Row(
-                                                    modifier = Modifier.padding(vertical = 2.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                                Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = theme.primary, modifier = Modifier.size(14.dp))
                                                     Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(sug, color = Color(0xFFCBD5E1), fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                    Text(sug, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                                 }
                                             }
                                         }
 
-                                        // Improved Script Action
                                         res.improvedScript?.let { improved ->
                                             if (improved.isNotBlank()) {
                                                 Spacer(modifier = Modifier.height(14.dp))
-                                                Text("الصياغة المقترحة المصوبة ✨:", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                Text("الصياغة المقترحة:", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                                 Spacer(modifier = Modifier.height(6.dp))
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
-                                                        .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                                                        .padding(12.dp)
+                                                Surface(
+                                                    color = theme.secondarySurface,
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier.fillMaxWidth()
                                                 ) {
-                                                    Text(improved, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
+                                                    Text(improved, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 19.sp, modifier = Modifier.padding(12.dp))
                                                 }
 
                                                 Spacer(modifier = Modifier.height(12.dp))
@@ -523,27 +446,22 @@ fun ContentGuardScreen(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            clipboardManager.setText(AnnotatedString(improved))
-                                                            Toast.makeText(context, "تم نسخ النص المصوب 📋", Toast.LENGTH_SHORT).show()
-                                                        },
-                                                        modifier = Modifier.weight(1f),
-                                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                                                        shape = RoundedCornerShape(10.dp)
-                                                    ) {
-                                                        Text("نسخ 📋", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        AppleSecondaryButton(
+                                                            text = "نسخ",
+                                                            icon = Icons.Default.ContentCopy,
+                                                            onClick = {
+                                                                clipboardManager.setText(AnnotatedString(improved))
+                                                                Toast.makeText(context, "تم نسخ النص المصوب", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        )
                                                     }
-
-                                                    Button(
-                                                        onClick = { onStartScriptWithText(improved) },
-                                                        modifier = Modifier.weight(1.4f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                                        shape = RoundedCornerShape(10.dp)
-                                                    ) {
-                                                        Icon(Icons.Default.Movie, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("بدء المونتاج به 🎬", color = DeepSlate, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Box(modifier = Modifier.weight(1.2f)) {
+                                                        ApplePrimaryButton(
+                                                            text = "بدء المونتاج به",
+                                                            icon = Icons.Default.Movie,
+                                                            onClick = { onStartScriptWithText(improved) }
+                                                        )
                                                     }
                                                 }
                                             }
@@ -554,113 +472,117 @@ fun ContentGuardScreen(
                         }
                     }
                 }
+
                 1 -> {
-                    // TAB 1: Active Wave Alerts
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Brush.horizontalGradient(listOf(Color(0xFF450A0A), Color(0xFF0B0F19))))
-                                    .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                    .padding(16.dp)
+                            Surface(
+                                color = theme.destructive.copy(alpha = if (theme.isDark) 0.16f else 0.08f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(0.5.dp, theme.destructive.copy(alpha = 0.4f))
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(32.dp))
+                                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(30.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text("التنبيه الفوري للثغور الرقمية 🚨", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text("تريندات وموجات تحتاج لمدافعة سريعة من صناع المحتوى الإسلامي لتفنيد الباطل.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 16.sp)
+                                        Text("التنبيه الفوري للثغور الرقمية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.5.sp)
+                                        Text("قضايا تحتاج لمدافعة علمية ورسائل وعي متزنة.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
                                     }
                                 }
                             }
                         }
 
-                        items(activeAlerts) { alert ->
+                        items(activeAlerts, key = { it.id }) { alert ->
                             TrendAlertCard(
                                 alert = alert,
                                 onGenerateRebutt = {
                                     val fullScript = """
-                                        🎬 سيناريو مدافعة ورد على: ${alert.title}
+                                        سيناريو مدافعة ورد على: ${alert.title}
                                         
-                                        🔥 الخطاف الجاذب (0-3 ثوان):
+                                        الخطاف الجاذب (0-3 ثوان):
                                         ${alert.suggestedHook}
                                         
-                                        💡 التفنيد والرد العلمي:
+                                        التفنيد والرد العلمي:
                                         ${alert.coreArgument}
                                         
-                                        📖 الدليل الشرعي والأثر:
+                                        الدليل الشرعي والأثر:
                                         ${alert.evidenceText}
                                         
-                                        ✨ الرسالة الختامية:
-                                        «لا تدع الشبهات تعصف بوعيك، تمسك بنور الحق واعتز بهويتك الإسلامية!»
+                                        الرسالة الختامية:
+                                        «لا تدع الشبهات تعصف بوعيك، تمسك بنور الحق واعتز بهويتك الإسلامية.»
                                     """.trimIndent()
                                     onStartScriptWithText(fullScript)
                                 },
                                 onOpenTeleprompter = {
-                                    val promptText = "${alert.suggestedHook}\n\n${alert.coreArgument}\n\n${alert.evidenceText}"
-                                    onOpenTeleprompterWithText(promptText)
+                                    onOpenTeleprompterWithText("${alert.suggestedHook}\n\n${alert.coreArgument}\n\n${alert.evidenceText}")
                                 },
                                 onCopyDetails = {
                                     val text = "${alert.title}\nالرد: ${alert.coreArgument}\nالدليل: ${alert.evidenceText}"
                                     clipboardManager.setText(AnnotatedString(text))
-                                    Toast.makeText(context, "تم نسخ تفاصيل الرد 📋", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم نسخ تفاصيل الرد", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
                     }
                 }
+
                 2 -> {
-                    // TAB 2: AI Trend Refutation Engine
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
+                        if (!hasAiEngine) {
+                            item {
+                                AppleKeyRequiredBanner(
+                                    serviceName = "محرك تفكيك الشبهات",
+                                    reason = "لم يتم ضبط مفتاح API أو نموذج محلي؛ عند تعذر الاتصال ستظهر رسالة خطأ واضحة دون استخدام نصوص وهمية."
+                                )
+                            }
+                        }
+
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
+                            AppleCard(cornerRadius = 18.dp) {
+                                Column(modifier = Modifier.padding(18.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(26.dp))
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = theme.primary, modifier = Modifier.size(24.dp))
                                         Spacer(modifier = Modifier.width(10.dp))
-                                        Text("مُفكك التريندات ومولّد الردود القاطعة ✨", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text("مُفكك التريندات ومولّد الردود", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                     }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("أدخل اسم التريند الفاسد، أو الشبهة المنتشرة، وسيوم الذكاء الاصطناعي بتفكيكها وصياغة سيناريو رد قاطع وجذاب للجمهور.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
-
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("أدخل اسم التريند أو الشبهة المنتشرة وسيعمل الذكاء الاصطناعي على تفكيكها وصياغة سيناريو رد علمي متزن.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
+                                    Spacer(modifier = Modifier.height(14.dp))
 
                                     OutlinedTextField(
                                         value = inputTrendText,
                                         onValueChange = { inputTrendText = it },
-                                        modifier = Modifier.fillMaxWidth().height(100.dp),
-                                        placeholder = { Text("مثال: تريند السخرية من الحجاب، أو مقطع يروج للإلحاد بدعوى العلم...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp) },
-                                        label = { Text("وصف التريند أو الشبهة", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 100.dp),
+                                        placeholder = { Text("مثال: تريند السخرية من الحجاب، أو شبهة فكرية منتشرة...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        label = { Text("وصف التريند أو الشبهة", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp) },
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color(0xFF1E293B),
-                                            focusedTextColor = TextPrimary,
-                                            unfocusedTextColor = TextPrimary,
-                                            focusedContainerColor = Color(0xFF141C27),
-                                            unfocusedContainerColor = Color(0xFF141C27)
+                                            focusedBorderColor = theme.primary,
+                                            unfocusedBorderColor = theme.separator.copy(alpha = 0.6f),
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary,
+                                            focusedContainerColor = theme.secondarySurface,
+                                            unfocusedContainerColor = theme.secondarySurface
                                         ),
                                         shape = RoundedCornerShape(12.dp)
                                     )
 
                                     Spacer(modifier = Modifier.height(12.dp))
-
-                                    Text("أسلوب الرد والتفنيد:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("أسلوب الرد والتفنيد:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(6.dp))
 
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -671,10 +593,10 @@ fun ContentGuardScreen(
                                                 onClick = { selectedTone = tone },
                                                 label = { Text(tone, fontFamily = NotoSansFont, fontSize = 12.sp) },
                                                 colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = GoldPrimary,
-                                                    selectedLabelColor = DeepSlate,
-                                                    containerColor = Color(0xFF151B2B),
-                                                    labelColor = TextPrimary
+                                                    selectedContainerColor = theme.primary,
+                                                    selectedLabelColor = Color.White,
+                                                    containerColor = theme.secondarySurface,
+                                                    labelColor = theme.textPrimary
                                                 )
                                             )
                                         }
@@ -682,100 +604,79 @@ fun ContentGuardScreen(
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    Button(
+                                    ApplePrimaryButton(
+                                        text = if (isGeneratingRefutation) "جاري تفكيك الشبهة..." else "تفكيك وتوليد الرد القاطع",
+                                        icon = Icons.Default.Shield,
+                                        isLoading = isGeneratingRefutation,
+                                        enabled = !isGeneratingRefutation,
                                         onClick = {
                                             if (inputTrendText.isBlank()) {
                                                 Toast.makeText(context, "يرجى كتابة الشبهة أو التريند أولاً", Toast.LENGTH_SHORT).show()
-                                                return@Button
+                                                return@ApplePrimaryButton
                                             }
                                             isGeneratingRefutation = true
+                                            refutationError = null
                                             scope.launch {
                                                 try {
                                                     val prompt = """
                                                         أنت خبير في التوعية الإسلامية ومدافعة الشبهات الرقمية.
-                                                        قم بصياغة سيناريو فيديو قصير (Reel / Shorts - 60 ثانية) لتفنيد والرد على التريند التالي: "$inputTrendText".
+                                                        قم بصياغة سيناريو فيديو قصير (60 ثانية) لتفنيد والرد على الموضوع التالي: "$inputTrendText".
                                                         أسلوب الرد المطلوب: "$selectedTone".
-                                                        
-                                                        الهيكلية المطردة:
-                                                        1) خطاف جاذب (Hook) في أول 3 ثوان بدون تنفير.
-                                                        2) تفكيك الفكرة الخاطئة وإظهار تناقضها بأسلوب عقلاني ومقنع.
+                                                        الهيكلية:
+                                                        1) خطاف جاذب في أول 3 ثوان بدون تنفير.
+                                                        2) تفكيك الفكرة الخاطئة وإظهار تناقضها بأسلوب عقلاني.
                                                         3) الدليل الشرعي أو الفطري أو العلمي المؤيد للحق.
                                                         4) البديل الإيجابي ودعوة واضحة للاعتزاز بالدين.
                                                     """.trimIndent()
-
                                                     val result = AppServices.chatWithAssistant(listOf(Pair(true, prompt)))
-                                                    generatedRefutationScript = result
+                                                    if (result.isBlank()) {
+                                                        refutationError = "لم تتوفر استجابة من محرك الذكاء الاصطناعي. تحقق من الاتصال أو مفاتيح API."
+                                                    } else {
+                                                        generatedRefutationScript = result
+                                                        refutationsCount += 1
+                                                        guardPrefs.edit().putInt("refutations_count", refutationsCount).apply()
+                                                    }
                                                 } catch (e: Exception) {
-                                                    generatedRefutationScript = """
-                                                        🎬 سيناريو تفنيد ومدافعة:
-                                                        
-                                                        🔥 الخطاف: «سمعت كِذبة انتشار هذا التريند؟ تعال نفككها بحقائق لا يمكن إنكارها!»
-                                                        
-                                                        💡 التفنيد: ما يدعيه هذا التريند يخالف المنطق العظيم والدراسات الواقعية، حيث أثبتت التجربة أن التخلي عن المبادئ لا يجلب إلا الضياع.
-                                                        
-                                                        📖 الدليل: قال تعالى: {فَمَنِ اتَّبَعَ هُدَايَ فَلَا يَضِلُّ وَلَا يَشْقَى}.
-                                                        
-                                                        ✨ البديل: اعتز بهويتك وكن منارات للحق ولا تتبع المتشابهات!
-                                                    """.trimIndent()
+                                                    refutationError = "تعذر توليد الرد: ${e.message ?: "تحقق من اتصال الإنترنت أو مفاتيح AI"}"
                                                 } finally {
                                                     isGeneratingRefutation = false
                                                 }
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(12.dp),
-                                        enabled = !isGeneratingRefutation
-                                    ) {
-                                        if (isGeneratingRefutation) {
-                                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = DeepSlate, strokeWidth = 2.dp)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("جاري تفكيك الشبهة وتوليد الرد...", color = DeepSlate, fontFamily = CairoFont)
-                                        } else {
-                                            Icon(Icons.Default.Shield, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(20.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("تفكيك وتوليد الرد القاطع ✨", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                         }
+                                    )
+
+                                    if (!refutationError.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(refutationError!!, color = theme.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                                     }
 
                                     if (generatedRefutationScript.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(Color(0xFF0B0F19), RoundedCornerShape(12.dp))
-                                                .border(1.dp, GoldPrimary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                                .padding(14.dp)
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Surface(
+                                            color = theme.secondarySurface,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Column {
-                                                Text(generatedRefutationScript, color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp, lineHeight = 20.sp)
+                                            Column(modifier = Modifier.padding(14.dp)) {
+                                                Text(generatedRefutationScript, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 13.5.sp, lineHeight = 20.sp)
                                                 Spacer(modifier = Modifier.height(12.dp))
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            onOpenTeleprompterWithText(generatedRefutationScript)
-                                                        },
-                                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                                                        shape = RoundedCornerShape(8.dp)
-                                                    ) {
-                                                        Icon(Icons.Default.Mic, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("تسجيل بالمُلقن 🎙️", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        AppleSecondaryButton(
+                                                            text = "تسجيل بالمُلقن",
+                                                            icon = Icons.Default.Mic,
+                                                            onClick = { onOpenTeleprompterWithText(generatedRefutationScript) }
+                                                        )
                                                     }
-
-                                                    Button(
-                                                        onClick = {
-                                                            onStartScriptWithText(generatedRefutationScript)
-                                                        },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                                        shape = RoundedCornerShape(8.dp)
-                                                    ) {
-                                                        Icon(Icons.Default.Movie, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("بدء المونتاج 🎬", color = DeepSlate, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        ApplePrimaryButton(
+                                                            text = "بدء المونتاج",
+                                                            icon = Icons.Default.Movie,
+                                                            onClick = { onStartScriptWithText(generatedRefutationScript) }
+                                                        )
                                                     }
                                                 }
                                             }
@@ -786,81 +687,80 @@ fun ContentGuardScreen(
                         }
                     }
                 }
-                3 -> {
-                    // TAB 3: Guardian Badges & Impact Stats
+
+                else -> {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                            AppleCard(cornerRadius = 18.dp) {
                                 Column(
                                     modifier = Modifier.padding(20.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(72.dp)
+                                            .size(64.dp)
                                             .clip(CircleShape)
-                                            .background(Brush.radialGradient(listOf(GoldPrimary, Color(0xFF9A7B1C)))),
+                                            .background(theme.primary.copy(alpha = 0.14f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(44.dp))
+                                        Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = theme.primary, modifier = Modifier.size(36.dp))
                                     }
 
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Text("وسام المُرابط الرقمي لرد الفتن", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                    Text("«الْمُجَاهِدُ مَنْ جَاهَدَ نَفْسَهُ فِي طَاعَةِ اللَّهِ، وَالْمُهَاجِرُ مَنْ هَجَرَ مَا نَهَى اللَّهُ عَنْهُ»", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
+                                    Text("إحصاءات وأوسمة المدافعة", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                    Text("«الْمُجَاهِدُ مَنْ جَاهَدَ نَفْسَهُ فِي طَاعَةِ اللَّهِ، وَالْمُهَاجِرُ مَنْ هَجَرَ مَا نَهَى اللَّهُ عَنْهُ»", color = theme.primary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
 
-                                    Spacer(modifier = Modifier.height(20.dp))
+                                    Spacer(modifier = Modifier.height(16.dp))
 
-Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            Text(
-                Translator.tr("لا توجد بيانات عرضة للعرض بعد"),
-                color = Color.Gray,
-                fontFamily = NotoSansFont,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center
-            )
-        }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            StatBox(title = "عمليات الفحص", value = inspectionsCount.toString())
+                                        }
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            StatBox(title = "نصوص مجازة", value = approvedCount.toString())
+                                        }
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            StatBox(title = "ردود مولدة", value = refutationsCount.toString())
+                                        }
+                                    }
                                 }
                             }
                         }
 
                         item {
-                            Text("أوسمة الإنجاز والمدافعة 🏅", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("أوسمة الإنجاز والمدافعة", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
 
                         item {
                             BadgeCard(
-                                title = "وسام قاهر الشبهات 🛡️",
-                                desc = "نشر 5 مقاطع رد وتفنيد على التريندات الهابطة.",
-                                isUnlocked = true
+                                title = "وسام الفحص الأول",
+                                desc = "إجراء فحص نص واحد على الأقل للتثبت من سلامة المحتوى ($inspectionsCount / 1).",
+                                isUnlocked = inspectionsCount >= 1
                             )
                         }
 
                         item {
                             BadgeCard(
-                                title = "وسام حارس الوعي ⚡",
-                                desc = "تحقيق أكثر من 10,000 مشاهدة لمقاطع المدافعة والوعي.",
-                                isUnlocked = true
+                                title = "وسام المحتوى الموثوق",
+                                desc = "اعتماد 3 نصوص مجازة بعد التدقيق المعمق ($approvedCount / 3).",
+                                isUnlocked = approvedCount >= 3
                             )
                         }
 
                         item {
                             BadgeCard(
-                                title = "وسام سيف الحكمة 🗡️",
-                                desc = "استخدام أداة تفنيد الذكاء الاصطناعي أكثر من 15 مرة.",
-                                isUnlocked = false
+                                title = "وسام سيف الحكمة",
+                                desc = "توليد 5 سيناريوهات مدافعة وتفنيد عبر الذكاء الاصطناعي ($refutationsCount / 5).",
+                                isUnlocked = refutationsCount >= 5
                             )
                         }
                     }
@@ -877,97 +777,98 @@ fun TrendAlertCard(
     onOpenTeleprompter: () -> Unit,
     onCopyDetails: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val context = LocalContext.current
+    val theme = QabasTheme.current
+    val isCritical = alert.threatLevel.contains("حرج")
+    val levelColor = if (isCritical) theme.destructive else theme.warning
+
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (alert.threatLevel.contains("حرج")) Color(0xFF7F1D1D) else Color(0xFF151B2B),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                Surface(
+                    color = levelColor.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("الخطورة: ${alert.threatLevel}", color = if (alert.threatLevel.contains("حرج")) Color(0xFFEF4444) else GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "الخطورة: ${alert.threatLevel}",
+                        color = levelColor,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
 
-                Text(alert.category, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text(alert.category, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-
-            Text(alert.title, color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(alert.title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.5.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(alert.trendSummary, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(alert.trendSummary, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 19.sp)
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                    .padding(12.dp)
+            Surface(
+                color = theme.secondarySurface,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    Text("💡 محور التفنيد ومدافعة الفتنة:", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(2.dp))
-                    Text(alert.coreArgument, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("محور التفنيد ومدافعة الفتنة:", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(3.dp))
+                    Text(alert.coreArgument, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 19.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val cardContext = LocalContext.current
                 IconButton(
                     onClick = {
                         AppNotificationService.sendNotification(
-                            cardContext,
-                            "🚨 تنبيه استنفار عاجل: ${alert.title}",
-                            "تم إرسال إشعار لمجتمع صناع المحتوى لبدء المدافعة بنشر الفيديوهات المجهرة.",
+                            context,
+                            "تنبيه استنفار عاجل: ${alert.title}",
+                            "تذكير بنشر محتوى توعوي هادف حول هذا الموضوع.",
                             isTrendAlert = true
                         )
-                        Toast.makeText(cardContext, "تم بث تنبيه الاستنفار بنجاح لكافة صناع المحتوى! 🔔", Toast.LENGTH_LONG).show()
+                        val prefs = context.getSharedPreferences("qabas_content_guard_prefs", Context.MODE_PRIVATE)
+                        val next = prefs.getInt("alerts_shared_count", 0) + 1
+                        prefs.edit().putInt("alerts_shared_count", next).apply()
+                        Toast.makeText(context, "تم إرسال التنبيه عبر نظام الإشعارات", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier
-                        .size(42.dp)
-                        .background(Color(0xFF151B2B), RoundedCornerShape(10.dp))
-                        .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(theme.destructive.copy(alpha = 0.14f))
                 ) {
-                    Icon(Icons.Default.Campaign, contentDescription = "بث تنبيه عاجل", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Campaign, contentDescription = "بث تنبيه", tint = theme.destructive, modifier = Modifier.size(20.dp))
                 }
 
-                OutlinedButton(
-                    onClick = onOpenTeleprompter,
-                    modifier = Modifier.weight(1f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                    shape = RoundedCornerShape(10.dp)
+                IconButton(
+                    onClick = onCopyDetails,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(theme.secondarySurface)
                 ) {
-                    Text("المُلقن 🎙️", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.primary, modifier = Modifier.size(19.dp))
                 }
 
-                Button(
-                    onClick = onGenerateRebutt,
-                    modifier = Modifier.weight(1.3f),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.Movie, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("إنتاج رد ومدافعة 🎬", color = DeepSlate, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Box(modifier = Modifier.weight(1f)) {
+                    AppleSecondaryButton(text = "المُلقن", onClick = onOpenTeleprompter)
+                }
+
+                Box(modifier = Modifier.weight(1.2f)) {
+                    ApplePrimaryButton(text = "إنتاج رد", icon = Icons.Default.Movie, onClick = onGenerateRebutt)
                 }
             }
         }
@@ -976,49 +877,64 @@ fun TrendAlertCard(
 
 @Composable
 fun StatBox(title: String, value: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .background(Color(0xFF0B0F19), RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+    val theme = QabasTheme.current
+    Surface(
+        color = theme.secondarySurface,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(value, color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        Text(title, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp)
+        ) {
+            Text(value, color = theme.primary, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(title, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp, textAlign = TextAlign.Center)
+        }
     }
 }
 
 @Composable
 fun BadgeCard(title: String, desc: String, isUnlocked: Boolean) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = if (isUnlocked) CardSurface else Color(0xFF0B0F19)),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isUnlocked) GoldPrimary.copy(alpha = 0.5f) else Color(0xFF1E293B)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val theme = QabasTheme.current
+    AppleCard(cornerRadius = 14.dp) {
         Row(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .background(if (isUnlocked) GoldPrimary.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.1f), CircleShape),
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (isUnlocked) theme.primary.copy(alpha = 0.16f) else theme.secondarySurface),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     if (isUnlocked) Icons.Default.EmojiEvents else Icons.Default.Lock,
                     contentDescription = null,
-                    tint = if (isUnlocked) GoldPrimary else Color.Gray,
-                    modifier = Modifier.size(20.dp)
+                    tint = if (isUnlocked) theme.primary else theme.textSecondary,
+                    modifier = Modifier.size(22.dp)
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = if (isUnlocked) Color.White else Color.Gray, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(desc, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text(title, color = if (isUnlocked) theme.textPrimary else theme.textSecondary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(desc, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
             if (isUnlocked) {
-                Text("مكتمل ✅", color = Color(0xFF4CAF50), fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Surface(
+                    color = theme.success.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        "مكتمل",
+                        color = theme.success,
+                        fontFamily = CairoFont,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
     }

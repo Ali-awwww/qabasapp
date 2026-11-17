@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,8 +34,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -110,10 +112,6 @@ fun detectKeysForAutoFill(text: String): Map<String, String> {
     return found
 }
 
-/**
- * كشف نوع المفتاح الواحد للصق الذكي — مرتب من الأدق للأعم:
- * البادئات المميزة أولاً، والأنماط العامة (hex المجرد) أخيراً حتى لا تسرق مفاتيح غيرها.
- */
 private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(
     "gemini" to Regex("""AIzaSy[A-Za-z0-9_\-]{33}"""),
     "groq" to Regex("""(?:gsk_[A-Za-z0-9_\-]{10,}|xai-[A-Za-z0-9_\-]{10,})"""),
@@ -126,7 +124,6 @@ private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(
     "azure" to Regex("""(?i)[a-f0-9]{32}""")
 )
 
-/** تنظيف اللصق: مسافات وأسطر واقتباس وبادئة Bearer ومحارف خفية. */
 fun normalizePastedKey(raw: String): String {
     var s = KeyPoolManager.sanitizeApiKey(raw)
         .replace(Regex("\\s+"), "")
@@ -135,7 +132,6 @@ fun normalizePastedKey(raw: String): String {
     return KeyPoolManager.sanitizeApiKey(s).removeSurrounding("\"").removeSurrounding("'")
 }
 
-/** أول تطابق كامل حسب الترتيب الدقيق — null تعني غير معروف. */
 fun detectSingleKeyService(input: String): String? {
     val key = normalizePastedKey(input)
     if (key.length < 8) return null
@@ -164,6 +160,7 @@ object ApiKeysBackupManager {
             "azure_speech_key",
             "azure_speech_region",
             "elevenlabs_key",
+            "leonardo_api_key",
         )
 
         for (k in allKeysToExport) {
@@ -212,6 +209,8 @@ object ApiKeysBackupManager {
                     "openai_key" to "openai_key",
                     "openrouter" to "openrouter_key",
                     "openrouter_key" to "openrouter_key",
+                    "leonardo" to "leonardo_api_key",
+                    "leonardo_api_key" to "leonardo_api_key",
                 )
 
                 val keysIterator = targetObj.keys()
@@ -234,7 +233,7 @@ object ApiKeysBackupManager {
             for (line in lines) {
                 val trimmed = line.trim()
                 if (trimmed.isBlank() || trimmed.startsWith("#") || trimmed.startsWith("//")) continue
-                val cleanLine = trimmed.replace(Regex("""^(val|var|const|let|String|final|static|\"|\')\s*"""), "")
+                val cleanLine = trimmed.replace(Regex("""^(val|var|const|let|String|final|static|"|')\s*"""), "")
                 val parts = cleanLine.split("=", ":", limit = 2)
                 if (parts.size == 2) {
                     val keyName = parts[0].trim().lowercase().removeSurrounding("\"", "'")
@@ -250,6 +249,7 @@ object ApiKeysBackupManager {
                             keyName.contains("pexels") -> importedMap["pexels_key"] = valStr
                             keyName.contains("pixabay") -> importedMap["pixabay_key"] = valStr
                             keyName.contains("hugging") || keyName.contains("hf") -> importedMap["huggingface_key"] = valStr
+                            keyName.contains("leonardo") -> importedMap["leonardo_api_key"] = valStr
                             keyName.contains("openai") -> importedMap["openai_key"] = valStr
                         }
                     }
@@ -263,7 +263,6 @@ object ApiKeysBackupManager {
                 editor.putString(k, v.trim())
             }
             editor.apply()
-            // إعادة ضبط مسابح المستوردة على القيم الجديدة حتى لا يطغى قديم
             importedMap.forEach { (k, v) ->
                 runCatching { KeyPoolManager.setSingleKey(k, v.trim()) }
             }
@@ -300,7 +299,7 @@ private val ALL_SERVICES = listOf(
         dashboardUrl = "https://aistudio.google.com/app/apikey",
         description = "المحرك الأساسي لكتابة سيناريوهات الريلز، استخراج المعاني القرآنية، وصياغة الخطافات.",
         placeholder = "AIzaSy...",
-        freeFallback = "المحلل البلاغي المحلي المدمج يعمل مجاناً 100% بدون أي مفتاح.",
+        freeFallback = "تظل الميزات السحابية لـ Gemini معطلة حتى إضافة مفتاح API.",
         icon = Icons.Default.AutoFixHigh
     ),
     ServiceUiConfig(
@@ -311,9 +310,9 @@ private val ALL_SERVICES = listOf(
         prefsKey = "groq_key",
         serviceType = "groq",
         dashboardUrl = "https://console.groq.com/keys",
-        description = "معالج فائق السرعة لتوليد الخطافات والعبارات السينمائية الفورية بسرعة 500+ كلمة/ثانية.",
+        description = "معالج فائق السرعة لتوليد الخطافات والعبارات الفورية.",
         placeholder = "gsk_...",
-        freeFallback = "توليد النصوص المحلي يعمل فورياً دون الحاجة لمفتاح خارجي.",
+        freeFallback = "يتطلب مفتاح Groq للتشغيل السريع.",
         icon = Icons.Default.Speed
     ),
     ServiceUiConfig(
@@ -324,9 +323,9 @@ private val ALL_SERVICES = listOf(
         prefsKey = "openai_key",
         serviceType = "openai",
         dashboardUrl = "https://platform.openai.com/api-keys",
-        description = "محرك نماذج GPT-4o المتقدمة لتحليل النصوص والترجمة البلاغية الدقيقة.",
+        description = "محرك نماذج GPT المتقدمة لتحليل النصوص والترجمة البلاغية الدقيقة.",
         placeholder = "sk-...",
-        freeFallback = "المحرك المحلي و Gemini AI المدمجان بديلان جاهزان مجاناً.",
+        freeFallback = "يمكن استخدام Gemini أو Groq بديلاً عند إضافة مفاتيحهما.",
         icon = Icons.Default.Psychology
     ),
     ServiceUiConfig(
@@ -337,9 +336,9 @@ private val ALL_SERVICES = listOf(
         prefsKey = "openrouter_key",
         serviceType = "openrouter",
         dashboardUrl = "https://openrouter.ai/keys",
-        description = "بوابة موحدة تتيح لك الوصول إلى مئات النماذج التوليدية المجانية والمميزة بمفتاح واحد.",
+        description = "بوابة موحدة تتيح الوصول إلى مئات النماذج بمفتاح واحد.",
         placeholder = "sk-or-v1-...",
-        freeFallback = "المحركات المدمجة في التطبيق تعمل تلقائياً دون الحاجة للبوابة.",
+        freeFallback = "يتطلب مفتاح OpenRouter لتوجيه النماذج عبره.",
         icon = Icons.Default.Hub
     ),
     ServiceUiConfig(
@@ -350,9 +349,9 @@ private val ALL_SERVICES = listOf(
         prefsKey = "azure_speech_key",
         serviceType = "azure",
         dashboardUrl = "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices",
-        description = "نطق صوتي فصيح بنبرات عربية واقعية وإحساس سينمائي لمقاطع الريلز.",
-        placeholder = "32 محرف hex (مثال: 1a2b3c...)",
-        freeFallback = "محرك النطق المدمج في نظام أندرويد (TTS) يعمل مجاناً وافتراضياً.",
+        description = "نطق صوتي فصيح بنبرات عربية واقعية لمقاطع الريلز.",
+        placeholder = "32 محرف hex",
+        freeFallback = "محرك النطق المدمج في نظام أندرويد (TTS) متاح محلياً.",
         icon = Icons.Default.RecordVoiceOver,
         hasRegion = true,
         regionPrefsKey = "azure_speech_region"
@@ -365,9 +364,9 @@ private val ALL_SERVICES = listOf(
         prefsKey = "elevenlabs_key",
         serviceType = "elevenlabs",
         dashboardUrl = "https://elevenlabs.io/app/settings/api-keys",
-        description = "أصوات بشرية سينمائية فائقة الواقعية لنبرات السرد الوثائقي والتاريخي.",
+        description = "أصوات بشرية واقعية لنبرات السرد الوثائقي والتاريخي.",
         placeholder = "xi-...",
-        freeFallback = "محرك النطق المحلي ومحرك الهاتف يعملان مجاناً دائماً.",
+        freeFallback = "محرك النطق المدمج في النظام متاح محلياً.",
         icon = Icons.Default.Mic
     ),
     ServiceUiConfig(
@@ -380,7 +379,7 @@ private val ALL_SERVICES = listOf(
         dashboardUrl = "https://huggingface.co/settings/tokens",
         description = "توليد لوحات وخلفيات فنية توضيحية إسلامية بالذكاء الاصطناعي.",
         placeholder = "hf_...",
-        freeFallback = "مكتبة الأنماط البصرية والخلفيات الإسلامية المدمجة جاهزة محلياً.",
+        freeFallback = "الخلفيات المحلية الجاهزة متوفرة داخل التطبيق.",
         icon = Icons.Default.Image
     ),
     ServiceUiConfig(
@@ -391,9 +390,9 @@ private val ALL_SERVICES = listOf(
         prefsKey = "pexels_key",
         serviceType = "pexels",
         dashboardUrl = "https://www.pexels.com/api/",
-        description = "مكتبة مقاطع فيديو سينمائية حرة بدقة 4K و Full HD للدمج كمشاهد B-Roll.",
+        description = "مكتبة مقاطع فيديو سينمائية بدقة عالية لمشاهد B-Roll.",
         placeholder = "56 محرف أبجدي رقمي",
-        freeFallback = "كاش المشاهد السينمائي المحلي وقوالب الفيديو المدمجة.",
+        freeFallback = "الخلفيات المحلية والأصول المدمجة تعمل بدون اتصال.",
         icon = Icons.Default.VideoLibrary
     ),
     ServiceUiConfig(
@@ -404,29 +403,29 @@ private val ALL_SERVICES = listOf(
         prefsKey = "pixabay_key",
         serviceType = "pixabay",
         dashboardUrl = "https://pixabay.com/api/docs/",
-        description = "مكتبة لقطات ومقاطع فيديو طبيعية مساندة للمونتاج الفوري ومؤثرات الحركة.",
+        description = "مكتبة لقطات ومقاطع فيديو طبيعية مساندة للمونتاج.",
         placeholder = "1234567-abcdef123...",
-        freeFallback = "المشاهد المدمجة محلياً في التطبيق تعمل دون اتصال بالإنترنت.",
+        freeFallback = "الأصول المدمجة محلياً تعمل بدون إنترنت.",
         icon = Icons.Default.CameraRoll
     ),
     ServiceUiConfig(
         id = "leonardo",
         name = "Leonardo.ai",
         trackerName = "Leonardo",
-        provider = "Leonardo Interactive AI",
+        provider = "Leonardo AI",
         prefsKey = "leonardo_api_key",
         serviceType = "leonardo",
         dashboardUrl = "https://app.leonardo.ai/api-access",
-        description = "المحرك السينمائي لتوليد الصور والشخصيات التشكيلية فائقة الدقة (Vision XL) وتصميم البوسترات الدعوية والخلفيات الإسلامية الفاخرة.",
-        placeholder = "مفتاح API من منصة app.leonardo.ai",
-        freeFallback = "محرك Hugging Face والمكتبة البصرية المدمجة تعمل كبديل محلي مجاناً.",
+        description = "توليد الصور والشخصيات التشكيلية والتصاميم البصرية فائقة الدقة.",
+        placeholder = "مفتاح API من app.leonardo.ai",
+        freeFallback = "تتوقف ميزة التوليد السحابي حتى إدخال مفتاح Leonardo أو HuggingFace.",
         icon = Icons.Default.Palette
     )
 )
 
 enum class ApiKeysTab(val title: String, val icon: ImageVector) {
-    KEYS("المفاتيح والاتصال الحي", Icons.Default.VpnKey),
-    LOGS("سجل الطلبات والتشخيص", Icons.Default.History),
+    KEYS("المفاتيح والاتصال", Icons.Default.VpnKey),
+    LOGS("سجل الطلبات", Icons.Default.History),
     SYNC("النسخ والمزامنة", Icons.Default.CloudSync)
 }
 
@@ -434,22 +433,19 @@ enum class ApiKeysTab(val title: String, val icon: ImageVector) {
 @Composable
 fun ApiKeysScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val prefs = remember { AgentPrefs.instance(context) }
     val mainScope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableStateOf(ApiKeysTab.KEYS) }
 
-    // Keys state map
-    var keysState by remember {
-        mutableStateOf(
-            ALL_SERVICES.associate { svc ->
-                svc.prefsKey to (prefs.getString(svc.prefsKey, "") ?: "")
-            }
-        )
-    }
-    var azureRegion by remember {
-        mutableStateOf(prefs.getString("azure_speech_region", "") ?: "")
-    }
+    fun reloadKeysFromStorage(): Map<String, String> =
+        ALL_SERVICES.associate { svc ->
+            svc.prefsKey to (KeyPoolManager.getActiveKey(svc.prefsKey).ifBlank { prefs.getString(svc.prefsKey, "") ?: "" })
+        }
+
+    var keysState by remember { mutableStateOf(reloadKeysFromStorage()) }
+    var azureRegion by remember { mutableStateOf(prefs.getString("azure_speech_region", "") ?: "") }
 
     var visibilityState by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var testingState by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -464,7 +460,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
     var smartPasteText by remember { mutableStateOf("") }
     var lastGlobalClipboard by remember { mutableStateOf("") }
 
-    // اللصق الذكي الموحد: حقل واحد يقبل أي صيغة ويكشف نوعها
     var smartInput by remember { mutableStateOf("") }
     var smartShowKey by remember { mutableStateOf(false) }
     var smartTesting by remember { mutableStateOf(false) }
@@ -483,7 +478,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         refreshTelemetry()
     }
 
-    // Auto-detect from clipboard
     fun autoDetectAndApply(text: String) {
         if (text.isBlank() || text == lastGlobalClipboard) return
         lastGlobalClipboard = text
@@ -508,15 +502,17 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 else -> null
             }
             if (prefKey != null) {
-                newKeys[prefKey] = key
-                editor.putString(prefKey, key)
+                val clean = key.trim()
+                newKeys[prefKey] = clean
+                editor.putString(prefKey, clean)
+                runCatching { KeyPoolManager.setSingleKey(prefKey, clean) }
                 appliedNames.add(srv)
             }
         }
         editor.apply()
         keysState = newKeys
         if (appliedNames.isNotEmpty()) {
-            autoCaptureMessage = "تم التقاط ${appliedNames.size} مفتاح من الحافظة تلقائياً: ${appliedNames.joinToString("، ")} ✅"
+            autoCaptureMessage = "تم التقاط ${appliedNames.size} مفتاح من الحافظة تلقائياً: ${appliedNames.joinToString("، ")}"
         }
     }
 
@@ -537,18 +533,17 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    // Save individual key (single source of truth = pool; legacy mirrored)
     fun saveKey(prefKey: String, value: String) {
-        KeyPoolManager.setSingleKey(prefKey, value.trim())
-        keysState = keysState + (prefKey to value.trim())
-        Toast.makeText(context, "تم حفظ المفتاح بنجاح 💾", Toast.LENGTH_SHORT).show()
+        val clean = value.trim()
+        KeyPoolManager.setSingleKey(prefKey, clean)
+        keysState = keysState + (prefKey to clean)
+        Toast.makeText(context, "تم حفظ المفتاح بنجاح", Toast.LENGTH_SHORT).show()
     }
 
-    // Test single key
     fun runTestSingleKey(svc: ServiceUiConfig) {
         val key = keysState[svc.prefsKey].orEmpty().trim()
         if (key.isBlank()) {
-            Toast.makeText(context, "يرجى كتابة أو لصق المفتاح أولاً قبل إجراء الفحص", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "يرجى إدخال أو لصق المفتاح أولاً قبل الفحص", Toast.LENGTH_SHORT).show()
             return
         }
         val region = if (svc.hasRegion) azureRegion.trim() else null
@@ -560,9 +555,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 validationResults = validationResults + (svc.id to res)
                 refreshTelemetry()
                 if (res.isValid) {
-                    Toast.makeText(context, "✅ ${svc.name}: الاتصال ناجح (${res.errorCode ?: 200})", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "${svc.name}: الاتصال ناجح (${res.errorCode ?: 200})", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, "❌ ${svc.name}: ${res.summary}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "${svc.name}: ${res.summary}", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 Toast.makeText(context, "خطأ أثناء الفحص: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
@@ -572,7 +567,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    // Test all configured keys
     fun runTestAllKeys() {
         mainScope.launch {
             val targets = ALL_SERVICES.mapNotNull { svc ->
@@ -584,7 +578,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             }
 
             if (targets.isEmpty()) {
-                Toast.makeText(context, "لم يتم إدخال أي مفتاح بعد — أدخل مفتاحاً واحداً على الأقل للبدء بالفحص الشامل", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "لم يتم إدخال أي مفتاح بعد — أدخل مفتاحاً واحداً على الأقل للفحص", Toast.LENGTH_LONG).show()
                 return@launch
             }
 
@@ -605,23 +599,22 @@ fun ApiKeysScreen(onBack: () -> Unit) {
 
             isTestingAll = false
             refreshTelemetry()
-            Toast.makeText(context, "اكتمل الفحص الشامل لجميع الخدمات الحية بنجاح ⚡", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "اكتمل الفحص الشامل لجميع المفاتيح المدخلة", Toast.LENGTH_LONG).show()
         }
     }
 
-    // اللصق الذكي: تعبئة الحقل الصحيح تلقائياً + تطبيق متطلباته + فحص فوري مع السرعة
     fun runSmartFillAndTest() {
         val clean = normalizePastedKey(smartInput)
         val svcId = detectSingleKeyService(clean)
         if (svcId == null) {
-            Toast.makeText(context, "تعذر التعرف على نوع المفتاح — تأكد من نسخه كاملاً دون نقص", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "تعذر التعرف على نوع المفتاح — تأكد من نسخه كاملاً", Toast.LENGTH_LONG).show()
             return
         }
         val svc = ALL_SERVICES.find { it.id == svcId } ?: return
         KeyPoolManager.setSingleKey(svc.prefsKey, clean)
         keysState = keysState + (svc.prefsKey to clean)
         if (svc.hasRegion && azureRegion.isBlank()) {
-            Toast.makeText(context, "تم حفظ مفتاح ${svc.name} — أدخل المنطقة (Region) في بطاقته ثم افحص", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "تم حفظ مفتاح ${svc.name} — أدخل المنطقة (Region) أدناه ثم افحص", Toast.LENGTH_LONG).show()
         }
         mainScope.launch {
             smartTesting = true
@@ -636,7 +629,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 refreshTelemetry()
                 Toast.makeText(
                     context,
-                    if (res.isValid) "✅ ${svc.name}: يعمل (${ms}ms)" else "❌ ${svc.name}: ${res.summary}",
+                    if (res.isValid) "${svc.name}: يعمل (${ms}ms)" else "${svc.name}: ${res.summary}",
                     Toast.LENGTH_LONG
                 ).show()
             } catch (e: Exception) {
@@ -647,7 +640,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    // File export/import launchers
     val exportJsonLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
@@ -655,7 +647,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             try {
                 val json = ApiKeysBackupManager.generateExportJson(prefs, keysState)
                 context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-                Toast.makeText(context, "تم تصدير ملف المفاتيح بنجاح 📁✨", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "تم تصدير ملف المفاتيح بنجاح", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Toast.makeText(context, "فشل التصدير: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             }
@@ -670,11 +662,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
                 val (count, map) = ApiKeysBackupManager.parseAndApplyImport(text, prefs)
                 if (count > 0) {
-                    val updated = keysState.toMutableMap()
-                    map.forEach { (k, v) -> updated[k] = v }
-                    keysState = updated
+                    keysState = keysState + map
                     map["azure_speech_region"]?.let { azureRegion = it }
-                    Toast.makeText(context, "تم استيراد $count مفتاح بنجاح! 📥✨", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "تم استيراد $count مفتاح بنجاح", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "لم يتم العثور على مفاتيح صالحة داخل الملف", Toast.LENGTH_SHORT).show()
                 }
@@ -684,7 +674,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    // Calculate aggregated metrics
     val totalRequestsSent = remember(usageStats) { usageStats.values.sumOf { it.totalCalls } }
     val totalSuccessful = remember(usageStats) { usageStats.values.sumOf { it.successCalls } }
     val totalFailed = remember(usageStats) { usageStats.values.sumOf { it.failureCalls } }
@@ -701,254 +690,156 @@ fun ApiKeysScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
+        containerColor = theme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "لوحة تحكم المفاتيح والاتصال الحي",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            fontSize = 17.sp
-                        )
-                        Text(
-                            text = "تشخيص مباشر لحركة الطلبات وأسباب النجاح والفشل",
-                            fontFamily = CairoFont,
-                            color = GoldPrimary,
-                            fontSize = 11.sp
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
-                    }
-                },
+            AppleTopBar(
+                title = "مفاتيح API والاتصال",
+                subtitle = "إدارة المفاتيح، الفحص المباشر، والمزامنة",
+                onBack = onBack,
                 actions = {
-                    IconButton(onClick = { refreshTelemetry() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary)
+                    IconButton(onClick = { refreshTelemetry() }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = theme.primary)
                     }
-                    IconButton(onClick = { exportJsonLauncher.launch("qabas_api_keys.json") }) {
-                        Icon(Icons.Default.FileDownload, contentDescription = "تصدير", tint = TextSecondary)
+                    IconButton(onClick = { exportJsonLauncher.launch("qabas_api_keys.json") }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.FileDownload, contentDescription = "تصدير", tint = theme.textPrimary)
                     }
-                    IconButton(onClick = { importJsonLauncher.launch("*/*") }) {
-                        Icon(Icons.Default.FileUpload, contentDescription = "استيراد", tint = TextSecondary)
+                    IconButton(onClick = { importJsonLauncher.launch("*/*") }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.FileUpload, contentDescription = "استيراد", tint = theme.textPrimary)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                }
             )
-        },
-        containerColor = DeepSlate
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Connection Summary Bar
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1322)),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
-                shape = RoundedCornerShape(0.dp),
+            // Compact KPI & Test-All Bar
+            Surface(
+                color = theme.cardSurface,
+                tonalElevation = 0.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    // KPI Row
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         KpiStatChip(
-                            label = "الطلبات المرسلة",
+                            label = "الطلبات",
                             value = "$totalRequestsSent",
-                            color = Color(0xFF60A5FA),
+                            color = theme.primary,
                             icon = Icons.Default.Send,
                             modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
                         KpiStatChip(
-                            label = "الناجحة ($overallSuccessRate%)",
+                            label = "ناجحة ($overallSuccessRate%)",
                             value = "$totalSuccessful",
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             icon = Icons.Default.CheckCircle,
                             modifier = Modifier.weight(1.1f)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
                         KpiStatChip(
-                            label = "الفاشلة",
+                            label = "فاشلة",
                             value = "$totalFailed",
-                            color = if (totalFailed > 0) Color(0xFFEF4444) else Color(0xFF94A3B8),
+                            color = if (totalFailed > 0) theme.destructive else theme.textSecondary,
                             icon = Icons.Default.Cancel,
                             modifier = Modifier.weight(0.9f)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
                         KpiStatChip(
-                            label = "سرعة الاتصال",
+                            label = "السرعة",
                             value = if (avgLatency > 0) "$avgLatency ms" else "--",
-                            color = GoldPrimary,
+                            color = if (theme.isDark) AppleDarkGold else AppleLightGold,
                             icon = Icons.Default.Speed,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    ApplePrimaryButton(
+                        text = if (isTestingAll) "جاري فحص جميع الخدمات الحية..." else "فحص شامل لجميع المفاتيح الآن",
+                        icon = Icons.Default.FlashOn,
+                        isLoading = isTestingAll,
+                        onClick = { runTestAllKeys() }
+                    )
 
-                    // Global Check All Button
-                    Button(
-                        onClick = { runTestAllKeys() },
-                        enabled = !isTestingAll,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isTestingAll) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("جاري فحص جميع الخدمات الحية عبر الإنترنت...", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        } else {
-                            Icon(Icons.Default.FlashOn, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("⚡ فحص شامل لجميع الخدمات الحية الآن", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                }
-            }
-
-            // Navigation Tabs
-            TabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                containerColor = Color(0xFF0F172A),
-                contentColor = GoldPrimary
-            ) {
-                ApiKeysTab.values().forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(tab.icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(tab.title, fontFamily = CairoFont, fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal, fontSize = 11.sp)
-                            }
-                        },
-                        selectedContentColor = GoldPrimary,
-                        unselectedContentColor = TextSecondary
+                    AppleSegmentedControl(
+                        items = ApiKeysTab.entries.map { it to it.title },
+                        selectedItem = selectedTab,
+                        onSelect = { selectedTab = it }
                     )
                 }
             }
 
-            // Banner for auto-capture
+            HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.45f))
+
             AnimatedVisibility(
                 visible = autoCaptureMessage != null,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                    color = theme.success.copy(alpha = 0.12f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = theme.success, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = autoCaptureMessage.orEmpty(),
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = { autoCaptureMessage = null }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Clear, contentDescription = "إغلاق", tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                        IconButton(onClick = { autoCaptureMessage = null }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Clear, contentDescription = "إغلاق", tint = theme.success, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             }
 
-            // Main Content by Tab
             when (selectedTab) {
                 ApiKeysTab.KEYS -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(14.dp),
+                        contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // Spatial HUD Live Diagnostics & Auto-Healing
                         item {
-                            SpatialServiceDiagnosticsHub(
-                                onNavigateToKeys = null
-                            )
+                            SpatialServiceDiagnosticsHub(onNavigateToKeys = null)
                         }
 
-                        // Notice of Free Fallback
+                        // Smart Paste Card
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF10B981).copy(alpha = 0.08f)),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(
-                                            text = "قبس يعمل مجاناً 100% دون أي مفتاح إجباري 🎉",
-                                            color = Color(0xFF10B981),
-                                            fontFamily = CairoFont,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Text(
-                                            text = "التحليل البلاغي المحلي ومحرك أندرويد الصوتي ومعالجة الفيديو المدمجة تعمل بالكامل. المفاتيح أدناه اختيارية لرفع الجودة لأقصى حدودها.",
-                                            color = TextSecondary,
-                                            fontFamily = CairoFont,
-                                            fontSize = 11.sp,
-                                            lineHeight = 16.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Services List
-                        // Smart Paste Box: one field accepts any format, detects its type,
-                        // applies its requirements, and tests it with live latency.
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1324)),
-                                border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                            AppleCard {
                                 Column(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "اللصق الذكي 🧠 — الصق أي مفتاح فيتعرف عليه تلقائياً",
-                                            color = Color.White,
+                                            text = "اللصق الذكي — التعرف التلقائي على المفاتيح",
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
+                                            fontSize = 14.sp
                                         )
                                     }
 
                                     OutlinedTextField(
                                         value = smartInput,
                                         onValueChange = { smartInput = it },
-                                        label = { Text("الصق المفتاح هنا بأي صيغة (gsk_ ، sk- ، AIzaSy ، hf_ ...)", fontFamily = CairoFont, fontSize = 11.sp) },
+                                        label = { Text("الصق المفتاح هنا (AIzaSy, gsk_, sk-, hf_ ...)", fontFamily = NotoSansFont, fontSize = 12.sp) },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                         visualTransformation = if (smartShowKey) VisualTransformation.None else PasswordVisualTransformation(),
@@ -958,13 +849,13 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                                     val clip = androidClipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
                                                     if (clip.isNotBlank()) smartInput = clip
                                                 }) {
-                                                    Icon(Icons.Default.ContentPaste, contentDescription = "لصق", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Default.ContentPaste, contentDescription = "لصق", tint = theme.primary, modifier = Modifier.size(18.dp))
                                                 }
                                                 IconButton(onClick = { smartShowKey = !smartShowKey }) {
                                                     Icon(
                                                         if (smartShowKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                        contentDescription = "إظهار",
-                                                        tint = TextSecondary,
+                                                        contentDescription = "إظهار/إخفاء",
+                                                        tint = theme.textSecondary,
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                 }
@@ -973,100 +864,72 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                                         smartInput = ""
                                                         smartLatencyMs = null
                                                     }) {
-                                                        Icon(Icons.Default.Clear, contentDescription = "مسح", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                                                        Icon(Icons.Default.Clear, contentDescription = "مسح", tint = theme.textSecondary, modifier = Modifier.size(18.dp))
                                                     }
                                                 }
                                             }
                                         },
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White,
-                                            focusedLabelColor = GoldPrimary,
-                                            unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
-                                        )
+                                        shape = RoundedCornerShape(12.dp)
                                     )
 
-                                    // Live detection chip
                                     if (smartDetectedSvc != null) {
                                         Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = Color(0xFF10B981).copy(alpha = 0.12f),
-                                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = theme.success.copy(alpha = 0.10f),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Column(modifier = Modifier.padding(10.dp)) {
                                                 Text(
-                                                    text = "تم التعرف: ${smartDetectedSvc.name} (${smartDetectedSvc.provider}) ⚡",
-                                                    color = Color(0xFF10B981),
+                                                    text = "تم التعرف: ${smartDetectedSvc.name} (${smartDetectedSvc.provider})",
+                                                    color = theme.success,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp
+                                                    fontSize = 12.5.sp
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
                                                     text = if (smartDetectedSvc.hasRegion)
-                                                        "المتطلبات: يحتاج المنطقة (Region) — املأها في بطاقته أدناه قبل الفحص"
+                                                        "يتطلب إدخال المنطقة (Region) في بطاقته أدناه قبل الفحص"
                                                     else
-                                                        "المتطلبات: لا شيء إضافي — جاهز للفحص المباشر",
-                                                    color = TextSecondary,
-                                                    fontFamily = CairoFont,
-                                                    fontSize = 11.sp
+                                                        "جاهز للحفظ والفحص المباشر",
+                                                    color = theme.textSecondary,
+                                                    fontFamily = NotoSansFont,
+                                                    fontSize = 11.5.sp
                                                 )
                                             }
                                         }
                                     } else if (normalizePastedKey(smartInput).length >= 8) {
                                         Text(
-                                            text = "غير معروف بعد 🟡 — تأكد من لصق المفتاح كاملاً",
-                                            color = Color(0xFFF59E0B),
+                                            text = "صيغة غير معروفة بعد — تأكد من لصق المفتاح كاملاً",
+                                            color = theme.warning,
                                             fontFamily = CairoFont,
-                                            fontSize = 11.5.sp
+                                            fontSize = 12.sp
                                         )
                                     }
 
-                                    Button(
-                                        onClick = { runSmartFillAndTest() },
-                                        enabled = smartDetectedSvc != null && !smartTesting,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = GoldPrimary,
-                                            disabledContainerColor = Color.White.copy(alpha = 0.12f),
-                                            contentColor = DeepSlate,
-                                            disabledContentColor = Color.White.copy(alpha = 0.4f)
-                                        ),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(46.dp)
-                                    ) {
-                                        if (smartTesting) {
-                                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("يفحص الاتصال ويقيس السرعة...", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                        } else {
-                                            Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("تعبئة وفحص تلقائياً ⚡", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        }
-                                    }
+                                    ApplePrimaryButton(
+                                        text = if (smartTesting) "يفحص الاتصال..." else "تعبئة وفحص تلقائياً",
+                                        icon = Icons.Default.Speed,
+                                        enabled = smartDetectedSvc != null,
+                                        isLoading = smartTesting,
+                                        onClick = { runSmartFillAndTest() }
+                                    )
 
-                                    // Live result + latency
                                     val smartRes = smartDetectedId?.let { validationResults[it] }
                                     if (smartRes != null) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
                                                 if (smartRes.isValid) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
                                                 contentDescription = null,
-                                                tint = if (smartRes.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                                                tint = if (smartRes.isValid) theme.success else theme.destructive,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = smartRes.summary +
-                                                    (smartLatencyMs?.let { " • سرعة الاتصال: ${it}ms" } ?: ""),
-                                                color = Color.White,
+                                                text = smartRes.summary + (smartLatencyMs?.let { " • سرعة الاتصال: ${it}ms" } ?: ""),
+                                                color = theme.textPrimary,
                                                 fontFamily = CairoFont,
-                                                fontSize = 11.5.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         }
@@ -1095,9 +958,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                 onVisibilityToggle = {
                                     visibilityState = visibilityState + (service.id to !isVisible)
                                 },
-                                onSave = {
-                                    saveKey(service.prefsKey, currentKey)
-                                },
+                                onSave = { saveKey(service.prefsKey, currentKey) },
                                 onPaste = {
                                     val clipText = androidClipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
                                     if (clipText.isNotBlank()) {
@@ -1110,12 +971,8 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                     keysState = keysState + (service.prefsKey to "")
                                     Toast.makeText(context, "تم مسح المفتاح", Toast.LENGTH_SHORT).show()
                                 },
-                                onTest = {
-                                    runTestSingleKey(service)
-                                },
-                                onOpenUrl = {
-                                    openUrl(context, service.dashboardUrl)
-                                },
+                                onTest = { runTestSingleKey(service) },
+                                onOpenUrl = { openUrl(context, service.dashboardUrl) },
                                 hasRegion = service.hasRegion,
                                 regionValue = azureRegion,
                                 onRegionChange = {
@@ -1148,15 +1005,13 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 ApiKeysTab.SYNC -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(14.dp),
+                        contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // Operational Readiness Card
                         item {
                             ReadinessScoreCard(readinessReport)
                         }
 
-                        // JSON Backup and Restore Card
                         item {
                             JsonBackupCard(
                                 onExport = { exportJsonLauncher.launch("qabas_api_keys.json") },
@@ -1165,9 +1020,14 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                             )
                         }
 
-                        // Cloud Sync Card (Supabase)
                         item {
-                            SupabaseSyncCard(context)
+                            SupabaseSyncCard(
+                                context = context,
+                                onSyncedFromCloud = {
+                                    keysState = reloadKeysFromStorage()
+                                    azureRegion = prefs.getString("azure_speech_region", "") ?: azureRegion
+                                }
+                            )
                         }
                     }
                 }
@@ -1175,67 +1035,65 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    // Smart Paste Dialog
     if (showSmartPasteDialog) {
         AlertDialog(
             onDismissRequest = { showSmartPasteDialog = false },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val (count, map) = ApiKeysBackupManager.parseAndApplyImport(smartPasteText, prefs)
-                        if (count > 0) {
-                            val updated = keysState.toMutableMap()
-                            map.forEach { (k, v) -> updated[k] = v }
-                            keysState = updated
-                            map["azure_speech_region"]?.let { azureRegion = it }
-                            Toast.makeText(context, "تم استخراج وتوزيع $count مفاتيح بنجاح! 📋✨", Toast.LENGTH_LONG).show()
-                            showSmartPasteDialog = false
-                            smartPasteText = ""
-                        } else {
-                            Toast.makeText(context, "لم يتم العثور على صيغ مفاتيح صالحة في النص المدخل", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
-                ) {
-                    Text("استخراج وتوزيع المفاتيح", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSmartPasteDialog = false }) {
-                    Text("إلغاء", color = TextSecondary, fontFamily = CairoFont)
-                }
-            },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
-                Text("اللصق الذكي للـ API Keys 📋", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("اللصق الذكي لمفاتيح API", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.textPrimary)
             },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "الصق هنا أي ملف .env أو كود JSON أو رسالة نصية تحتوي على مفاتيح متعددة، وسيقوم التطبيق بفرزها وتوزيعها في أماكنها الصحيحة تلقائياً:",
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp,
-                        color = TextSecondary,
-                        lineHeight = 16.sp
+                        "الصق محتوى ملف .env أو كود JSON أو نصاً يحتوي على مفاتيح متعددة، وسيقوم التطبيق بفرزها وتخزينها تلقائياً:",
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.5.sp,
+                        color = theme.textSecondary,
+                        lineHeight = 18.sp
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = smartPasteText,
                         onValueChange = { smartPasteText = it },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(160.dp),
-                        placeholder = { Text("مثال:\nGEMINI_API_KEY=AIzaSy...\nGROQ_API_KEY=gsk_...", fontSize = 11.sp, color = TextSecondary.copy(alpha = 0.5f)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedContainerColor = Color(0xFF0F172A),
-                            unfocusedContainerColor = Color(0xFF0F172A)
-                        ),
-                        shape = RoundedCornerShape(10.dp)
+                        placeholder = {
+                            Text(
+                                "GEMINI_API_KEY=AIzaSy...\nGROQ_API_KEY=gsk_...",
+                                fontSize = 12.sp,
+                                color = theme.textSecondary.copy(alpha = 0.6f)
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
             },
-            containerColor = Color(0xFF1E293B)
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val (count, map) = ApiKeysBackupManager.parseAndApplyImport(smartPasteText, prefs)
+                        if (count > 0) {
+                            keysState = keysState + map
+                            map["azure_speech_region"]?.let { azureRegion = it }
+                            Toast.makeText(context, "تم استخراج وتوزيع $count مفاتيح بنجاح", Toast.LENGTH_LONG).show()
+                            showSmartPasteDialog = false
+                            smartPasteText = ""
+                        } else {
+                            Toast.makeText(context, "لم يتم العثور على صيغ مفاتيح صالحة في النص المدخل", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("استخراج وتوزيع", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSmartPasteDialog = false }) {
+                    Text("إلغاء", color = theme.textSecondary, fontFamily = CairoFont)
+                }
+            }
         )
     }
 }
@@ -1248,10 +1106,10 @@ private fun KpiStatChip(
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF1E293B).copy(alpha = 0.8f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.35f)),
-        shape = RoundedCornerShape(8.dp),
+        color = theme.secondarySurface,
+        shape = RoundedCornerShape(10.dp),
         modifier = modifier
     ) {
         Column(
@@ -1260,11 +1118,11 @@ private fun KpiStatChip(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(label, color = TextSecondary, fontFamily = CairoFont, fontSize = 9.sp, maxLines = 1)
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(label, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Text(value, color = color, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(value, color = color, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
         }
     }
 }
@@ -1289,83 +1147,79 @@ private fun ProfessionalServiceCard(
     onRegionChange: (String) -> Unit = {},
     onPoolActiveChanged: (String) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val configured = keyText.isNotBlank()
 
-    // Determine Live Status Pill
     val isLiveSuccess = validation?.isValid == true || (validation == null && configured && stat.lastStatusCode in 200..299 && stat.totalCalls > 0)
     val isLiveFailure = validation?.isValid == false || (validation == null && configured && stat.lastStatusCode != null && stat.lastStatusCode !in 200..299)
 
     val pillColor = when {
-        isTesting -> GoldPrimary
-        isLiveSuccess -> Color(0xFF10B981)
-        isLiveFailure -> Color(0xFFEF4444)
-        !configured -> Color(0xFFF59E0B)
-        stat.totalCalls == 0L -> Color(0xFF94A3B8)
-        else -> Color(0xFF10B981)
+        isTesting -> theme.primary
+        isLiveSuccess -> theme.success
+        isLiveFailure -> theme.destructive
+        !configured -> theme.warning
+        stat.totalCalls == 0L -> theme.textSecondary
+        else -> theme.success
     }
 
     val pillText = when {
-        isTesting -> "جاري الفحص الحي... ⏳"
-        isLiveSuccess -> "متصل حي (${validation?.errorCode ?: stat.lastStatusCode ?: 200}) 🟢"
-        isLiveFailure -> "فشل الاتصال (${validation?.errorCode ?: stat.lastStatusCode ?: "خطأ"}) 🔴"
-        !configured -> "غير مُعد (مجاني) 🟡"
-        stat.totalCalls == 0L -> "جاهز للاختبار ⚪"
-        else -> "متصل مستقر 🟢"
+        isTesting -> "جاري الفحص..."
+        isLiveSuccess -> "متصل (${validation?.errorCode ?: stat.lastStatusCode ?: 200})"
+        isLiveFailure -> "فشل (${validation?.errorCode ?: stat.lastStatusCode ?: "خطأ"})"
+        !configured -> "غير مُعد"
+        stat.totalCalls == 0L -> "جاهز للاختبار"
+        else -> "متصل مستقر"
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-        border = BorderStroke(1.dp, pillColor.copy(alpha = 0.45f)),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().testTag("api_key_card_${service.id}")
+    AppleCard(
+        modifier = Modifier.testTag("api_key_card_${service.id}")
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Header Row
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = pillColor.copy(alpha = 0.15f),
-                    shape = CircleShape,
-                    modifier = Modifier.size(38.dp)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(pillColor.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(service.icon, contentDescription = null, tint = pillColor, modifier = Modifier.size(20.dp))
-                    }
+                    Icon(service.icon, contentDescription = null, tint = pillColor, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(service.name, fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
+                        Text(service.name, fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.textPrimary, fontSize = 15.sp)
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
-                            color = Color(0xFF1E293B),
-                            shape = RoundedCornerShape(4.dp)
+                            color = theme.secondarySurface,
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 service.provider,
-                                color = TextSecondary,
-                                fontFamily = CairoFont,
-                                fontSize = 9.sp,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         service.description,
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp,
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp,
                         maxLines = 2,
-                        lineHeight = 14.sp
+                        lineHeight = 16.sp
                     )
                 }
 
-                // Live Status Chip
+                Spacer(modifier = Modifier.width(8.dp))
                 Surface(
-                    color = pillColor.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, pillColor.copy(alpha = 0.5f)),
+                    color = pillColor.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -1381,298 +1235,205 @@ private fun ProfessionalServiceCard(
                             color = pillColor,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
+                            fontSize = 10.5.sp
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Input Row
             OutlinedTextField(
                 value = keyText,
                 onValueChange = onKeyChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(service.placeholder, color = Color(0xFF64748B), fontSize = 11.sp) },
+                placeholder = { Text(service.placeholder, color = theme.textSecondary.copy(alpha = 0.7f), fontSize = 12.sp) },
                 visualTransformation = if (isVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onVisibilityToggle, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onVisibilityToggle, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "إظهار/إخفاء",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(16.dp)
+                                tint = theme.textSecondary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         if (keyText.isNotEmpty()) {
-                            IconButton(onClick = onClear, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.Clear, contentDescription = "مسح", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                            IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+                                Icon(Icons.Default.Clear, contentDescription = "مسح", tint = theme.destructive, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
                 },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color(0xFF334155),
-                    focusedContainerColor = Color(0xFF0B0F19),
-                    unfocusedContainerColor = Color(0xFF0B0F19)
-                ),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
 
-            // Region input for Azure
             if (hasRegion) {
-                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = regionValue,
                     onValueChange = onRegionChange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("منطقة الخادم (Location/Region)", fontFamily = CairoFont, fontSize = 10.sp) },
-                    placeholder = { Text("مثال: eastus أو westeurope أو uksouth", color = Color(0xFF64748B), fontSize = 11.sp) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF334155),
-                        focusedContainerColor = Color(0xFF0B0F19),
-                        unfocusedContainerColor = Color(0xFF0B0F19)
-                    ),
-                    shape = RoundedCornerShape(10.dp),
+                    label = { Text("منطقة الخادم (Region)", fontFamily = NotoSansFont, fontSize = 11.sp) },
+                    placeholder = { Text("مثال: eastus أو westeurope", color = theme.textSecondary.copy(alpha = 0.7f), fontSize = 12.sp) },
+                    shape = RoundedCornerShape(12.dp),
                     singleLine = true
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Action Buttons Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Live Test Button
                 Button(
                     onClick = onTest,
                     enabled = !isTesting && configured,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                    modifier = Modifier.weight(1.3f).testTag("test_key_button_${service.id}")
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = theme.primary,
+                        contentColor = theme.onPrimary,
+                        disabledContainerColor = theme.secondarySurface,
+                        disabledContentColor = theme.textSecondary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .heightIn(min = 48.dp)
+                        .testTag("test_key_button_${service.id}")
                 ) {
                     if (isTesting) {
-                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = GoldPrimary, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = theme.onPrimary, strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Default.FlashOn, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("فحص حي ⚡", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("فحص", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
 
-                // Save Button
                 OutlinedButton(
                     onClick = onSave,
                     enabled = configured,
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19)),
-                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, theme.success.copy(alpha = if (configured) 0.6f else 0.25f)),
+                    shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    modifier = Modifier.weight(1f).testTag("save_key_button_${service.id}")
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .testTag("save_key_button_${service.id}")
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Save, contentDescription = null, tint = if (configured) theme.success else theme.textSecondary, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("حفظ", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("حفظ", color = if (configured) theme.success else theme.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
 
-                // Paste Button
                 OutlinedButton(
                     onClick = onPaste,
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19)),
-                    border = BorderStroke(1.dp, Color(0xFF334155)),
-                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, theme.separator.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.95f).heightIn(min = 48.dp)
                 ) {
-                    Icon(Icons.Default.ContentPaste, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.ContentPaste, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("لصق", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("لصق", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
 
-                // Get Key Link
                 OutlinedButton(
                     onClick = onOpenUrl,
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19)),
-                    border = BorderStroke(1.dp, Color(0xFF334155)),
-                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, theme.separator.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    modifier = Modifier.weight(0.9f)
+                    modifier = Modifier.weight(0.95f).heightIn(min = 48.dp)
                 ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("المفتاح 🔗", color = Color(0xFF60A5FA), fontFamily = CairoFont, fontSize = 10.sp)
+                    Text("جلب", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
 
-            // Key Pool: backup keys with manual switch + per-key test (auto-failover reads active)
             KeyPoolSection(
                 service = service,
                 regionValue = regionValue,
                 onPoolActiveChanged = onPoolActiveChanged
             )
 
-            // Real Live Request Telemetry Strip
-            Spacer(modifier = Modifier.height(10.dp))
             Surface(
-                color = Color(0xFF0B0F19),
-                border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                shape = RoundedCornerShape(8.dp),
+                color = theme.secondarySurface,
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text("الطلبات: ${stat.totalCalls}", color = theme.primary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                    Text("الناجحة: ${stat.successCalls}", color = theme.success, fontFamily = NotoSansFont, fontSize = 11.sp)
+                    Text("الفاشلة: ${stat.failureCalls}", color = if (stat.failureCalls > 0) theme.destructive else theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     Text(
-                        text = "الطلبات: ${stat.totalCalls} 📤",
-                        color = Color(0xFF60A5FA),
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = "الناجحة: ${stat.successCalls} 🟢",
-                        color = Color(0xFF10B981),
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = "الفاشلة: ${stat.failureCalls} 🔴",
-                        color = if (stat.failureCalls > 0) Color(0xFFEF4444) else Color.Gray,
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = if (stat.lastLatencyMs > 0) "${stat.lastLatencyMs} ms ⚡" else "--",
-                        color = GoldPrimary,
+                        text = if (stat.lastLatencyMs > 0) "${stat.lastLatencyMs} ms" else "--",
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
+                        fontSize = 11.sp
                     )
                 }
             }
 
-            // Diagnostic Reasons Box (Success Reason & Failure Reason)
-            val successReason = validation?.takeIf { it.isValid }?.explanation
-                ?: stat.lastSuccessReason
-
-            val failureReason = validation?.takeIf { !it.isValid }?.explanation
-                ?: stat.lastFailureReason
-
+            val successReason = validation?.takeIf { it.isValid }?.explanation ?: stat.lastSuccessReason
+            val failureReason = validation?.takeIf { !it.isValid }?.explanation ?: stat.lastFailureReason
             val suggestedFix = validation?.suggestedFix
 
-            if (!successReason.isNullOrBlank() || !failureReason.isNullOrBlank() || !configured) {
-                Spacer(modifier = Modifier.height(8.dp))
+            if (!successReason.isNullOrBlank()) {
+                Surface(
+                    color = theme.success.copy(alpha = 0.10f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("حالة الاتصال", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(successReason, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+                    }
+                }
+            }
 
-                // Success Reason Box
-                if (!successReason.isNullOrBlank()) {
-                    Surface(
-                        color = Color(0xFF10B981).copy(alpha = 0.09f),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "سبب النجاح وحالة الاتصال 🟢",
-                                    color = Color(0xFF10B981),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
+            if (!failureReason.isNullOrBlank()) {
+                Surface(
+                    color = theme.destructive.copy(alpha = 0.10f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("سبب الفشل وتشخيص الخطأ", color = theme.destructive, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(failureReason, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+                        if (!suggestedFix.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = successReason,
-                                color = Color(0xFFD1FAE5),
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp,
-                                lineHeight = 15.sp
-                            )
+                            Text("الحل الموصى به: $suggestedFix", color = theme.warning, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
                         }
                     }
                 }
+            }
 
-                // Failure Reason & Suggested Fix Box
-                if (!failureReason.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Surface(
-                        color = Color(0xFFEF4444).copy(alpha = 0.09f),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.35f)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+            if (!configured && successReason.isNullOrBlank() && failureReason.isNullOrBlank()) {
+                Surface(
+                    color = theme.secondarySurface,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Error, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "سبب الفشل وتشخيص الخطأ 🔴",
-                                    color = Color(0xFFEF4444),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = failureReason,
-                                color = Color(0xFFFCA5A5),
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp,
-                                lineHeight = 15.sp
-                            )
-                            if (!suggestedFix.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.Top) {
-                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "طريقة الحل الموصى بها: $suggestedFix",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.sp,
-                                        lineHeight = 14.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Free fallback info if not configured
-                if (!configured && successReason.isNullOrBlank() && failureReason.isNullOrBlank()) {
-                    Surface(
-                        color = Color(0xFF1E293B).copy(alpha = 0.4f),
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = GoldSecondary, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "البديل المجاني: ${service.freeFallback}",
-                                color = TextSecondary,
-                                fontFamily = CairoFont,
-                                fontSize = 9.5.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
+                        Icon(Icons.Default.Info, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = service.freeFallback,
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
                     }
                 }
             }
@@ -1687,9 +1448,10 @@ private fun KeyPoolSection(
     onPoolActiveChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
-    var refreshTick by remember { mutableStateOf(0) }
+    var refreshTick by remember { mutableIntStateOf(0) }
     var newKeyInput by remember { mutableStateOf("") }
     var testingIdx by remember { mutableStateOf<Int?>(null) }
     var poolResults by remember { mutableStateOf<Map<Int, KeyValidationResult>>(emptyMap()) }
@@ -1704,18 +1466,16 @@ private fun KeyPoolSection(
         refreshTick++
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Spacer(modifier = Modifier.height(8.dp))
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(
             shape = RoundedCornerShape(10.dp),
-            color = Color(0xFF0B0F19),
-            border = BorderStroke(1.dp, Color(0xFF334155)),
+            color = theme.secondarySurface,
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { expanded = !expanded }
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1723,32 +1483,32 @@ private fun KeyPoolSection(
                     Icon(
                         Icons.Default.VpnKey,
                         contentDescription = null,
-                        tint = if (pool.size > 1) Color(0xFF10B981) else TextSecondary,
-                        modifier = Modifier.size(15.dp)
+                        tint = if (pool.size > 1) theme.success else theme.textSecondary,
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "مفاتيح احتياطية (${pool.size}) 🔑",
-                        color = Color.White,
+                        text = "المفاتيح الاحتياطية (${pool.size})",
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (pool.size > 1) {
                         Text(
-                            text = "تجاوز تلقائي مفعّل ⚡",
-                            color = Color(0xFF10B981),
-                            fontFamily = CairoFont,
-                            fontSize = 9.5.sp
+                            text = "تبديل تلقائي مفعّل",
+                            color = theme.success,
+                            fontFamily = NotoSansFont,
+                            fontSize = 10.5.sp
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                     }
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = TextSecondary,
+                        contentDescription = if (expanded) "طي" else "توسيع",
+                        tint = theme.textSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -1756,29 +1516,19 @@ private fun KeyPoolSection(
         }
 
         if (expanded) {
-            Spacer(modifier = Modifier.height(6.dp))
-            // Add row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
                     value = newKeyInput,
                     onValueChange = { newKeyInput = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("الصق مفتاحاً احتياطياً...", color = Color(0xFF64748B), fontSize = 10.sp) },
+                    placeholder = { Text("الصق مفتاحاً احتياطياً...", color = theme.textSecondary, fontSize = 11.sp) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF334155),
-                        focusedContainerColor = Color(0xFF0B0F19),
-                        unfocusedContainerColor = Color(0xFF0B0F19),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(10.dp)
                 )
                 Button(
                     onClick = {
@@ -1787,87 +1537,65 @@ private fun KeyPoolSection(
                         val detected = detectSingleKeyService(clean)
                         if (detected != null && detected != service.id) {
                             val other = ALL_SERVICES.find { it.id == detected }?.name ?: detected
-                            Toast.makeText(context, "هذا المفتاح يبدو لـ $other — أضفه في بطاقتها", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "هذا المفتاح يتبع $other — أضفه في بطاقته", Toast.LENGTH_LONG).show()
                             return@Button
                         }
                         if (KeyPoolManager.addKey(service.prefsKey, clean)) {
                             newKeyInput = ""
                             syncParent()
-                            Toast.makeText(context, "أُضيف المفتاح الاحتياطي ✅", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "أُضيف المفتاح الاحتياطي", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(context, "المفتاح موجود مسبقاً أو غير صالح", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("إضافة", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("إضافة", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
-            // فحص شامل وترتيب حسب الأسرع المتصل ⚡
             if (pool.size > 1) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = {
-                            ranking = true
-                            rankSummary = null
-                            scope.launch {
-                                try {
-                                    val provider = AgentConnectivityEngine.prefsKeyToProvider(service.prefsKey)
-                                    if (provider == DetectedProvider.NONE) {
-                                        rankSummary = "الترتيب التلقائي يدعم Gemini/Groq/OpenAI/OpenRouter فقط"
-                                    } else {
-                                        val (ok, n, best) = AgentConnectivityEngine.rankPoolBySpeed(service.prefsKey, provider)
-                                        rankSummary = if (ok) "تم ترتيب $n مفاتيح — الأسرع المتصل أولاً (${best}ms) ⚡"
-                                        else "لا يوجد مفتاح متصل — تحقق من المفاتيح والشبكة ❌"
-                                        syncParent()
-                                    }
-                                } finally { ranking = false }
+                AppleSecondaryButton(
+                    text = if (ranking) "يفحص السرعة..." else "ترتيب حسب الأسرع المتصل",
+                    icon = Icons.Default.Bolt,
+                    tint = theme.success,
+                    enabled = !ranking && testingIdx == null,
+                    onClick = {
+                        ranking = true
+                        rankSummary = null
+                        scope.launch {
+                            try {
+                                val provider = AgentConnectivityEngine.prefsKeyToProvider(service.prefsKey)
+                                if (provider == DetectedProvider.NONE) {
+                                    rankSummary = "الترتيب التلقائي يدعم Gemini/Groq/OpenAI/OpenRouter فقط"
+                                } else {
+                                    val (ok, n, best) = AgentConnectivityEngine.rankPoolBySpeed(service.prefsKey, provider)
+                                    rankSummary = if (ok) "تم ترتيب $n مفاتيح — الأسرع المتصل أولاً (${best}ms)"
+                                    else "لا يوجد مفتاح متصل — تحقق من المفاتيح والشبكة"
+                                    syncParent()
+                                }
+                            } finally {
+                                ranking = false
                             }
-                        },
-                        enabled = !ranking && testingIdx == null,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981).copy(alpha = 0.15f)),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (ranking) {
-                            CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFF10B981), strokeWidth = 1.5.dp)
-                        } else {
-                            Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            if (ranking) "يفحص السرعة…" else "ترتيب حسب الأسرع المتصل ⚡",
-                            color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold
-                        )
                     }
-                }
+                )
                 if (rankSummary != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(rankSummary!!, color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 10.sp)
+                    Text(rankSummary!!, color = theme.success, fontFamily = NotoSansFont, fontSize = 11.sp)
                 }
-                Spacer(modifier = Modifier.height(6.dp))
             }
-            // Pool rows
+
             if (pool.isEmpty()) {
                 Text(
-                    text = "لا مفاتيح بعد — المفتاح المحفوظ أعلاه هو الأساسي. أضف بدائل هنا للتجاوز التلقائي.",
-                    color = TextSecondary,
-                    fontFamily = CairoFont,
-                    fontSize = 10.sp,
-                    lineHeight = 14.sp
+                    text = "لا توجد مفاتيح احتياطية بعد — أضف بدائل هنا للتجاوز التلقائي عند امتلاء الحصة.",
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
                 )
             } else {
                 pool.forEachIndexed { idx, key ->
@@ -1875,15 +1603,12 @@ private fun KeyPoolSection(
                     val testing = testingIdx == idx
                     val res = poolResults[idx]
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isActive) Color(0xFF10B981).copy(alpha = 0.08f) else Color(0xFF0B0F19),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isActive) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFF334155)
-                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isActive) theme.success.copy(alpha = 0.08f) else theme.secondarySurface,
+                        border = if (isActive) BorderStroke(1.dp, theme.success.copy(alpha = 0.45f)) else null,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1891,15 +1616,15 @@ private fun KeyPoolSection(
                                 Icon(
                                     if (isActive) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                     contentDescription = null,
-                                    tint = if (isActive) Color(0xFF10B981) else TextSecondary,
-                                    modifier = Modifier.size(14.dp)
+                                    tint = if (isActive) theme.success else theme.textSecondary,
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = maskKey(key),
-                                    color = Color.White,
-                                    fontFamily = CairoFont,
-                                    fontSize = 10.5.sp,
+                                    color = theme.textPrimary,
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 11.5.sp,
                                     maxLines = 1,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -1908,18 +1633,17 @@ private fun KeyPoolSection(
                                         onClick = {
                                             if (KeyPoolManager.setActiveIndex(service.prefsKey, idx)) {
                                                 syncParent()
-                                                Toast.makeText(context, "تم التبديل اليدوي للمفتاح البديل 🔀", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "تم تفعيل المفتاح البديل", Toast.LENGTH_SHORT).show()
                                             }
-                                        },
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                        }
                                     ) {
-                                        Text("تفعيل", fontSize = 10.sp, color = Color(0xFF00E5FF), fontFamily = CairoFont)
+                                        Text("تفعيل", fontSize = 11.sp, color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                     }
                                 } else {
                                     Text(
-                                        "نشط ✅",
-                                        fontSize = 9.5.sp,
-                                        color = Color(0xFF10B981),
+                                        "نشط",
+                                        fontSize = 11.sp,
+                                        color = theme.success,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -1938,12 +1662,12 @@ private fun KeyPoolSection(
                                         }
                                     },
                                     enabled = testingIdx == null,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
                                     if (testing) {
-                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), color = GoldPrimary, strokeWidth = 1.5.dp)
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = theme.primary, strokeWidth = 1.5.dp)
                                     } else {
-                                        Icon(Icons.Default.FlashOn, contentDescription = "فحص", tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.Default.FlashOn, contentDescription = "فحص", tint = theme.primary, modifier = Modifier.size(16.dp))
                                     }
                                 }
                                 IconButton(
@@ -1953,33 +1677,31 @@ private fun KeyPoolSection(
                                             syncParent()
                                         }
                                     },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = theme.destructive, modifier = Modifier.size(16.dp))
                                 }
                             }
                             if (res != null) {
                                 Text(
-                                    text = (if (res.isValid) "✅ " else "❌ ") + res.summary,
-                                    color = if (res.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
-                                    fontFamily = CairoFont,
-                                    fontSize = 9.5.sp,
+                                    text = res.summary,
+                                    color = if (res.isValid) theme.success else theme.destructive,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 10.5.sp,
                                     maxLines = 1
                                 )
                             }
                             val lat = remember(refreshTick, key) { KeyLatencyTracker.get(service.prefsKey, key) }
                             if (lat != null) {
                                 Text(
-                                    text = if (lat.connected) "⚡ ${lat.latencyMs}ms • متصل" else "⚠️ آخر فحص: غير متصل",
-                                    color = if (lat.connected) Color(0xFF00E5FF) else Color(0xFFF59E0B),
-                                    fontFamily = CairoFont,
-                                    fontSize = 9.sp,
-                                    maxLines = 1
+                                    text = if (lat.connected) "${lat.latencyMs}ms • متصل" else "آخر فحص: غير متصل",
+                                    color = if (lat.connected) theme.primary else theme.warning,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 10.sp
                                 )
                             }
                         }
                     }
-                    if (idx < pool.size - 1) Spacer(modifier = Modifier.height(4.dp))
                 }
             }
         }
@@ -1997,39 +1719,39 @@ private fun LiveTrafficLogsView(
     onRefresh: () -> Unit,
     onClearLogs: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
-        // Log Actions Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "سجل الطلبات الحية والتشخيص التفصيلي",
-                    color = TextPrimary,
+                    text = "سجل الطلبات الحية والتشخيص",
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 15.sp
                 )
                 Text(
-                    text = "عرض فوري لجميع استجابات الخوادم وأسباب النجاح وأسباب الفشل",
-                    color = TextSecondary,
-                    fontFamily = CairoFont,
-                    fontSize = 10.sp
+                    text = "عرض مباشر لاستجابات الخوادم وأسباب النجاح والفشل",
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.5.sp
                 )
             }
             Row {
-                IconButton(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary)
+                IconButton(onClick = onRefresh, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = theme.primary)
                 }
                 if (recentLogs.isNotEmpty()) {
-                    IconButton(onClick = onClearLogs) {
-                        Icon(Icons.Default.Delete, contentDescription = "مسح", tint = Color(0xFFEF4444))
+                    IconButton(onClick = onClearLogs, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Delete, contentDescription = "مسح السجل", tint = theme.destructive)
                     }
                 }
             }
@@ -2045,22 +1767,22 @@ private fun LiveTrafficLogsView(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.History, contentDescription = null, tint = TextSecondary.copy(alpha = 0.4f), modifier = Modifier.size(56.dp))
+                    Icon(Icons.Default.History, contentDescription = null, tint = theme.textSecondary.copy(alpha = 0.45f), modifier = Modifier.size(56.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "لا توجد طلبات مسجلة بعد",
-                        color = TextPrimary,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        fontSize = 16.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "اضغط على زر «فحص شامل لجميع الخدمات الآن» أو افحص أي مفتاح لمشاهدة سجل الطلبات وأسباب الحالات مباشرة هنا.",
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        text = "اضغط على «فحص شامل لجميع المفاتيح الآن» أو افحص أي مفتاح لمشاهدة سجل الطلبات هنا.",
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.5.sp,
+                        textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     )
                 }
@@ -2073,87 +1795,67 @@ private fun LiveTrafficLogsView(
                 items(recentLogs, key = { it.id }) { logItem ->
                     val isSuccess = logItem.isSuccess
                     val statusColor = when {
-                        isSuccess -> Color(0xFF10B981)
-                        logItem.statusCode == 429 -> Color(0xFFF59E0B)
-                        logItem.statusCode in 400..499 -> Color(0xFFEF4444)
-                        logItem.statusCode in 500..599 -> Color(0xFFA855F7)
-                        else -> Color(0xFFEF4444)
+                        isSuccess -> theme.success
+                        logItem.statusCode == 429 -> theme.warning
+                        logItem.statusCode in 400..499 -> theme.destructive
+                        logItem.statusCode in 500..599 -> Color(0xFFAF52DE)
+                        else -> theme.destructive
                     }
 
                     val timeStr = remember(logItem.timestamp) {
                         SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(logItem.timestamp))
                     }
 
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            // Top Row
+                    AppleCard {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        color = statusColor.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
+                                    Surface(color = statusColor.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
                                         Text(
                                             text = logItem.apiName,
                                             color = statusColor,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            fontSize = 11.5.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = timeStr,
-                                        color = TextSecondary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.sp
-                                    )
+                                    Text(text = timeStr, color = theme.textSecondary, fontFamily = RobotoMonoFont, fontSize = 11.sp)
                                 }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        color = statusColor.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
+                                    Surface(color = statusColor.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
                                         Text(
                                             text = "${logItem.statusCode ?: "Error"} ${logItem.statusText}",
                                             color = statusColor,
-                                            fontFamily = CairoFont,
+                                            fontFamily = RobotoMonoFont,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp,
+                                            fontSize = 10.5.sp,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "${logItem.latencyMs} ms",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
+                                        color = theme.primary,
+                                        fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = 11.sp
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Reason
                             Row(verticalAlignment = Alignment.Top) {
                                 Icon(
                                     if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Cancel,
                                     contentDescription = null,
                                     tint = statusColor,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Column {
@@ -2162,38 +1864,36 @@ private fun LiveTrafficLogsView(
                                         color = statusColor,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                        fontSize = 11.5.sp
                                     )
                                     Text(
                                         text = logItem.reason,
-                                        color = TextPrimary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.5.sp,
-                                        lineHeight = 15.sp
+                                        color = theme.textPrimary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 11.5.sp,
+                                        lineHeight = 16.sp
                                     )
                                 }
                             }
 
-                            // Diagnostic or fix suggestion
                             if (!logItem.diagnostic.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(6.dp))
                                 Surface(
-                                    color = Color(0xFF1E293B).copy(alpha = 0.6f),
-                                    shape = RoundedCornerShape(6.dp),
+                                    color = theme.secondarySurface,
+                                    shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(6.dp),
+                                        modifier = Modifier.padding(8.dp),
                                         verticalAlignment = Alignment.Top
                                     ) {
-                                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = theme.warning, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = logItem.diagnostic,
-                                            color = TextSecondary,
-                                            fontFamily = CairoFont,
-                                            fontSize = 9.5.sp,
-                                            lineHeight = 13.sp
+                                            color = theme.textSecondary,
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 11.sp,
+                                            lineHeight = 15.sp
                                         )
                                     }
                                 }
@@ -2208,84 +1908,77 @@ private fun LiveTrafficLogsView(
 
 @Composable
 private fun ReadinessScoreCard(readinessReport: ReadinessReport) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    val theme = QabasTheme.current
+    val scoreColor = when {
+        readinessReport.percentage >= 80 -> theme.success
+        readinessReport.percentage >= 40 -> theme.primary
+        else -> theme.warning
+    }
+    AppleCard {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("نسبة جاهزية تشغيل التطبيق الحقيقية", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(readinessReport.statusTitle, color = GoldPrimary, fontSize = 16.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("نسبة جاهزية الخدمات الحقيقية", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(readinessReport.statusTitle, color = theme.textPrimary, fontSize = 16.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
                 Surface(
-                    color = GoldPrimary.copy(alpha = 0.15f),
+                    color = scoreColor.copy(alpha = 0.14f),
                     shape = CircleShape,
-                    border = BorderStroke(2.dp, GoldPrimary)
+                    border = BorderStroke(1.5.dp, scoreColor)
                 ) {
-                    Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-                        Text("${readinessReport.percentage}%", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                        Text("${readinessReport.percentage}%", color = scoreColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
             LinearProgressIndicator(
                 progress = { readinessReport.percentage / 100f },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp)),
-                color = when {
-                    readinessReport.percentage >= 80 -> Color(0xFF10B981)
-                    readinessReport.percentage >= 40 -> GoldPrimary
-                    else -> Color(0xFFF59E0B)
-                },
-                trackColor = Color(0xFF1E293B)
+                color = scoreColor,
+                trackColor = theme.secondarySurface
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(readinessReport.statusDescription, color = TextPrimary, fontSize = 11.sp, fontFamily = CairoFont, lineHeight = 16.sp)
+            Text(readinessReport.statusDescription, color = theme.textSecondary, fontSize = 12.sp, fontFamily = NotoSansFont, lineHeight = 17.sp)
 
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color(0xFF1E293B))
-            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.45f))
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                readinessReport.services.forEach { srv: ServiceReadiness ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                readinessReport.services.forEach { srv ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Icon(
                                 imageVector = if (srv.isConfigured) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                 contentDescription = null,
-                                tint = if (srv.isConfigured) Color(0xFF10B981) else Color.Gray,
-                                modifier = Modifier.size(13.dp)
+                                tint = if (srv.isConfigured) theme.success else theme.textSecondary,
+                                modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "${srv.name} (+${srv.weight}%)",
-                                color = if (srv.isConfigured) Color.White else Color.Gray,
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp,
-                                fontWeight = if (srv.isConfigured) FontWeight.Bold else FontWeight.Normal
+                                color = if (srv.isConfigured) theme.textPrimary else theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp,
+                                fontWeight = if (srv.isConfigured) FontWeight.SemiBold else FontWeight.Normal
                             )
                         }
                         Text(
-                            text = if (srv.isConfigured) "حقيقي 🟢" else "محاكاة محلي 🟡",
-                            color = if (srv.isConfigured) Color(0xFF10B981) else Color(0xFFF5D76E),
+                            text = if (srv.isConfigured) "مفعّل" else "غير معد",
+                            color = if (srv.isConfigured) theme.success else theme.warning,
                             fontFamily = CairoFont,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -2301,180 +1994,145 @@ private fun JsonBackupCard(
     onImport: () -> Unit,
     onSmartPaste: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    val theme = QabasTheme.current
+    AppleCard {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = GoldPrimary.copy(alpha = 0.15f), shape = CircleShape, modifier = Modifier.size(36.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Backup, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(theme.primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Backup, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
-                    Text("النسخ الاحتياطي السريع (JSON) ⚡", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("تصدير واستيراد جميع مفاتيحك بضغطة زر لنقلها بين أجهزتك.", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
+                    Text("النسخ الاحتياطي السريع (JSON)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("تصدير واستيراد المفاتيح لنقلها بين أجهزتك.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = onExport,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("تصدير JSON 📤", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
-
-                Button(
-                    onClick = onImport,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    border = BorderStroke(1.dp, GoldPrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.FileUpload, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("استيراد JSON 📥", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
+                ApplePrimaryButton(
+                    text = "تصدير JSON",
+                    icon = Icons.Default.FileDownload,
+                    modifier = Modifier.weight(1f),
+                    onClick = onExport
+                )
+                AppleSecondaryButton(
+                    text = "استيراد JSON",
+                    icon = Icons.Default.FileUpload,
+                    modifier = Modifier.weight(1f),
+                    onClick = onImport
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = onSmartPaste,
-                border = BorderStroke(1.dp, Color(0xFF334155)),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19)),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = GoldSecondary, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("اللصق الذكي والفرز التلقائي 📋", color = GoldSecondary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            }
+            AppleSecondaryButton(
+                text = "اللصق الذكي والفرز التلقائي",
+                icon = Icons.Default.AutoFixHigh,
+                onClick = onSmartPaste
+            )
         }
     }
 }
 
 @Composable
-private fun SupabaseSyncCard(context: Context) {
-    var syncState by remember { mutableStateOf(0) }
+private fun SupabaseSyncCard(
+    context: Context,
+    onSyncedFromCloud: () -> Unit
+) {
+    val theme = QabasTheme.current
+    var syncState by remember { mutableIntStateOf(0) }
     var syncMessage by remember { mutableStateOf<String?>(null) }
+    var syncSuccess by remember { mutableStateOf(true) }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF8B5CF6).copy(alpha = 0.08f)),
-        border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    AppleCard {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Color(0xFF8B5CF6).copy(alpha = 0.15f), shape = CircleShape, modifier = Modifier.size(36.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.CloudSync, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(18.dp))
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(theme.accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = theme.accent, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
-                    Text("المزامنة السحابية (Supabase) ☁️", color = Color(0xFFC4B5FD), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("مزامنة مشفرة بين أجهزتك المختلفة تلقائياً.", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
+                    Text("المزامنة السحابية (Supabase)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("مزامنة المفاتيح المشفرة عبر حسابك.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
             if (syncMessage != null) {
                 Surface(
-                    color = if (syncState == 0) Color(0xFF10B981).copy(alpha = 0.1f) else Color(0xFFEF4444).copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp),
+                    color = (if (syncSuccess) theme.success else theme.destructive).copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = syncMessage.orEmpty(),
-                        color = if (syncState == 0) Color(0xFF10B981) else Color(0xFFEF4444),
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(8.dp)
+                        color = if (syncSuccess) theme.success else theme.destructive,
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp,
+                        modifier = Modifier.padding(10.dp)
                     )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = {
-                        syncState = 1; syncMessage = null
-                        KeySyncService.pushToCloud(context) { _, msg ->
-                            syncMessage = msg; syncState = 0
-                        }
-                    },
-                    enabled = syncState == 0 && SupabaseConfig.isConfigured,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (syncState == 1) CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
-                    else {
-                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text("رفع ☁️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
-
-                Button(
-                    onClick = {
-                        syncState = 2; syncMessage = null
-                        KeySyncService.pullFromCloud(context) { _, msg ->
-                            syncMessage = msg; syncState = 0
-                        }
-                    },
-                    enabled = syncState == 0 && SupabaseConfig.isConfigured,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22D3EE)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (syncState == 2) CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
-                    else {
-                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text("سحب 📥", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
-
-                Button(
-                    onClick = {
-                        syncState = 3; syncMessage = null
-                        KeySyncService.syncBidirectional(context) { _, msg ->
-                            syncMessage = msg; syncState = 0
-                        }
-                    },
-                    enabled = syncState == 0 && SupabaseConfig.isConfigured,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (syncState == 3) CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
-                    else {
-                        Icon(Icons.Default.SyncAlt, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text("مزامنة 🔄", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
 
             if (!SupabaseConfig.isConfigured) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("⚠️ Supabase غير مُعد — أضف SUPABASE_URL و SUPABASE_ANON_KEY في .env للمزامنة السحابية", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 9.sp)
+                AppleKeyRequiredBanner(
+                    serviceName = "سحابة Supabase",
+                    reason = "أضف SUPABASE_URL و SUPABASE_ANON_KEY في إعدادات البناء لتفعيل المزامنة السحابية."
+                )
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    AppleSecondaryButton(
+                        text = if (syncState == 1) "يرفع..." else "رفع",
+                        icon = Icons.Default.CloudUpload,
+                        enabled = syncState == 0,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            syncState = 1; syncMessage = null
+                            KeySyncService.pushToCloud(context) { ok, msg ->
+                                syncSuccess = ok; syncMessage = msg; syncState = 0
+                            }
+                        }
+                    )
+                    AppleSecondaryButton(
+                        text = if (syncState == 2) "يسحب..." else "سحب",
+                        icon = Icons.Default.CloudDownload,
+                        enabled = syncState == 0,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            syncState = 2; syncMessage = null
+                            KeySyncService.pullFromCloud(context) { ok, msg ->
+                                syncSuccess = ok; syncMessage = msg; syncState = 0
+                                if (ok) onSyncedFromCloud()
+                            }
+                        }
+                    )
+                    ApplePrimaryButton(
+                        text = "مزامنة",
+                        icon = Icons.Default.SyncAlt,
+                        enabled = syncState == 0,
+                        isLoading = syncState == 3,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            syncState = 3; syncMessage = null
+                            KeySyncService.syncBidirectional(context) { ok, msg ->
+                                syncSuccess = ok; syncMessage = msg; syncState = 0
+                                if (ok) onSyncedFromCloud()
+                            }
+                        }
+                    )
+                }
             }
         }
     }

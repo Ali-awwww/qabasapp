@@ -1,10 +1,8 @@
 package com.qabas.app
 
-import android.content.Context
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,24 +13,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.qabas.app.ui.theme.*
-import com.qabas.app.ui.TestTags
-import androidx.compose.ui.platform.testTag
 
 @Composable
 fun QabasApp() {
     val context = LocalContext.current
     val currentUser by SupabaseServices.Auth.currentUser.collectAsState()
-    
-    // Initialize Navigation Animation, Style and Sound managers
+
     LaunchedEffect(Unit) {
         AppAnimationManager.init(context)
         HomeScreenStyleManager.init(context)
@@ -61,7 +56,6 @@ fun QabasApp() {
     val viewModel: ProjectViewModel = viewModel(factory = ProjectViewModelFactory(context))
     val state by viewModel.state.collectAsState()
 
-    // Observe active animation style & speed for real-time reactivity
     val activeAnimation by AppAnimationManager.currentAnimation.collectAsState()
     val activeSpeed by AppAnimationManager.currentSpeed.collectAsState()
     val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
@@ -79,7 +73,6 @@ fun QabasApp() {
         )
     }
 
-    // Trigger transition sound effect when switching between main states
     var previousAppState by remember { mutableStateOf<AppState?>(null) }
     LaunchedEffect(state.appState) {
         if (previousAppState != null && previousAppState != state.appState) {
@@ -88,8 +81,6 @@ fun QabasApp() {
         previousAppState = state.appState
     }
 
-    // وجهة التنقّل المطلوبة من الإشعارات (navigate_to) — تُستهلك مرة واحدة.
-    // تُحتفظ حتى يجهز التطبيق (بعد التهيئة/الدخول) ثم تُطبّق، حتى مع الإقلاع البارد.
     val authFunnelStates = remember {
         setOf(
             AppState.DATA_LOADING, AppState.ONBOARDING, AppState.LOGIN,
@@ -104,14 +95,13 @@ fun QabasApp() {
             .collect { (destination, currentAppState) ->
                 if (destination == null) return@collect
                 if (currentAppState in authFunnelStates && destination != AppState.FORGOT_PASSWORD) {
-                    return@collect // تُحفظ حتى الجاهزية، مع السماح بوجهة استعادة كلمة المرور
+                    return@collect
                 }
                 viewModel.updateState { copy(appState = destination) }
                 AppNavigator.consumeNotificationDestination()
             }
     }
 
-    // Observe global navigator events (e.g. from Spatial HUD Lens Camera)
     LaunchedEffect(Unit) {
         AppNavigator.targetAppState.collect { newTarget ->
             if (newTarget != state.appState) {
@@ -146,6 +136,7 @@ fun QabasApp() {
         )
     }
 
+    val theme = QabasTheme.current
     AnimatedContent(
         targetState = state.appState,
         transitionSpec = {
@@ -161,7 +152,7 @@ fun QabasApp() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DeepSlate)
+                .background(theme.background)
         ) {
             AppNavigation(
                 state = state.copy(appState = targetAppState),
@@ -175,58 +166,56 @@ fun QabasApp() {
 
 @Composable
 fun WelcomeRulesDialog(onDismiss: () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(DeepSlate)
-                .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+    val theme = QabasTheme.current
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            color = theme.cardSurface,
+            shadowElevation = if (theme.isDark) 4.dp else 12.dp,
+            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .background(Brush.verticalGradient(colors = listOf(GoldPrimary.copy(alpha = 0.15f), Color.Transparent)))
-            )
-
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(60.dp)
                         .clip(CircleShape)
-                        .background(CardSurface)
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape),
+                        .background(theme.primary.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Gavel, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
+                    Icon(
+                        imageVector = Icons.Default.Gavel,
+                        contentDescription = null,
+                        tint = theme.primary,
+                        modifier = Modifier.size(30.dp)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = Translator.tr("ضوابط استوديو قبس"),
-                    color = GoldPrimary,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
+                    fontSize = 20.sp
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = Translator.tr("مرحباً بك في استوديو قبس. نلتزم معاً بصناعة محتوى راقٍ ونقي، وفق الضوابط التالية:"),
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = theme.textSecondary,
                     fontFamily = NotoSansFont,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     textAlign = TextAlign.Center,
-                    lineHeight = 22.sp
+                    lineHeight = 20.sp
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 val rules = listOf(
                     Translator.tr("لا تُستخدم الموسيقى، نعتمد على المؤثرات الصوتية المباحة فقط."),
@@ -235,47 +224,55 @@ fun WelcomeRulesDialog(onDismiss: () -> Unit) {
                     Translator.tr("الصور المولدة تُطمس وجوهها للحفاظ على الضوابط، بينما الحقيقية تبقى كما هي.")
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     rules.forEachIndexed { index, rule ->
                         Row(verticalAlignment = Alignment.Top) {
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
-                                    .background(GoldPrimary.copy(alpha = 0.15f)),
+                                    .background(theme.primary.copy(alpha = 0.14f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("${index + 1}", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(
+                                    text = "${index + 1}",
+                                    color = theme.primary,
+                                    fontFamily = NotoSansFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(rule, color = Color.White.copy(alpha = 0.8f), fontFamily = NotoSansFont, fontSize = 14.sp, lineHeight = 20.sp)
+                            Text(
+                                text = rule,
+                                color = theme.textPrimary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 13.5.sp,
+                                lineHeight = 20.sp
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(0.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = theme.primary,
+                        contentColor = theme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = Translator.tr("أتعهد بالالتزام"),
-                            color = DeepSlate,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
+                    Text(
+                        text = Translator.tr("أتعهد بالالتزام"),
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
                 }
             }
         }

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.qabas.app.R
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -82,136 +83,125 @@ fun ScholarDetailScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Full Page Manuscript Background
-        AsyncImage(
-            model = R.drawable.scholar_manuscript_bg_1790092377371,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            alpha = 0.18f
-        )
-        Box(modifier = Modifier.fillMaxSize().background(AntiqueParchment.copy(alpha = 0.90f)))
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            enrichedScholar.name,
-                            color = OldInk,
-                            fontFamily = AmiriFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = OldInk)
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = {
+    Scaffold(
+        containerColor = theme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
+            AppleTopBar(
+                title = enrichedScholar.name,
+                subtitle = enrichedScholar.era,
+                onBack = onBack,
+                actions = {
+                    IconButton(
+                        onClick = {
                             isBookmarked = prefs.toggleFavorite(scholar.id)
                             Toast.makeText(
                                 context,
                                 if (isBookmarked) "تمت الإضافة للمفضلة ⭐" else "تمت الإزالة من المفضلة",
                                 Toast.LENGTH_SHORT
                             ).show()
-                        }) {
-                            Icon(
-                                imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = "المفضلة",
-                                tint = if (isBookmarked) ManuscriptGold else OldInk.copy(alpha = 0.7f)
-                            )
-                        }
-                        IconButton(onClick = { showLecturesSheet = true }) {
-                            BadgedBox(
-                                badge = {
-                                    if (lecturesCount > 0) {
-                                        Badge(containerColor = ManuscriptGold, contentColor = Color.White) {
-                                            Text("$lecturesCount", fontSize = 10.sp)
-                                        }
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            contentDescription = "المفضلة",
+                            tint = if (isBookmarked) goldAccent else theme.textSecondary
+                        )
+                    }
+                    IconButton(
+                        onClick = { showLecturesSheet = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        BadgedBox(
+                            badge = {
+                                if (lecturesCount > 0) {
+                                    Badge(containerColor = goldAccent, contentColor = Color.White) {
+                                        Text("$lecturesCount", fontSize = 10.sp)
                                     }
                                 }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.VideoLibrary,
-                                    contentDescription = "الدروس والمحاضرات والمراجع",
-                                    tint = ManuscriptGold
-                                )
                             }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VideoLibrary,
+                                contentDescription = "الدروس والمحاضرات والمراجع",
+                                tint = goldAccent
+                            )
                         }
-                        IconButton(onClick = { showShareModal = true }) {
-                            Icon(Icons.Default.Share, contentDescription = "مشاركة السيرة كاملة", tint = ManuscriptGold)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-                )
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                // Quick Category Tab Bar
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = ManuscriptGold,
-                    edgePadding = 16.dp,
-                    divider = {}
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = {
-                                Text(
-                                    title,
-                                    fontFamily = CairoFont,
-                                    fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 12.5.sp,
-                                    color = if (selectedTab == index) OldInk else OldInk.copy(alpha = 0.6f)
-                                )
-                            }
+                    }
+                    IconButton(
+                        onClick = { showShareModal = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "مشاركة السيرة كاملة",
+                            tint = theme.primary
                         )
                     }
                 }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Quick Category Tab Bar
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = theme.cardSurface,
+                contentColor = goldAccent,
+                edgePadding = 16.dp,
+                divider = {}
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
+                            Text(
+                                title,
+                                fontFamily = CairoFont,
+                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.5.sp,
+                                color = if (selectedTab == index) goldAccent else theme.textSecondary
+                            )
+                        }
+                    )
+                }
+            }
 
-                Divider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = ManuscriptGold.copy(alpha = 0.3f),
-                    thickness = 1.dp
-                )
+            HorizontalDivider(
+                color = theme.separator.copy(alpha = 0.45f),
+                thickness = 0.5.dp
+            )
 
                 // Scrollable Content
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Portrait & Hero Card
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = AgedPaper,
-                        shape = RoundedCornerShape(20.dp),
-                        border = androidx.compose.foundation.BorderStroke(2.dp, ManuscriptGold.copy(alpha = 0.4f)),
-                        shadowElevation = 4.dp
-                    ) {
+                    AppleCard(cornerRadius = 20.dp) {
                         Column(
-                            modifier = Modifier.padding(20.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Surface(
-                                modifier = Modifier.size(140.dp),
+                                modifier = Modifier.size(132.dp),
                                 shape = CircleShape,
-                                border = androidx.compose.foundation.BorderStroke(3.dp, ManuscriptGold),
-                                shadowElevation = 6.dp
+                                border = androidx.compose.foundation.BorderStroke(2.5.dp, goldAccent.copy(alpha = 0.75f)),
+                                shadowElevation = if (theme.isDark) 0.dp else 4.dp
                             ) {
                                 AsyncImage(
                                     model = enrichedScholar.imageRes,
@@ -225,7 +215,7 @@ fun ScholarDetailScreen(
 
                             Text(
                                 text = enrichedScholar.name,
-                                color = OldInk,
+                                color = theme.textPrimary,
                                 fontFamily = AmiriFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 26.sp,
@@ -239,17 +229,16 @@ fun ScholarDetailScreen(
                             ) {
                                 enrichedScholar.era?.let { era ->
                                     Surface(
-                                        color = ManuscriptGold.copy(alpha = 0.12f),
-                                        shape = RoundedCornerShape(6.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.35f))
+                                        color = goldAccent.copy(alpha = 0.14f),
+                                        shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Text(
                                             text = era,
-                                            color = ManuscriptGold,
+                                            color = goldAccent,
                                             fontFamily = CairoFont,
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                                         )
                                     }
                                 }
@@ -257,7 +246,7 @@ fun ScholarDetailScreen(
                                 enrichedScholar.period?.let {
                                     Text(
                                         text = it,
-                                        color = OldInk.copy(alpha = 0.7f),
+                                        color = theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
@@ -266,21 +255,20 @@ fun ScholarDetailScreen(
                             }
 
                             enrichedScholar.majorHistoricalEvent?.let { event ->
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Surface(
-                                    color = AntiqueParchment,
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.35f))
+                                    color = theme.secondarySurface,
+                                    shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.Stars, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.Default.Stars, contentDescription = null, tint = goldAccent, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "الحدث الأبرز: $event",
-                                            color = OldInk,
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.SemiBold
@@ -289,22 +277,22 @@ fun ScholarDetailScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             // Endurance Quote Pill
                             enrichedScholar.enduranceQuote?.let { quote ->
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    color = ManuscriptGold.copy(alpha = 0.08f),
+                                    color = goldAccent.copy(alpha = if (theme.isDark) 0.12f else 0.08f),
                                     shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
+                                    border = androidx.compose.foundation.BorderStroke(0.5.dp, goldAccent.copy(alpha = 0.35f))
                                 ) {
                                     Text(
                                         text = "« $quote »",
-                                        color = OldInk,
+                                        color = theme.textPrimary,
                                         fontFamily = AmiriFont,
                                         fontSize = 17.sp,
-                                        lineHeight = 26.sp,
+                                        lineHeight = 27.sp,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(14.dp)
                                     )
@@ -458,28 +446,16 @@ fun ScholarDetailScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // Universal Share Button
-                    Button(
-                        onClick = { showShareModal = true },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            "مشاركة السيرة كاملة (صورة أو نص)",
-                            color = Color.White,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
+                    ApplePrimaryButton(
+                        text = "مشاركة السيرة كاملة (صورة أو نص)",
+                        icon = Icons.Default.Share,
+                        onClick = { showShareModal = true }
+                    )
 
                     Spacer(modifier = Modifier.height(40.dp))
                 }
             }
         }
-    }
 
     // Lectures Bottom Sheet Dialog
     if (showLecturesSheet) {
@@ -531,10 +507,13 @@ fun ScholarShareModal(
         ScholarCardImageGenerator.buildFullBiographyText(scholar)
     }
 
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = AgedPaper,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = ManuscriptGold) }
+        containerColor = theme.cardSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = theme.separator) }
     ) {
         Column(
             modifier = Modifier
@@ -549,8 +528,11 @@ fun ScholarShareModal(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = OldInk)
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textPrimary)
                 }
 
                 Text(
@@ -558,86 +540,34 @@ fun ScholarShareModal(
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
-                    color = OldInk
+                    color = theme.textPrimary,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
                 )
 
-                Icon(
-                    Icons.Default.AutoStories,
-                    contentDescription = null,
-                    tint = ManuscriptGold,
-                    modifier = Modifier.size(24.dp)
-                )
+                Box(
+                    modifier = Modifier.size(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.AutoStories,
+                        contentDescription = null,
+                        tint = goldAccent,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Tab Selector: صورة عالية الدقة / نص شامل
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                    .padding(4.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedFormat = 0 },
-                    color = if (selectedFormat == 0) ManuscriptGold else Color.Transparent,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Image,
-                            contentDescription = null,
-                            tint = if (selectedFormat == 0) Color.White else OldInk,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "بطاقة مصورة (تفاصيل كاملة)",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (selectedFormat == 0) Color.White else OldInk
-                        )
-                    }
-                }
+            AppleSegmentedControl(
+                items = listOf(0 to "بطاقة مصورة", 1 to "نص السيرة الشامل"),
+                selectedItem = selectedFormat,
+                onSelect = { selectedFormat = it }
+            )
 
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedFormat = 1 },
-                    color = if (selectedFormat == 1) ManuscriptGold else Color.Transparent,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Article,
-                            contentDescription = null,
-                            tint = if (selectedFormat == 1) Color.White else OldInk,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "نص السيرة الشامل",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (selectedFormat == 1) Color.White else OldInk
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             if (selectedFormat == 0) {
                 // Image Share Content
@@ -653,9 +583,11 @@ fun ScholarShareModal(
                         FilterChip(
                             selected = selectedStyle == ScholarCardImageGenerator.CardStyle.FULL_EPIC,
                             onClick = { selectedStyle = ScholarCardImageGenerator.CardStyle.FULL_EPIC },
-                            label = { Text("المخطوطة الملحمية الكاملة", fontFamily = CairoFont, fontSize = 12.sp) },
+                            label = { Text("المخطوطة الملحمية", fontFamily = CairoFont, fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = ManuscriptGold,
+                                containerColor = theme.secondarySurface,
+                                labelColor = theme.textPrimary,
+                                selectedContainerColor = goldAccent,
                                 selectedLabelColor = Color.White
                             ),
                             modifier = Modifier.weight(1f)
@@ -663,18 +595,20 @@ fun ScholarShareModal(
                         FilterChip(
                             selected = selectedStyle == ScholarCardImageGenerator.CardStyle.HIGHLIGHT_STORY,
                             onClick = { selectedStyle = ScholarCardImageGenerator.CardStyle.HIGHLIGHT_STORY },
-                            label = { Text("بطاقة الحالة والقصة (9:16)", fontFamily = CairoFont, fontSize = 12.sp) },
+                            label = { Text("بطاقة القصة (9:16)", fontFamily = CairoFont, fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = ManuscriptGold,
+                                containerColor = theme.secondarySurface,
+                                labelColor = theme.textPrimary,
+                                selectedContainerColor = goldAccent,
                                 selectedLabelColor = Color.White
                             ),
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                    // Theme Selector (مخطوطة كلاسيكية / ديباج زمردي / رخام أسود)
+                    // Theme Selector
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -684,7 +618,9 @@ fun ScholarShareModal(
                             onClick = { selectedTheme = ScholarCardImageGenerator.CardTheme.CLASSIC_MANUSCRIPT },
                             label = { Text("📜 مخطوطة ذهب", fontFamily = CairoFont, fontSize = 11.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = ManuscriptGold,
+                                containerColor = theme.secondarySurface,
+                                labelColor = theme.textPrimary,
+                                selectedContainerColor = goldAccent,
                                 selectedLabelColor = Color.White
                             ),
                             modifier = Modifier.weight(1f)
@@ -694,7 +630,9 @@ fun ScholarShareModal(
                             onClick = { selectedTheme = ScholarCardImageGenerator.CardTheme.EMERALD_GOLD },
                             label = { Text("🌿 ديباج زمردي", fontFamily = CairoFont, fontSize = 11.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF065F46),
+                                containerColor = theme.secondarySurface,
+                                labelColor = theme.textPrimary,
+                                selectedContainerColor = theme.success,
                                 selectedLabelColor = Color.White
                             ),
                             modifier = Modifier.weight(1f)
@@ -704,7 +642,9 @@ fun ScholarShareModal(
                             onClick = { selectedTheme = ScholarCardImageGenerator.CardTheme.OBSIDIAN_LUXURY },
                             label = { Text("🖤 رخام ملكي", fontFamily = CairoFont, fontSize = 11.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF1E293B),
+                                containerColor = theme.secondarySurface,
+                                labelColor = theme.textPrimary,
+                                selectedContainerColor = theme.primary,
                                 selectedLabelColor = Color.White
                             ),
                             modifier = Modifier.weight(1f)
@@ -717,21 +657,21 @@ fun ScholarShareModal(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(260.dp),
-                        color = Color.White.copy(alpha = 0.7f),
+                            .height(250.dp),
+                        color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.55f),
                         shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.4f))
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, theme.separator)
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             if (isGeneratingImage) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(color = ManuscriptGold)
+                                    CircularProgressIndicator(color = theme.primary)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         "جاري رسم وتجهيز بطاقة السيرة بجودة عالية...",
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp,
-                                        color = OldInk
+                                        color = theme.textSecondary
                                     )
                                 }
                             } else if (renderedBitmap != null) {
@@ -755,7 +695,10 @@ fun ScholarShareModal(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Button(
+                        ApplePrimaryButton(
+                            text = "مشاركة الصورة",
+                            icon = Icons.Default.Share,
+                            enabled = !isGeneratingImage && renderedBitmap != null,
                             onClick = {
                                 scope.launch {
                                     val bmp = renderedBitmap ?: return@launch
@@ -763,25 +706,14 @@ fun ScholarShareModal(
                                     ScholarCardImageGenerator.shareImageUri(context, uri, scholar)
                                 }
                             },
-                            modifier = Modifier
-                                .weight(1.3f)
-                                .height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                            shape = RoundedCornerShape(12.dp),
-                            enabled = !isGeneratingImage && renderedBitmap != null
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = Color.White)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "مشاركة الصورة",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
+                            modifier = Modifier.weight(1.25f)
+                        )
 
-                        OutlinedButton(
+                        AppleSecondaryButton(
+                            text = if (isSavingToGallery) "جاري الحفظ.." else "حفظ بالمعرض",
+                            icon = Icons.Default.Download,
+                            tint = goldAccent,
+                            enabled = !isGeneratingImage && renderedBitmap != null && !isSavingToGallery,
                             onClick = {
                                 scope.launch {
                                     val bmp = renderedBitmap ?: return@launch
@@ -795,23 +727,8 @@ fun ScholarShareModal(
                                     }
                                 }
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold),
-                            enabled = !isGeneratingImage && renderedBitmap != null && !isSavingToGallery
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = null, tint = ManuscriptGold)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                if (isSavingToGallery) "جاري الحفظ.." else "حفظ بالمعرض",
-                                color = ManuscriptGold,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             } else {
@@ -824,10 +741,10 @@ fun ScholarShareModal(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(260.dp),
-                        color = Color.White.copy(alpha = 0.7f),
+                            .height(250.dp),
+                        color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.55f),
                         shape = RoundedCornerShape(16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.4f))
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, theme.separator)
                     ) {
                         Column(
                             modifier = Modifier
@@ -837,7 +754,7 @@ fun ScholarShareModal(
                         ) {
                             Text(
                                 text = fullText,
-                                color = OldInk,
+                                color = theme.textPrimary,
                                 fontFamily = AmiriFont,
                                 fontSize = 16.sp,
                                 lineHeight = 26.sp
@@ -852,47 +769,20 @@ fun ScholarShareModal(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                ScholarCardImageGenerator.shareText(context, scholar)
-                            },
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = Color.White)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "مشاركة النص كاملاً",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
+                        ApplePrimaryButton(
+                            text = "مشاركة النص كاملاً",
+                            icon = Icons.Default.Share,
+                            onClick = { ScholarCardImageGenerator.shareText(context, scholar) },
+                            modifier = Modifier.weight(1.25f)
+                        )
 
-                        OutlinedButton(
-                            onClick = {
-                                copyToClipboard(context, "سيرة الإمام ${scholar.name}", fullText)
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold)
-                        ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = ManuscriptGold)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "نسخ النص",
-                                color = ManuscriptGold,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
+                        AppleSecondaryButton(
+                            text = "نسخ النص",
+                            icon = Icons.Default.ContentCopy,
+                            tint = goldAccent,
+                            onClick = { copyToClipboard(context, "سيرة الإمام ${scholar.name}", fullText) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -915,48 +805,44 @@ fun ScholarLecturesDetailSection(
     val officialLectures = remember(scholar.id) { prefs.getOfficialLectures(scholar.id, scholar.name) }
     val userProposals = remember(scholar.id) { prefs.getUserProposals(scholar.id) }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.2.dp, ManuscriptGold.copy(alpha = 0.35f)),
-        shadowElevation = 2.dp
-    ) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(
                         Icons.Default.VideoLibrary,
                         contentDescription = null,
-                        tint = ManuscriptGold,
+                        tint = goldAccent,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "الدروس المعتمدة والمقترحات",
-                        color = ManuscriptGold,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
                 Surface(
-                    color = ManuscriptGold.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
+                    color = goldAccent.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = "${officialLectures.size} دروس معتمدة",
-                        color = OldInk,
+                        color = goldAccent,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.5.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
             }
@@ -964,7 +850,7 @@ fun ScholarLecturesDetailSection(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "دروس موثقة ومعتمدة من المنصة للدخول والمشاهدة، مع إمكانية اقتراح عناوين ومحاور علمية جديدة لطلاب العلم.",
-                color = OldInk.copy(alpha = 0.85f),
+                color = theme.textSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 13.sp,
                 lineHeight = 20.sp
@@ -972,26 +858,24 @@ fun ScholarLecturesDetailSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Official Curated Lectures Preview
             Text(
                 text = "🌟 الدروس المعتمدة للمشاهدة المباشرة:",
                 fontFamily = CairoFont,
-                fontSize = 12.sp,
+                fontSize = 12.5.sp,
                 fontWeight = FontWeight.Bold,
-                color = OldInk
+                color = theme.textPrimary
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 officialLectures.take(3).forEach { lecture ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = AntiqueParchment,
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
+                        color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.75f else 0.55f),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(
@@ -1000,16 +884,16 @@ fun ScholarLecturesDetailSection(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
-                                    color = ManuscriptGold.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(4.dp)
+                                    color = goldAccent.copy(alpha = 0.16f),
+                                    shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
                                         text = lecture.category,
                                         fontFamily = CairoFont,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = ManuscriptGold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                        color = goldAccent,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                     )
                                 }
 
@@ -1018,19 +902,19 @@ fun ScholarLecturesDetailSection(
                                         text = "🎙️ ${lecture.speaker}",
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
-                                        color = OldInk.copy(alpha = 0.75f)
+                                        color = theme.textSecondary
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Text(
                                 text = lecture.title,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = OldInk
+                                fontSize = 14.sp,
+                                color = theme.textPrimary
                             )
 
                             if (lecture.synopsis.isNotBlank()) {
@@ -1038,15 +922,15 @@ fun ScholarLecturesDetailSection(
                                 Text(
                                     text = lecture.synopsis,
                                     fontFamily = NotoSansFont,
-                                    fontSize = 11.5.sp,
-                                    color = OldInk.copy(alpha = 0.8f),
+                                    fontSize = 12.sp,
+                                    color = theme.textSecondary,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
-                                    lineHeight = 17.sp
+                                    lineHeight = 18.sp
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1055,26 +939,30 @@ fun ScholarLecturesDetailSection(
                             ) {
                                 Button(
                                     onClick = { openLectureUrl(context, lecture.url) },
-                                    modifier = Modifier.weight(1.3f).height(38.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C)),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    modifier = Modifier
+                                        .weight(1.3f)
+                                        .heightIn(min = 48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.destructive),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                                 ) {
-                                    Icon(Icons.Default.PlayCircle, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text("مشاهدة واستماع 🚀", fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Icon(Icons.Default.PlayCircle, contentDescription = null, modifier = Modifier.size(17.dp), tint = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("مشاهدة واستماع", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
 
                                 Button(
                                     onClick = { shareLecture(context, lecture) },
-                                    modifier = Modifier.weight(1f).height(38.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("مشاركة 📤", fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(15.dp), tint = Color.White)
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("مشاركة", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }
@@ -1082,9 +970,8 @@ fun ScholarLecturesDetailSection(
                 }
             }
 
-            // User proposals preview
             if (userProposals.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1093,52 +980,53 @@ fun ScholarLecturesDetailSection(
                     Text(
                         text = "💡 مقترحات المستمعين (${userProposals.size}):",
                         fontFamily = CairoFont,
-                        fontSize = 12.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = OldInk
+                        color = theme.textPrimary
                     )
                     Text(
                         text = "أعلى تأييد: ${userProposals.first().upvotesCount} 👍",
                         fontFamily = CairoFont,
-                        fontSize = 10.5.sp,
-                        color = ManuscriptGold,
+                        fontSize = 11.sp,
+                        color = goldAccent,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Surface(
-                    color = Color.Black.copy(alpha = 0.03f),
-                    shape = RoundedCornerShape(8.dp),
+                    color = theme.secondarySurface.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = "« ${userProposals.first().suggestedTitle} » — ${userProposals.first().suggestedSpeaker}",
                         fontFamily = CairoFont,
-                        fontSize = 11.5.sp,
-                        color = OldInk.copy(alpha = 0.85f),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        fontSize = 12.sp,
+                        color = theme.textPrimary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Buttons: فتح المكتبة / اقتراح درس
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = onAddClick,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                    shape = RoundedCornerShape(10.dp)
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .heightIn(min = 48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.LibraryBooks, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "استعراض المكتبة والمقترحات",
+                        text = "المكتبة والمقترحات",
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -1148,15 +1036,17 @@ fun ScholarLecturesDetailSection(
 
                 OutlinedButton(
                     onClick = onAddClick,
-                    modifier = Modifier.weight(0.9f).height(44.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.2.dp, ManuscriptGold)
+                    modifier = Modifier
+                        .weight(0.9f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary)
                 ) {
-                    Icon(Icons.Default.EditNote, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.EditNote, contentDescription = null, tint = theme.primary, modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "+ اقترح عنواناً",
-                        color = ManuscriptGold,
+                        color = theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -1215,46 +1105,43 @@ fun CharacterFacetsOverviewSection(
     facets: List<CharacterFacet>,
     onSelectFacet: (Int) -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.45f)),
-        shadowElevation = 3.dp
-    ) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(
                         Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = ManuscriptGold,
+                        tint = goldAccent,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "محاور العبقرية والسيرة الخالدة:",
-                        color = ManuscriptGold,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Surface(
-                    color = ManuscriptGold.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(6.dp)
+                    color = goldAccent.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         "${facets.size} محاور متفردة",
-                        color = OldInk,
+                        color = goldAccent,
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
             }
@@ -1262,7 +1149,7 @@ fun CharacterFacetsOverviewSection(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 "كُتبت هذه المحاور خصيصاً وفق فرادة العَلَم ومجالات أثره وعبقريته في أمة الإسلام:",
-                color = OldInk.copy(alpha = 0.75f),
+                color = theme.textSecondary,
                 fontFamily = CairoFont,
                 fontSize = 12.5.sp,
                 lineHeight = 19.sp
@@ -1275,10 +1162,10 @@ fun CharacterFacetsOverviewSection(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .defaultMinSize(minHeight = 56.dp)
                             .clickable { onSelectFacet(index) },
-                        color = AntiqueParchment,
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
+                        color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.75f else 0.55f),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1289,14 +1176,13 @@ fun CharacterFacetsOverviewSection(
                             Surface(
                                 modifier = Modifier.size(42.dp),
                                 shape = RoundedCornerShape(10.dp),
-                                color = ManuscriptGold.copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.35f))
+                                color = goldAccent.copy(alpha = 0.14f)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = getFacetIcon(facet.iconKey),
                                         contentDescription = null,
-                                        tint = ManuscriptGold,
+                                        tint = goldAccent,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }
@@ -1308,7 +1194,7 @@ fun CharacterFacetsOverviewSection(
                                 if (facet.badge.isNotBlank()) {
                                     Text(
                                         text = facet.badge,
-                                        color = ManuscriptGold,
+                                        color = goldAccent,
                                         fontFamily = CairoFont,
                                         fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold
@@ -1316,7 +1202,7 @@ fun CharacterFacetsOverviewSection(
                                 }
                                 Text(
                                     text = facet.title,
-                                    color = OldInk,
+                                    color = theme.textPrimary,
                                     fontFamily = AmiriFont,
                                     fontSize = 16.5.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1326,7 +1212,7 @@ fun CharacterFacetsOverviewSection(
                                 if (facet.subtitle.isNotBlank()) {
                                     Text(
                                         text = facet.subtitle,
-                                        color = OldInk.copy(alpha = 0.7f),
+                                        color = theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.5.sp,
                                         maxLines = 1,
@@ -1336,10 +1222,10 @@ fun CharacterFacetsOverviewSection(
                             }
 
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
+                                Icons.Default.ChevronLeft,
                                 contentDescription = "قراءة المحور",
-                                tint = ManuscriptGold.copy(alpha = 0.8f),
-                                modifier = Modifier.size(18.dp)
+                                tint = theme.textSecondary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -1357,14 +1243,11 @@ fun CharacterFacetDetailSection(
     onBackToOverview: () -> Unit,
     onNextFacet: (() -> Unit)?
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.45f)),
-        shadowElevation = 3.dp
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
+    AppleCard(cornerRadius = 18.dp) {
+        Column(modifier = Modifier.padding(18.dp)) {
             // Header with badge and icon
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1372,9 +1255,8 @@ fun CharacterFacetDetailSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Surface(
-                    color = ManuscriptGold.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
+                    color = goldAccent.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1383,13 +1265,13 @@ fun CharacterFacetDetailSection(
                         Icon(
                             imageVector = getFacetIcon(facet.iconKey),
                             contentDescription = null,
-                            tint = ManuscriptGold,
+                            tint = goldAccent,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (facet.badge.isNotBlank()) facet.badge else "محور السيرة",
-                            color = ManuscriptGold,
+                            color = goldAccent,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -1403,23 +1285,24 @@ fun CharacterFacetDetailSection(
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("قبس", shareText))
                         Toast.makeText(context, "تم نسخ هذا المحور للمشاركة 📋", Toast.LENGTH_SHORT).show()
-                    }
+                    },
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         Icons.Default.ContentCopy,
                         contentDescription = "نسخ المحور",
-                        tint = ManuscriptGold.copy(alpha = 0.8f),
+                        tint = theme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Main Title
             Text(
                 text = facet.title,
-                color = OldInk,
+                color = theme.textPrimary,
                 fontFamily = AmiriFont,
                 fontSize = 23.sp,
                 fontWeight = FontWeight.Bold,
@@ -1430,48 +1313,48 @@ fun CharacterFacetDetailSection(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = facet.subtitle,
-                    color = ManuscriptGold,
+                    color = goldAccent,
                     fontFamily = CairoFont,
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = ManuscriptGold.copy(alpha = 0.25f), thickness = 1.dp)
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = theme.separator.copy(alpha = 0.45f), thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Narrative
             Text(
                 text = facet.narrative,
-                color = OldInk,
+                color = theme.textPrimary,
                 fontFamily = AmiriFont,
                 fontSize = 19.sp,
                 lineHeight = 33.sp,
                 textAlign = TextAlign.Justify
             )
 
-            // Key Quote Callout (if available)
+            // Key Quote Callout
             facet.keyQuote?.let { quote ->
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = AntiqueParchment,
+                    color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.8f else 0.55f),
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.2.dp, ManuscriptGold.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, goldAccent.copy(alpha = 0.4f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Default.FormatQuote,
                                 contentDescription = null,
-                                tint = ManuscriptGold,
+                                tint = goldAccent,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "موقف وكلمة خالدة:",
-                                color = ManuscriptGold,
+                                color = goldAccent,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -1480,7 +1363,7 @@ fun CharacterFacetDetailSection(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = quote,
-                            color = OldInk,
+                            color = theme.textPrimary,
                             fontFamily = AmiriFont,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -1492,14 +1375,14 @@ fun CharacterFacetDetailSection(
                 }
             }
 
-            // Practical Insight Callout (if available)
+            // Practical Insight Callout
             facet.practicalInsight?.let { insight ->
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = ManuscriptGold.copy(alpha = 0.08f),
+                    color = goldAccent.copy(alpha = if (theme.isDark) 0.12f else 0.08f),
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.35f))
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, goldAccent.copy(alpha = 0.35f))
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -1508,14 +1391,14 @@ fun CharacterFacetDetailSection(
                         Icon(
                             Icons.Default.Lightbulb,
                             contentDescription = null,
-                            tint = ManuscriptGold,
+                            tint = goldAccent,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 "الأثر الإيماني والتطبيق المعاصر:",
-                                color = ManuscriptGold,
+                                color = goldAccent,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -1523,7 +1406,7 @@ fun CharacterFacetDetailSection(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = insight,
-                                color = OldInk,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 13.5.sp,
                                 lineHeight = 20.sp
@@ -1533,31 +1416,37 @@ fun CharacterFacetDetailSection(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             // Navigation Row: Back to Overview & Next Facet
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
                     onClick = onBackToOverview,
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold)
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary)
                 ) {
-                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("المخطوطة الجامعة", color = ManuscriptGold, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("المخطوطة الجامعة", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
 
                 if (onNextFacet != null) {
                     Button(
                         onClick = onNextFacet,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold)
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                     ) {
-                        Text("المحور التالي", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                        Text("المحور التالي", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
@@ -1569,29 +1458,26 @@ fun CharacterFacetDetailSection(
 
 @Composable
 fun ManuscriptIntroSection(scholar: ScholarBiography) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f)),
-        shadowElevation = 2.dp
-    ) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.MenuBook, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.MenuBook, contentDescription = null, tint = goldAccent, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "تاريخُ الإمام ومكانته في الأمة:",
-                    color = ManuscriptGold,
+                    color = goldAccent,
                     fontFamily = CairoFont,
-                    fontSize = 14.sp,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = scholar.brief,
-                color = OldInk,
+                color = theme.textPrimary,
                 fontFamily = AmiriFont,
                 fontSize = 18.sp,
                 lineHeight = 30.sp,
@@ -1601,11 +1487,11 @@ fun ManuscriptIntroSection(scholar: ScholarBiography) {
             scholar.travelDistance?.let { travel ->
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Explore, contentDescription = null, tint = ManuscriptGold.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Explore, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "الرحلة والطلب: $travel",
-                        color = OldInk.copy(alpha = 0.8f),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 12.sp
                     )
@@ -1617,13 +1503,10 @@ fun ManuscriptIntroSection(scholar: ScholarBiography) {
 
 @Composable
 fun SpatialJourneySection(scholar: ScholarBiography) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.2.dp, ManuscriptGold.copy(alpha = 0.35f)),
-        shadowElevation = 2.dp
-    ) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1634,32 +1517,31 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                     Icon(
                         Icons.Default.Explore,
                         contentDescription = null,
-                        tint = ManuscriptGold,
+                        tint = goldAccent,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "محطات السيرة والتنقل",
-                        color = ManuscriptGold,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
                 scholar.estimatedTravelKm?.let { km ->
                     Surface(
-                        color = ManuscriptGold.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
+                        color = goldAccent.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = "~$km كم",
-                            color = OldInk,
+                            color = goldAccent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.5.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -1669,7 +1551,7 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = travel,
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.5.sp,
                     lineHeight = 22.sp
@@ -1680,6 +1562,7 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
                     scholar.journeyStops.forEachIndexed { index, stop ->
+                        val isEndpoint = index == 0 || index == scholar.journeyStops.size - 1
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -1687,13 +1570,13 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                             Surface(
                                 modifier = Modifier.size(28.dp),
                                 shape = CircleShape,
-                                color = if (index == 0 || index == scholar.journeyStops.size - 1) ManuscriptGold else AntiqueParchment,
-                                border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold)
+                                color = if (isEndpoint) goldAccent else theme.secondarySurface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, goldAccent.copy(alpha = 0.7f))
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         text = "${index + 1}",
-                                        color = if (index == 0 || index == scholar.journeyStops.size - 1) Color.White else OldInk,
+                                        color = if (isEndpoint) Color.White else theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -1703,9 +1586,9 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = stop,
-                                color = OldInk,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
-                                fontWeight = if (index == 0 || index == scholar.journeyStops.size - 1) FontWeight.Bold else FontWeight.Medium,
+                                fontWeight = if (isEndpoint) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 13.sp
                             )
                         }
@@ -1716,7 +1599,7 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                                     .padding(start = 13.dp)
                                     .width(2.dp)
                                     .height(16.dp)
-                                    .background(ManuscriptGold.copy(alpha = 0.45f))
+                                    .background(goldAccent.copy(alpha = 0.45f))
                             )
                         }
                     }
@@ -1726,14 +1609,14 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
             Spacer(modifier = Modifier.height(12.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = AntiqueParchment.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
+                color = theme.secondarySurface.copy(alpha = 0.65f),
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Text(
                     text = "«مَنْ سَلَكَ طَرِيقاً يَلْتَمِسُ فِيهِ عِلْماً، سَهَّلَ اللَّهُ لَهُ بِهِ طَرِيقاً إِلَى الجَنَّةِ»",
-                    color = ManuscriptGold,
+                    color = goldAccent,
                     fontFamily = AmiriFont,
-                    fontSize = 13.5.sp,
+                    fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(10.dp)
                 )
@@ -1744,30 +1627,25 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
 
 @Composable
 fun HarmedAndPersecutionSection(context: Context, scholar: ScholarBiography) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFB91C1C).copy(alpha = 0.4f)),
-        shadowElevation = 3.dp
-    ) {
+    val theme = QabasTheme.current
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(
                         Icons.Default.Gavel,
                         contentDescription = null,
-                        tint = Color(0xFFB91C1C),
+                        tint = theme.destructive,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "من الذين آذوه وكيف؟ (المحنة الكبرى)",
-                        color = Color(0xFFB91C1C),
+                        color = theme.destructive,
                         fontFamily = CairoFont,
                         fontSize = 14.5.sp,
                         fontWeight = FontWeight.Bold
@@ -1778,17 +1656,17 @@ fun HarmedAndPersecutionSection(context: Context, scholar: ScholarBiography) {
                     onClick = {
                         scholar.whoHarmedHimAndHow?.let { copyToClipboard(context, "محنة ${scholar.name}", it) }
                     },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = Color(0xFFB91C1C).copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.destructive.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = scholar.whoHarmedHimAndHow ?: "لا تتوافر في المصادر التي اعتمدناها تفاصيل كافية لإثبات محنة خاصة أو تعيين من آذاه.",
-                color = OldInk,
+                color = theme.textPrimary,
                 fontFamily = AmiriFont,
                 fontSize = 17.5.sp,
                 lineHeight = 28.sp,
@@ -1800,32 +1678,29 @@ fun HarmedAndPersecutionSection(context: Context, scholar: ScholarBiography) {
 
 @Composable
 fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // How he endured
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = AgedPaper,
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF047857).copy(alpha = 0.4f)),
-            shadowElevation = 3.dp
-        ) {
+        AppleCard(cornerRadius = 16.dp) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Icon(
                             Icons.Default.Shield,
                             contentDescription = null,
-                            tint = Color(0xFF047857),
+                            tint = theme.success,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "كيف تحمّل؟ وسر الصمود الإيماني",
-                            color = Color(0xFF047857),
+                            color = theme.success,
                             fontFamily = CairoFont,
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold
@@ -1836,17 +1711,17 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
                         onClick = {
                             scholar.howHeEndured?.let { copyToClipboard(context, "صبر ${scholar.name}", it) }
                         },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = Color(0xFF047857).copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.success.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = scholar.howHeEndured ?: "لا تتوافر رواية موثقة كافية لوصف تفاصيل صبره في هذه المحنة.",
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = AmiriFont,
                     fontSize = 17.5.sp,
                     lineHeight = 28.sp,
@@ -1856,30 +1731,24 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
         }
 
         // Why he endured
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = AgedPaper,
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.4f)),
-            shadowElevation = 3.dp
-        ) {
+        AppleCard(cornerRadius = 16.dp) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Icon(
                             Icons.Default.Flag,
                             contentDescription = null,
-                            tint = ManuscriptGold,
+                            tint = goldAccent,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "لماذا تحمّل؟ القضية الكبرى والغاية",
-                            color = ManuscriptGold,
+                            color = goldAccent,
                             fontFamily = CairoFont,
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold
@@ -1890,17 +1759,17 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
                         onClick = {
                             scholar.whyHeEndured?.let { copyToClipboard(context, "ثبات ${scholar.name}", it) }
                         },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = ManuscriptGold.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = goldAccent.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = scholar.whyHeEndured ?: "هذه فقرة تفسيرية تحريرية، وليست قولاً منسوباً إلى صاحب الترجمة.",
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = AmiriFont,
                     fontSize = 17.5.sp,
                     lineHeight = 28.sp,
@@ -1913,27 +1782,25 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
 
 @Composable
 fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val indigoAccent = if (theme.isDark) AppleDarkIndigo else AppleLightIndigo
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // The Death Scene
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = AgedPaper,
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF6B21A8).copy(alpha = 0.4f)),
-            shadowElevation = 3.dp
-        ) {
+        AppleCard(cornerRadius = 16.dp) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.HourglassBottom,
                         contentDescription = null,
-                        tint = Color(0xFF6B21A8),
+                        tint = indigoAccent,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "الوفاة في المصادر التاريخية:",
-                        color = Color(0xFF6B21A8),
+                        color = indigoAccent,
                         fontFamily = CairoFont,
                         fontSize = 14.5.sp,
                         fontWeight = FontWeight.Bold
@@ -1944,7 +1811,7 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
 
                 Text(
                     text = scholar.deathScene ?: "لا نورد وصفاً تفصيلياً للحظاته الأخيرة أو آخر كلماته دون نقل تاريخي واضح يمكن مراجعته.",
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = AmiriFont,
                     fontSize = 18.sp,
                     lineHeight = 30.sp,
@@ -1957,9 +1824,9 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
         scholar.lastWords?.let { lastWords ->
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color.Black.copy(alpha = 0.05f),
+                color = goldAccent.copy(alpha = if (theme.isDark) 0.14f else 0.08f),
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(2.dp, ManuscriptGold)
+                border = androidx.compose.foundation.BorderStroke(1.dp, goldAccent.copy(alpha = 0.55f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -1968,13 +1835,13 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
                     Icon(
                         Icons.Default.FormatQuote,
                         contentDescription = null,
-                        tint = ManuscriptGold,
+                        tint = goldAccent,
                         modifier = Modifier.size(28.dp)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         "آخر كلماته قبل خروج الروح:",
-                        color = ManuscriptGold,
+                        color = goldAccent,
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
@@ -1982,7 +1849,7 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "« $lastWords »",
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
@@ -1995,19 +1862,14 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
 
         // Funeral and Aftermath
         scholar.funeralImpact?.let { funeral ->
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = AgedPaper,
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
-            ) {
+            AppleCard(cornerRadius = 16.dp) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Groups, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Groups, contentDescription = null, tint = goldAccent, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "مشهد الجنازة وأثر الفقد على الأمة:",
-                            color = ManuscriptGold,
+                            color = goldAccent,
                             fontFamily = CairoFont,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
@@ -2016,7 +1878,7 @@ fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = funeral,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
                         fontSize = 17.5.sp,
                         lineHeight = 28.sp,
@@ -2035,22 +1897,20 @@ fun LegacyAndMessageSection(
     isChallengeCompleted: Boolean = false,
     onToggleChallenge: () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Global Impact
         scholar.globalImpact?.let { impact ->
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = AgedPaper,
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
-            ) {
+            AppleCard(cornerRadius = 16.dp) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Public, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Public, contentDescription = null, tint = goldAccent, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "الأثر التاريخي الخالد:",
-                            color = ManuscriptGold,
+                            color = goldAccent,
                             fontFamily = CairoFont,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
@@ -2059,7 +1919,7 @@ fun LegacyAndMessageSection(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = impact,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = NotoSansFont,
                         fontSize = 14.5.sp,
                         lineHeight = 24.sp
@@ -2072,9 +1932,9 @@ fun LegacyAndMessageSection(
         scholar.messageToGrandson?.let { message ->
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = ManuscriptGold.copy(alpha = 0.08f),
+                color = goldAccent.copy(alpha = if (theme.isDark) 0.12f else 0.08f),
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.4f))
+                border = androidx.compose.foundation.BorderStroke(0.8.dp, goldAccent.copy(alpha = 0.4f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -2083,13 +1943,13 @@ fun LegacyAndMessageSection(
                     Icon(
                         Icons.Default.HistoryEdu,
                         contentDescription = null,
-                        tint = ManuscriptGold,
+                        tint = goldAccent,
                         modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         "عبرة مستفادة من سيرته:",
-                        color = ManuscriptGold,
+                        color = goldAccent,
                         fontFamily = CairoFont,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
@@ -2097,7 +1957,7 @@ fun LegacyAndMessageSection(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = message,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
                         fontSize = 20.sp,
                         lineHeight = 32.sp,
@@ -2111,9 +1971,12 @@ fun LegacyAndMessageSection(
         scholar.modernChallenge?.let { challenge ->
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (isChallengeCompleted) Color(0xFF10B981).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.75f),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, if (isChallengeCompleted) Color(0xFF10B981) else ManuscriptGold.copy(alpha = 0.35f))
+                color = if (isChallengeCompleted) theme.success.copy(alpha = if (theme.isDark) 0.16f else 0.10f) else theme.cardSurface,
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    0.8.dp,
+                    if (isChallengeCompleted) theme.success else theme.separator.copy(alpha = 0.55f)
+                )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -2121,17 +1984,17 @@ fun LegacyAndMessageSection(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Icon(
                                 Icons.Default.Lightbulb,
                                 contentDescription = null,
-                                tint = if (isChallengeCompleted) Color(0xFF10B981) else ManuscriptGold,
+                                tint = if (isChallengeCompleted) theme.success else goldAccent,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 "تحدي الاقتداء المعاصر اليوم:",
-                                color = if (isChallengeCompleted) Color(0xFF047857) else ManuscriptGold,
+                                color = if (isChallengeCompleted) theme.success else goldAccent,
                                 fontFamily = CairoFont,
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold
@@ -2140,7 +2003,7 @@ fun LegacyAndMessageSection(
 
                         if (isChallengeCompleted) {
                             Surface(
-                                color = Color(0xFF10B981),
+                                color = theme.success,
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
@@ -2149,16 +2012,16 @@ fun LegacyAndMessageSection(
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = challenge,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = NotoSansFont,
                         fontSize = 13.5.sp,
                         lineHeight = 22.sp
@@ -2167,11 +2030,13 @@ fun LegacyAndMessageSection(
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = onToggleChallenge,
-                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isChallengeCompleted) Color(0xFF10B981) else ManuscriptGold
+                            containerColor = if (isChallengeCompleted) theme.success else theme.primary
                         ),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
                             imageVector = if (isChallengeCompleted) Icons.Default.CheckCircle else Icons.Default.Check,
@@ -2185,7 +2050,7 @@ fun LegacyAndMessageSection(
                             color = Color.White,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
+                            fontSize = 13.sp
                         )
                     }
                 }

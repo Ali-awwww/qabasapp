@@ -220,6 +220,7 @@ fun BackgroundPermissionsDialog(
     onGrantAll: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -232,28 +233,19 @@ fun BackgroundPermissionsDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .widthIn(max = 420.dp)
+                .widthIn(max = 440.dp)
                 .wrapContentHeight()
                 .padding(vertical = 16.dp),
             shape = RoundedCornerShape(22.dp),
-            color = Color(0xFF090E1A).copy(alpha = 0.98f),
-            border = BorderStroke(
-                1.2.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF00E5FF).copy(alpha = 0.6f),
-                        GoldPrimary.copy(alpha = 0.45f),
-                        Color(0xFF1E293B).copy(alpha = 0.5f)
-                    )
-                )
-            ),
-            shadowElevation = 16.dp
+            color = theme.cardSurface,
+            border = BorderStroke(1.dp, theme.cardBorder),
+            shadowElevation = if (theme.isDark) 0.dp else 8.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Header Row
                 Row(
@@ -267,33 +259,33 @@ fun BackgroundPermissionsDialog(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
-                                .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(theme.primary.copy(alpha = 0.12f))
+                                .border(1.dp, theme.primary.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Shield,
                                 contentDescription = null,
-                                tint = Color(0xFF00E5FF),
-                                modifier = Modifier.size(22.dp)
+                                tint = theme.primary,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
                                 "درع الأذونات وحماية النظام",
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontSize = 15.sp
+                                color = theme.textPrimary,
+                                fontSize = 16.sp
                             )
                             Text(
                                 "SPATIAL HUD • PRAYER & STUDIO SENTINEL",
                                 fontFamily = RobotoMonoFont,
-                                color = Color(0xFF00E5FF),
-                                fontSize = 8.5.sp,
+                                color = theme.primary,
+                                fontSize = 9.sp,
                                 letterSpacing = 0.5.sp
                             )
                         }
@@ -302,14 +294,14 @@ fun BackgroundPermissionsDialog(
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(theme.secondarySurface)
                     ) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "إغلاق",
-                            tint = Color.White.copy(alpha = 0.7f),
+                            tint = theme.textSecondary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -317,10 +309,10 @@ fun BackgroundPermissionsDialog(
 
                 Text(
                     text = "لضمان رفع الأذان في وقته بدقة تامة، وحماية التنبيهات من تجميد خلفية النظام، وتشغيل أدوات استوديو الصوت بكفاءة، يُرجى تفعيل الصلاحيات التالية:",
-                    color = Color(0xFF94A3B8),
+                    color = theme.textSecondary,
                     fontFamily = CairoFont,
-                    fontSize = 11.5.sp,
-                    lineHeight = 16.sp
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
                 )
 
                 // Scrollable permissions list
@@ -387,29 +379,29 @@ fun BackgroundPermissionsDialog(
                         )
                     }
 
-                    // 5. التشغيل التلقائي (لأجهزة شاومي وهواوي وسامسونج)
+                    // 6. التشغيل التلقائي (لأجهزة شاومي وهواوي وسامسونج)
                     Surface(
-                        color = Color(0xFF101726).copy(alpha = 0.85f),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, theme.cardBorder)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { BackgroundPermissionManager.openManufacturerAutostartSettings(context) }
-                                .padding(horizontal = 10.dp, vertical = 9.dp),
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Column {
-                                    Text("إعدادات التشغيل التلقائي للهاتف", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("لهواتف شاومي، هواوي، سامسونج وأوبو", color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 9.sp)
+                                    Text("إعدادات التشغيل التلقائي للهاتف", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("لهواتف شاومي، هواوي، سامسونج وأوبو", color = theme.textTertiary, fontFamily = NotoSansFont, fontSize = 9.5.sp)
                                 }
                             }
-                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -417,20 +409,20 @@ fun BackgroundPermissionsDialog(
                 // CTA Primary Button
                 Button(
                     onClick = onGrantAll,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
-                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(46.dp)
                 ) {
-                    Icon(Icons.Default.Bolt, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "تفعيل جميع الصلاحيات والدروع 🚀",
-                        color = DeepSlate,
+                        color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp
+                        fontSize = 13.sp
                     )
                 }
 
@@ -441,10 +433,10 @@ fun BackgroundPermissionsDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("المتابعة لاحقاً", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text("المتابعة لاحقاً", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                     }
                     TextButton(onClick = onOpenFullHub) {
-                        Text("مركز الأذونات الكامل 🛸", color = Color(0xFF00E5FF), fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        Text("مركز الأذونات الكامل 🛸", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -461,10 +453,11 @@ private fun PermissionStatusCard(
     accentColor: Color,
     onAction: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF0E1524),
+        color = theme.secondarySurface,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, if (isGranted) Color(0xFF10B981).copy(alpha = 0.5f) else accentColor.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, if (isGranted) Color(0xFF10B981).copy(alpha = 0.35f) else theme.cardBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -477,16 +470,16 @@ private fun PermissionStatusCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(accentColor.copy(alpha = 0.15f))
-                        .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp)),
+                        .background(accentColor.copy(alpha = 0.12f))
+                        .border(1.dp, accentColor.copy(alpha = 0.25f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(desc, color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 9.5.sp, lineHeight = 13.sp)
+                    Text(title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                    Text(desc, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 10.sp, lineHeight = 14.sp)
                 }
             }
 
@@ -496,26 +489,26 @@ private fun PermissionStatusCard(
                 Surface(
                     color = Color(0xFF10B981).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                    border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.4f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text("ممنوح", color = Color(0xFF10B981), fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                     }
                 }
             } else {
                 Button(
                     onClick = onAction,
-                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor, contentColor = Color.White),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier.height(34.dp)
                 ) {
-                    Text("تفعيل ⚡", color = DeepSlate, fontSize = 10.5.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("تفعيل ⚡", color = Color.White, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             }
         }

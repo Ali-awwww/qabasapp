@@ -38,11 +38,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.activity.compose.BackHandler
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.CardSurface
 import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ui.theme.TextPrimary
 import com.qabas.app.ui.theme.TextSecondary
@@ -55,12 +57,12 @@ import java.io.File
 fun StrictBadge(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = GoldPrimary
+    color: Color = Color(0xFF0A84FF)
 ) {
     Surface(
-        color = color.copy(alpha = 0.15f),
-        shape = CutCornerShape(2.dp),
-        border = BorderStroke(0.6.dp, color),
+        color = color.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(0.6.dp, color.copy(alpha = 0.35f)),
         modifier = modifier
     ) {
         Text(
@@ -75,30 +77,10 @@ fun StrictBadge(
     }
 }
 
-private val SpatialDeckShape = CutCornerShape(
-    topStart = 22.dp,
-    topEnd = 6.dp,
-    bottomEnd = 22.dp,
-    bottomStart = 6.dp
-)
-private val SpatialCardShape = CutCornerShape(
-    topStart = 14.dp,
-    topEnd = 4.dp,
-    bottomEnd = 14.dp,
-    bottomStart = 4.dp
-)
-private val SpatialInsetShape = CutCornerShape(
-    topStart = 8.dp,
-    topEnd = 2.dp,
-    bottomEnd = 8.dp,
-    bottomStart = 2.dp
-)
-private val SpatialButtonShape = CutCornerShape(
-    topStart = 9.dp,
-    topEnd = 3.dp,
-    bottomEnd = 9.dp,
-    bottomStart = 3.dp
-)
+private val SpatialDeckShape = RoundedCornerShape(16.dp)
+private val SpatialCardShape = RoundedCornerShape(14.dp)
+private val SpatialInsetShape = RoundedCornerShape(10.dp)
+private val SpatialButtonShape = RoundedCornerShape(10.dp)
 
 private enum class DownloadCategory(
     val tabIndex: Int,
@@ -160,10 +142,11 @@ private fun SpatialControlDeck(
     isCheckingUpdate: Boolean,
     onCheckUpdates: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = CardSurface.copy(alpha = 0.92f),
+        color = theme.cardSurface,
         shape = SpatialDeckShape,
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.32f)),
+        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.5f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
@@ -177,11 +160,7 @@ private fun SpatialControlDeck(
                     modifier = Modifier
                         .size(width = 4.dp, height = 26.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(GoldPrimary, Color(0xFF00E5FF))
-                            )
-                        )
+                        .background(theme.primary)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -190,7 +169,7 @@ private fun SpatialControlDeck(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.5.sp,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -198,7 +177,7 @@ private fun SpatialControlDeck(
                         text = "كل ملفاتك وتنزيلاتك في مكان واحد",
                         fontFamily = CairoFont,
                         fontSize = 10.sp,
-                        color = TextSecondary,
+                        color = theme.textSecondary,
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Ellipsis
@@ -209,7 +188,7 @@ private fun SpatialControlDeck(
                         modifier = Modifier
                             .size(16.dp)
                             .testTag("deck_update_checking"),
-                        color = Color(0xFF10B981),
+                        color = theme.success,
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -217,36 +196,26 @@ private fun SpatialControlDeck(
                     IconButton(
                         onClick = onCheckUpdates,
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981).copy(alpha = 0.12f))
+                            .background(theme.success.copy(alpha = 0.12f))
                             .testTag("deck_check_updates_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.SystemUpdate,
                             contentDescription = "فحص التحديثات",
-                            tint = Color(0xFF10B981),
-                            modifier = Modifier.size(17.dp)
+                            tint = theme.success,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                 }
-                StrictBadge(text = "LIVE", color = Color(0xFF10B981))
+                StrictBadge(text = "مباشر", color = theme.success)
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                GoldPrimary.copy(alpha = 0.65f),
-                                Color(0xFF00E5FF).copy(alpha = 0.35f),
-                                Color.Transparent
-                            )
-                        )
-                    )
+            HorizontalDivider(
+                color = theme.separator.copy(alpha = 0.45f),
+                thickness = 0.5.dp
             )
 
             Column(
@@ -776,13 +745,16 @@ fun DownloadsHubScreen(
         }
     }
 
+    val theme = QabasTheme.current
+    BackHandler { onBack() }
+
     Scaffold(
-        containerColor = DeepSlate,
+        containerColor = theme.background,
         bottomBar = bottomBar,
         topBar = {
             Surface(
-                color = CardSurface.copy(alpha = 0.95f),
-                border = BorderStroke(0.6.dp, GoldPrimary.copy(alpha = 0.25f)),
+                color = theme.cardSurface,
+                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -800,15 +772,15 @@ fun DownloadsHubScreen(
                         IconButton(
                             onClick = onBack,
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.06f))
+                                .background(theme.secondarySurface)
                                 .testTag("downloads_back_button")
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "رجوع",
-                                tint = GoldPrimary,
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -822,7 +794,7 @@ fun DownloadsHubScreen(
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 17.sp,
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f, fill = false)
@@ -831,19 +803,19 @@ fun DownloadsHubScreen(
                                 if (appUpdateDownload?.isDownloading == true) {
                                     StrictBadge(
                                         text = "تحديث قيد التنزيل ${appUpdateDownload?.percentInt}٪ 🚀",
-                                        color = Color(0xFF00E5FF),
+                                        color = theme.primary,
                                         modifier = Modifier.clickable { selectedTab = 1 }
                                     )
                                 } else if (appUpdateDownload?.isCompleted == true) {
                                     StrictBadge(
                                         text = "تحديث جاهز للتثبيت ⚡",
-                                        color = Color(0xFF10B981),
+                                        color = theme.success,
                                         modifier = Modifier.clickable { selectedTab = 1 }
                                     )
                                 } else {
                                     StrictBadge(
                                         text = "مركز موحد",
-                                        color = Color(0xFF00E5FF)
+                                        color = theme.primary
                                     )
                                 }
                             }
@@ -854,7 +826,7 @@ fun DownloadsHubScreen(
                                     "إدارة الملفات والتنزيلات بسهولة",
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp,
-                                color = if (appUpdateDownload?.isDownloading == true) Color(0xFF00E5FF) else TextSecondary,
+                                color = if (appUpdateDownload?.isDownloading == true) theme.primary else theme.textSecondary,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -868,16 +840,16 @@ fun DownloadsHubScreen(
                             Toast.makeText(context, "تم تحديث قياسات الذاكرة التخزينية 🔄", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(theme.secondarySurface)
                             .testTag("refresh_storage_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "تحديث",
-                            tint = Color(0xFF00E5FF),
-                            modifier = Modifier.size(19.dp)
+                            tint = theme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }

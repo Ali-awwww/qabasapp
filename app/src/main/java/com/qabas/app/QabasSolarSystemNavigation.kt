@@ -159,17 +159,20 @@ fun QabasSolarSystemNavigation(
         }
     }
 
+    val theme = com.qabas.app.ui.theme.QabasTheme.current
+
     if (pendingRoute != null) {
         val target = navItems.firstOrNull { it.route == pendingRoute }
         AlertDialog(
             onDismissRequest = { pendingRoute = null },
-            containerColor = CardSurface,
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     text = Translator.tr("الدخول إلى ${target?.label.orEmpty()}؟"),
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
+                    color = theme.textPrimary,
                     fontSize = 17.sp
                 )
             },
@@ -177,7 +180,7 @@ fun QabasSolarSystemNavigation(
                 Text(
                     text = Translator.tr("سيتم الانتقال إلى قسم «${target?.label.orEmpty()}»."),
                     fontFamily = CairoFont,
-                    color = TextSecondary,
+                    color = theme.textSecondary,
                     fontSize = 13.sp
                 )
             },
@@ -189,10 +192,10 @@ fun QabasSolarSystemNavigation(
                     onNavigate(routeToGo)
                 }) {
                     Text(
-                        text = Translator.tr("تأكيد ✓"),
+                        text = Translator.tr("تأكيد"),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        color = GoldPrimary,
+                        color = theme.primary,
                         fontSize = 14.sp
                     )
                 }
@@ -202,7 +205,7 @@ fun QabasSolarSystemNavigation(
                     Text(
                         text = Translator.tr("إلغاء"),
                         fontFamily = CairoFont,
-                        color = TextSecondary,
+                        color = theme.textSecondary,
                         fontSize = 14.sp
                     )
                 }
@@ -214,63 +217,49 @@ fun QabasSolarSystemNavigation(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 16.dp,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                ambientColor = GoldPrimary.copy(alpha = 0.10f),
-                spotColor = GoldPrimary.copy(alpha = 0.15f)
+                elevation = if (theme.isDark) 0.dp else 8.dp,
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
             )
             .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .border(
-                width = 1.dp,
-                brush = Brush.horizontalGradient(
-                    listOf(
-                        Color(0xFF1E293B).copy(alpha = 0.4f),
-                        GoldPrimary.copy(alpha = 0.5f),
-                        GoldSecondary.copy(alpha = 0.3f),
-                        Color(0xFF1E293B).copy(alpha = 0.4f)
-                    )
-                ),
+                width = 0.5.dp,
+                color = theme.separator.copy(alpha = 0.55f),
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
             ),
-        color = Color(0xFF0B1120)
+        color = theme.cardSurface
     ) {
-        BoxWithConstraints(modifier = Modifier
-            .fillMaxSize()
-            .height(108.dp)) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .height(108.dp)
+        ) {
             val density = LocalDensity.current
             val centerX = with(density) { maxWidth.toPx() / 2f }
             val centerY = with(density) { maxHeight.toPx() / 2f }
             val orbitRadius = with(density) { 34.dp.toPx() }
+            val primaryColor = theme.primary
+            val accentColor = theme.accent
 
             val sunGlow = rememberSolarGlow()
 
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
-                    color = GoldPrimary.copy(alpha = 0.08f),
+                    color = theme.separator.copy(alpha = 0.35f),
                     radius = orbitRadius,
                     center = Offset(centerX, centerY),
                     style = Stroke(width = 1.dp.toPx())
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(Color.White, GoldSecondary, GoldPrimary, GoldPrimary.copy(alpha = 0f)),
+                        colors = listOf(Color.White.copy(alpha = 0.6f), accentColor.copy(alpha = 0.35f), Color.Transparent),
                         center = Offset(centerX, centerY),
-                        radius = 30.dp.toPx()
+                        radius = 28.dp.toPx()
                     ),
-                    radius = 30.dp.toPx() * sunGlow,
+                    radius = 28.dp.toPx() * sunGlow,
                     center = Offset(centerX, centerY)
                 )
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(GoldSecondary, GoldPrimary, Color.Transparent),
-                        center = Offset(centerX, centerY),
-                        radius = 14.dp.toPx()
-                    ),
-                    radius = 14.dp.toPx(),
-                    center = Offset(centerX, centerY)
-                )
-                drawCircle(
-                    color = GoldPrimary,
+                    color = primaryColor,
                     radius = 8.dp.toPx(),
                     center = Offset(centerX, centerY)
                 )
@@ -285,7 +274,7 @@ fun QabasSolarSystemNavigation(
                 val isSelected = currentRoute == item.route
                 val label = Translator.tr(item.label)
                 val planetModifier = Modifier
-                    .width(62.dp)
+                    .width(64.dp)
                     .graphicsLayer {
                         val angleDegrees = index * SEGMENT_SPACING_DEGREES + shellDegrees
                         val angleRadians = (angleDegrees * (Math.PI / 180.0)).toFloat()
@@ -294,10 +283,10 @@ fun QabasSolarSystemNavigation(
 
                         val distanceFromThrone = angularDistance(angleDegrees, THRONE_DEGREES)
                         val emphasis = (cos((distanceFromThrone * (Math.PI / 180.0)).toFloat()) + 1f) / 2f
-                        val scale = 0.82f + (1.24f - 0.82f) * emphasis
+                        val scale = 0.86f + (1.20f - 0.86f) * emphasis
                         scaleX = scale
                         scaleY = scale
-                        alpha = 0.55f + (1f - 0.55f) * emphasis
+                        alpha = 0.65f + (1f - 0.65f) * emphasis
                     }
                     .pointerInput(item.route) {
                         detectTapGestures(
@@ -314,20 +303,14 @@ fun QabasSolarSystemNavigation(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(26.dp)
                             .background(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        item.color,
-                                        item.color.copy(alpha = 0.55f),
-                                        Color(0xFF1E293B)
-                                    )
-                                ),
+                                color = if (isSelected) primaryColor else item.color,
                                 shape = CircleShape
                             )
                             .border(
-                                width = if (isSelected) 1.6.dp else 1.dp,
-                                color = if (isSelected) GoldPrimary else item.color.copy(alpha = 0.35f),
+                                width = if (isSelected) 1.8.dp else 0.8.dp,
+                                color = if (isSelected) theme.textPrimary else theme.cardSurface,
                                 shape = CircleShape
                             ),
                         contentAlignment = Alignment.Center
@@ -335,17 +318,17 @@ fun QabasSolarSystemNavigation(
                         Icon(
                             imageVector = item.icon,
                             contentDescription = label,
-                            tint = DeepSlate,
-                            modifier = Modifier.size(13.dp)
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = label,
-                        color = if (isSelected) GoldPrimary else TextSecondary,
+                        color = if (isSelected) theme.primary else theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 8.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 8.5.sp,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )

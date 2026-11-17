@@ -1,11 +1,13 @@
 package com.qabas.app
 
 import android.content.Context
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,16 +16,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -33,11 +31,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleKeyRequiredBanner
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.components.AppleSegmentedControl
+import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-// --- Data Models for Interactive Knowledge Vault ---
 data class FlipMemoryCard(
     val id: String,
     val category: String,
@@ -75,30 +80,41 @@ fun KnowledgeHubScreen(
     onOpenTeleprompterWithText: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val hasAiEngine = remember { ServiceAvailabilityRegistry.hasAnyAiAssistantEngine(context) }
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf(
-        "🃏 بطاقات الذاكرة",
-        "🧪 مختبر المحتوى",
-        "🎙️ عصارة البودكاست",
-        "🏆 تحدي الفرسان"
-    )
 
-    // --- Streak & Daily Progress State ---
     val sharedPrefs = remember { context.getSharedPreferences("qabas_knowledge_prefs", Context.MODE_PRIVATE) }
-    var streakDays by remember { mutableIntStateOf(sharedPrefs.getInt("streak_days", 4)) }
-    var taskReadToday by remember { mutableStateOf(sharedPrefs.getBoolean("task_read_today", false)) }
-    var taskQuizToday by remember { mutableStateOf(sharedPrefs.getBoolean("task_quiz_today", false)) }
-    var taskScriptCreatedToday by remember { mutableStateOf(sharedPrefs.getBoolean("task_script_today", false)) }
+    val todayKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    val savedDate = remember { sharedPrefs.getString("last_task_date", "") ?: "" }
+    val isSameDay = savedDate == todayKey
 
-    val completedTasksCount = (if (taskReadToday) 1 else 0) + (if (taskQuizToday) 1 else 0) + (if (taskScriptCreatedToday) 1 else 0)
+    var streakDays by remember { mutableIntStateOf(sharedPrefs.getInt("streak_days", 0)) }
+    var taskReadToday by remember { mutableStateOf(isSameDay && sharedPrefs.getBoolean("task_read_today", false)) }
+    var taskQuizToday by remember { mutableStateOf(isSameDay && sharedPrefs.getBoolean("task_quiz_today", false)) }
+    var taskScriptCreatedToday by remember { mutableStateOf(isSameDay && sharedPrefs.getBoolean("task_script_today", false)) }
 
-    // --- Daily Spark Quote Data ---
-    var isDailySparkSaved by remember { mutableStateOf(false) }
+    fun markTaskDone(key: String) {
+        val lastCountedDay = sharedPrefs.getString("last_streak_date", "") ?: ""
+        val editor = sharedPrefs.edit()
+            .putString("last_task_date", todayKey)
+            .putBoolean(key, true)
+        if (lastCountedDay != todayKey) {
+            streakDays += 1
+            editor.putInt("streak_days", streakDays).putString("last_streak_date", todayKey)
+        }
+        editor.apply()
+    }
 
-    // --- Flip Cards Data ---
+    val completedTasksCount = (if (taskReadToday) 1 else 0) +
+        (if (taskQuizToday) 1 else 0) +
+        (if (taskScriptCreatedToday) 1 else 0)
+
+    var isDailySparkSaved by remember { mutableStateOf(taskReadToday) }
+
     var selectedCategory by remember { mutableStateOf("الكل") }
     val categories = listOf("الكل", "غريب القرآن", "لطائف الأحاديث", "سير الصحابة", "أسرار اللغة", "قواعد الدعوة")
 
@@ -111,7 +127,7 @@ fun KnowledgeHubScreen(
                 questionOrFrontText = "ما هي «الْعَقَبَةُ» التي أمر اللهُ الإنسانَ باقتحامها في سورة البلد؟ وما معنى هذا التعبير؟",
                 answerOrBackText = "العقبة هي الطريق الشديد المتعرج في الجبل. والمراد بها مجاهدة النفس في بذل المال وإطعام الجائع وفك العاني، وسُميت عقبة لأن مجاهدة شح النفس وتجاوزه أشد على الإنسان من صعود الجبل!",
                 sourceBook = "تفسير القرطبي وابن كثير",
-                viralReelScriptIdea = "🔥 خطاف الفكرة: «تعرف الآية التي تحداك الله أن تقتحم فيها أصعب جبل في حياتك؟ تعال تعرف معناها السرّي!»"
+                viralReelScriptIdea = "خطاف الفكرة: «تعرف الآية التي تحداك الله أن تقتحم فيها أصعب جبل في حياتك؟ تعال تعرف معناها السرّي!»"
             ),
             FlipMemoryCard(
                 id = "c2",
@@ -120,25 +136,25 @@ fun KnowledgeHubScreen(
                 questionOrFrontText = "كان النبي ﷺ يتعوذ في سفره من «الحَوْرِ بعد الكَوْرِ»، فماذا يعني هذا الدُّعاء العجيب؟",
                 answerOrBackText = "الكَوْرُ هو لف العمامة بإتقان، والحَوْرُ هو نقضها وحلها بعد إحكامها. والمراد التعوذ من النقصان والانتكاس بعد الزيادة والاستقامة، والنكوص عن الحق بعد الفهم!",
                 sourceBook = "جامع العلوم والحكم - ابن رجب",
-                viralReelScriptIdea = "🎬 خطاف الفكرة: «دعاء نبوي شريف لو دعيت به يومياً حماك الله من الانتكاسة والنكوص بعد الالتزام!»"
+                viralReelScriptIdea = "خطاف الفكرة: «دعاء نبوي شريف لو دعيت به يومياً حماك الله من الانتكاسة والنكوص بعد الالتزام!»"
             ),
             FlipMemoryCard(
                 id = "c3",
                 category = "سير الصحابة",
                 title = "الصحابي الذي اهتز لعرش الرحمن",
                 questionOrFrontText = "من هو الصحابي الجليل الذي اهتز لموته عرش الرحمن؟ وكم كانت مدة إسلامه؟",
-                answerOrBackText = "هو سعد بن معاذ رضي الله عنه، سيد الأوس. أسلم وعمره 31 سنة ومات وعمره 37 سنة! ست سنوات فقط في الإسلام كانت كافية لكي ياهتز لموته عرش الرحمن لجليل أعماله بنصرة الدين.",
+                answerOrBackText = "هو سعد بن معاذ رضي الله عنه، سيد الأوس. أسلم وعمره 31 سنة ومات وعمره 37 سنة! ست سنوات فقط في الإسلام كانت كافية لكي يهتز لموته عرش الرحمن لجليل أعماله بنصرة الدين.",
                 sourceBook = "سير أعلام النبلاء - الذهبي",
-                viralReelScriptIdea = "⚡ خطاف الفكرة: «6 سنوات فقط كانت كافية ليهتز عرش الرحمن لموت هذا الرجل! ما سر الإنجاز؟»"
+                viralReelScriptIdea = "خطاف الفكرة: «6 سنوات فقط كانت كافية ليهتز عرش الرحمن لموت هذا الرجل! ما سر الإنجاز؟»"
             ),
             FlipMemoryCard(
                 id = "c4",
                 category = "أسرار اللغة",
                 title = "الفرق بين «الحِلم» و«الحُلْم» و«الحَلَم»",
                 questionOrFrontText = "كيف يُغير تشكيل حرف واحد المعنى بالكامل في اللغة العربية؟",
-                answerOrBackText = "1) الحِلْم (بكسر الحاء): ضبط النفس والتأنّي.\n2) الحُلْم (بضم الحاء): ما يراه النائم.\n3) الحَلَم (بفتح الحاء والحاء): صغار القراد أو الثقوب. إعجاز وبلاغة لغوية فريدة!",
+                answerOrBackText = "1) الحِلْم (بكسر الحاء): ضبط النفس والتأنّي.\n2) الحُلْم (بضم الحاء): ما يراه النائم.\n3) الحَلَم (بفتح الحاء واللام): صغار القراد أو الثقوب. إعجاز وبلاغة لغوية فريدة!",
                 sourceBook = "الفروق اللغوية - أبو هلال العسكري",
-                viralReelScriptIdea = "💡 خطاف الفكرة: «حركة واحدة فقط تشقلب معنى الكلمة من قمة الحكمة إلى نوم الليل!»"
+                viralReelScriptIdea = "خطاف الفكرة: «حركة واحدة فقط تشقلب معنى الكلمة من قمة الحكمة إلى نوم الليل!»"
             ),
             FlipMemoryCard(
                 id = "c5",
@@ -147,31 +163,29 @@ fun KnowledgeHubScreen(
                 questionOrFrontText = "كيف تبني أسلوباً دعوياً جذّاباً يمنع تنفير الجمهور في السوشيال ميديا؟",
                 answerOrBackText = "الخطاب الدعوي المحبوب يعتمد على التلطف والرحمة وتبيان البديل الإيجابي قبل تحريم الفاسد، واختيار الألفاظ التي تحبب العباد لربهم وتفتح أبواب التوبة.",
                 sourceBook = "صيد الخاطر - ابن الجوزي",
-                viralReelScriptIdea = "✨ خطاف الفكرة: «3 أسرار تجعل مقاطعك الإسلامية محبوبة وتلمس القلوب بدون هجوم تنفيري!»"
+                viralReelScriptIdea = "خطاف الفكرة: «3 أسرار تجعل مقاطعك الإسلامية محبوبة وتلمس القلوب بدون هجوم تنفيري!»"
             )
         )
     }
 
     val filteredCards = if (selectedCategory == "الكل") memoryCards else memoryCards.filter { it.category == selectedCategory }
 
-    // --- Knowledge-to-Reels Converter State ---
     var selectedQuickTopic by remember { mutableStateOf("تفسير غريب آية قرآنية") }
     val quickTopics = listOf(
         "تفسير غريب آية قرآنية",
-        "قصة صحابي غير مشهورة ⚔️",
-        "حديث شريف يغير نظرتك للحياة 💫",
-        "رد هادئ على شبهة منتشرة 🛡️",
-        "لطيفة لغوية وإعجاز بياني 📖"
+        "قصة صحابي غير مشهورة",
+        "حديث شريف يغير نظرتك للحياة",
+        "رد هادئ على شبهة منتشرة",
+        "لطيفة لغوية وإعجاز بياني"
     )
-
     var customConverterTopic by remember { mutableStateOf("") }
-    var selectedToneStyle by remember { mutableStateOf("وثائقي غامض ومكثف 🎙️") }
-    val toneStyles = listOf("وثائقي غامض ومكثف 🎙️", "قصصي درامي مشوق 🎭", "سؤال وجواب مفاجئ ❓")
+    var selectedToneStyle by remember { mutableStateOf("وثائقي غامض ومكثف") }
+    val toneStyles = listOf("وثائقي غامض ومكثف", "قصصي درامي مشوق", "سؤال وجواب مفاجئ")
 
     var isGeneratingScript by remember { mutableStateOf(false) }
     var generatedScriptOutput by remember { mutableStateOf("") }
+    var scriptErrorMessage by remember { mutableStateOf<String?>(null) }
 
-    // --- Podcast Soundbites State ---
     val podcastSnippets = remember {
         listOf(
             PodcastSnippet(
@@ -179,23 +193,23 @@ fun KnowledgeHubScreen(
                 showName = "بودكاست وعي",
                 title = "كيف تحمي قلبك من فتنة الشهوات العابرة؟",
                 speaker = "د. أحمد عبد المنعم والمهندس أيمن عبد الرحيم",
-                durationText = "3:15 دقيقة مقتطعة",
+                durationText = "خلاصة صوتية",
                 keyTakeaways = listOf(
                     "العقل يتبع التغذية البصرية؛ ما تراه عيناك يطبعه قلبك.",
                     "الوقاية من الشبهات تبدأ ببناء حصيلة علمية رصينة.",
-                    "صناعة المحتوى الهادف هي صدقة جارية تلاحقك في قبرك."
+                    "صناعة المحتوى الهادف هي صدقة جارية تبقى أثرها."
                 )
             ),
             PodcastSnippet(
                 id = "pod_2",
                 showName = "بودكاست ثمانية (فنجان)",
-                title = "فلسفة التدبر وبناء الشخصية القرأنية",
+                title = "فلسفة التدبر وبناء الشخصية القرآنية",
                 speaker = "الشيخ محمد الحسن الددو",
-                durationText = "4:40 دقيقة مقتطعة",
+                durationText = "خلاصة صوتية",
                 keyTakeaways = listOf(
-                    "التدبر ليس قراءة سطور، بل تنزيل الآيات على واقعكDaily.",
+                    "التدبر ليس قراءة سطور، بل تنزيل الآيات على واقعك اليومي.",
                     "اللغة العربية هي مفتاح فهم القرآن بدون وسائط.",
-                    "الاستمرار ولو بقليل هو القوة الحقيقية للصانع."
+                    "الاستمرار ولو بقليل هو القوة الحقيقية لصانع المحتوى."
                 )
             ),
             PodcastSnippet(
@@ -203,7 +217,7 @@ fun KnowledgeHubScreen(
                 showName = "بودكاست نقطة",
                 title = "معالم النجاة في زمن التغيرات المتسارعة",
                 speaker = "د. مطلق الجاسر",
-                durationText = "2:50 دقيقة مقتطعة",
+                durationText = "خلاصة صوتية",
                 keyTakeaways = listOf(
                     "الثبات يحتاج لصحبة صالحة وبيئة تعين على الحق.",
                     "الصمت عند عدم العلم نصف العقل والحكمة.",
@@ -213,7 +227,6 @@ fun KnowledgeHubScreen(
         )
     }
 
-    // --- Quiz Battle State ---
     val quizQuestions = remember {
         listOf(
             KnowledgeBattleQuiz(
@@ -264,44 +277,37 @@ fun KnowledgeHubScreen(
     var quizScore by remember { mutableIntStateOf(0) }
     var isQuizCompleted by remember { mutableStateOf(false) }
 
-    // --- Audience Poll Generator State ---
     var audienceTopicInput by remember { mutableStateOf("غزوة بدر والدروس الاستراتيجية") }
     var generatedPollQuestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var isGeneratingPolls by remember { mutableStateOf(false) }
+    var pollErrorMessage by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        containerColor = DeepSlate,
+        containerColor = theme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.School, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(24.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("روضة طلب العلم والإنتاج", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("✨", fontSize = 12.sp)
-                            }
-                            Text("تزود بالمعرفة وحوّلها إلى أثر يدوم ⚡", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
-            )
+            Column(modifier = Modifier.background(theme.background)) {
+                AppleTopBar(
+                    title = "روضة طلب العلم والإنتاج",
+                    subtitle = "تزود بالمعرفة وحوّلها إلى أثر يدوم",
+                    onBack = onBack
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    AppleSegmentedControl(
+                        items = listOf(
+                            0 to "البطاقات",
+                            1 to "المختبر",
+                            2 to "البودكاست",
+                            3 to "المسابقة"
+                        ),
+                        selectedItem = selectedTab,
+                        onSelect = { selectedTab = it }
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         Column(
@@ -309,13 +315,11 @@ fun KnowledgeHubScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // --- DAILY STREAK & HABIT BANNER ---
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                shape = RoundedCornerShape(0.dp),
-                modifier = Modifier.fillMaxWidth()
+            AppleCard(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                cornerRadius = 16.dp
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -324,89 +328,71 @@ fun KnowledgeHubScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .background(Color(0xFFEA580C).copy(alpha = 0.2f), CircleShape),
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(theme.warning.copy(alpha = 0.16f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("🔥", fontSize = 16.sp)
+                                Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = theme.warning, modifier = Modifier.size(18.dp))
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("سلسلة الورد اليومي: $streakDays أيام متتالية", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("إنجاز اليوم: $completedTasksCount من 3 مهام إسلامية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                Text(
+                                    "سلسلة الورد اليومي: $streakDays أيام",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    "إنجاز اليوم: $completedTasksCount من 3 مهام",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.sp
+                                )
                             }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .background(Brush.horizontalGradient(listOf(Color(0xFF151B2B), Color(0xFF0B0F19))), RoundedCornerShape(10.dp))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        Surface(
+                            color = theme.primary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("+${completedTasksCount * 30} XP 🏆", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                "+${completedTasksCount * 30} XP",
+                                color = theme.primary,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Progress Bar
                     LinearProgressIndicator(
                         progress = { (completedTasksCount / 3f).coerceIn(0f, 1f) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(CircleShape),
-                        color = GoldPrimary,
-                        trackColor = Color(0xFF151B2B)
+                        color = theme.primary,
+                        trackColor = theme.secondarySurface
                     )
                 }
             }
 
-            // --- TABS SELECTION ---
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = CardSurface,
-                contentColor = GoldPrimary,
-                indicator = { tabPositions ->
-                    if (selectedTab < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = GoldPrimary,
-                            height = 3.dp
-                        )
-                    }
-                }
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Text(
-                                title,
-                                color = if (selectedTab == index) GoldPrimary else TextSecondary,
-                                fontFamily = CairoFont,
-                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp
-                            )
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             when (selectedTab) {
                 0 -> {
-                    // TAB 1: Interactive Flip Cards & Memory Vault
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
-                        // Daily Spark Feature
                         item {
                             DailySparkCard(
                                 isSaved = isDailySparkSaved,
@@ -414,30 +400,29 @@ fun KnowledgeHubScreen(
                                     isDailySparkSaved = !isDailySparkSaved
                                     if (!taskReadToday) {
                                         taskReadToday = true
-                                        sharedPrefs.edit().putBoolean("task_read_today", true).apply()
+                                        markTaskDone("task_read_today")
                                         PointsManager.awardPoints(context, PointAction.DAILY_LOGIN)
-                                        Toast.makeText(context, "تم إنجاز قراءة فائدة اليوم! +10 XP 🎉", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تم إنجاز قراءة فائدة اليوم! +10 XP", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onStartScript = {
                                     val script = """
-                                        🎬 سيناريو فائدة اليوم:
-                                        🔥 الخطاف: «تعرف الآية التي اختصرت أسرار الطمأنينة والنفسية السوية؟»
+                                        سيناريو فائدة اليوم:
+                                        الخطاف: «تعرف الآية التي اختصرت أسرار الطمأنينة والنفسية السوية؟»
                                         
-                                        💡 الفائدة: قال تعالى: {أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ}. الذكر ليس مجرد كلمات باللسان، بل هو وصل القلب بمصدر النور والأمان.
+                                        الفائدة: قال تعالى: {أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ}. الذكر ليس مجرد كلمات باللسان، بل هو وصل القلب بمصدر النور والأمان.
                                         
-                                        ✨ الرسالة: اجعل لسانك رطباً بذكر الله في كل أوقاتك!
+                                        الرسالة: اجعل لسانك رطباً بذكر الله في كل أوقاتك.
                                     """.trimIndent()
                                     onStartScriptWithText(script)
                                 }
                             )
                         }
 
-                        // Filter Categories Chips
                         item {
                             Column {
-                                Text("تصفح بطاقات الذاكرة التفاعلية 🃏", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("اضغط على أي بطاقة لكشف المعنى السرّي وفكرة الريلز الفيروسية!", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                Text("بطاقات الذاكرة التفاعلية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("اضغط على أي بطاقة لكشف الشرح وفكرة السيناريو", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -448,10 +433,10 @@ fun KnowledgeHubScreen(
                                             onClick = { selectedCategory = cat },
                                             label = { Text(cat, fontFamily = NotoSansFont, fontSize = 12.sp) },
                                             colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = GoldPrimary,
-                                                selectedLabelColor = DeepSlate,
-                                                containerColor = CardSurface,
-                                                labelColor = TextPrimary
+                                                selectedContainerColor = theme.primary,
+                                                selectedLabelColor = Color.White,
+                                                containerColor = theme.cardSurface,
+                                                labelColor = theme.textPrimary
                                             )
                                         )
                                     }
@@ -459,76 +444,78 @@ fun KnowledgeHubScreen(
                             }
                         }
 
-                        // Flip Cards Items
                         items(filteredCards) { memoryCard ->
                             InteractiveFlipMemoryCardItem(
                                 memoryCard = memoryCard,
                                 onStartScript = {
                                     val script = """
-                                        🎬 سيناريو ريلز مشتق من: ${memoryCard.title}
+                                        سيناريو مشتق من: ${memoryCard.title}
                                         
                                         ${memoryCard.viralReelScriptIdea}
                                         
-                                        💡 التفسير والمعنى الشرعي:
+                                        التفسير والمعنى الشرعي:
                                         ${memoryCard.answerOrBackText}
                                         
-                                        📖 المصدر والتوثيق:
                                         المصدر: ${memoryCard.sourceBook}
                                     """.trimIndent()
                                     onStartScriptWithText(script)
                                     if (!taskScriptCreatedToday) {
                                         taskScriptCreatedToday = true
-                                        sharedPrefs.edit().putBoolean("task_script_today", true).apply()
+                                        markTaskDone("task_script_today")
                                     }
                                 },
                                 onOpenTeleprompter = {
-                                    val promptText = "${memoryCard.questionOrFrontText}\n\n${memoryCard.answerOrBackText}"
-                                    onOpenTeleprompterWithText(promptText)
+                                    onOpenTeleprompterWithText("${memoryCard.questionOrFrontText}\n\n${memoryCard.answerOrBackText}")
                                 },
                                 onCopy = {
                                     clipboardManager.setText(AnnotatedString("${memoryCard.title}\n${memoryCard.answerOrBackText}\nالمصدر: ${memoryCard.sourceBook}"))
-                                    Toast.makeText(context, "تم نسخ الفائدة للحافظة 📋", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم نسخ الفائدة للحافظة", Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
                     }
                 }
+
                 1 -> {
-                    // TAB 2: Knowledge-to-Reels Converter Engine
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
+                        if (!hasAiEngine) {
+                            item {
+                                AppleKeyRequiredBanner(
+                                    serviceName = "محرك الذكاء الاصطناعي للمختبر",
+                                    reason = "لم يتم إعداد مفتاح API سحابي أو نموذج محلي GGUF؛ سيعمل التوليد عبر المزود المتاح عند الاتصال، وإلا ستظهر رسالة خطأ واضحة دون اختلاق نتائج."
+                                )
+                            }
+                        }
+
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
+                            AppleCard(cornerRadius = 18.dp) {
+                                Column(modifier = Modifier.padding(18.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
-                                                .size(36.dp)
-                                                .background(GoldPrimary.copy(alpha = 0.2f), CircleShape),
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(theme.primary.copy(alpha = 0.14f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Icons.Default.Science, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                            Icon(Icons.Default.Science, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                         }
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column {
-                                            Text("مختبر تحويل العلوم إلى ريلز فيروسي 🧪", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                            Text("اختر الموضوع والأسلوب وسيصمم لك الذكاء الاصطناعي سيناريو احترافياً مع اللقطات البصرية.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 16.sp)
+                                            Text("مختبر تحويل العلوم إلى ريلز", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                            Text("اختر الموضوع والأسلوب لتوليد سيناريو احترافي منظم.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
 
-                                    Text("1. اختر أو اكتب الموضوع العلمي:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("1. اختر أو اكتب الموضوع:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                     Spacer(modifier = Modifier.height(6.dp))
 
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -539,10 +526,10 @@ fun KnowledgeHubScreen(
                                                 onClick = { selectedQuickTopic = qTopic },
                                                 label = { Text(qTopic, fontFamily = NotoSansFont, fontSize = 12.sp) },
                                                 colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = GoldPrimary,
-                                                    selectedLabelColor = DeepSlate,
-                                                    containerColor = Color(0xFF151B2B),
-                                                    labelColor = TextPrimary
+                                                    selectedContainerColor = theme.primary,
+                                                    selectedLabelColor = Color.White,
+                                                    containerColor = theme.secondarySurface,
+                                                    labelColor = theme.textPrimary
                                                 )
                                             )
                                         }
@@ -554,21 +541,21 @@ fun KnowledgeHubScreen(
                                         value = customConverterTopic,
                                         onValueChange = { customConverterTopic = it },
                                         modifier = Modifier.fillMaxWidth(),
-                                        placeholder = { Text("أو اكتب موضوعاً مخصصاً (مثال: أسرار التوكل في سورة التوبة)...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        placeholder = { Text("أو اكتب موضوعاً مخصصاً (مثال: أسرار التوكل)...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp) },
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color(0xFF1E293B),
-                                            focusedTextColor = TextPrimary,
-                                            unfocusedTextColor = TextPrimary,
-                                            focusedContainerColor = Color(0xFF141C27),
-                                            unfocusedContainerColor = Color(0xFF141C27)
+                                            focusedBorderColor = theme.primary,
+                                            unfocusedBorderColor = theme.separator.copy(alpha = 0.6f),
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary,
+                                            focusedContainerColor = theme.secondarySurface,
+                                            unfocusedContainerColor = theme.secondarySurface
                                         ),
                                         shape = RoundedCornerShape(12.dp)
                                     )
 
                                     Spacer(modifier = Modifier.height(14.dp))
 
-                                    Text("2. اختر النبرة والأسلوب الإخراجي:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("2. النبرة والأسلوب الإخراجي:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                     Spacer(modifier = Modifier.height(6.dp))
 
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -579,10 +566,10 @@ fun KnowledgeHubScreen(
                                                 onClick = { selectedToneStyle = tStyle },
                                                 label = { Text(tStyle, fontFamily = NotoSansFont, fontSize = 12.sp) },
                                                 colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = GoldPrimary,
-                                                    selectedLabelColor = DeepSlate,
-                                                    containerColor = Color(0xFF151B2B),
-                                                    labelColor = TextPrimary
+                                                    selectedContainerColor = theme.primary,
+                                                    selectedLabelColor = Color.White,
+                                                    containerColor = theme.secondarySurface,
+                                                    labelColor = theme.textPrimary
                                                 )
                                             )
                                         }
@@ -590,105 +577,83 @@ fun KnowledgeHubScreen(
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    Button(
+                                    ApplePrimaryButton(
+                                        text = if (isGeneratingScript) "جاري توليد السيناريو..." else "تحويل إلى سيناريو ريلز",
+                                        icon = Icons.Default.AutoAwesome,
+                                        isLoading = isGeneratingScript,
+                                        enabled = !isGeneratingScript,
                                         onClick = {
                                             val topicToUse = customConverterTopic.ifBlank { selectedQuickTopic }
                                             isGeneratingScript = true
+                                            scriptErrorMessage = null
                                             scope.launch {
                                                 try {
                                                     val prompt = """
-                                                        أنت خبير إخراج وصناعة محتوى إسلامي ورئيس تحرير.
-                                                        قم بتحويل الموضوع الشرعي التالي إلى سيناريو فيديو قصير دعوي (45 ثانية): "$topicToUse".
-                                                        أسلوب الإخراج المطلوب: "$selectedToneStyle".
-                                                        
+                                                        أنت خبير إخراج وصناعة محتوى إسلامي.
+                                                        قم بتحويل الموضوع التالي إلى سيناريو فيديو قصير دعوي (45 ثانية): "$topicToUse".
+                                                        أسلوب الإخراج: "$selectedToneStyle".
                                                         صغ النتائج بالشكل التالي:
-                                                        1) 🎬 الخطاف الفيروسي (0-3 ثوان): جملة تشد الانتباه وتفتح التساؤل.
-                                                        2) 💡 الشرح والمفهوم العلمي الميسر.
-                                                        3) 🎥 المحور البصري والمشهد المقترح للمونتاج.
-                                                        4) 📖 التوثيق الشرعي والمصدر.
+                                                        1) الخطاف الجاذب (0-3 ثوان).
+                                                        2) الشرح والمفهوم العلمي الميسر.
+                                                        3) المحور البصري المقترح للمونتاج.
+                                                        4) التوثيق الشرعي والمصدر الصحيح.
                                                     """.trimIndent()
-
                                                     val result = AppServices.chatWithAssistant(listOf(Pair(true, prompt)))
-                                                    generatedScriptOutput = result
-                                                    if (!taskScriptCreatedToday) {
-                                                        taskScriptCreatedToday = true
-                                                        sharedPrefs.edit().putBoolean("task_script_today", true).apply()
+                                                    if (result.isBlank()) {
+                                                        scriptErrorMessage = "لم يرجع محرك الذكاء الاصطناعي نتيجة صالحة. تحقق من الاتصال ومفاتيح API."
+                                                    } else {
+                                                        generatedScriptOutput = result
+                                                        if (!taskScriptCreatedToday) {
+                                                            taskScriptCreatedToday = true
+                                                            markTaskDone("task_script_today")
+                                                        }
                                                     }
                                                 } catch (e: Exception) {
-                                                    generatedScriptOutput = """
-                                                        🎬 الخطاف الفيروسي (0-3 ثوان):
-                                                        «هل تعلم أن هناك آية في القرآن تعيد ترتيب كل أفكارك وتلخص سر الطمأنينة؟»
-                                                        
-                                                        💡 الشرح العلمي:
-                                                        التدبر الحقيقي للقرآن ليس مجرد تلاوة، بل استشعار المعاني وتطبيقها في قراراتك اليومية لترتقي بروحك.
-                                                        
-                                                        🎥 اللقطة البصرية:
-                                                        مشهد سينمائي بطيء لضوء الشروق يتسلل بين أوراق الشجر مع صوت تلاوة هادئة خاشعة.
-                                                        
-                                                        📖 المصدر:
-                                                        تفسير السعدي - سورة البقرة.
-                                                    """.trimIndent()
+                                                    scriptErrorMessage = "تعذر توليد السيناريو: ${e.message ?: "تحقق من اتصال الإنترنت أو مفاتيح AI"}"
                                                 } finally {
                                                     isGeneratingScript = false
                                                 }
                                             }
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(12.dp),
-                                        enabled = !isGeneratingScript
-                                    ) {
-                                        if (isGeneratingScript) {
-                                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = DeepSlate, strokeWidth = 2.dp)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("جاري تحويل العلم إلى سيناريو...", color = DeepSlate, fontFamily = CairoFont)
-                                        } else {
-                                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(20.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("تحويل إلى سيناريو ريلز احترافي ✨", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                         }
+                                    )
+
+                                    if (!scriptErrorMessage.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = scriptErrorMessage!!,
+                                            color = theme.destructive,
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 12.sp
+                                        )
                                     }
 
                                     if (generatedScriptOutput.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(Color(0xFF0B0F19), RoundedCornerShape(14.dp))
-                                                .border(1.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-                                                .padding(16.dp)
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Surface(
+                                            color = theme.secondarySurface,
+                                            shape = RoundedCornerShape(14.dp),
+                                            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.5f))
                                         ) {
-                                            Column {
-                                                Text(generatedScriptOutput, color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp, lineHeight = 20.sp)
-                                                Spacer(modifier = Modifier.height(14.dp))
+                                            Column(modifier = Modifier.padding(14.dp)) {
+                                                Text(generatedScriptOutput, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 13.5.sp, lineHeight = 21.sp)
+                                                Spacer(modifier = Modifier.height(12.dp))
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            onOpenTeleprompterWithText(generatedScriptOutput)
-                                                        },
-                                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                                                        shape = RoundedCornerShape(8.dp)
-                                                    ) {
-                                                        Icon(Icons.Default.Mic, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("تسجيل بالمُلقن 🎙️", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        AppleSecondaryButton(
+                                                            text = "تسجيل بالمُلقن",
+                                                            icon = Icons.Default.Mic,
+                                                            onClick = { onOpenTeleprompterWithText(generatedScriptOutput) }
+                                                        )
                                                     }
-
-                                                    Button(
-                                                        onClick = {
-                                                            onStartScriptWithText(generatedScriptOutput)
-                                                        },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                                        shape = RoundedCornerShape(8.dp)
-                                                    ) {
-                                                        Icon(Icons.Default.Movie, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("بدء المونتاج 🎬", color = DeepSlate, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        ApplePrimaryButton(
+                                                            text = "بدء المونتاج",
+                                                            icon = Icons.Default.Movie,
+                                                            onClick = { onStartScriptWithText(generatedScriptOutput) }
+                                                        )
                                                     }
                                                 }
                                             }
@@ -699,33 +664,35 @@ fun KnowledgeHubScreen(
                         }
                     }
                 }
+
                 2 -> {
-                    // TAB 3: Interactive Podcast Soundbites & Audio Player Simulator
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
                         item {
-                            Text("عصارة البودكاست واستخراج المقاطع 🎙️", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("استمع لأهم الفوائد المقتطعة واستخرج منها سيناريوهات جاهزة بنقرة واحدة.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Column {
+                                Text("عصارة البودكاست والاستماع الصوتي", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("استمع لقراءة الفوائد عبر ناطق الجهاز أو استخرج سيناريو جاهزاً.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            }
                         }
 
-                        items(podcastSnippets) { snippet ->
+                        items(podcastSnippets, key = { it.id }) { snippet ->
                             PodcastSoundbiteItem(
                                 snippet = snippet,
                                 onExtractScript = {
                                     val script = """
-                                        🎬 سيناريو مستخرج من ${snippet.showName} - ${snippet.title}:
+                                        سيناريو مستخرج من ${snippet.showName} - ${snippet.title}:
                                         
-                                        🔥 الخطاف: «سر نفسي وفكري مهم جداً من حلقة ${snippet.title}!»
+                                        الخطاف: «فائدة مركزة من حلقة ${snippet.title}»
                                         
-                                        💡 الفوائد الرئيسية:
-                                        ${snippet.keyTakeaways.joinToString("\n• ")}
+                                        الفوائد الرئيسية:
+                                        • ${snippet.keyTakeaways.joinToString("\n• ")}
                                         
-                                        ✨ الضيف المتحدث: ${snippet.speaker}
+                                        المتحدث: ${snippet.speaker}
                                     """.trimIndent()
                                     onStartScriptWithText(script)
                                 }
@@ -733,269 +700,249 @@ fun KnowledgeHubScreen(
                         }
                     }
                 }
-                3 -> {
-                    // TAB 4: Gamified Daily Speed Quiz & Audience Story Polls
+
+                else -> {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(bottom = 28.dp)
                     ) {
-                        // Interactive Speed Quiz Box
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
+                            AppleCard(cornerRadius = 18.dp) {
+                                Column(modifier = Modifier.padding(18.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Psychology, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                                            Icon(Icons.Default.Psychology, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("تحدي الفرسان العلمي اليومي ⚔️", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                            Text("تحدي الفرسان العلمي", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                         }
-
-                                        Text("سؤال ${currentQuizIdx + 1} من ${quizQuestions.size}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                        Text("سؤال ${currentQuizIdx + 1} من ${quizQuestions.size}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                     }
 
                                     Spacer(modifier = Modifier.height(14.dp))
 
                                     if (!isQuizCompleted) {
                                         val question = quizQuestions[currentQuizIdx]
-
-                                        Text(question.questionText, color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 22.sp)
-
-                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Text(question.questionText, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.5.sp, lineHeight = 23.sp)
+                                        Spacer(modifier = Modifier.height(12.dp))
 
                                         question.options.forEachIndexed { optIndex, optionText ->
                                             val isSelected = selectedAnswerIdx == optIndex
                                             val isCorrect = optIndex == question.correctAnswerIndex
 
-                                            val btnBg = when {
-                                                isAnswerSubmitted && isCorrect -> Color(0xFF15803D)
-                                                isAnswerSubmitted && isSelected && !isCorrect -> Color(0xFFB91C1C)
-                                                isSelected -> GoldPrimary.copy(alpha = 0.3f)
-                                                else -> Color(0xFF151B2B)
+                                            val optionColor = when {
+                                                isAnswerSubmitted && isCorrect -> theme.success.copy(alpha = 0.16f)
+                                                isAnswerSubmitted && isSelected && !isCorrect -> theme.destructive.copy(alpha = 0.16f)
+                                                isSelected -> theme.primary.copy(alpha = 0.14f)
+                                                else -> theme.secondarySurface
+                                            }
+                                            val optionBorder = when {
+                                                isAnswerSubmitted && isCorrect -> theme.success
+                                                isAnswerSubmitted && isSelected && !isCorrect -> theme.destructive
+                                                isSelected -> theme.primary
+                                                else -> theme.separator.copy(alpha = 0.45f)
                                             }
 
-                                            Card(
-                                                colors = CardDefaults.cardColors(containerColor = btnBg),
+                                            Surface(
+                                                color = optionColor,
                                                 shape = RoundedCornerShape(12.dp),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                                                border = BorderStroke(1.dp, optionBorder),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .padding(vertical = 4.dp)
+                                                    .defaultMinSize(minHeight = 48.dp)
                                                     .clickable(enabled = !isAnswerSubmitted) {
                                                         selectedAnswerIdx = optIndex
                                                     }
                                             ) {
                                                 Row(
-                                                    modifier = Modifier.padding(14.dp),
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     RadioButton(
                                                         selected = isSelected,
                                                         onClick = null,
-                                                        colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary)
+                                                        colors = RadioButtonDefaults.colors(selectedColor = theme.primary)
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(optionText, color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp)
+                                                    Text(optionText, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 13.5.sp)
                                                 }
                                             }
                                         }
 
                                         if (isAnswerSubmitted) {
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                                                    .padding(12.dp)
+                                            Surface(
+                                                color = theme.secondarySurface,
+                                                shape = RoundedCornerShape(12.dp)
                                             ) {
-                                                Column {
-                                                    Text("💡 الشرح والتوثيق الشرعي:", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                    Spacer(Modifier.height(2.dp))
-                                                    Text(question.explanationText, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                                                    Text("📖 المصدر: ${question.dalilText}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Text("الشرح والتوثيق الشرعي:", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(question.explanationText, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 19.sp)
+                                                    Text("المصدر: ${question.dalilText}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                                 }
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(14.dp))
 
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                            if (!isAnswerSubmitted) {
-                                                Button(
-                                                    onClick = {
-                                                        if (selectedAnswerIdx != null) {
-                                                            isAnswerSubmitted = true
-                                                            if (selectedAnswerIdx == question.correctAnswerIndex) {
-                                                                quizScore += 30
-                                                            }
-                                                        } else {
-                                                            Toast.makeText(context, "يرجى اختيار إجابة أولاً", Toast.LENGTH_SHORT).show()
+                                        if (!isAnswerSubmitted) {
+                                            ApplePrimaryButton(
+                                                text = "تأكيد الإجابة",
+                                                onClick = {
+                                                    if (selectedAnswerIdx != null) {
+                                                        isAnswerSubmitted = true
+                                                        if (selectedAnswerIdx == question.correctAnswerIndex) {
+                                                            quizScore += 30
                                                         }
-                                                    },
-                                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                                    shape = RoundedCornerShape(10.dp)
-                                                ) {
-                                                    Text("تاكيد الإجابة ✅", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                                    } else {
+                                                        Toast.makeText(context, "يرجى اختيار إجابة أولاً", Toast.LENGTH_SHORT).show()
+                                                    }
                                                 }
-                                            } else {
-                                                Button(
-                                                    onClick = {
-                                                        if (currentQuizIdx < quizQuestions.size - 1) {
-                                                            currentQuizIdx++
-                                                            selectedAnswerIdx = null
-                                                            isAnswerSubmitted = false
-                                                        } else {
-                                                            isQuizCompleted = true
-                                                            if (!taskQuizToday) {
-                                                                taskQuizToday = true
-                                                                sharedPrefs.edit().putBoolean("task_quiz_today", true).apply()
-                                                                PointsManager.awardPoints(context, PointAction.DAILY_LOGIN)
-                                                            }
+                                            )
+                                        } else {
+                                            ApplePrimaryButton(
+                                                text = if (currentQuizIdx < quizQuestions.size - 1) "السؤال التالي" else "عرض النتيجة",
+                                                onClick = {
+                                                    if (currentQuizIdx < quizQuestions.size - 1) {
+                                                        currentQuizIdx++
+                                                        selectedAnswerIdx = null
+                                                        isAnswerSubmitted = false
+                                                    } else {
+                                                        isQuizCompleted = true
+                                                        if (!taskQuizToday) {
+                                                            taskQuizToday = true
+                                                            markTaskDone("task_quiz_today")
+                                                            PointsManager.awardPoints(context, PointAction.DAILY_LOGIN)
                                                         }
-                                                    },
-                                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                                    shape = RoundedCornerShape(10.dp)
-                                                ) {
-                                                    Text(if (currentQuizIdx < quizQuestions.size - 1) "السؤال التالي ⬅️" else "عرض النتيجة والإنجاز 🏆", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                                    }
                                                 }
-                                            }
+                                            )
                                         }
                                     } else {
-                                        // Quiz Completed Dialog Screen
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.fillMaxWidth().padding(12.dp)
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp)
                                         ) {
-                                            Text("🎉 أحسنت! أتممت تحدي الفرسان العلمي اليومي", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                            Text("أحسنت! أتممت تحدي الفرسان العلمي", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            Text("حصلت على +$quizScore XP تمت إضافتها للوحة المتصدرين!", color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp)
-
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            Button(
+                                            Text("حصلت على +$quizScore XP", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.height(14.dp))
+                                            ApplePrimaryButton(
+                                                text = "إعادة التحدي",
+                                                icon = Icons.Default.Refresh,
                                                 onClick = {
                                                     currentQuizIdx = 0
                                                     selectedAnswerIdx = null
                                                     isAnswerSubmitted = false
                                                     isQuizCompleted = false
                                                     quizScore = 0
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                                shape = RoundedCornerShape(10.dp)
-                                            ) {
-                                                Text("إعادة التحدي 🔄", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                                            }
+                                                }
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // Audience Story Poll Generator
                         item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                                shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
+                            AppleCard(cornerRadius = 18.dp) {
+                                Column(modifier = Modifier.padding(18.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Poll, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                                        Icon(Icons.Default.Poll, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("مولد مسابقات وتصويتات الجمهور (Story Polls) 📲", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text("مولد مسابقات الستوري (Story Polls)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.5.sp)
                                     }
 
                                     Spacer(modifier = Modifier.height(6.dp))
-                                    Text("أدخل أي موضوع وولد أسئلة تفاعلية جاهزة للنسخ والنشر في ستوري انستغرام وتيك توك لتنشيط الجمهور.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 16.sp)
-
+                                    Text("أدخل موضوعاً لتوليد أسئلة تفاعلية جاهزة للنسخ والنشر.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
                                     Spacer(modifier = Modifier.height(12.dp))
 
                                     OutlinedTextField(
                                         value = audienceTopicInput,
                                         onValueChange = { audienceTopicInput = it },
                                         modifier = Modifier.fillMaxWidth(),
-                                        placeholder = { Text("الموضوع (مثال: قصص الأنبياء، الصدق)...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        placeholder = { Text("الموضوع (مثال: قصص الأنبياء، الصدق)...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp) },
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color(0xFF1E293B),
-                                            focusedTextColor = TextPrimary,
-                                            unfocusedTextColor = TextPrimary,
-                                            focusedContainerColor = Color(0xFF141C27),
-                                            unfocusedContainerColor = Color(0xFF141C27)
+                                            focusedBorderColor = theme.primary,
+                                            unfocusedBorderColor = theme.separator.copy(alpha = 0.6f),
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary,
+                                            focusedContainerColor = theme.secondarySurface,
+                                            unfocusedContainerColor = theme.secondarySurface
                                         ),
                                         shape = RoundedCornerShape(12.dp)
                                     )
 
                                     Spacer(modifier = Modifier.height(12.dp))
 
-                                    Button(
+                                    ApplePrimaryButton(
+                                        text = if (isGeneratingPolls) "جاري توليد المسابقات..." else "توليد مسابقات الستوري",
+                                        icon = Icons.Default.AutoAwesome,
+                                        isLoading = isGeneratingPolls,
+                                        enabled = !isGeneratingPolls,
                                         onClick = {
-                                            if (audienceTopicInput.isBlank()) return@Button
+                                            if (audienceTopicInput.isBlank()) return@ApplePrimaryButton
                                             isGeneratingPolls = true
+                                            pollErrorMessage = null
                                             scope.launch {
                                                 try {
                                                     val prompt = "ولد 3 أسئلة مسابقات قصيرة جداً ومثيرة للجمهور لتفاعلات ستوري انستغرام وتيك توك حول موضوع: '$audienceTopicInput' مع خيارين نعم/لا أو خيارات قصيرة."
                                                     val result = AppServices.chatWithAssistant(listOf(Pair(true, prompt)))
-                                                    generatedPollQuestions = result.lines().filter { it.isNotBlank() }
+                                                    val lines = result.lines().filter { it.isNotBlank() }
+                                                    if (lines.isEmpty()) {
+                                                        pollErrorMessage = "لم تتوفر استجابة من محرك الذكاء الاصطناعي. تحقق من الاتصال ومفاتيح API."
+                                                    } else {
+                                                        generatedPollQuestions = lines
+                                                    }
                                                 } catch (e: Exception) {
-                                                    generatedPollQuestions = listOf(
-                                                        "❓ هل تعلم ما هي الآية التي نُزلت في جوف الكعبة؟ (1. نعم / 2. لا)",
-                                                        "💡 من هو الصحابي الملقب بترجمان القرآن؟ (1. ابن عباس / 2. ابن مسعود)",
-                                                        "🔥 سورة تُسمى سنام القرآن، هل تقرأها يومياً؟ (1. نعم دائماً / 2. سأقرأها الآن)"
-                                                    )
+                                                    pollErrorMessage = "تعذر توليد الأسئلة: ${e.message ?: "تحقق من اتصال الإنترنت"}"
                                                 } finally {
                                                     isGeneratingPolls = false
                                                 }
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(10.dp),
-                                        enabled = !isGeneratingPolls
-                                    ) {
-                                        if (isGeneratingPolls) {
-                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = DeepSlate, strokeWidth = 2.dp)
-                                        } else {
-                                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("توليد مسابقات الستوري ✨", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                         }
+                                    )
+
+                                    if (!pollErrorMessage.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(pollErrorMessage!!, color = theme.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                                     }
 
                                     if (generatedPollQuestions.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(14.dp))
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             generatedPollQuestions.forEach { pollText ->
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                                                        .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                                        .padding(10.dp)
+                                                Surface(
+                                                    color = theme.secondarySurface,
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.5f))
                                                 ) {
                                                     Row(
-                                                        modifier = Modifier.fillMaxWidth(),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(horizontal = 12.dp, vertical = 8.dp),
                                                         horizontalArrangement = Arrangement.SpaceBetween,
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
-                                                        Text(pollText, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                                        IconButton(onClick = {
-                                                            clipboardManager.setText(AnnotatedString(pollText))
-                                                            Toast.makeText(context, "تم نسخ السؤال لنشره بالستوري 📋", Toast.LENGTH_SHORT).show()
-                                                        }) {
-                                                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                                        Text(pollText, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                                                        IconButton(
+                                                            onClick = {
+                                                                clipboardManager.setText(AnnotatedString(pollText))
+                                                                Toast.makeText(context, "تم نسخ السؤال", Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            modifier = Modifier.size(48.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.primary, modifier = Modifier.size(18.dp))
                                                         }
                                                     }
                                                 }
@@ -1012,81 +959,68 @@ fun KnowledgeHubScreen(
     }
 }
 
-// --- SUB-COMPONENTS ---
-
 @Composable
 fun DailySparkCard(
     isSaved: Boolean,
     onSave: () -> Unit,
     onStartScript: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(Color(0xFF151B2B), Color(0xFF0B0F19))))
-                .padding(18.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("✨ فائدة اليوم الفريدة", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFF15803D), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text("جديد", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        }
-                    }
-
-                    IconButton(onClick = onSave) {
-                        Icon(
-                            if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            contentDescription = "حفظ",
-                            tint = GoldPrimary
+    val theme = QabasTheme.current
+    AppleCard(cornerRadius = 18.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("فائدة اليوم", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = theme.success.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            "جديد",
+                            color = theme.success,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    "«سر قوله تعالى: {أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ} — الطمأنينة ليست في اعتزال الحياة بل في وصل القلب بالله وسط تزاحم الفتن والمشغلات.»",
-                    color = Color.White,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                IconButton(
+                    onClick = onSave,
+                    modifier = Modifier.size(48.dp)
                 ) {
-                    Button(
-                        onClick = onStartScript,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.Movie, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("تحويل لسيناريو فيديو 🎬", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
+                    Icon(
+                        if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = "حفظ",
+                        tint = theme.primary
+                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                "«سر قوله تعالى: {أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ} — الطمأنينة ليست في اعتزال الحياة بل في وصل القلب بالله وسط تزاحم المشاغل.»",
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.5.sp,
+                lineHeight = 23.sp
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            ApplePrimaryButton(
+                text = "تحويل إلى سيناريو فيديو",
+                icon = Icons.Default.Movie,
+                onClick = onStartScript
+            )
         }
     }
 }
@@ -1098,6 +1032,7 @@ fun InteractiveFlipMemoryCardItem(
     onOpenTeleprompter: () -> Unit,
     onCopy: () -> Unit
 ) {
+    val theme = QabasTheme.current
     var isFlipped by remember { mutableStateOf(false) }
 
     val rotation by animateFloatAsState(
@@ -1106,24 +1041,20 @@ fun InteractiveFlipMemoryCardItem(
         label = "cardFlip"
     )
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isFlipped) Color(0xFF1E1B4B) else CardSurface
-        ),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFlipped) GoldPrimary else Color(0xFF1E293B)),
+    AppleCard(
+        cornerRadius = 16.dp,
+        containerColor = if (isFlipped) theme.primary.copy(alpha = if (theme.isDark) 0.16f else 0.08f) else theme.cardSurface,
         modifier = Modifier
-            .fillMaxWidth()
             .graphicsLayer {
                 rotationY = rotation
                 cameraDistance = 12f * density
-            }
-            .clickable { isFlipped = !isFlipped }
+            },
+        onClick = { isFlipped = !isFlipped }
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(16.dp)
                 .graphicsLayer {
                     if (rotation > 90f) {
                         rotationY = 180f
@@ -1136,61 +1067,67 @@ fun InteractiveFlipMemoryCardItem(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .background(GoldPrimary.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    Surface(
+                        color = theme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(memoryCard.category, color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            memoryCard.category,
+                            color = theme.primary,
+                            fontFamily = CairoFont,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
                     }
-                    Icon(Icons.Default.Flip, contentDescription = "انقر للقلب", tint = TextSecondary, modifier = Modifier.size(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onCopy,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.textSecondary, modifier = Modifier.size(16.dp))
+                        }
+                        Icon(Icons.Default.Flip, contentDescription = "انقر للقلب", tint = theme.textSecondary, modifier = Modifier.size(16.dp))
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 if (rotation <= 90f) {
-                    Text(memoryCard.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(memoryCard.title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(memoryCard.questionOrFrontText, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
+                    Text(memoryCard.questionOrFrontText, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 13.sp, lineHeight = 19.sp)
                 } else {
-                    Text("💡 المعنى والتفسير:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(memoryCard.answerOrBackText, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 17.sp)
+                    Text("المعنى والتفسير:", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(memoryCard.answerOrBackText, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 13.sp, lineHeight = 19.sp)
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF0B0F19), RoundedCornerShape(8.dp))
-                            .padding(8.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(memoryCard.viralReelScriptIdea, color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                        Text(
+                            memoryCard.viralReelScriptIdea,
+                            color = theme.primary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(10.dp)
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = onOpenTeleprompter,
-                            modifier = Modifier.weight(1f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                        ) {
-                            Text("المُلقن", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                        Box(modifier = Modifier.weight(1f)) {
+                            AppleSecondaryButton(text = "المُلقن", onClick = onOpenTeleprompter)
                         }
-
-                        Button(
-                            onClick = onStartScript,
-                            modifier = Modifier.weight(1.2f),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                        ) {
-                            Text("مونتاج", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Box(modifier = Modifier.weight(1f)) {
+                            ApplePrimaryButton(text = "مونتاج", onClick = onStartScript)
                         }
                     }
                 }
@@ -1204,102 +1141,183 @@ fun PodcastSoundbiteItem(
     snippet: PodcastSnippet,
     onExtractScript: () -> Unit
 ) {
+    val context = LocalContext.current
+    val theme = QabasTheme.current
     var isPlaying by remember { mutableStateOf(false) }
+    var ttsReady by remember { mutableStateOf(false) }
     var speedText by remember { mutableStateOf("1.0x") }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardSurface),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val speechRateFloat = when (speedText) {
+        "1.25x" -> 1.25f
+        "1.5x" -> 1.5f
+        "2.0x" -> 1.85f
+        else -> 1.0f
+    }
+
+    var ttsInstance by remember { mutableStateOf<TextToSpeech?>(null) }
+
+    DisposableEffect(snippet.id) {
+        var localTts: TextToSpeech? = null
+        localTts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val res = localTts?.setLanguage(Locale("ar"))
+                ttsReady = res != TextToSpeech.LANG_MISSING_DATA && res != TextToSpeech.LANG_NOT_SUPPORTED
+                localTts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        isPlaying = true
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        isPlaying = false
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        isPlaying = false
+                    }
+                })
+            }
+        }
+        ttsInstance = localTts
+        onDispose {
+            try {
+                localTts?.stop()
+                localTts?.shutdown()
+            } catch (_: Exception) {
+            }
+            ttsInstance = null
+        }
+    }
+
+    fun toggleRealTtsPlayback() {
+        val tts = ttsInstance
+        if (tts == null || !ttsReady) {
+            Toast.makeText(context, "محرك النطق العربي غير متاح على هذا الجهاز", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (isPlaying) {
+            tts.stop()
+            isPlaying = false
+        } else {
+            val spokenScript = buildString {
+                append(snippet.title)
+                append(". ")
+                append("المتحدث: ")
+                append(snippet.speaker)
+                append(". ")
+                snippet.keyTakeaways.forEach { append(it).append(". ") }
+            }
+            tts.setSpeechRate(speechRateFloat)
+            tts.speak(spokenScript, TextToSpeech.QUEUE_FLUSH, null, "pod_${snippet.id}")
+            isPlaying = true
+        }
+    }
+
+    AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(snippet.showName, color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Text(snippet.durationText, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text(snippet.showName, color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                Text(snippet.durationText, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
 
             Spacer(modifier = Modifier.height(6.dp))
-            Text(snippet.title, color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text("الضيف: ${snippet.speaker}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+            Text(snippet.title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.5.sp)
+            Text("الضيف: ${snippet.speaker}", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Simulated Audio Player Player Controls
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF0B0F19), RoundedCornerShape(12.dp))
-                    .padding(12.dp)
+            Surface(
+                color = theme.secondarySurface,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         IconButton(
-                            onClick = { isPlaying = !isPlaying },
+                            onClick = { toggleRealTtsPlayback() },
                             modifier = Modifier
-                                .size(38.dp)
-                                .background(GoldPrimary, CircleShape)
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(theme.primary)
                         ) {
                             Icon(
-                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = "تشغيل",
-                                tint = DeepSlate
+                                if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "إيقاف القراءة" else "قراءة صوتية للخلاصة",
+                                tint = Color.White
                             )
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column {
-                            Text(if (isPlaying) "جاري تشغيل المعاينة الصوتية..." else "انقر للاستماع للمقطع الصوتي", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                            Text("السرعة الحالية: $speedText", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text(
+                                if (isPlaying) "جاري قراءة الخلاصة الصوتية..." else "استمع لقراءة الخلاصة",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                if (ttsReady) "نطق عربي • السرعة $speedText" else "يتطلب محرك نطق عربي في الجهاز",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp
+                            )
                         }
                     }
 
-                    TextButton(onClick = {
-                        speedText = when (speedText) {
-                            "1.0x" -> "1.25x"
-                            "1.25x" -> "1.5x"
-                            "1.5x" -> "2.0x"
-                            else -> "1.0x"
-                        }
-                    }) {
-                        Text(speedText, color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    TextButton(
+                        onClick = {
+                            speedText = when (speedText) {
+                                "1.0x" -> "1.25x"
+                                "1.25x" -> "1.5x"
+                                "1.5x" -> "2.0x"
+                                else -> "1.0x"
+                            }
+                            if (isPlaying) {
+                                ttsInstance?.setSpeechRate(
+                                    when (speedText) {
+                                        "1.25x" -> 1.25f
+                                        "1.5x" -> 1.5f
+                                        "2.0x" -> 1.85f
+                                        else -> 1.0f
+                                    }
+                                )
+                            }
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) {
+                        Text(speedText, color = theme.primary, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-
-            Text("💡 أهم الفوائد المستخلصة:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("أهم الفوائد المستخلصة:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
 
             snippet.keyTakeaways.forEach { takeaway ->
                 Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
-                    Text("• ", color = GoldPrimary, fontWeight = FontWeight.Bold)
-                    Text(takeaway, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("• ", color = theme.primary, fontWeight = FontWeight.Bold)
+                    Text(takeaway, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 19.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Button(
-                onClick = onExtractScript,
-                modifier = Modifier.fillMaxWidth().height(42.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(Icons.Default.ContentCut, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("استخراج سيناريو فيديو من المقطع ✂️", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
+            ApplePrimaryButton(
+                text = "استخراج سيناريو فيديو",
+                icon = Icons.Default.ContentCut,
+                onClick = onExtractScript
+            )
         }
     }
 }

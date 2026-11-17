@@ -1,41 +1,35 @@
 package com.qabas.app
 
+import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.components.GlassmorphicSurface
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleSegmentedControl
+import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -44,16 +38,16 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * مركز الإشعارات — Spatial HUD
- * حالة حيّة عبر StateFlow + عدّاد لحظي + تصميم هندسي زجاجي.
+ * مركز الإشعارات — Apple HIG Light & Dark
+ * حالة حيّة عبر StateFlow + عدّاد لحظي للصلاة + إدارة كاملة للإشعارات.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     onBack: () -> Unit,
     onOpenContentGuard: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     var selectedTab by remember { mutableIntStateOf(0) }
 
     val notifications by AppNotificationService.observeNotifications(context).collectAsState()
@@ -68,74 +62,70 @@ fun NotificationsScreen(
     }
 
     if (selectedTab == 1) {
+        BackHandler { selectedTab = 0 }
         NotificationSettingsScreen(onBack = { selectedTab = 0 })
         return
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CutCornerShape(9.dp))
-                                .background(GoldPrimary.copy(alpha = 0.14f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CutCornerShape(9.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(19.dp))
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = Translator.tr("مركز الإشعارات"),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color.White
-                            )
-                            Text(
-                                text = if (unreadCount > 0) "$unreadCount غير مقروء • بث حي" else "كل شيء تحت السيطرة",
-                                fontFamily = NotoSansFont,
-                                fontSize = 10.sp,
-                                color = if (unreadCount > 0) GoldPrimary else Color.White.copy(alpha = 0.45f)
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = GoldPrimary)
-                    }
-                },
+            AppleTopBar(
+                title = Translator.tr("مركز الإشعارات"),
+                subtitle = if (unreadCount > 0) "$unreadCount غير مقروء" else "كل شيء محدث ومرتب",
+                onBack = onBack,
+                backTestTag = "notifications_back_btn",
                 actions = {
-                    IconButton(onClick = {
-                        AppSoundManager.playClick()
-                        selectedTab = 1
-                    }) {
-                        Icon(Icons.Default.Settings, contentDescription = "إعدادات الإشعارات", tint = GoldPrimary)
-                    }
                     if (notifications.isNotEmpty()) {
-                        IconButton(onClick = {
-                            AppSoundManager.playClick()
-                            AppNotificationService.markAllRead(context)
-                        }) {
-                            Icon(Icons.Default.DoneAll, contentDescription = "تعيين الكل كمقروء", tint = Color.White.copy(alpha = 0.75f))
+                        IconButton(
+                            onClick = {
+                                AppSoundManager.playClick()
+                                AppNotificationService.markAllRead(context)
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("notifications_mark_all_btn")
+                        ) {
+                            Icon(
+                                Icons.Default.DoneAll,
+                                contentDescription = "تعيين الكل كمقروء",
+                                tint = theme.primary
+                            )
                         }
-                        IconButton(onClick = {
-                            AppSoundManager.playClick()
-                            AppNotificationService.clearNotifications(context)
-                        }) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = "مسح الكل", tint = Color(0xFFEF4444).copy(alpha = 0.8f))
+                        IconButton(
+                            onClick = {
+                                AppSoundManager.playClick()
+                                AppNotificationService.clearNotifications(context)
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("notifications_clear_all_btn")
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteSweep,
+                                contentDescription = "مسح الكل",
+                                tint = theme.destructive
+                            )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                    IconButton(
+                        onClick = {
+                            AppSoundManager.playClick()
+                            selectedTab = 1
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("notifications_settings_btn")
+                    ) {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = "إعدادات الإشعارات",
+                            tint = theme.primary
+                        )
+                    }
+                }
             )
         },
-        containerColor = DeepSlate
+        containerColor = theme.background
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -143,12 +133,15 @@ fun NotificationsScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp)
+            contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp)
         ) {
             item {
-                SegmentedTabs(
-                    selectedTab = selectedTab,
-                    unreadCount = unreadCount,
+                AppleSegmentedControl(
+                    items = listOf(
+                        0 to (if (unreadCount > 0) "الواردة ($unreadCount)" else "الواردة"),
+                        1 to "الإعدادات"
+                    ),
+                    selectedItem = selectedTab,
                     onSelect = {
                         AppSoundManager.playTab()
                         selectedTab = it
@@ -157,7 +150,7 @@ fun NotificationsScreen(
             }
 
             item {
-                LivePrayerHudCard(nowMillis = nowMillis)
+                LivePrayerSummaryCard(nowMillis = nowMillis)
             }
 
             item {
@@ -171,11 +164,11 @@ fun NotificationsScreen(
             if (notifications.isEmpty()) {
                 item {
                     QabasEmptyState(
-                        modifier = Modifier.height(420.dp),
+                        modifier = Modifier.height(380.dp),
                         icon = Icons.Default.NotificationsNone,
                         title = Translator.tr("لا توجد إشعارات حالياً"),
-                        description = Translator.tr("ستظهر هنا لحظة وصول أي تنبيه للصلاة أو ورد إيماني أو تنبيه من مرصد الثغور."),
-                        actionButtonText = Translator.tr("ضبط إعدادات التنبيهات ⚙️"),
+                        description = Translator.tr("ستظهر هنا تنبيهات مواقيت الصلاة والأوراد الإيمانية وتنبيهات مرصد الثغور."),
+                        actionButtonText = Translator.tr("ضبط إعدادات التنبيهات"),
                         onActionClick = { selectedTab = 1 }
                     )
                 }
@@ -195,64 +188,9 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun SegmentedTabs(
-    selectedTab: Int,
-    unreadCount: Int,
-    onSelect: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        TabPill(
-            modifier = Modifier.weight(1f),
-            selected = selectedTab == 0,
-            onClick = { onSelect(0) },
-            label = if (unreadCount > 0) "الواردة • $unreadCount" else "الواردة"
-        )
-        TabPill(
-            modifier = Modifier.weight(1f),
-            selected = selectedTab == 1,
-            onClick = { onSelect(1) },
-            label = "الإعدادات ⚙️"
-        )
-    }
-}
-
-@Composable
-private fun TabPill(
-    modifier: Modifier = Modifier,
-    selected: Boolean,
-    onClick: () -> Unit,
-    label: String
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(9.dp),
-        color = if (selected) GoldPrimary else Color.Transparent
-    ) {
-        Text(
-            text = label,
-            fontFamily = CairoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.5.sp,
-            color = if (selected) DeepSlate else Color.White.copy(alpha = 0.7f),
-            maxLines = 1,
-            softWrap = false,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun LivePrayerHudCard(nowMillis: Long) {
+private fun LivePrayerSummaryCard(nowMillis: Long) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val city = remember { PrayerCalculationHelper.getSavedCity(context) }
     val times = remember(nowMillis / 1_000L) {
         runCatching {
@@ -266,147 +204,140 @@ private fun LivePrayerHudCard(nowMillis: Long) {
     val remaining = times?.millisUntilNextPrayer?.coerceAtLeast(0L) ?: 0L
     val progress = times?.progressToNextPrayer?.coerceIn(0f, 1f) ?: 0f
 
-    val infinite = rememberInfiniteTransition(label = "hudPulse")
-    val pulse by infinite.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse"
-    )
-
-    GlassmorphicSurface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = CutCornerShape(topStart = 18.dp, bottomEnd = 18.dp),
-        backgroundColor = Color(0xFF101827).copy(alpha = 0.9f),
-        borderColor = GoldPrimary.copy(alpha = 0.35f)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+    AppleCard(cornerRadius = 16.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(CutCornerShape(9.dp))
-                        .background(GoldPrimary.copy(alpha = 0.12f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.35f), CutCornerShape(9.dp)),
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(theme.primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Mosque, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Default.Mosque,
+                        contentDescription = null,
+                        tint = theme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "العداد اللحظي • ${times?.nextPrayerName ?: "مواقيت الصلاة"}",
+                        text = times?.nextPrayerName ?: "مواقيت الصلاة",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = GoldPrimary,
+                        fontSize = 15.sp,
+                        color = theme.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${times?.nextPrayerTimeFormatted ?: "--:--"} • 📍 ${city.nameAr}",
+                        text = "${times?.nextPrayerTimeFormatted ?: "--:--"} • ${city.nameAr}",
                         fontFamily = NotoSansFont,
-                        fontSize = 10.5.sp,
-                        color = Color.White.copy(alpha = 0.55f),
+                        fontSize = 12.sp,
+                        color = theme.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF10B981).copy(alpha = pulse))
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "LIVE",
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF10B981)
-                    )
+                Surface(
+                    shape = CircleShape,
+                    color = theme.success.copy(alpha = 0.14f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(theme.success)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "مباشر",
+                            fontFamily = CairoFont,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = theme.success
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Surface(
-                shape = CutCornerShape(10.dp),
-                color = Color.Black.copy(alpha = 0.25f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+                shape = RoundedCornerShape(12.dp),
+                color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.55f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = "المتبقي حتى الأذان",
                         fontFamily = CairoFont,
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.6f)
+                        fontSize = 12.sp,
+                        color = theme.textSecondary
                     )
                     Text(
                         text = formatCountdown(remaining),
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        color = Color.White
+                        fontSize = 22.sp,
+                        color = theme.textPrimary
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            Box(
+            LinearProgressIndicator(
+                progress = { progress.coerceIn(0.01f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = progress.coerceIn(0.01f, 1f))
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Brush.horizontalGradient(listOf(GoldPrimary, Color(0xFF10B981))))
-                )
-            }
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = theme.primary,
+                trackColor = theme.secondarySurface
+            )
         }
     }
 }
 
 @Composable
 private fun NotificationStatsStrip(total: Int, unread: Int, alerts: Int) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         StatTile(
             modifier = Modifier.weight(1f),
             label = "غير مقروء",
             value = unread.toString(),
-            accent = GoldPrimary,
+            accent = theme.primary,
             icon = Icons.Default.MarkEmailUnread
         )
         StatTile(
             modifier = Modifier.weight(1f),
             label = "الإجمالي",
             value = total.toString(),
-            accent = Color(0xFF38BDF8),
+            accent = theme.accent,
             icon = Icons.Default.Inbox
         )
         StatTile(
             modifier = Modifier.weight(1f),
             label = "تنبيهات",
             value = alerts.toString(),
-            accent = Color(0xFFEF4444),
+            accent = theme.destructive,
             icon = Icons.Default.Shield
         )
     }
@@ -420,26 +351,22 @@ private fun StatTile(
     accent: Color,
     icon: ImageVector
 ) {
-    Surface(
-        modifier = modifier,
-        shape = CutCornerShape(10.dp),
-        color = accent.copy(alpha = 0.08f),
-        border = BorderStroke(0.8.dp, accent.copy(alpha = 0.3f))
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
+    val theme = QabasTheme.current
+    AppleCard(modifier = modifier, cornerRadius = 14.dp) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
-                Spacer(modifier = Modifier.width(5.dp))
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = label,
                     fontFamily = CairoFont,
-                    fontSize = 10.sp,
-                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    color = theme.textSecondary,
                     maxLines = 1,
-                    softWrap = false
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
                 fontFamily = RobotoMonoFont,
@@ -460,164 +387,152 @@ fun NotificationCard(
     onDelete: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val accent = categoryColor(notif)
-    val surfaceColor by animateColorAsState(
-        targetValue = if (notif.isRead) Color(0xFF111827) else Color(0xFF141E30),
-        label = "cardSurface"
+    val theme = QabasTheme.current
+    val accent = categoryColor(notif, theme)
+    val cardColor by animateColorAsState(
+        targetValue = if (notif.isRead) {
+            theme.cardSurface
+        } else {
+            if (theme.isDark) theme.secondarySurface else theme.cardSurface
+        },
+        label = "notifCardColor"
     )
 
-    Surface(
+    AppleCard(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize()
-            .clickable { onMarkRead() },
-        shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
-        color = surfaceColor,
-        border = BorderStroke(
-            width = if (notif.isRead) 0.7.dp else 1.1.dp,
-            color = accent.copy(alpha = if (notif.isRead) 0.15f else 0.55f)
-        )
+            .animateContentSize(),
+        cornerRadius = 16.dp,
+        containerColor = cardColor,
+        onClick = onMarkRead
     ) {
-        Row {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(IntrinsicSize.Min)
-                    .fillMaxHeight()
-                    .background(accent.copy(alpha = if (notif.isRead) 0.35f else 1f))
-            )
-
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CutCornerShape(10.dp))
-                            .background(accent.copy(alpha = 0.12f))
-                            .border(1.dp, accent.copy(alpha = 0.35f), CutCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            categoryIcon(notif),
-                            contentDescription = null,
-                            tint = accent,
-                            modifier = Modifier.size(21.dp)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        categoryIcon(notif),
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = notif.title,
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                notif.title,
-                                color = if (notif.isRead) Color.White.copy(alpha = 0.82f) else Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            if (!notif.isRead) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(7.dp)
-                                        .clip(CircleShape)
-                                        .background(accent)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CategoryBadge(label = categoryLabel(notif), color = accent)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = formatRelative(notif.timestamp, nowMillis),
-                                color = Color.White.copy(alpha = 0.42f),
-                                fontFamily = NotoSansFont,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
+                        if (!notif.isRead) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(accent)
                             )
                         }
                     }
-                    IconButton(
-                        onClick = {
-                            AppSoundManager.playClick()
-                            onDelete()
-                        },
-                        modifier = Modifier.size(30.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "حذف",
-                            tint = Color.White.copy(alpha = 0.4f),
-                            modifier = Modifier.size(16.dp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CategoryBadge(label = categoryLabel(notif), color = accent)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = formatRelative(notif.timestamp, nowMillis),
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(9.dp))
-                Text(
-                    notif.message,
-                    color = Color.White.copy(alpha = if (notif.isRead) 0.72f else 0.92f),
-                    fontFamily = NotoSansFont,
-                    fontSize = 12.5.sp,
-                    lineHeight = 19.sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                IconButton(
+                    onClick = {
+                        AppSoundManager.playClick()
+                        onDelete()
+                    },
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    if (!notif.isRead) {
-                        SmallAction(
-                            modifier = Modifier.weight(1f),
-                            label = "تمت القراءة",
-                            icon = Icons.Default.Check,
-                            color = Color(0xFF10B981),
-                            onClick = {
-                                AppSoundManager.playClick()
-                                onMarkRead()
-                            }
-                        )
-                    }
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "حذف الإشعار",
+                        tint = theme.textSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = notif.message,
+                color = if (notif.isRead) theme.textSecondary else theme.textPrimary,
+                fontFamily = NotoSansFont,
+                fontSize = 13.sp,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!notif.isRead) {
                     SmallAction(
                         modifier = Modifier.weight(1f),
-                        label = "مشاركة",
-                        icon = Icons.Default.Share,
-                        color = Color.White.copy(alpha = 0.75f),
+                        label = "تمت القراءة",
+                        icon = Icons.Default.Check,
+                        color = theme.success,
                         onClick = {
                             AppSoundManager.playClick()
-                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(
-                                    android.content.Intent.EXTRA_TEXT,
-                                    "${notif.title}\n${notif.message}\n🌿 عبر استوديو قبس"
-                                )
-                            }
-                            context.startActivity(
-                                android.content.Intent.createChooser(shareIntent, "مشاركة الإشعار عبر")
-                            )
+                            onMarkRead()
                         }
                     )
-                    if (notif.isTrendAlert) {
-                        SmallAction(
-                            modifier = Modifier.weight(1.2f),
-                            label = "مرصد الثغور",
-                            icon = Icons.Default.Shield,
-                            color = Color(0xFFEF4444),
-                            onClick = {
-                                AppSoundManager.playClick()
-                                onOpenContentGuard()
-                            }
+                }
+                SmallAction(
+                    modifier = Modifier.weight(1f),
+                    label = "مشاركة",
+                    icon = Icons.Default.Share,
+                    color = theme.primary,
+                    onClick = {
+                        AppSoundManager.playClick()
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "${notif.title}\n${notif.message}\nعبر استوديو قبس"
+                            )
+                        }
+                        context.startActivity(
+                            Intent.createChooser(shareIntent, "مشاركة الإشعار عبر")
                         )
                     }
+                )
+                if (notif.isTrendAlert) {
+                    SmallAction(
+                        modifier = Modifier.weight(1.2f),
+                        label = "مرصد الثغور",
+                        icon = Icons.Default.Shield,
+                        color = theme.destructive,
+                        onClick = {
+                            AppSoundManager.playClick()
+                            onOpenContentGuard()
+                        }
+                    )
                 }
             }
         }
@@ -627,19 +542,18 @@ fun NotificationCard(
 @Composable
 private fun CategoryBadge(label: String, color: Color) {
     Surface(
-        shape = CutCornerShape(4.dp),
-        color = color.copy(alpha = 0.12f),
-        border = BorderStroke(0.7.dp, color.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(6.dp),
+        color = color.copy(alpha = 0.14f),
+        border = BorderStroke(0.5.dp, color.copy(alpha = 0.35f))
     ) {
         Text(
             text = label,
             fontFamily = CairoFont,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             color = color,
             maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
         )
     }
 }
@@ -653,37 +567,39 @@ private fun SmallAction(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = CutCornerShape(7.dp),
-        color = Color.White.copy(alpha = 0.04f),
-        border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.09f))
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = color.copy(alpha = 0.10f)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
-            Spacer(modifier = Modifier.width(5.dp))
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(15.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = label,
                 fontFamily = CairoFont,
-                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
                 color = color,
                 maxLines = 1,
-                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
-private fun categoryColor(notif: AppNotificationService.AppNotification): Color = when {
-    notif.isTrendAlert -> Color(0xFFEF4444)
-    notif.category == AppNotificationService.CATEGORY_PRAYER -> Color(0xFF10B981)
-    notif.category == AppNotificationService.CATEGORY_HADITH -> Color(0xFF38BDF8)
-    notif.category == AppNotificationService.CATEGORY_SPIRITUAL -> Color(0xFFA78BFA)
-    else -> GoldPrimary
+private fun categoryColor(notif: AppNotificationService.AppNotification, theme: QabasDesignTheme): Color = when {
+    notif.isTrendAlert -> theme.destructive
+    notif.category == AppNotificationService.CATEGORY_PRAYER -> theme.success
+    notif.category == AppNotificationService.CATEGORY_HADITH -> theme.accent
+    notif.category == AppNotificationService.CATEGORY_SPIRITUAL -> AppleDarkIndigo
+    else -> theme.primary
 }
 
 private fun categoryIcon(notif: AppNotificationService.AppNotification): ImageVector = when {

@@ -4,44 +4,42 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.animation.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.components.GlassmorphicSurface
-import com.qabas.app.ui.theme.*
 import com.qabas.app.ui.TestTags
-import androidx.compose.ui.platform.testTag
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * شاشة تسجيل الدخول والمصادقة الأمنية بتصميم Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)
- * تدعم تسجيل الدخول الموحد بالبريد الإلكتروني، رقم الحساب الرسمي، أو المعرف المخصص وكلمة المرور عبر سحابة Supabase.
+ * شاشة تسجيل الدخول والمصادقة بتصميم Apple HIG للوضعين الفاتح والداكن.
+ * تدعم تسجيل الدخول بالبريد الإلكتروني أو رقم الحساب أو المعرف المخصص عبر Supabase.
  */
 @Composable
 fun LoginScreen(
@@ -50,6 +48,7 @@ fun LoginScreen(
     onNavigateToForgotPassword: () -> Unit,
     onNavigateToRules: () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var accountInput by remember { mutableStateOf("") }
@@ -58,13 +57,8 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
-    /** هل سبب الخطأ اتصال بالشبكة؟ (يحدّد أزرار بطاقة الخطأ التفاعلية) */
     var authErrorIsNetwork by remember { mutableStateOf(false) }
 
-    val primaryColor = qabasPrimary()
-    val accentColor = qabasAccent()
-
-    // Pre-fill last saved email or custom identifier ONLY if rememberMe was explicitly saved
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val savedAccount = prefs.getString("saved_login_email", "")?.trim().orEmpty()
@@ -79,145 +73,80 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeepSlate)
+            .background(theme.background)
             .testTag(TestTags.LOGIN_SCREEN)
     ) {
-        // 1. Background Grid HUD
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            val step = 60.dp.toPx()
-            for (i in 0..(w / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
-            }
-            for (i in 0..(h / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(0f, i * step), Offset(w, i * step), 1f)
-            }
-        }
-
-        // 2. Corner Decors
-        HudCornerDecor(modifier = Modifier.fillMaxSize(), color = primaryColor.copy(alpha = 0.15f))
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 560.dp)
+                .align(Alignment.Center)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Brand Header: Bold & Elegant Typography for Application Name (قَبَسْ سْتُودْيُو)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(bottom = 6.dp)
+            // App Brand Mark & Title
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = theme.primary.copy(alpha = if (theme.isDark) 0.18f else 0.12f),
+                modifier = Modifier.size(64.dp)
             ) {
-                // Micro HUD protocol pill
-                Surface(
-                    color = primaryColor.copy(alpha = 0.08f),
-                    shape = CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp),
-                    border = BorderStroke(0.8.dp, primaryColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.padding(bottom = 16.dp)
-                ) {
-                    Text(
-                        text = "SECURE AUTH // بروتوكول الوصول الذكي",
-                        color = primaryColor,
-                        fontFamily = RobotoMonoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp,
-                        letterSpacing = 1.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "شعار قبس ستوديو",
+                        tint = theme.primary,
+                        modifier = Modifier.size(34.dp)
                     )
-                }
-
-                // App Name in bold, elegant Arabic typography with radiant metallic-gold & cyan gradient
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(20.dp)
-                            .height(2.dp)
-                            .background(Brush.horizontalGradient(listOf(Color.Transparent, primaryColor.copy(alpha = 0.8f))))
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "قَبَسْ سْتُودْيُو",
-                        style = TextStyle(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    primaryColor,
-                                    Color.White,
-                                    AiCyan
-                                )
-                            ),
-                            fontSize = 32.sp,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Box(
-                        modifier = Modifier
-                            .width(20.dp)
-                            .height(2.dp)
-                            .background(Brush.horizontalGradient(listOf(primaryColor.copy(alpha = 0.8f), Color.Transparent)))
-                    )
-                }
-
-                Text(
-                    text = "QABAS STUDIO // فضاء المونتاج القرآني والذكاء الاصطناعي",
-                    color = accentColor.copy(alpha = 0.85f),
-                    fontFamily = RobotoMonoFont,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 10.sp,
-                    letterSpacing = 0.8.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-
-                // Subtitle: بوابة الوصول الرقمية (maintains test contract and screen semantic identity)
-                Text(
-                    text = "بوابة الوصول الرقمية",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-
-                // Minimalist Linear Tech Divider
-                Row(
-                    modifier = Modifier.padding(top = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.size(24.dp, 1.5.dp).background(primaryColor.copy(alpha = 0.5f)))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Box(modifier = Modifier.size(4.dp).background(accentColor, CutCornerShape(1.dp)))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Box(modifier = Modifier.size(24.dp, 1.5.dp).background(primaryColor.copy(alpha = 0.5f)))
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Cloud Link Status Ribbon (Compact Spatial HUD)
+            Text(
+                text = "قَبَسْ سْتُودْيُو",
+                color = theme.textPrimary,
+                fontSize = 30.sp,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+
+            // Subtitle maintains test contract and semantic identity
+            Text(
+                text = "بوابة الوصول الرقمية",
+                color = theme.primary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+
+            Text(
+                text = "استوديو الإنتاج الدعوي والمحتوى الإسلامي الذكي",
+                color = theme.textSecondary,
+                fontFamily = NotoSansFont,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Cloud Link Status Pill
             Surface(
-                color = CardSurface.copy(alpha = 0.5f),
-                shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.08f)),
+                color = theme.cardSurface,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.45f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -227,88 +156,82 @@ fun LoginScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(6.dp)
+                                .size(8.dp)
+                                .clip(CircleShape)
                                 .background(
-                                    color = if (SupabaseServices.isSupabaseAvailable) primaryColor else Color(0xFFF59E0B),
-                                    shape = CircleShape
+                                    if (SupabaseServices.isSupabaseAvailable) theme.success else theme.warning
                                 )
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (SupabaseServices.isSupabaseAvailable) "SUPABASE CLOUD // ONLINE" else "LOCAL CACHE // STANDBY",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontFamily = RobotoMonoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            letterSpacing = 0.8.sp,
-                            maxLines = 1,
-                            softWrap = false
+                            text = if (SupabaseServices.isSupabaseAvailable) "متصل بالسحابة (Supabase)" else "وضع التخزين المحلي المؤقت",
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            maxLines = 1
                         )
                     }
-                    StrictBadge(
-                        text = "SECURE PROTOCOL",
-                        color = primaryColor
-                    )
+                    Surface(
+                        color = theme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "اتصال مشفّر",
+                            color = theme.primary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Login Glass Card (Compact & Refined Fields)
-            GlassmorphicSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.linearGradient(listOf(primaryColor.copy(alpha = 0.4f), Color.Transparent)),
-                        shape = CutCornerShape(14.dp)
-                    ),
-                shape = CutCornerShape(14.dp),
-                backgroundColor = CardSurface.copy(alpha = 0.7f),
-                borderColor = Color.White.copy(alpha = 0.05f)
-            ) {
+            // Main Credentials Card
+            AppleCard(cornerRadius = 18.dp) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Fields Header with dynamic mode badge
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f, fill = false)
-                        ) {
-                            Box(modifier = Modifier.size(10.dp, 2.dp).background(primaryColor))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "بيانات الهوية والمصادقة",
-                                color = Color.White.copy(alpha = 0.95f),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
+                        Text(
+                            text = "بيانات الدخول",
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
 
                         val trimmedInput = accountInput.trim()
                         val (modeBadgeText, modeBadgeColor) = when {
-                            trimmedInput.isEmpty() -> "AWAITING CREDENTIALS" to Color.Gray.copy(alpha = 0.7f)
-                            trimmedInput.contains("@") -> "EMAIL PROTOCOL" to AiCyan
-                            trimmedInput.all { it.isDigit() } -> "ACCOUNT #$trimmedInput" to primaryColor
-                            else -> "CUSTOM USER ID" to accentColor
+                            trimmedInput.isEmpty() -> "في انتظار البيانات" to theme.textSecondary
+                            trimmedInput.contains("@") -> "البريد الإلكتروني" to theme.accent
+                            trimmedInput.all { it.isDigit() } -> "حساب #$trimmedInput" to theme.primary
+                            else -> "معرّف مخصص" to theme.primary
                         }
 
-                        StrictBadge(
-                            text = modeBadgeText,
-                            color = modeBadgeColor
-                        )
+                        Surface(
+                            color = modeBadgeColor.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = modeBadgeText,
+                                color = modeBadgeColor,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
                     }
 
-                    // محاولة الدخول الموحّدة: يستدعيها زر الإدخال وزر «إعادة المحاولة» في بطاقة الخطأ
                     val submitLogin: () -> Unit = submitLogin@{
                         if (isLoading) return@submitLogin
                         val trimmedInput = accountInput.trim()
@@ -445,10 +368,10 @@ fun LoginScreen(
                                 }
 
                                 CloudServices.syncAdminClaim(context)
-                                val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل 👑)" else ""
+                                val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل)" else ""
                                 Toast.makeText(
                                     context,
-                                    "مرحباً بك! اليوزر: @${cloudCustomId} | رقم الحساب: $accountNumber$firstBadge",
+                                    "مرحباً بك! اليوزر: @$cloudCustomId | رقم الحساب: $accountNumber$firstBadge",
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 onLoginSuccess(finalIsAdmin)
@@ -460,9 +383,6 @@ fun LoginScreen(
                                     rawError.contains("Invalid_credentials", ignoreCase = true)
 
                                 if (emailMode && invalidCredentials) {
-                                    // Supabase intentionally uses the same response for an unknown
-                                    // email and an incorrect password. Never treat this as proof that
-                                    // the account is unregistered or offer duplicate registration.
                                     authErrorMessage = "تعذّر تسجيل الدخول: البريد الإلكتروني أو كلمة المرور غير صحيحين. إذا كان هذا البريد مسجّلاً بالفعل، فلا تنشئ حساباً جديداً؛ تحقّق من كلمة المرور أو استخدم «نسيان الرمز؟» لاستعادتها."
                                     authErrorIsNetwork = false
                                     Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
@@ -480,14 +400,14 @@ fun LoginScreen(
                         }
                     }
 
-                    // بطاقة الخطأ التفاعلية: رسالة عربية آمنة (بلا روابط سحابة) + أزرار مباشرة
+                    // Interactive Error Card
                     if (authErrorMessage != null) {
-                        val errorTint = if (authErrorIsNetwork) Color(0xFFFFB020) else Color(0xFFFF4D4D)
+                        val errorTint = if (authErrorIsNetwork) theme.warning else theme.destructive
                         Surface(
-                            color = if (authErrorIsNetwork) Color(0xFF3A2A10) else Color(0xFF3E1218),
-                            border = BorderStroke(1.dp, errorTint),
-                            shape = CutCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            color = errorTint.copy(alpha = if (theme.isDark) 0.16f else 0.10f),
+                            border = BorderStroke(0.5.dp, errorTint.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -502,27 +422,26 @@ fun LoginScreen(
                                         text = if (authErrorIsNetwork) "تعذّر الاتصال" else "تعذّر تسجيل الدخول",
                                         color = errorTint,
                                         fontFamily = CairoFont,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Black
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.weight(1f))
                                     IconButton(
                                         onClick = { authErrorMessage = null },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "إغلاق الخطأ",
-                                            tint = Color.White.copy(alpha = 0.7f),
+                                            tint = theme.textSecondary,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = authErrorMessage ?: "",
-                                    color = Color.White.copy(alpha = 0.92f),
-                                    fontFamily = CairoFont,
+                                    text = authErrorMessage.orEmpty(),
+                                    color = theme.textPrimary,
+                                    fontFamily = NotoSansFont,
                                     fontSize = 12.sp,
                                     lineHeight = 18.sp
                                 )
@@ -530,60 +449,40 @@ fun LoginScreen(
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(
                                         onClick = submitLogin,
-                                        modifier = Modifier.weight(1f).height(36.dp),
-                                        border = BorderStroke(1.dp, errorTint.copy(alpha = 0.7f)),
-                                        shape = CutCornerShape(6.dp)
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 44.dp),
+                                        border = BorderStroke(1.dp, errorTint.copy(alpha = 0.6f)),
+                                        shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = null,
-                                            tint = errorTint,
-                                            modifier = Modifier.size(14.dp)
-                                        )
+                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = errorTint, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "إعادة المحاولة",
-                                            color = Color.White,
-                                            fontFamily = CairoFont,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Text("إعادة المحاولة", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                     }
                                     if (authErrorIsNetwork) {
                                         OutlinedButton(
                                             onClick = {
                                                 runCatching {
                                                     context.startActivity(
-                                                        Intent(Settings.ACTION_WIFI_SETTINGS)
-                                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                                     )
                                                 }.onFailure {
                                                     runCatching {
                                                         context.startActivity(
-                                                            Intent(Settings.ACTION_SETTINGS)
-                                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                                         )
                                                     }
                                                 }
                                             },
-                                            modifier = Modifier.weight(1f).height(36.dp),
-                                            border = BorderStroke(1.dp, errorTint.copy(alpha = 0.7f)),
-                                            shape = CutCornerShape(6.dp)
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 44.dp),
+                                            border = BorderStroke(1.dp, errorTint.copy(alpha = 0.6f)),
+                                            shape = RoundedCornerShape(10.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Settings,
-                                                contentDescription = null,
-                                                tint = errorTint,
-                                                modifier = Modifier.size(14.dp)
-                                            )
+                                            Icon(Icons.Default.Settings, contentDescription = null, tint = errorTint, modifier = Modifier.size(15.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "فحص الاتصال",
-                                                color = Color.White,
-                                                fontFamily = CairoFont,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Text("فحص الاتصال", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                 }
@@ -591,50 +490,40 @@ fun LoginScreen(
                         }
                     }
 
-                    // Unified Credential Field: Email, Custom ID, or Account Number
+                    // Credential Input Field
                     OutlinedTextField(
                         value = accountInput,
-                        onValueChange = { 
+                        onValueChange = {
                             accountInput = it
                             authErrorMessage = null
                         },
-                        label = { Text("البريد الإلكتروني / رقم الحساب / المعرّف", fontFamily = CairoFont, fontSize = 11.sp) },
-                        placeholder = { 
+                        label = { Text("البريد الإلكتروني / رقم الحساب / المعرّف", fontFamily = CairoFont, fontSize = 12.sp) },
+                        placeholder = {
                             Text(
-                                "user@gmail.com أو 000001 أو USR-8291", 
-                                color = Color.Gray.copy(alpha = 0.45f), 
-                                fontSize = 10.5.sp, 
-                                fontFamily = CairoFont
-                            ) 
+                                "user@gmail.com أو 000001 أو USR-8291",
+                                color = theme.textSecondary.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                fontFamily = NotoSansFont
+                            )
                         },
-                        textStyle = TextStyle(fontFamily = CairoFont, fontSize = 13.sp, color = Color.White),
+                        textStyle = TextStyle(fontFamily = NotoSansFont, fontSize = 14.sp, color = theme.textPrimary),
                         leadingIcon = {
                             val trimmed = accountInput.trim()
                             val (iconVector, iconTint) = when {
-                                trimmed.contains("@") -> Icons.Default.Email to AiCyan
-                                trimmed.isNotEmpty() && trimmed.all { it.isDigit() } -> Icons.Default.AccountBox to primaryColor
-                                trimmed.isNotEmpty() -> Icons.Default.Person to accentColor
-                                else -> Icons.Default.AccountCircle to primaryColor.copy(alpha = 0.7f)
+                                trimmed.contains("@") -> Icons.Default.Email to theme.accent
+                                trimmed.isNotEmpty() && trimmed.all { it.isDigit() } -> Icons.Default.AccountBox to theme.primary
+                                trimmed.isNotEmpty() -> Icons.Default.Person to theme.primary
+                                else -> Icons.Default.AccountCircle to theme.textSecondary
                             }
-                            Icon(
-                                imageVector = iconVector, 
-                                contentDescription = null, 
-                                tint = iconTint, 
-                                modifier = Modifier.size(17.dp)
-                            )
+                            Icon(imageVector = iconVector, contentDescription = null, tint = iconTint, modifier = Modifier.size(19.dp))
                         },
                         trailingIcon = {
                             if (accountInput.isNotEmpty()) {
                                 IconButton(
                                     onClick = { accountInput = ""; authErrorMessage = null },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = Color.White.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                    Icon(Icons.Default.Close, contentDescription = "مسح الحقل", tint = theme.textSecondary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         },
@@ -642,221 +531,162 @@ fun LoginScreen(
                             .fillMaxWidth()
                             .testTag(TestTags.LOGIN_SCREEN + "_account_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                            focusedLabelColor = primaryColor,
-                            unfocusedLabelColor = Color.Gray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            cursorColor = primaryColor,
-                            focusedContainerColor = Color.White.copy(alpha = 0.02f),
-                            unfocusedContainerColor = Color.Transparent
+                            focusedBorderColor = theme.primary,
+                            unfocusedBorderColor = theme.separator,
+                            focusedLabelColor = theme.primary,
+                            unfocusedLabelColor = theme.textSecondary,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            cursorColor = theme.primary,
+                            focusedContainerColor = theme.secondarySurface.copy(alpha = 0.25f),
+                            unfocusedContainerColor = theme.secondarySurface.copy(alpha = 0.15f)
                         ),
-                        shape = CutCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
 
-                    // Cybernetic Dual-Login Hint Badge (Compact)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.CheckCircle, 
-                            contentDescription = null, 
-                            tint = primaryColor.copy(alpha = 0.7f), 
-                            modifier = Modifier.size(11.dp)
-                        )
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.success, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "نظام موحد: يمكنك كتابة بريدك أو رقم الحساب أو المعرّف الخاص",
-                            color = Color(0xFF94A3B8),
-                            fontFamily = CairoFont,
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            softWrap = false
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.sp
                         )
                     }
 
                     // Password Field
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { 
+                        onValueChange = {
                             password = it
                             authErrorMessage = null
                         },
-                        label = { Text("كلمة المرور", fontFamily = CairoFont, fontSize = 11.sp) },
-                        textStyle = TextStyle(fontFamily = RobotoMonoFont, fontSize = 13.sp, color = Color.White),
+                        label = { Text("كلمة المرور", fontFamily = CairoFont, fontSize = 12.sp) },
+                        textStyle = TextStyle(fontFamily = NotoSansFont, fontSize = 14.sp, color = theme.textPrimary),
                         leadingIcon = {
-                            Icon(Icons.Default.Lock, null, tint = primaryColor.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(18.dp))
                         },
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(
                                 onClick = { isPasswordVisible = !isPasswordVisible },
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (isPasswordVisible) "إخفاء كلمة المرور" else "إظهار كلمة المرور",
-                                    tint = Color.White.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(16.dp)
+                                    tint = theme.textSecondary,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                            focusedLabelColor = primaryColor,
-                            unfocusedLabelColor = Color.Gray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            cursorColor = primaryColor,
-                            focusedContainerColor = Color.White.copy(alpha = 0.02f),
-                            unfocusedContainerColor = Color.Transparent
+                            focusedBorderColor = theme.primary,
+                            unfocusedBorderColor = theme.separator,
+                            focusedLabelColor = theme.primary,
+                            unfocusedLabelColor = theme.textSecondary,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            cursorColor = theme.primary,
+                            focusedContainerColor = theme.secondarySurface.copy(alpha = 0.25f),
+                            unfocusedContainerColor = theme.secondarySurface.copy(alpha = 0.15f)
                         ),
-                        shape = CutCornerShape(6.dp),
+                        shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
 
-                    // Remember Me
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
                             .toggleable(value = rememberMe, role = Role.Checkbox, onValueChange = { rememberMe = it }),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(15.dp)
-                                .border(1.dp, if (rememberMe) primaryColor else Color.Gray, CutCornerShape(3.dp))
-                                .padding(2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (rememberMe) Box(modifier = Modifier.fillMaxSize().background(primaryColor, CutCornerShape(1.dp)))
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Checkbox(
+                            checked = rememberMe,
+                            onCheckedChange = null,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = theme.primary,
+                                uncheckedColor = theme.textSecondary,
+                                checkmarkColor = theme.onPrimary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "تذكر بيانات الدخول برمجياً",
-                            color = if (rememberMe) Color.White else Color.Gray,
+                            text = "تذكر بيانات الدخول على هذا الجهاز",
+                            color = if (rememberMe) theme.textPrimary else theme.textSecondary,
                             fontFamily = CairoFont,
-                            fontSize = 10.5.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // Submit Button (Compact Geometric Solid)
-                    Button(
-                        onClick = submitLogin,
-                        enabled = !isLoading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    listOf(primaryColor, AiCyan.copy(alpha = 0.85f))
-                                ),
-                                shape = CutCornerShape(topStart = 10.dp, bottomEnd = 10.dp)
-                            )
-                            .border(
-                                width = 1.dp,
-                                brush = Brush.horizontalGradient(
-                                    listOf(primaryColor.copy(alpha = 0.9f), AiCyan)
-                                ),
-                                shape = CutCornerShape(topStart = 10.dp, bottomEnd = 10.dp)
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = DeepSlate
-                        ),
-                        shape = CutCornerShape(topStart = 10.dp, bottomEnd = 10.dp)
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Login, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "بدء تشغيل الاستوديو // ENTER",
-                                    color = DeepSlate,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 13.5.sp
-                                )
-                            }
-                        }
-                    }
+                    ApplePrimaryButton(
+                        text = "تسجيل الدخول",
+                        icon = Icons.Default.Login,
+                        isLoading = isLoading,
+                        onClick = submitLogin
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // New User Registration Callout Banner (Compact & Anti-Squishing)
-            Surface(
-                color = primaryColor.copy(alpha = 0.08f),
-                shape = CutCornerShape(8.dp),
-                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.25f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { 
-                        val currentTyped = accountInput.trim()
-                        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                        if (UserIdentifierManager.isEmail(currentTyped)) {
-                            prefs.edit().putString("draft_register_email", currentTyped).apply()
-                        }
-                        onNavigateToRegister() 
+            // Register Card Banner
+            AppleCard(
+                onClick = {
+                    val currentTyped = accountInput.trim()
+                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    if (UserIdentifierManager.isEmail(currentTyped)) {
+                        prefs.edit().putString("draft_register_email", currentTyped).apply()
                     }
+                    onNavigateToRegister()
+                }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f, fill = false)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PersonAdd,
-                            contentDescription = null,
-                            tint = primaryColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(theme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "مستخدم جديد؟ اضغط لإنشاء حساب",
-                                color = Color.White,
+                                text = "مستخدم جديد؟ أنشئ حسابك الآن",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                                softWrap = false
+                                fontSize = 13.sp
                             )
                             Text(
-                                text = "توليد المعرّف الخاص ورقم الحساب فوراً",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontFamily = CairoFont,
-                                fontSize = 9.5.sp,
-                                maxLines = 1,
-                                softWrap = false
+                                text = "توليد المعرّف الخاص ورقم الحساب فورياً",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.sp
                             )
                         }
                     }
-                    StrictBadge(
-                        text = "تسجيل ✦",
-                        color = primaryColor
-                    )
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = theme.textSecondary)
                 }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Navigation Options
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -864,9 +694,9 @@ fun LoginScreen(
             ) {
                 TextButton(
                     onClick = onNavigateToForgotPassword,
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text("نسيان الرمز؟", color = accentColor, fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("نسيت كلمة المرور؟", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
                 TextButton(
                     onClick = {
@@ -877,26 +707,21 @@ fun LoginScreen(
                         }
                         onNavigateToRegister()
                     },
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text(
-                        text = "إنشاء حساب جديد // REGISTER", 
-                        color = primaryColor.copy(alpha = 0.9f), 
-                        fontFamily = RobotoMonoFont, 
-                        fontWeight = FontWeight.Bold, 
-                        fontSize = 9.5.sp
-                    )
+                    Text("إنشاء حساب جديد", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Guest Entry Option (Compact & Secure)
-            OutlinedButton(
+            AppleSecondaryButton(
+                text = "الدخول السريع كضيف للمعاينة",
+                icon = Icons.Default.Person,
                 onClick = {
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     prefs.edit().apply {
-                        putBoolean("is_logged_in", false) // Guest mode is strictly unauthenticated
+                        putBoolean("is_logged_in", false)
                         putBoolean("is_guest", true)
                         putBoolean("is_admin", false)
                         putBoolean("is_developer", false)
@@ -909,7 +734,6 @@ fun LoginScreen(
                         putString("user_display_name", "زائر مؤقت")
                         putString("user_custom_id", "guest")
                         putString("user_tag", "@guest")
-                        // Clear any potential sensitive leftovers
                         remove("auth_token")
                         remove("refresh_token")
                         remove("user_api_key")
@@ -918,56 +742,26 @@ fun LoginScreen(
                     SupabaseRepository.getInstance().emitGuestMode("ضيف قبس")
                     Toast.makeText(
                         context,
-                        "تم الدخول كضيف 👤. هذا الوضع للمعاينة فقط؛ لا يتم حفظ البيانات أو مزامنتها مع السحابة بدون تسجيل دخول رسمي.",
+                        "تم الدخول كضيف. هذا الوضع للمعاينة فقط؛ لا يتم حفظ البيانات أو مزامنتها مع السحابة بدون تسجيل دخول رسمي.",
                         Toast.LENGTH_LONG
                     ).show()
                     onLoginSuccess(false)
-                },
-                modifier = Modifier.fillMaxWidth().height(42.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                shape = CutCornerShape(6.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White.copy(alpha = 0.75f))
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Person, null, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "الدخول السريع كضيف // GUEST MODE",
-                        fontFamily = RobotoMonoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp,
-                        letterSpacing = 0.8.sp
-                    )
                 }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            TextButton(onClick = onNavigateToRules) {
+                Text(
+                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
+                    color = theme.primary,
+                    fontSize = 11.5.sp,
+                    fontFamily = CairoFont,
+                    textAlign = TextAlign.Center
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "AUTHENTICATED SESSION // SUPABASE",
-                color = primaryColor.copy(alpha = 0.35f),
-                fontFamily = RobotoMonoFont,
-                fontSize = 8.sp,
-                letterSpacing = 0.8.sp
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس 📜",
-                color = primaryColor.copy(alpha = 0.85f),
-                fontSize = 10.5.sp,
-                fontFamily = CairoFont,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .padding(horizontal = 20.dp)
-                    .clickable { onNavigateToRules() }
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
-
-
-
     }
 }

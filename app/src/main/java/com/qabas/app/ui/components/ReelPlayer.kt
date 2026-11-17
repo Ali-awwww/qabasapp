@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -32,14 +31,13 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.qabas.app.ExoPlayerFactory
 import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.VideoCacheService
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -71,6 +69,7 @@ fun ReelPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val configuredDefaultSpeed = remember(context) { com.qabas.app.UnifiedVideoPlayerSettings.speed(context) }
     val effectivePlaybackSpeed = if (playbackSpeed == 1.0f) configuredDefaultSpeed else playbackSpeed
     var isUserPaused by remember { mutableStateOf(false) }
@@ -148,8 +147,8 @@ fun ReelPlayer(
         }
     }
 
-    LaunchedEffect(playbackSpeed, exoPlayer) {
-        exoPlayer?.let { runCatching { it.setPlaybackSpeed(playbackSpeed) } }
+    LaunchedEffect(effectivePlaybackSpeed, exoPlayer) {
+        exoPlayer?.let { runCatching { it.setPlaybackSpeed(effectivePlaybackSpeed) } }
     }
 
     // وضع التكرار يتبع وجود مستدعى «انتهى المقطع» (التمرير التلقائي) لا يتجمد على قيمة التكوين
@@ -330,7 +329,7 @@ fun ReelPlayer(
             )
         }
 
-        // Shimmer / Poster Fallback when buffering or error
+        // Loading / Error Poster inside cinematic video viewport
         if (isBuffering || hasError) {
             Box(
                 modifier = Modifier
@@ -338,9 +337,9 @@ fun ReelPlayer(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color(0xFF0F172A),
-                                Color(0xFF020617),
-                                Color(0xFF1E1B4B)
+                                Color(0xFF141418),
+                                Color(0xFF000000),
+                                Color(0xFF101014)
                             )
                         )
                     ),
@@ -348,8 +347,8 @@ fun ReelPlayer(
             ) {
                 if (isBuffering) {
                     CircularProgressIndicator(
-                        color = GoldPrimary,
-                        modifier = Modifier.size(36.dp),
+                        color = theme.primary,
+                        modifier = Modifier.size(34.dp),
                         strokeWidth = 3.dp
                     )
                 } else if (hasError) {
@@ -359,32 +358,35 @@ fun ReelPlayer(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.08f),
-                            modifier = Modifier.size(56.dp)
+                            color = Color.White.copy(alpha = 0.10f),
+                            modifier = Modifier.size(60.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Videocam,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(30.dp)
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                         Text(
                             text = "تعذر تحميل المقطع حالياً",
                             color = Color.White,
-                            style = MaterialTheme.typography.titleMedium
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "تحقق من اتصالك بالإنترنت ثم أعد المحاولة",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodySmall
+                            color = Color.White.copy(alpha = 0.68f),
+                            fontFamily = NotoSansFont,
+                            fontSize = 13.sp
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedButton(
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
                             onClick = {
                                 hasError = false
                                 isBuffering = true
@@ -401,16 +403,17 @@ fun ReelPlayer(
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = GoldPrimary
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = theme.primary,
+                                contentColor = theme.onPrimary
                             ),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("إعادة المحاولة 🔄", fontSize = 12.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("إعادة المحاولة", fontSize = 14.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -457,7 +460,7 @@ fun ReelPlayer(
             )
         }
 
-        // Geometric gesture HUD (brightness / volume)
+        // Apple HUD overlay (brightness / volume)
         AnimatedVisibility(
             visible = showGestureHud,
             enter = fadeIn(),
@@ -465,10 +468,10 @@ fun ReelPlayer(
             modifier = Modifier.align(Alignment.Center)
         ) {
             Surface(
-                shape = CutCornerShape(16.dp),
-                color = Color.Black.copy(alpha = 0.72f),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                modifier = Modifier.size(width = 92.dp, height = 150.dp)
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xD91C1C1E),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.16f)),
+                modifier = Modifier.size(width = 92.dp, height = 152.dp)
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -478,33 +481,33 @@ fun ReelPlayer(
                     Icon(
                         imageVector = if (gestureKind == GestureKind.BRIGHTNESS) Icons.Default.BrightnessHigh else Icons.Default.VolumeUp,
                         contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(24.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Box(
                         modifier = Modifier
-                            .width(10.dp)
+                            .width(8.dp)
                             .height(64.dp)
-                            .clip(CutCornerShape(5.dp))
-                            .background(Color.White.copy(alpha = 0.18f)),
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(gestureValue.coerceIn(0f, 1f))
-                                .clip(CutCornerShape(5.dp))
-                                .background(GoldPrimary)
+                                .clip(CircleShape)
+                                .background(theme.primary)
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "${(gestureValue.coerceIn(0f, 1f) * 100).toInt()}%",
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -517,13 +520,13 @@ fun ReelPlayer(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .height(3.dp)
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .background(Color.White.copy(alpha = 0.18f))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(progressFraction)
-                        .background(GoldPrimary)
+                        .background(theme.primary)
                 )
             }
         }

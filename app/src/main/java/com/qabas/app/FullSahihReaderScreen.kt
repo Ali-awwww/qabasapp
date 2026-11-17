@@ -1,8 +1,8 @@
 package com.qabas.app
 
-import android.content.Intent
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,25 +12,31 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSearchBar
+import com.qabas.app.ui.components.AppleTopBar
+import com.qabas.app.ui.theme.AmiriFont
+import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * 🔑 شاشة قارئ صحيح البخاري وصحيح مسلم الكامل (7277 + 7459 حديثًا)
- * واجهة محسّنة: تصفح بالفصول، بحث، قراءة صوتية (TTS)، تحميل تدريجي (pagination)، وضع ليلي تلقائي
+ * شاشة قارئ صحيح البخاري وصحيح مسلم الكامل بتصميم Apple HIG للوضعين الفاتح والداكن
+ * تدعم التصفح بالفصول، البحث، القراءة الصوتية، التحميل التدريجي، واختبار الفهم
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullSahihReaderScreen(
     bookType: SahihBookType,
@@ -38,8 +44,8 @@ fun FullSahihReaderScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val theme = QabasTheme.current
 
-    // الحالة
     var chapters by remember { mutableStateOf<List<FullSahihChapter>>(emptyList()) }
     var hadiths by remember { mutableStateOf<List<FullSahihHadith>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -52,16 +58,13 @@ fun FullSahihReaderScreen(
     var selectedHadith by remember { mutableStateOf<FullSahihHadith?>(null) }
     var showDetailsDialog by remember { mutableStateOf(false) }
 
-    // نصوص القراءة الصوتية
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     var isSpeaking by remember { mutableStateOf(false) }
     var speakingHadithId by remember { mutableStateOf<Int?>(null) }
 
-    // 🔑 تحميل تدريجي (pagination) لتفادي تحميل آلاف البطاقات مرة واحدة
     var visibleHadithCount by remember { mutableStateOf(30) }
     val listState = rememberLazyListState()
 
-    // تحميل صفحة جديدة عند الاقتراب من النهاية
     val shouldLoadMore by remember {
         derivedStateOf {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -71,23 +74,20 @@ fun FullSahihReaderScreen(
 
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
-            visibleHadithCount += 30 // تحميل 30 بطاقة إضافية
+            visibleHadithCount += 30
         }
     }
 
-    // إعادة تعيين عدد البطاقات المرئية عند تغيير الفصل/البحث
     LaunchedEffect(selectedChapterId, searchQuery) {
         visibleHadithCount = 30
     }
 
-    // تحميل الفصول عند فتح الشاشة
     LaunchedEffect(bookType) {
         isLoading = true
         chapters = FullSahihHadithRepository.getChapters(context, bookType)
         isLoading = false
     }
 
-    // تحميل أحاديث فصل محدد
     LaunchedEffect(selectedChapterId) {
         val chId = selectedChapterId ?: return@LaunchedEffect
         isLoadingHadiths = true
@@ -95,21 +95,18 @@ fun FullSahihReaderScreen(
         isLoadingHadiths = false
     }
 
-    // البحث (debounced) — 🔑 يبدأ حالة البحث فورًا عند تغير الاستعلام (لا ننتظر 300ms)
     LaunchedEffect(bookType, searchQuery) {
         if (searchQuery.isBlank()) {
             searchResults = emptyList()
             isSearching = false
             return@LaunchedEffect
         }
-        isSearching = true // 🔑 فورًا، لا نعرض نتائج قديمة تحت استعلام جديد
+        isSearching = true
         kotlinx.coroutines.delay(300)
-        val results = FullSahihHadithRepository.searchHadiths(context, bookType, searchQuery)
-        searchResults = results
+        searchResults = FullSahihHadithRepository.searchHadiths(context, bookType, searchQuery)
         isSearching = false
     }
 
-    // 🔑 توحيد الرجوع: الأحاديث ← فهرس الكتاب ← المختارات ← المكتبة (نفس سلوك زر الرجوع والنظام)
     BackHandler(enabled = selectedChapterId != null || searchQuery.isNotBlank()) {
         if (selectedChapterId != null) {
             selectedChapterId = null
@@ -118,19 +115,20 @@ fun FullSahihReaderScreen(
         }
     }
 
-    // 🔑 DisposableEffect واحد فقط (TTS + clearCache) — لا تداخل تنظيفين منفصلين
     DisposableEffect(Unit) {
         val ttsInit = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.setLanguage(Locale("ar"))
+                tts?.language = Locale("ar")
             }
         }
         tts = ttsInit
 
         onDispose {
-            try { ttsInit.stop(); ttsInit.shutdown() } catch (_: Exception) {}
+            try {
+                ttsInit.stop()
+                ttsInit.shutdown()
+            } catch (_: Exception) {}
             tts = null
-            // 🔑 clearCache الآن suspend — نُطلقه بشكل منفصل (لا نمنع dispose)
             scope.launch {
                 FullSahihHadithRepository.clearCache()
             }
@@ -139,22 +137,18 @@ fun FullSahihReaderScreen(
 
     fun speakHadith(hadith: FullSahihHadith) {
         val currentTts = tts ?: return
-
         if (isSpeaking && speakingHadithId == hadith.id) {
-            // إيقاف
             currentTts.stop()
             isSpeaking = false
             speakingHadithId = null
         } else {
-            // بدء قراءة — 🔑 نطبع نجاح speak() ولا نفترض النجاح تلقائيًا
-            currentTts.setLanguage(Locale("ar"))
+            currentTts.language = Locale("ar")
             val cleanText = hadith.arabic.replace(Regex("[\\n\\r]"), " ").trim()
             val speakResult = currentTts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "hadith_${hadith.id}")
             if (speakResult == TextToSpeech.SUCCESS) {
                 isSpeaking = true
                 speakingHadithId = hadith.id
             } else {
-                // فشل البدء — نُظهر تحذيرًا للمستخدم (قد لا تكون العربية مدعومة)
                 isSpeaking = false
                 speakingHadithId = null
             }
@@ -165,192 +159,238 @@ fun FullSahihReaderScreen(
         SahihBookType.BUKHARI -> "صحيح البخاري (كامل)"
         SahihBookType.MUSLIM -> "صحيح مسلم (كامل)"
     }
-    val goldColor = Color(0xFFD4AF37)
-    val darkBg = Color(0xFF0B141A)
-    val cardBg = Color(0xFF16242D)
+    val selectedChapter = remember(selectedChapterId, chapters) {
+        chapters.firstOrNull { it.id == selectedChapterId }
+    }
 
-    // 🎓 حالة اختبار الفهم والحفظ
     var showQuiz by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = theme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("📖 $bookTitle", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "رجوع")
+            AppleTopBar(
+                title = bookTitle,
+                subtitle = selectedChapter?.arabic ?: "${chapters.size} كتاباً وفصلاً",
+                onBack = {
+                    when {
+                        selectedChapterId != null -> selectedChapterId = null
+                        searchQuery.isNotBlank() -> searchQuery = ""
+                        else -> onBack()
                     }
                 },
                 actions = {
                     IconButton(
                         onClick = {
                             scope.launch {
-                                // نضمن تحميل الكتاب قبل توليد الأسئلة
                                 FullSahihHadithRepository.loadBook(context, bookType)
                                 showQuiz = true
                             }
-                        }
+                        },
+                        modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(Icons.Default.Quiz, "اختبر فهمك وحفظك 🎓", tint = goldColor)
+                        Icon(Icons.Default.Quiz, contentDescription = "اختبار الفهم والحفظ", tint = theme.primary)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = darkBg,
-                    titleContentColor = goldColor,
-                    navigationIconContentColor = Color.White
-                )
+                }
             )
         }
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().background(darkBg).padding(padding)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // 🔍 شريط البحث
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("🔍 ابحث في الكتاب كاملًا...", color = Color(0xFF94A3B8), fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = goldColor) },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, null, tint = Color(0xFFEF4444))
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = goldColor,
-                    unfocusedBorderColor = Color(0xFF334155),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    cursorColor = goldColor
-                )
-            )
-
-            // 📊 إحصائيات سريعة
-            Card(
-                colors = CardDefaults.cardColors(containerColor = cardBg),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 600.dp)
             ) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (searchQuery.isNotBlank()) {
-                        Icon(Icons.Default.Search, null, tint = goldColor, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("نتائج البحث: ${searchResults.size}", color = Color.White, fontSize = 12.sp)
-                    } else {
-                        Icon(Icons.Default.AutoStories, null, tint = goldColor, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("📚 ${chapters.size} كتاب • 🔍 ابحث في كل الأحاديث", color = Color.White, fontSize = 12.sp)
-                    }
-                }
-            }
-
-            when {
-                isLoading -> {
-                    // شاشة تحميل
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = goldColor)
-                            Spacer(Modifier.height(12.dp))
-                            Text("جاري تحميل الكتاب...", color = Color(0xFF94A3B8), fontSize = 13.sp)
-                        }
-                    }
+                // Search Bar
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    AppleSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        placeholder = "ابحث في الكتاب كاملًا..."
+                    )
                 }
 
-                searchQuery.isNotBlank() -> {
-                    // 📄 نتائج البحث
-                    if (isSearching) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = goldColor)
+                // Quick Stats Banner
+                AppleCard(
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (searchQuery.isNotBlank()) {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "نتائج البحث: ${searchResults.size}",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        } else {
+                            Icon(Icons.Default.AutoStories, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (selectedChapter != null) selectedChapter.arabic
+                                else "${chapters.size} كتاب • تصفح أو ابحث في جميع الأحاديث",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
                         }
-                    } else if (searchResults.isEmpty()) {
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                when {
+                    isLoading -> {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("لا نتائج لـ «$searchQuery»", color = Color(0xFF94A3B8), fontSize = 14.sp)
-                        }
-                    } else {
-                        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
-                            itemsIndexed(searchResults.take(visibleHadithCount)) { _, hadith ->
-                                FullHadithCard(
-                                    hadith = hadith,
-                                    isExpanded = expandedHadithIds.contains(hadith.id),
-                                    isSpeaking = speakingHadithId == hadith.id,
-                                    onToggleExpand = {
-                                        expandedHadithIds = if (expandedHadithIds.contains(hadith.id)) expandedHadithIds - hadith.id else expandedHadithIds + hadith.id
-                                    },
-                                    onClickDetails = { selectedHadith = hadith; showDetailsDialog = true },
-                                    onClickSpeak = { speakHadith(hadith) }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = theme.primary)
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "جاري تحميل الكتاب...",
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 13.sp
                                 )
-                                Spacer(Modifier.height(8.dp))
                             }
                         }
                     }
-                }
 
-                selectedChapterId == null -> {
-                    // 📚 عرض الفصول (كتب الكتاب)
-                    if (chapters.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("تعذّر تحميل الكتاب من ملفات التطبيق", color = Color(0xFFFCA5A5), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(6.dp))
-                                Text("تأكد من اكتمال التثبيت ثم أعد المحاولة", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                                Spacer(Modifier.height(12.dp))
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            isLoading = true
-                                            FullSahihHadithRepository.clearCache()
-                                            chapters = FullSahihHadithRepository.getChapters(context, bookType)
-                                            isLoading = false
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = goldColor)
-                                ) {
-                                    Text("إعادة المحاولة 🔄", fontWeight = FontWeight.Bold)
+                    searchQuery.isNotBlank() -> {
+                        if (isSearching) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = theme.primary)
+                            }
+                        } else if (searchResults.isEmpty()) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    "لا نتائج لـ «$searchQuery»",
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                itemsIndexed(searchResults.take(visibleHadithCount)) { _, hadith ->
+                                    FullHadithCard(
+                                        hadith = hadith,
+                                        isExpanded = expandedHadithIds.contains(hadith.id),
+                                        isSpeaking = speakingHadithId == hadith.id,
+                                        onToggleExpand = {
+                                            expandedHadithIds = if (expandedHadithIds.contains(hadith.id)) expandedHadithIds - hadith.id else expandedHadithIds + hadith.id
+                                        },
+                                        onClickDetails = { selectedHadith = hadith; showDetailsDialog = true },
+                                        onClickSpeak = { speakHadith(hadith) }
+                                    )
                                 }
                             }
                         }
-                    } else {
-                        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
-                            itemsIndexed(chapters.take(visibleHadithCount)) { idx, chapter ->
-                                FullChapterCard(
-                                    chapter = chapter,
-                                    index = idx,
-                                    onOpen = { selectedChapterId = chapter.id }
-                                )
-                                Spacer(Modifier.height(8.dp))
+                    }
+
+                    selectedChapterId == null -> {
+                        if (chapters.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "تعذّر تحميل الكتاب من ملفات التطبيق",
+                                        color = theme.destructive,
+                                        fontFamily = CairoFont,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        "تأكد من اكتمال التثبيت ثم أعد المحاولة",
+                                        color = theme.textSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 12.sp
+                                    )
+                                    Spacer(Modifier.height(14.dp))
+                                    ApplePrimaryButton(
+                                        text = "إعادة المحاولة",
+                                        icon = Icons.Default.Refresh,
+                                        onClick = {
+                                            scope.launch {
+                                                isLoading = true
+                                                FullSahihHadithRepository.clearCache()
+                                                chapters = FullSahihHadithRepository.getChapters(context, bookType)
+                                                isLoading = false
+                                            }
+                                        },
+                                        modifier = Modifier.widthIn(max = 240.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                itemsIndexed(chapters.take(visibleHadithCount)) { idx, chapter ->
+                                    FullChapterCard(
+                                        chapter = chapter,
+                                        index = idx,
+                                        onOpen = { selectedChapterId = chapter.id }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                else -> {
-                    // 📖 عرض أحاديث فصل محدد
-                    if (isLoadingHadiths) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = goldColor)
-                        }
-                    } else if (hadiths.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("لا أحاديث في هذا الفصل", color = Color(0xFF94A3B8), fontSize = 14.sp)
-                        }
-                    } else {
-                        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
-                            itemsIndexed(hadiths.take(visibleHadithCount)) { _, hadith ->
-                                FullHadithCard(
-                                    hadith = hadith,
-                                    isExpanded = expandedHadithIds.contains(hadith.id),
-                                    isSpeaking = speakingHadithId == hadith.id,
-                                    onToggleExpand = {
-                                        expandedHadithIds = if (expandedHadithIds.contains(hadith.id)) expandedHadithIds - hadith.id else expandedHadithIds + hadith.id
-                                    },
-                                    onClickDetails = { selectedHadith = hadith; showDetailsDialog = true },
-                                    onClickSpeak = { speakHadith(hadith) }
+                    else -> {
+                        if (isLoadingHadiths) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = theme.primary)
+                            }
+                        } else if (hadiths.isEmpty()) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    "لا أحاديث في هذا الفصل",
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 14.sp
                                 )
-                                Spacer(Modifier.height(8.dp))
+                            }
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                itemsIndexed(hadiths.take(visibleHadithCount)) { _, hadith ->
+                                    FullHadithCard(
+                                        hadith = hadith,
+                                        isExpanded = expandedHadithIds.contains(hadith.id),
+                                        isSpeaking = speakingHadithId == hadith.id,
+                                        onToggleExpand = {
+                                            expandedHadithIds = if (expandedHadithIds.contains(hadith.id)) expandedHadithIds - hadith.id else expandedHadithIds + hadith.id
+                                        },
+                                        onClickDetails = { selectedHadith = hadith; showDetailsDialog = true },
+                                        onClickSpeak = { speakHadith(hadith) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -359,23 +399,41 @@ fun FullSahihReaderScreen(
         }
     }
 
-    // 🔑 حوار تفاصيل الحديث
     if (showDetailsDialog && selectedHadith != null) {
         AlertDialog(
             onDismissRequest = { showDetailsDialog = false },
-            title = { Text("📖 حديث رقم ${selectedHadith!!.idInBook}", fontWeight = FontWeight.Bold) },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
+            title = {
+                Text(
+                    "حديث رقم ${selectedHadith!!.idInBook}",
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 SelectionContainer {
-                    Text(selectedHadith!!.arabic, fontSize = 14.sp, lineHeight = 22.sp)
+                    Text(
+                        selectedHadith!!.arabic,
+                        color = theme.textPrimary,
+                        fontFamily = AmiriFont,
+                        fontSize = 16.sp,
+                        lineHeight = 28.sp
+                    )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showDetailsDialog = false }) { Text("إغلاق", color = goldColor) }
+                TextButton(
+                    onClick = { showDetailsDialog = false },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                ) {
+                    Text("إغلاق", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
             }
         )
     }
 
-    // 🎓 حوار اختبار الفهم والحفظ (100 سؤال من الكتاب الكامل + نقاط)
     if (showQuiz) {
         SahihQuizDialog(
             bookType = bookType,
@@ -384,46 +442,62 @@ fun FullSahihReaderScreen(
     }
 }
 
-/**
- * بطاقة عرض فصل (كتاب) من صحيح البخاري أو مسلم
- */
 @Composable
 private fun FullChapterCard(
     chapter: FullSahihChapter,
     index: Int,
     onOpen: () -> Unit
 ) {
-    val goldColor = Color(0xFFD4AF37)
-    val cardBg = Color(0xFF16242D)
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = cardBg),
-        modifier = Modifier.fillMaxWidth().clickable { onOpen() },
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            // رقم الفصل
+    val theme = QabasTheme.current
+    AppleCard(onClick = onOpen) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 60.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
-                modifier = Modifier.size(36.dp).background(goldColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(theme.primary.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("${index + 1}", color = goldColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "${index + 1}",
+                    color = theme.primary,
+                    fontFamily = CairoFont,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(chapter.arabic, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    chapter.arabic,
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
                 if (chapter.english.isNotBlank()) {
-                    Text(chapter.english, color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    Text(
+                        chapter.english,
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp
+                    )
                 }
             }
-            Icon(Icons.Default.ChevronRight, null, tint = goldColor)
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = theme.textSecondary
+            )
         }
     }
 }
 
-/**
- * بطاقة عرض حديث من صحيح البخاري أو مسلم الكامل
- */
 @Composable
 private fun FullHadithCard(
     hadith: FullSahihHadith,
@@ -433,58 +507,92 @@ private fun FullHadithCard(
     onClickDetails: () -> Unit,
     onClickSpeak: () -> Unit
 ) {
-    val goldColor = Color(0xFFD4AF37)
-    val cardBg = Color(0xFF16242D)
+    val theme = QabasTheme.current
+    val containerColor = if (isSpeaking) {
+        theme.success.copy(alpha = if (theme.isDark) 0.18f else 0.08f)
+    } else {
+        theme.cardSurface
+    }
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSpeaking) Color(0xFF1A2E1A) else cardBg
-        ),
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(14.dp),
+        color = containerColor,
+        shadowElevation = if (theme.isDark) 0.dp else 1.5.dp,
+        border = BorderStroke(
+            width = if (isSpeaking) 1.dp else 0.5.dp,
+            color = if (isSpeaking) theme.success else theme.separator.copy(alpha = 0.45f)
+        )
     ) {
         Column(Modifier.padding(14.dp)) {
-            // رأس البطاقة: رقم الحديث + أزرار
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "حديث #${hadith.idInBook}",
-                    color = goldColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
-                )
+                Surface(
+                    color = theme.primary.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        "حديث #${hadith.idInBook}",
+                        color = theme.primary,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
                 Spacer(Modifier.weight(1f))
 
-                // زر القراءة الصوتية
-                IconButton(onClick = onClickSpeak, modifier = Modifier.size(28.dp)) {
+                IconButton(
+                    onClick = onClickSpeak,
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(
                         if (isSpeaking) Icons.Default.Stop else Icons.Default.PlayArrow,
-                        if (isSpeaking) "إيقاف القراءة" else "قراءة صوتية",
-                        tint = if (isSpeaking) Color(0xFFEF4444) else goldColor,
-                        modifier = Modifier.size(18.dp)
+                        contentDescription = if (isSpeaking) "إيقاف القراءة" else "قراءة صوتية",
+                        tint = if (isSpeaking) theme.destructive else theme.primary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                // زر التفاصيل
-                IconButton(onClick = onClickDetails, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Info, "تفاصيل", tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                IconButton(
+                    onClick = onClickDetails,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "تفاصيل الحديث",
+                        tint = theme.accent,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
             Spacer(Modifier.height(6.dp))
 
-            // نص الحديث (مُقتطع إن لم يكن مُوسعًا)
             SelectionContainer {
                 Text(
                     text = if (isExpanded) hadith.arabic else hadith.arabic.take(200) + if (hadith.arabic.length > 200) "..." else "",
-                    color = Color.White, fontSize = 13.sp, lineHeight = 22.sp,
-                    modifier = Modifier.fillMaxWidth().clickable { onToggleExpand() }
+                    color = theme.textPrimary,
+                    fontFamily = AmiriFont,
+                    fontSize = 16.5.sp,
+                    lineHeight = 28.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleExpand() }
                 )
             }
 
             if (hadith.arabic.length > 200) {
-                Spacer(Modifier.height(6.dp))
-                TextButton(onClick = onToggleExpand) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(
+                    onClick = onToggleExpand,
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                ) {
                     Text(
-                        if (isExpanded) "▲ إخفاء النص الكامل" else "▼ عرض النص الكامل",
-                        color = goldColor, fontSize = 11.sp
+                        if (isExpanded) "إخفاء النص الكامل" else "عرض النص الكامل",
+                        color = theme.primary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
                     )
                 }
             }

@@ -1,24 +1,17 @@
 package com.qabas.app
 
-import android.content.Context
-import com.qabas.app.R
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -26,16 +19,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.firebase.FirebaseApp
-import com.qabas.app.ui.components.GlassmorphicSurface
-import com.qabas.app.ui.theme.*
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleInsetDivider
+import com.qabas.app.ui.components.AppleListRow
+import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 🛰️ CloudIntegrationMonitorPanel — لوحة المراقبة الإدارية الحية لربط الخدمات السحابية (Firebase & Supabase).
- * توفر رؤية شاملة وفحصاً حياً واستجابة زمنية (Latency) لكل من السحابتين المعتمدتين في النظام.
+ * CloudIntegrationMonitorPanel — لوحة المراقبة الحية لـ Supabase المعتمد كسحابة حصرية وحالة الخدمات الخارجية.
  */
 @Composable
 fun CloudIntegrationMonitorPanel(
@@ -43,55 +38,19 @@ fun CloudIntegrationMonitorPanel(
     showArchitectureOverview: Boolean = true
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
 
     var isChecking by remember { mutableStateOf(false) }
-
-    // حالة Firebase
-    var firebaseAppActive by remember { mutableStateOf(false) }
-    var firestoreConnected by remember { mutableStateOf<Boolean?>(null) }
-    var firestoreLatency by remember { mutableLongStateOf(0L) }
-    var firestoreDbId by remember { mutableStateOf("") }
-    var firestoreDetail by remember { mutableStateOf("جاري فحص الاتصال...") }
-
-    // حالة Supabase
     var supabaseConfigured by remember { mutableStateOf(false) }
     var supabaseConnected by remember { mutableStateOf<Boolean?>(null) }
     var supabaseLatency by remember { mutableLongStateOf(0L) }
-    var supabaseDetail by remember { mutableStateOf("جاري فحص الاتصال...") }
+    var supabaseDetail by remember { mutableStateOf("جارٍ فحص الاتصال...") }
+    var serviceStatuses by remember { mutableStateOf(ServiceAvailabilityRegistry.getAllServiceStatuses(context)) }
 
     fun runLiveDiagnostics() {
         coroutineScope.launch {
             isChecking = true
-
-            // 1. فحص Firebase
-            val fbApps = runCatching { FirebaseApp.getApps(context) }.getOrDefault(emptyList())
-            firebaseAppActive = fbApps.isNotEmpty()
-
-            val dbId = runCatching { context.getString(R.string.firestore_database_id) }.getOrDefault("")
-            firestoreDbId = dbId
-
-            val fbStart = System.currentTimeMillis()
-            val fbOk = withContext(Dispatchers.IO) {
-                runCatching {
-                    val db = FirebaseManager.getFirestore(context)
-                    // محاولة الوصول لمجموعة التحديثات أو أصل القاعدة
-                    db.collection("update_failures").limit(1).get()
-                    true
-                }.getOrElse { e ->
-                    // إذا كان السبب صلاحيات أمان أو عدم وجود وثائق، القاعدة متصلة
-                    e.message?.contains("PERMISSION_DENIED") == true || dbId.isNotBlank()
-                }
-            }
-            firestoreLatency = System.currentTimeMillis() - fbStart
-            firestoreConnected = fbOk
-            firestoreDetail = if (fbOk) {
-                "متصل بنجاح بقاعدة Firestore Enterprise ($dbId)"
-            } else {
-                "تعذر الوصول لـ Firestore — تحقق من ملف الضبط"
-            }
-
-            // 2. فحص Supabase
             supabaseConfigured = SupabaseServices.isSupabaseAvailable
             val sbStart = System.currentTimeMillis()
             val sbOk = withContext(Dispatchers.IO) {
@@ -99,14 +58,12 @@ fun CloudIntegrationMonitorPanel(
             }
             supabaseLatency = System.currentTimeMillis() - sbStart
             supabaseConnected = sbOk || supabaseConfigured
-            supabaseDetail = if (sbOk) {
-                "سحابة PostgreSQL متصلة بنجاح واستجابة البيانات نشطة"
-            } else if (supabaseConfigured) {
-                "المفاتيح مهيأة محلياً والسحابة جاهزة للخدمة"
-            } else {
-                "Supabase غير مفعّل — يرجى إضافة SUPABASE_URL و SUPABASE_ANON_KEY"
+            supabaseDetail = when {
+                sbOk -> "سحابة PostgreSQL متصلة بنجاح وتستجيب للبيانات."
+                supabaseConfigured -> "المفاتيح مهيأة محلياً؛ تعذر اختبار الاستعلام حالياً."
+                else -> "Supabase غير مفعّل — يرجى ضبط SUPABASE_URL و SUPABASE_ANON_KEY."
             }
-
+            serviceStatuses = ServiceAvailabilityRegistry.getAllServiceStatuses(context)
             isChecking = false
         }
     }
@@ -115,30 +72,16 @@ fun CloudIntegrationMonitorPanel(
         runLiveDiagnostics()
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "pulseTransition")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "pulseAlpha"
-    )
-
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── 1. توضيح معمارية النظام المزدوج (Dual-Cloud Architecture) ──
         if (showArchitectureOverview) {
-            GlassmorphicSurface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                backgroundColor = Color(0xFF070C18).copy(alpha = 0.9f),
-                borderColor = GoldPrimary.copy(alpha = 0.35f)
-            ) {
+            AppleCard(cornerRadius = 16.dp) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
@@ -148,149 +91,105 @@ fun CloudIntegrationMonitorPanel(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Default.CloudSync,
+                                Icons.Default.CloudDone,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "معمارية الربط السحابي المزدوج (Hybrid Architecture)",
-                                color = Color.White,
+                                text = "البنية السحابية المعتمدة (Supabase)",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp
+                                fontSize = 14.sp
                             )
                         }
-
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                            color = (if (supabaseConnected == true) theme.success else theme.warning).copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                "نظام هجين active",
-                                color = GoldPrimary,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 9.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                text = if (supabaseConnected == true) "حصري ومعتمد" else "يحتاج إعداد",
+                                color = if (supabaseConnected == true) theme.success else theme.warning,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
                     }
 
                     Text(
-                        "يعتمد التطبيق على معمارية سحابية متكاملة تجمع بين قوة Firebase و Supabase كخدمات أساسية متكاملة:",
-                        color = TextSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp
+                        text = "يعتمد التطبيق على Supabase حصرياً للمصادقة، قاعدة البيانات PostgreSQL، الريلز، التخزين السحابي، وخزينة المفاتيح.",
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // كبسولة Firebase
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFFFF8F00).copy(alpha = 0.4f))
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("🔥 Firebase (Google)", color = Color(0xFFFFB300), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("• محرك الذكاء AI Logic (Gemini 2.5)\n• حماية النزاهة (App Check)\n• مراقبة وتيليمتري أعطال الدلتا", color = Color(0xFFCBD5E1), fontFamily = CairoFont, fontSize = 10.sp)
-                            }
-                        }
-
-                        // كبسولة Supabase
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF3ECF8E).copy(alpha = 0.4f))
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("⚡ Supabase (Postgres)", color = Color(0xFF3ECF8E), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("• سحابة الأحاديث والمجلة الإسلامية\n• الحسابات والخط الزمني والموثقين\n• خزينة المفاتيح السريّة (Secrets)", color = Color(0xFFCBD5E1), fontFamily = CairoFont, fontSize = 10.sp)
-                            }
-                        }
-                    }
                 }
             }
         }
 
-        // ── 2. بطاقتان حيتان لحالة الاتصال الاستجابة (Live Diagnostics Cards) ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "مرصد الاتصال الحي بالخوادم السحابية",
-                color = TextPrimary,
+                text = "فحص الاتصال الحي وجاهزية الخدمات",
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = 14.sp
             )
 
-            OutlinedButton(
+            TextButton(
                 onClick = { runLiveDiagnostics() },
-                enabled = !isChecking,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = GoldPrimary.copy(alpha = 0.05f)),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                modifier = Modifier.height(30.dp)
+                enabled = !isChecking
             ) {
                 if (isChecking) {
-                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = GoldPrimary)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("جاري الفحص...", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.5.sp)
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = theme.primary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("جارٍ الفحص...", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                 } else {
-                    Icon(Icons.Default.Refresh, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("فحص حي 🔄", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                    Text("تحديث الفحص", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // بطاقة Firebase
-        CloudServiceStatusCard(
-            serviceName = "Firebase Cloud Platform",
-            providerTag = "Google Cloud Enterprise",
-            icon = Icons.Default.Whatshot,
-            accentColor = Color(0xFFFFB300),
-            isActive = firestoreConnected == true,
-            checking = isChecking,
-            latencyMs = firestoreLatency,
-            detail = firestoreDetail,
-            metrics = listOf(
-                "Firebase Core App" to if (firebaseAppActive) "مفعّل 🟢" else "معطّل 🔴",
-                "Firestore Database" to if (firestoreConnected == true) "نشط 🟢" else "غير متاح 🔴",
-                "App Check Protection" to "مفعل ومجهّز 🛡️",
-                "AI Logic Runtime" to "جاهز (Gemini) 🤖"
-            )
-        )
-
-        // بطاقة Supabase
         CloudServiceStatusCard(
             serviceName = "Supabase Relational Cloud",
-            providerTag = "PostgreSQL Enterprise Engine",
+            providerTag = "PostgreSQL · Auth · Storage · Realtime",
             icon = Icons.Default.Storage,
-            accentColor = Color(0xFF3ECF8E),
+            accentColor = theme.success,
             isActive = supabaseConnected == true,
             checking = isChecking,
             latencyMs = supabaseLatency,
             detail = supabaseDetail,
             metrics = listOf(
-                "Postgres Database" to if (supabaseConnected == true) "نشط 🟢" else "غير متاح 🔴",
-                "Auth & Row Level Security" to if (supabaseConfigured) "نشط 🟢" else "غير متاح 🔴",
-                "App Secrets Vault" to "متصل 🔐",
-                "Realtime Engine" to "جاهز ⚡"
+                "قاعدة البيانات" to if (supabaseConnected == true) "نشط" else "غير متاح",
+                "المصادقة (RLS)" to if (supabaseConfigured) "مهيأ" else "غير متاح",
+                "الحساب الحالي" to if (ServiceAvailabilityRegistry.isUserSignedIn()) "مسجّل" else "ضيف",
+                "الاستجابة" to if (supabaseLatency > 0) "${supabaseLatency}ms" else "--"
             )
         )
+
+        AppleCard(cornerRadius = 16.dp) {
+            serviceStatuses.forEachIndexed { index, status ->
+                AppleListRow(
+                    title = status.displayName,
+                    subtitle = if (status.isAvailable) null else status.missingReason,
+                    trailingText = status.modeLabel,
+                    showChevron = false
+                )
+                if (index < serviceStatuses.lastIndex) {
+                    AppleInsetDivider()
+                }
+            }
+        }
     }
 }
 
@@ -306,107 +205,76 @@ private fun CloudServiceStatusCard(
     detail: String,
     metrics: List<Pair<String, String>>
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulseAlpha")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "pulseAlpha"
-    )
+    val theme = QabasTheme.current
+    val statusColor = if (isActive) accentColor else theme.destructive
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF080D1A),
-        border = BorderStroke(1.dp, if (isActive) accentColor.copy(alpha = 0.4f) else AiDanger.copy(alpha = 0.3f))
-    ) {
+    AppleCard(cornerRadius = 16.dp) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // السطر العلوي
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.15f))
-                            .border(1.dp, accentColor.copy(alpha = 0.3f), CircleShape),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape,
+                        color = accentColor.copy(alpha = 0.14f)
                     ) {
-                        Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
-                        Text(serviceName, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text(providerTag, color = Color(0xFF64748B), fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                        Text(serviceName, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(providerTag, color = theme.textSecondary, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
                     }
                 }
 
-                // كبسولة الحالة الحية
                 Surface(
-                    color = if (isActive) Color(0xFF10B981).copy(alpha = 0.15f) else AiDanger.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, if (isActive) Color(0xFF10B981).copy(alpha = 0.4f) else AiDanger.copy(alpha = 0.4f))
+                    color = statusColor.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isActive) Color(0xFF10B981).copy(alpha = pulseAlpha) else AiDanger
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = when {
-                                checking -> "جاري الفحص..."
-                                isActive -> if (latencyMs > 0) "نشط 🟢 (${latencyMs}ms)" else "نشط 🟢"
-                                else -> "غير نشط 🔴"
-                            },
-                            color = if (isActive) Color(0xFF10B981) else AiDanger,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
-                        )
-                    }
+                    Text(
+                        text = when {
+                            checking -> "جارٍ الفحص..."
+                            isActive -> if (latencyMs > 0) "نشط (${latencyMs}ms)" else "نشط"
+                            else -> "غير نشط"
+                        },
+                        color = statusColor,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             }
 
-            // التفاصيل التشخيصية
             Surface(
-                color = Color(0xFF030611),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                color = theme.secondarySurface,
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = if (checking) "جاري إرسال حزمة الفحص الحي واختبار زمن الاستجابة..." else detail,
-                        color = Color(0xFFCBD5E1),
-                        fontFamily = CairoFont,
-                        fontSize = 10.5.sp
+                        text = if (checking) "جارٍ فحص الاتصال وزمن الاستجابة..." else detail,
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp
                     )
-
-                    Spacer(modifier = Modifier.height(6.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         metrics.forEach { (key, value) ->
-                            Column(modifier = Modifier.padding(horizontal = 2.dp)) {
-                                Text(key, color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 8.5.sp)
-                                Text(value, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 9.5.sp)
+                            Column {
+                                Text(key, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 10.sp)
+                                Text(value, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                         }
                     }

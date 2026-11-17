@@ -186,7 +186,7 @@ object UniversalKeyBrain {
         try {
             when (provider) {
                 DetectedProvider.GEMINI -> {
-                    val geminiModel = model?.takeIf { it.isNotBlank() } ?: "gemini-3.5-flash"
+                    val geminiModel = model?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash"
                     val url = "https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent?key=$apiKey"
                     val jsonBody = org.json.JSONObject().apply {
                         put("contents", org.json.JSONArray().apply {

@@ -384,14 +384,14 @@ object AgentConnectivityEngine {
                 statusDetail = "غير متصل - يلزم إدخال مفتاح API",
                 keySource = KeySource.NONE,
                 httpCode = 0,
-                modelName = "gemini-3.5-flash"
+                modelName = "gemini-2.5-flash"
             )
         }
 
         val startTime = System.currentTimeMillis()
         try {
-            // استعلام خفيف لمعلومات النموذج gemini-3.5-flash
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash?key=$apiKey"
+            // استعلام خفيف لمعلومات النموذج gemini-2.5-flash
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key=$apiKey"
             val request = Request.Builder()
                 .url(url)
                 .get()
@@ -411,7 +411,7 @@ object AgentConnectivityEngine {
                     statusDetail = "متصل بنجاح (${latency}ms) • استجابة حية",
                     keySource = keySource,
                     httpCode = code,
-                    modelName = "gemini-3.5-flash"
+                    modelName = "gemini-2.5-flash"
                 )
             } else {
                 val errorMsg = try {
@@ -427,7 +427,7 @@ object AgentConnectivityEngine {
                     statusDetail = "فشل المصادقة (HTTP $code): $errorMsg",
                     keySource = keySource,
                     httpCode = code,
-                    modelName = "gemini-3.5-flash"
+                    modelName = "gemini-2.5-flash"
                 )
             }
         } catch (e: Exception) {
@@ -439,7 +439,7 @@ object AgentConnectivityEngine {
                 statusDetail = "تعذر الاتصال بالشبكة: ${e.localizedMessage ?: e.message}",
                 keySource = keySource,
                 httpCode = -1,
-                modelName = "gemini-3.5-flash"
+                modelName = "gemini-2.5-flash"
             )
         }
     }

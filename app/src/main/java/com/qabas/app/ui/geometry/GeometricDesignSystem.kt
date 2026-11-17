@@ -9,15 +9,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,106 +35,117 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.theme.CardSurface
+import com.qabas.app.ui.theme.AppleDarkBackground
+import com.qabas.app.ui.theme.AppleDarkBlue
+import com.qabas.app.ui.theme.AppleDarkGreen
+import com.qabas.app.ui.theme.AppleDarkIndigo
+import com.qabas.app.ui.theme.AppleDarkOrange
+import com.qabas.app.ui.theme.AppleDarkRed
+import com.qabas.app.ui.theme.AppleDarkSecondarySurface
+import com.qabas.app.ui.theme.AppleDarkSeparator
+import com.qabas.app.ui.theme.AppleDarkSurface
+import com.qabas.app.ui.theme.AppleLightBackground
+import com.qabas.app.ui.theme.AppleLightBlue
+import com.qabas.app.ui.theme.AppleLightGreen
+import com.qabas.app.ui.theme.AppleLightIndigo
+import com.qabas.app.ui.theme.AppleLightOrange
+import com.qabas.app.ui.theme.AppleLightRed
+import com.qabas.app.ui.theme.AppleLightSecondarySurface
+import com.qabas.app.ui.theme.AppleLightSeparator
+import com.qabas.app.ui.theme.AppleLightSurface
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.GoldSecondary
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.RobotoMonoFont
-import com.qabas.app.ui.theme.StaticDeepSlate
 import com.qabas.app.ui.theme.TextPrimary
 import com.qabas.app.ui.theme.TextSecondary
+import com.qabas.app.ui.theme.ThemeManager
 
 /**
- * نظام التصميم الهندسي النقي — قسم المحراب (الصلاة والمواقيت)
- *
- * المبادئ:
- * 1. أشكال هندسية نقية موحدة (نصف قطر واحد للبطاقات، دائرة للأيقونات)
- * 2. تسلسل بصري واضح: هيرو ← عنوان ← محتوى، بلا تداخل أو ازدواج
- * 3. شبكة مسافات منتظمة (مضاعفات 4dp)
- * 4. ألوان عبر رموز الثيم (لا ألوان مثبّتة) حتى يعمل تبديل الثيم
- * 5. لا إيموجي في الواجهة — أيقونات Material فقط
+ * نظام التصميم الهندسي المتكيّف مع Apple HIG — قسم المحراب (الصلاة والمواقيت)
+ * يدعم الوضع الفاتح والداكن بتباين مريح ومساحات لمس 48dp+
  */
 
 // ═══════════════════════════════════════════════
 // 1. ثوابت الشبكة الهندسية
 // ═══════════════════════════════════════════════
 object Geo {
-    // أنصاف الأقطار الموحدة
-    val R_CARD = 18.dp
+    val R_CARD = 16.dp
     val R_CARD_SM = 12.dp
-    val R_CARD_LG = 26.dp
+    val R_CARD_LG = 22.dp
     val R_BUTTON = 12.dp
-    val R_BUTTON_SM = 8.dp
+    val R_BUTTON_SM = 10.dp
     val R_CHIP = 100.dp
 
-    // الشبكة (مضاعفات 4dp)
     val S_XS = 4.dp
     val S_SM = 8.dp
     val S_MD = 14.dp
     val S_LG = 20.dp
     val S_XL = 28.dp
 
-    // الأيقونات
     val I_XS = 14.dp
     val I_SM = 18.dp
     val I_MD = 22.dp
     val I_LG = 28.dp
     val I_XL = 44.dp
 
-    // الحدود
-    val B_HAIRLINE = 1.dp
-    val B_STRONG = 2.dp
+    val B_HAIRLINE = 0.75.dp
+    val B_STRONG = 1.5.dp
 
-    // الحلقات
     val RING_STROKE = 7.dp
     val RING_TRACK_STROKE = 5.dp
 }
 
 // ═══════════════════════════════════════════════
-// 2. لوحة الألوان الهندسية (مرتبطة بالثيم)
+// 2. لوحة الألوان الهندسية المتكيفة (Light & Dark Apple HIG)
 // ═══════════════════════════════════════════════
 object GeoColor {
+    private val isDark: Boolean get() = ThemeManager.isDarkState
+
     /** خلفيات الأسطح */
-    fun surface(): Color = CardSurface
-    fun surfaceRaised(): Color = CardSurface.copy(alpha = 0.94f)
-    fun surfaceSunken(): Color = Color(0xFF0B1120)
-    fun screen(): Color = Color(0xFF0A0F1C)
+    fun surface(): Color = if (isDark) AppleDarkSurface else AppleLightSurface
+    fun surfaceRaised(): Color = if (isDark) AppleDarkSurface else AppleLightSurface
+    fun surfaceSunken(): Color = if (isDark) AppleDarkSecondarySurface else AppleLightSecondarySurface.copy(alpha = 0.65f)
+    fun screen(): Color = if (isDark) AppleDarkBackground else AppleLightBackground
 
     /** الحدود */
-    fun hairline(): Color = GoldPrimary.copy(alpha = 0.16f)
-    fun outline(): Color = GoldPrimary.copy(alpha = 0.32f)
-    fun outlineStrong(): Color = GoldPrimary.copy(alpha = 0.55f)
+    fun hairline(): Color = if (isDark) AppleDarkSeparator else AppleLightSeparator.copy(alpha = 0.55f)
+    fun outline(): Color = if (isDark) GoldPrimary.copy(alpha = 0.35f) else GoldPrimary.copy(alpha = 0.38f)
+    fun outlineStrong(): Color = GoldPrimary.copy(alpha = 0.65f)
 
     /** الحالات */
-    fun selectedBg(): Color = GoldPrimary.copy(alpha = 0.14f)
+    fun selectedBg(): Color = GoldPrimary.copy(alpha = if (isDark) 0.16f else 0.12f)
     fun pressed(): Color = GoldPrimary.copy(alpha = 0.10f)
 
     /** النصوص */
     fun textPrimary(): Color = TextPrimary
     fun textSecondary(): Color = TextSecondary
-    fun textMuted(): Color = TextSecondary.copy(alpha = 0.62f)
-    fun onGold(): Color = StaticDeepSlate
+    fun textMuted(): Color = TextSecondary.copy(alpha = 0.78f)
+    fun onGold(): Color = Color.White
 
-    /** ألوان الأقسام — ثابتة حتى لا تتشتت الهوية */
-    val Prayer = Color(0xFF38BDF8)
-    val Quran = Color(0xFF10B981)
-    val Dhikr = Color(0xFFF59E0B)
-    val Hadith = Color(0xFFA78BFA)
-    val Dua = Color(0xFFF472B6)
-    val Learn = Color(0xFF818CF8)
-    val Rawatib = Color(0xFF2DD4BF)
-    val Warning = Color(0xFFF87171)
-    val Reward = Color(0xFFFBBF24)
-    val Qibla = Color(0xFFA78BFA)
+    /** ألوان الأقسام متكيّفة مع الوضع الفاتح والداكن */
+    val Prayer: Color get() = if (isDark) AppleDarkBlue else AppleLightBlue
+    val Quran: Color get() = if (isDark) AppleDarkGreen else AppleLightGreen
+    val Dhikr: Color get() = if (isDark) AppleDarkOrange else AppleLightOrange
+    val Hadith: Color get() = if (isDark) AppleDarkIndigo else AppleLightIndigo
+    val Dua: Color get() = if (isDark) Color(0xFFFF375F) else Color(0xFFD81B60)
+    val Learn: Color get() = if (isDark) Color(0xFF64D2FF) else Color(0xFF0071A4)
+    val Rawatib: Color get() = if (isDark) Color(0xFF40CBE0) else Color(0xFF0A8499)
+    val Warning: Color get() = if (isDark) AppleDarkRed else AppleLightRed
+    val Reward: Color get() = if (isDark) Color(0xFFFFD60A) else Color(0xFFA66F00)
+    val Qibla: Color get() = if (isDark) AppleDarkIndigo else AppleLightIndigo
 
-    /** تدرجات هندسية */
-    val heroGradient = Brush.verticalGradient(
-        colors = listOf(Color(0xFF1B2740), Color(0xFF0D1526))
-    )
-    val goldGradient = Brush.horizontalGradient(
-        colors = listOf(GoldPrimary, GoldSecondary)
-    )
+    /** تدرجات هندسية هادئة */
+    val heroGradient: Brush
+        get() = if (isDark) {
+            Brush.verticalGradient(colors = listOf(Color(0xFF1C1C1E), Color(0xFF141416)))
+        } else {
+            Brush.verticalGradient(colors = listOf(Color(0xFFFFFFFF), Color(0xFFF6F7FB)))
+        }
+
+    val goldGradient: Brush
+        get() = Brush.horizontalGradient(colors = listOf(GoldPrimary, GoldSecondary))
 }
 
 // ═══════════════════════════════════════════════
@@ -154,10 +165,6 @@ object GeoShape {
 // ═══════════════════════════════════════════════
 // 4. بطاقات هندسية أساسية
 // ═══════════════════════════════════════════════
-
-/**
- * بطاقة هندسية موحّدة — نصف قطر واحد، حدود شعرية، خلفية مترقية.
- */
 @Composable
 fun GeoCard(
     modifier: Modifier = Modifier,
@@ -166,27 +173,24 @@ fun GeoCard(
     onClick: (() -> Unit)? = null,
     content: @Composable (Modifier) -> Unit
 ) {
+    val isDark = ThemeManager.isDarkState
     val bg = if (selected) GeoColor.selectedBg() else GeoColor.surfaceRaised()
-    val stroke = if (selected) GeoColor.outlineStrong() else GeoColor.hairline()
+    val stroke = if (selected) accent.copy(alpha = 0.65f) else GeoColor.hairline()
     val shape = GeoShape.Card
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-            )
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .clip(shape),
         shape = shape,
         color = bg,
+        shadowElevation = if (isDark) 0.dp else 1.5.dp,
         border = BorderStroke(Geo.B_HAIRLINE, stroke),
         content = { content(Modifier.padding(Geo.S_MD)) }
     )
 }
 
-/**
- * حاوية أيقونة هندسية: دائرة + إطار hairline + خلفية شفافة.
- */
 @Composable
 fun GeoIconBadge(
     icon: ImageVector,
@@ -200,10 +204,10 @@ fun GeoIconBadge(
             .size(size)
             .clip(GeoShape.Circle)
             .background(
-                if (filled) accent.copy(alpha = 0.18f) else accent.copy(alpha = 0.10f),
+                if (filled) accent.copy(alpha = 0.16f) else accent.copy(alpha = 0.11f),
                 GeoShape.Circle
             )
-            .border(Geo.B_HAIRLINE, accent.copy(alpha = 0.34f), GeoShape.Circle),
+            .border(Geo.B_HAIRLINE, accent.copy(alpha = 0.28f), GeoShape.Circle),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -215,9 +219,6 @@ fun GeoIconBadge(
     }
 }
 
-/**
- * رأس قسم هندسي — مؤشر عمودي + عنوان + إجراء اختياري على اليسار.
- */
 @Composable
 fun GeoHeader(
     title: String,
@@ -230,10 +231,9 @@ fun GeoHeader(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // مؤشر هندسي
         Box(
             modifier = Modifier
-                .size(width = 3.dp, height = 20.dp)
+                .size(width = 3.5.dp, height = 20.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(accent)
         )
@@ -244,7 +244,7 @@ fun GeoHeader(
                 color = GeoColor.textPrimary(),
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
+                fontSize = 15.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -253,7 +253,7 @@ fun GeoHeader(
                     text = it,
                     color = GeoColor.textMuted(),
                     fontFamily = NotoSansFont,
-                    fontSize = 10.5.sp,
+                    fontSize = 11.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -266,9 +266,6 @@ fun GeoHeader(
     }
 }
 
-/**
- * شريحة هندسية (Chip) — للوسوم والفلاتر.
- */
 @Composable
 fun GeoChip(
     text: String,
@@ -278,20 +275,19 @@ fun GeoChip(
     accent: Color = GoldPrimary,
     onClick: (() -> Unit)? = null
 ) {
-    val bg = if (selected) accent.copy(alpha = 0.16f) else GeoColor.surfaceRaised()
-    val border = if (selected) accent.copy(alpha = 0.5f) else GeoColor.hairline()
+    val bg = if (selected) accent.copy(alpha = 0.14f) else GeoColor.surfaceRaised()
+    val border = if (selected) accent.copy(alpha = 0.55f) else GeoColor.hairline()
     val fg = if (selected) accent else GeoColor.textSecondary()
 
     Surface(
-        modifier = modifier.then(
-            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-        ),
+        modifier = modifier
+            .then(if (onClick != null) Modifier.defaultMinSize(minHeight = 40.dp).clickable(onClick = onClick) else Modifier),
         shape = GeoShape.Chip,
         color = bg,
         border = BorderStroke(Geo.B_HAIRLINE, border)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = Geo.S_MD, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = Geo.S_MD, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -302,17 +298,14 @@ fun GeoChip(
                 text = text,
                 color = fg,
                 fontFamily = CairoFont,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 12.sp,
                 maxLines = 1
             )
         }
     }
 }
 
-/**
- * زر هندسي موحّد.
- */
 @Composable
 fun GeoButton(
     text: String,
@@ -325,28 +318,27 @@ fun GeoButton(
 ) {
     val bg = when (variant) {
         GeoButtonStyle.Filled -> accent
-        GeoButtonStyle.Outline -> Color.Transparent
+        GeoButtonStyle.Outline -> GeoColor.surfaceRaised()
         GeoButtonStyle.Ghost -> Color.Transparent
     }
     val fg = when (variant) {
-        GeoButtonStyle.Filled -> GeoColor.onGold()
+        GeoButtonStyle.Filled -> Color.White
         else -> accent
     }
 
     Surface(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .clip(GeoShape.Button)
-            .then(
-                if (enabled) Modifier.clickable(onClick = onClick) else Modifier
-            ),
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         shape = GeoShape.Button,
         color = if (enabled) bg else bg.copy(alpha = 0.35f),
         border = if (variant == GeoButtonStyle.Outline)
-            BorderStroke(Geo.B_HAIRLINE, if (enabled) accent else accent.copy(alpha = 0.3f))
-        else BorderStroke(0.dp, Color.Transparent)
+            BorderStroke(Geo.B_HAIRLINE, if (enabled) accent.copy(alpha = 0.65f) else accent.copy(alpha = 0.3f))
+        else null
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = Geo.S_LG, vertical = 11.dp),
+            modifier = Modifier.padding(horizontal = Geo.S_LG, vertical = 12.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -364,7 +356,7 @@ fun GeoButton(
                 color = if (enabled) fg else fg.copy(alpha = 0.4f),
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
+                fontSize = 13.5.sp,
                 maxLines = 1
             )
         }
@@ -373,16 +365,13 @@ fun GeoButton(
 
 enum class GeoButtonStyle { Filled, Outline, Ghost }
 
-/**
- * حلقة تقدم هندسية نظيفة — بدون مؤثرات متحركة ثقيلة.
- */
 @Composable
 fun GeoProgressRing(
     progress: Float,
     modifier: Modifier = Modifier,
     size: Dp = 120.dp,
     strokeWidth: Dp = Geo.RING_STROKE,
-    trackColor: Color = Color.White.copy(alpha = 0.08f),
+    trackColor: Color = GeoColor.hairline().copy(alpha = 0.45f),
     progressColor: Color = GoldPrimary,
     content: @Composable (() -> Unit)? = null
 ) {
@@ -426,9 +415,6 @@ fun GeoProgressRing(
     }
 }
 
-/**
- * صف إحصائي مضغوط (رقم + تسمية) — يُستخدم داخل شريط المؤشرات.
- */
 @Composable
 fun GeoMiniStat(
     value: String,
@@ -453,16 +439,13 @@ fun GeoMiniStat(
             text = label,
             color = GeoColor.textMuted(),
             fontFamily = NotoSansFont,
-            fontSize = 9.5.sp,
+            fontSize = 10.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
 }
 
-/**
- * فاصل هندسي.
- */
 @Composable
 fun GeoDivider(
     modifier: Modifier = Modifier,
@@ -473,7 +456,7 @@ fun GeoDivider(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = inset)
-            .height(1.dp)
+            .height(0.75.dp)
             .background(color)
     )
 }

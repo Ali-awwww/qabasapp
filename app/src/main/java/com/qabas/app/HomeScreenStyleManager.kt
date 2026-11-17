@@ -17,16 +17,16 @@ enum class HomeScreenStyle(
 ) {
     SPATIAL_CYBER_HUD(
         id = "spatial_cyber_hud",
-        title = "مركز القيادة الفضائي (Spatial HUD Tech)",
-        subtitle = "واجهة فضائية هولوغرافية كوانتية مع رادار الأداء، منصة الإطلاق السريعة، وشبكة قطاعات تفاعلية",
-        badge = "النمط الفضائي المطور 🚀",
-        iconEmoji = "🛸"
+        title = "الواجهة الذكية الحديثة (Apple Spatial Layout)",
+        subtitle = "بطاقات ذكية متجاوبة بنمط iOS مع الوصول السريع للأدوات والقطاعات",
+        badge = "النمط الحديث",
+        iconEmoji = "✨"
     ),
     CLASSIC_STUDIO(
         id = "classic_studio",
-        title = "النمط الكلاسيكي للاستوديو (Classic Studio)",
-        subtitle = "التصميم الكلاسيكي الأصلي مع الأقسام المتتابعة والمحاور الأفقية",
-        badge = "النمط الكلاسيكي 🏛️",
+        title = "النمط الكلاسيكي للاستوديو (Apple List Layout)",
+        subtitle = "عرض منظم على شكل أقسام متتابعة ومحاور أفقية نظيفة",
+        badge = "النمط الكلاسيكي",
         iconEmoji = "🎬"
     );
 

@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -120,77 +121,57 @@ fun SahihReaderView(
         SahihHadithsRepository.getRandomDailyHadith()
     }
 
-    val themeColor = activeBook.accentColor
+    val theme = QabasTheme.current
+    val bookAccent = if (activeBook == SahihBookType.BUKHARI) {
+        if (theme.isDark) AppleDarkGold else AppleLightGold
+    } else {
+        theme.success
+    }
 
     Scaffold(
+        containerColor = theme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (activeBook == SahihBookType.BUKHARI) Icons.Default.AutoStories else Icons.Default.HistoryEdu,
-                                contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = activeBook.titleAr,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                color = themeColor.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text(
-                                    text = if (activeBook == SahihBookType.BUKHARI) "الجامع الصحيح" else "المسند الصحيح",
-                                    color = themeColor,
-                                    fontSize = 10.sp,
-                                    fontFamily = NotoSansFont,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        Text(
-                            text = activeBook.badge,
-                            fontFamily = NotoSansFont,
-                            fontSize = 11.sp,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+            AppleTopBar(
+                title = activeBook.titleAr,
+                subtitle = activeBook.badge,
+                onBack = onBack,
+                actions = {
+                    IconButton(
+                        onClick = { showQuranicHarmonyDialog = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MenuBook,
+                            contentDescription = "تكامل الوحيين (القرآن والسنة)",
+                            tint = theme.primary
                         )
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = themeColor)
+                    IconButton(
+                        onClick = { showChallengeDialog = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.EmojiEvents,
+                            contentDescription = "تحدي وتدبر الصحيحين",
+                            tint = bookAccent
+                        )
                     }
-                },
-                actions = {
-                    // Quranic Evidence Harmony Button (تكامل الوحيين)
-                    IconButton(onClick = { showQuranicHarmonyDialog = true }) {
-                        Icon(Icons.Default.MenuBook, contentDescription = "تكامل الوحيين (القرآن والسنة)", tint = Color(0xFF38BDF8))
+                    IconButton(
+                        onClick = {
+                            fontSizeSp = if (fontSizeSp >= 22f) 15f else fontSizeSp + 2f
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.FormatSize,
+                            contentDescription = "تكبير الخط",
+                            tint = theme.textPrimary
+                        )
                     }
-                    // Challenge Quiz Button
-                    IconButton(onClick = { showChallengeDialog = true }) {
-                        Icon(Icons.Default.EmojiEvents, contentDescription = "تحدي وتدبر الصحيحين", tint = GoldPrimary)
-                    }
-                    // Font Size Toggle Button
-                    IconButton(onClick = {
-                        fontSizeSp = if (fontSizeSp >= 20f) 14.5f else fontSizeSp + 2f
-                    }) {
-                        Icon(Icons.Default.FormatSize, contentDescription = "تكبير الخط", tint = themeColor)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B0F19))
+                }
             )
-        },
-        containerColor = DeepSlate
+        }
     ) { paddingValues ->
         LazyColumn(
             state = listState,
@@ -202,114 +183,42 @@ fun SahihReaderView(
         ) {
             // 1. Book Switcher Header (صحيح البخاري vs صحيح مسلم)
             item {
-                Surface(
-                    color = Color(0xFF151B2B),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Bukhari Tab
-                            val isBukhari = activeBook == SahihBookType.BUKHARI
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .clickable {
-                                        activeBook = SahihBookType.BUKHARI
-                                        selectedChapterId = null
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isBukhari) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color(0xFF0B0F19),
-                                border = BorderStroke(
-                                    if (isBukhari) 1.5.dp else 1.dp,
-                                    if (isBukhari) Color(0xFFF59E0B) else Color(0xFF334155)
-                                )
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(horizontal = 6.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.AutoStories,
-                                        contentDescription = null,
-                                        tint = if (isBukhari) Color(0xFFF59E0B) else TextSecondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        "صحيح البخاري 📖",
-                                        color = if (isBukhari) Color(0xFFF59E0B) else TextSecondary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = if (isBukhari) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 13.sp
-                                    )
-                                }
+                AppleCard(cornerRadius = 16.dp) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        AppleSegmentedControl(
+                            items = listOf(
+                                SahihBookType.BUKHARI to "صحيح البخاري 📖",
+                                SahihBookType.MUSLIM to "صحيح مسلم 📜"
+                            ),
+                            selectedItem = activeBook,
+                            onSelect = {
+                                activeBook = it
+                                selectedChapterId = null
                             }
-
-                            // Muslim Tab
-                            val isMuslim = activeBook == SahihBookType.MUSLIM
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .clickable {
-                                        activeBook = SahihBookType.MUSLIM
-                                        selectedChapterId = null
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isMuslim) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF0B0F19),
-                                border = BorderStroke(
-                                    if (isMuslim) 1.5.dp else 1.dp,
-                                    if (isMuslim) Color(0xFF10B981) else Color(0xFF334155)
-                                )
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(horizontal = 6.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.HistoryEdu,
-                                        contentDescription = null,
-                                        tint = if (isMuslim) Color(0xFF10B981) else TextSecondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        "صحيح مسلم 📜",
-                                        color = if (isMuslim) Color(0xFF10B981) else TextSecondary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = if (isMuslim) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                        }
+                        )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // 🔑 زر فتح الكتاب الكامل (صحيح البخاري / مسلم — كامل)
+                        // فتح الكتاب الكامل (صحيح البخاري / مسلم — كامل)
                         OutlinedButton(
                             onClick = { onOpenFullBook(activeBook) },
-                            modifier = Modifier.fillMaxWidth().height(42.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, bookAccent.copy(alpha = 0.55f)),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFFD4AF37),
-                                containerColor = Color(0xFFD4AF37).copy(alpha = 0.08f)
+                                contentColor = bookAccent,
+                                containerColor = bookAccent.copy(alpha = if (theme.isDark) 0.12f else 0.08f)
                             )
                         ) {
-                            Icon(Icons.Default.LibraryBooks, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.LibraryBooks, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "📖 الكتاب كامل (7277 حديثًا للبخاري • 7459 لمسلم)",
-                                fontSize = 12.sp, fontFamily = CairoFont
+                                fontSize = 12.sp,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold
                             )
                         }
 
@@ -320,17 +229,18 @@ fun SahihReaderView(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.55f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.FormatQuote, contentDescription = null, tint = themeColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.FormatQuote, contentDescription = null, tint = bookAccent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = activeBook.quote,
-                                color = TextPrimary.copy(alpha = 0.85f),
+                                color = theme.textPrimary,
                                 fontFamily = NotoSansFont,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
+                                fontSize = 11.5.sp,
+                                lineHeight = 17.sp
                             )
                         }
                     }
@@ -340,104 +250,97 @@ fun SahihReaderView(
             // 2. Spotlight: حديث اليوم المختار (Daily Wisdom Spotlight)
             if (searchQuery.isBlank() && selectedChapterId == null && !showOnlyBookmarks) {
                 item {
-                    Surface(
-                        color = Color(0xFF151B2B),
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
+                    AppleCard(cornerRadius = 16.dp) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
                                     Brush.verticalGradient(
                                         listOf(
-                                            Color(0xFF1E293B),
-                                            Color(0xFF0F172A)
+                                            theme.cardSurface,
+                                            bookAccent.copy(alpha = if (theme.isDark) 0.10f else 0.06f)
                                         )
                                     )
                                 )
                                 .padding(14.dp)
                         ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(34.dp)
-                                                .clip(CircleShape)
-                                                .background(GoldPrimary.copy(alpha = 0.2f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(Icons.Default.Star, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                "حديث اليوم من الصحيحين 🌟",
-                                                fontFamily = CairoFont,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                color = GoldPrimary
-                                            )
-                                            Text(
-                                                "${dailyHadith.bookType.titleAr} • ${dailyHadith.chapterTitle}",
-                                                fontFamily = NotoSansFont,
-                                                fontSize = 10.sp,
-                                                color = TextSecondary
-                                            )
-                                        }
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            onNavigateToVideoCreation("${dailyHadith.matn} — ${dailyHadith.reference}")
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(28.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(bookAccent.copy(alpha = 0.16f)),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(13.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("صناعة فيديو", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        Icon(Icons.Default.Star, contentDescription = null, tint = bookAccent, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            "حديث اليوم من الصحيحين 🌟",
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = bookAccent
+                                        )
+                                        Text(
+                                            "${dailyHadith.bookType.titleAr} • ${dailyHadith.chapterTitle}",
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 11.sp,
+                                            color = theme.textSecondary
+                                        )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Text(
-                                    text = dailyHadith.matn,
-                                    fontFamily = CairoFont,
-                                    fontSize = 13.sp,
-                                    lineHeight = 20.sp,
-                                    color = Color.White,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
+                                Button(
+                                    onClick = {
+                                        onNavigateToVideoCreation("${dailyHadith.matn} — ${dailyHadith.reference}")
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
-                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.MovieCreation, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = dailyHadith.wisdomCapsule,
-                                        fontFamily = NotoSansFont,
-                                        fontSize = 11.sp,
-                                        color = TextSecondary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    Text("صناعة فيديو", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                text = dailyHadith.matn,
+                                fontFamily = AmiriFont,
+                                fontSize = 15.5.sp,
+                                lineHeight = 25.sp,
+                                color = theme.textPrimary,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = bookAccent, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = dailyHadith.wisdomCapsule,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 11.5.sp,
+                                    color = theme.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
@@ -446,42 +349,13 @@ fun SahihReaderView(
 
             // 3. Search & Filter Bar
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text(
-                                "ابحث بالمتن، الراوي، رقم الحديث، أو الموضوع...",
-                                fontFamily = NotoSansFont,
-                                fontSize = 12.sp,
-                                color = TextSecondary
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = themeColor)
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "مسح", tint = TextSecondary)
-                                }
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = themeColor,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedContainerColor = Color(0xFF151B2B),
-                            unfocusedContainerColor = Color(0xFF151B2B),
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AppleSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        placeholder = "ابحث بالمتن، الراوي، رقم الحديث، أو الموضوع..."
                     )
 
-                    // Filter Chips Row (Bookmarks toggle, Quranic Evidence & Chapters)
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -496,9 +370,9 @@ fun SahihReaderView(
                                 },
                                 label = {
                                     Text(
-                                        "مدعوم بالقرآن 📖✨",
+                                        "مدعوم بالقرآن 📖",
                                         fontFamily = CairoFont,
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (showOnlyQuranEvidence) FontWeight.Bold else FontWeight.Normal
                                     )
                                 },
@@ -506,20 +380,20 @@ fun SahihReaderView(
                                     Icon(
                                         Icons.Default.MenuBook,
                                         contentDescription = null,
-                                        tint = if (showOnlyQuranEvidence) Color(0xFF38BDF8) else TextSecondary,
+                                        tint = if (showOnlyQuranEvidence) theme.primary else theme.textSecondary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.2f),
-                                    selectedLabelColor = Color(0xFF38BDF8),
-                                    containerColor = Color(0xFF151B2B),
-                                    labelColor = TextSecondary
+                                    selectedContainerColor = theme.primary.copy(alpha = 0.16f),
+                                    selectedLabelColor = theme.primary,
+                                    containerColor = theme.cardSurface,
+                                    labelColor = theme.textSecondary
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     enabled = true,
                                     selected = showOnlyQuranEvidence,
-                                    borderColor = if (showOnlyQuranEvidence) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                                    borderColor = if (showOnlyQuranEvidence) theme.primary else theme.separator
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             )
@@ -537,7 +411,7 @@ fun SahihReaderView(
                                     Text(
                                         "المحفوظات ⭐",
                                         fontFamily = CairoFont,
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (showOnlyBookmarks) FontWeight.Bold else FontWeight.Normal
                                     )
                                 },
@@ -545,20 +419,20 @@ fun SahihReaderView(
                                     Icon(
                                         if (showOnlyBookmarks) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                         contentDescription = null,
-                                        tint = if (showOnlyBookmarks) GoldPrimary else TextSecondary,
+                                        tint = if (showOnlyBookmarks) bookAccent else theme.textSecondary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = GoldPrimary.copy(alpha = 0.2f),
-                                    selectedLabelColor = GoldPrimary,
-                                    containerColor = Color(0xFF151B2B),
-                                    labelColor = TextSecondary
+                                    selectedContainerColor = bookAccent.copy(alpha = 0.16f),
+                                    selectedLabelColor = bookAccent,
+                                    containerColor = theme.cardSurface,
+                                    labelColor = theme.textSecondary
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     enabled = true,
                                     selected = showOnlyBookmarks,
-                                    borderColor = if (showOnlyBookmarks) GoldPrimary else Color(0xFF1E293B)
+                                    borderColor = if (showOnlyBookmarks) bookAccent else theme.separator
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             )
@@ -577,20 +451,20 @@ fun SahihReaderView(
                                     Text(
                                         "كافة الأبواب (${SahihHadithsRepository.getHadithsForBook(activeBook).size})",
                                         fontFamily = CairoFont,
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = themeColor.copy(alpha = 0.2f),
-                                    selectedLabelColor = themeColor,
-                                    containerColor = Color(0xFF151B2B),
-                                    labelColor = TextSecondary
+                                    selectedContainerColor = bookAccent.copy(alpha = 0.16f),
+                                    selectedLabelColor = bookAccent,
+                                    containerColor = theme.cardSurface,
+                                    labelColor = theme.textSecondary
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     enabled = true,
                                     selected = isAllSelected,
-                                    borderColor = if (isAllSelected) themeColor else Color(0xFF1E293B)
+                                    borderColor = if (isAllSelected) bookAccent else theme.separator
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             )
@@ -609,20 +483,20 @@ fun SahihReaderView(
                                     Text(
                                         chTitle,
                                         fontFamily = CairoFont,
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = themeColor.copy(alpha = 0.2f),
-                                    selectedLabelColor = themeColor,
-                                    containerColor = Color(0xFF151B2B),
-                                    labelColor = TextSecondary
+                                    selectedContainerColor = bookAccent.copy(alpha = 0.16f),
+                                    selectedLabelColor = bookAccent,
+                                    containerColor = theme.cardSurface,
+                                    labelColor = theme.textSecondary
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     enabled = true,
                                     selected = isSelected,
-                                    borderColor = if (isSelected) themeColor else Color(0xFF1E293B)
+                                    borderColor = if (isSelected) bookAccent else theme.separator
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             )
@@ -642,14 +516,15 @@ fun SahihReaderView(
                         text = if (showOnlyBookmarks) "الأحاديث المحفوظة" else (selectedChapterId?.let { id -> chapters.find { it.first == id }?.second } ?: "الأحاديث النبوية الصحيحة"),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = TextPrimary
+                        fontSize = 14.5.sp,
+                        color = theme.textPrimary
                     )
                     Text(
                         text = "${hadiths.size} حديث موثق",
                         fontFamily = NotoSansFont,
-                        fontSize = 11.sp,
-                        color = themeColor
+                        fontSize = 11.5.sp,
+                        color = bookAccent,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -657,32 +532,28 @@ fun SahihReaderView(
             // 5. Empty State
             if (hadiths.isEmpty()) {
                 item {
-                    Surface(
-                        color = Color(0xFF151B2B),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    AppleCard(cornerRadius = 16.dp) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.SearchOff, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(42.dp))
+                            Icon(Icons.Default.SearchOff, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(44.dp))
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 "لم نجد أحاديث مطابقة للبحث",
-                                color = TextPrimary,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 15.sp
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "جرّب البحث بكلمة أخرى أو تصفح الأبواب المختلفة",
-                                color = TextSecondary,
+                                color = theme.textSecondary,
                                 fontFamily = NotoSansFont,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -760,28 +631,27 @@ fun SahihHadithCard(
     onConvertToVideo: () -> Unit
 ) {
     val context = LocalContext.current
-    var isExpanded by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: الشرح والبيان, 1: الفوائد, 2: تدبر واختبار
-    var isBookmarked by remember { mutableStateOf(SahihHadithsRepository.isBookmarked(context, hadith.id)) }
-
-    // Quiz State
-    var selectedOption by remember { mutableStateOf<Int?>(null) }
-    var isAnswered by remember { mutableStateOf(false) }
-
-    val preferredFontKey by UserPreferencesManager.readingFontFamily.collectAsState()
-    val resolvedReadingFont = remember(preferredFontKey) {
-        UserPreferencesManager.getResolvedFontFamily(preferredFontKey)
+    val theme = QabasTheme.current
+    val bookAccent = if (hadith.bookType == SahihBookType.BUKHARI) {
+        if (theme.isDark) AppleDarkGold else AppleLightGold
+    } else {
+        theme.success
     }
-
-    val themeColor = hadith.bookType.accentColor
+    val resolvedReadingFont = CairoFont
+    var isBookmarked by remember(hadith.id) { mutableStateOf(SahihHadithsRepository.isBookmarked(context, hadith.id)) }
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedOption by remember(hadith.id) { mutableIntStateOf(-1) }
+    var isAnswered by remember(hadith.id) { mutableStateOf(false) }
 
     Surface(
-        color = Color(0xFF151B2B),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
-            1.dp,
-            if (isSpeaking) themeColor else Color(0xFF1E293B)
+            if (isSpeaking) 1.dp else 0.5.dp,
+            if (isSpeaking) bookAccent else theme.separator.copy(alpha = 0.45f)
         ),
+        shadowElevation = if (theme.isDark) 0.dp else 1.5.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -793,12 +663,12 @@ fun SahihHadithCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Surface(
-                        color = themeColor.copy(alpha = 0.15f),
+                        color = bookAccent.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = "حديث #${hadith.hadithNumber}",
-                            color = themeColor,
+                            color = bookAccent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
@@ -809,62 +679,59 @@ fun SahihHadithCard(
                     Text(
                         text = hadith.narrator,
                         fontFamily = NotoSansFont,
-                        fontSize = 11.sp,
-                        color = TextSecondary,
+                        fontSize = 11.5.sp,
+                        color = theme.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Audio TTS Button
                     IconButton(
                         onClick = onToggleSpeech,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = if (isSpeaking) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
                             contentDescription = "استماع صوتي",
-                            tint = if (isSpeaking) themeColor else TextSecondary,
-                            modifier = Modifier.size(18.dp)
+                            tint = if (isSpeaking) bookAccent else theme.textSecondary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
-                    // Bookmark Button
                     IconButton(
                         onClick = {
                             isBookmarked = SahihHadithsRepository.toggleBookmark(context, hadith.id)
                         },
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                             contentDescription = "حفظ في المفضلة",
-                            tint = if (isBookmarked) GoldPrimary else TextSecondary,
-                            modifier = Modifier.size(18.dp)
+                            tint = if (isBookmarked) bookAccent else theme.textSecondary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Hadith Title / Chapter Title
             Text(
                 text = hadith.title,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary
+                fontSize = 14.5.sp,
+                color = theme.textPrimary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Matn (نص الحديث الشريف المشكول بخط واضح وفاخر)
+            // Matn
             Surface(
-                color = Color(0xFF0B0F19),
+                color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.72f else 0.45f),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(0.5.dp, Color(0xFF1E293B)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -872,8 +739,8 @@ fun SahihHadithCard(
                     fontFamily = resolvedReadingFont,
                     fontWeight = FontWeight.Normal,
                     fontSize = fontSizeSp.sp,
-                    lineHeight = (fontSizeSp * 1.6f).sp,
-                    color = Color(0xFFF8FAFC),
+                    lineHeight = (fontSizeSp * 1.65f).sp,
+                    color = theme.textPrimary,
                     modifier = Modifier.padding(14.dp),
                     textAlign = TextAlign.Justify
                 )
@@ -881,11 +748,11 @@ fun SahihHadithCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Wisdom Capsule (كبسولة الحكمة)
+            // Wisdom Capsule
             Surface(
-                color = themeColor.copy(alpha = 0.08f),
+                color = bookAccent.copy(alpha = if (theme.isDark) 0.12f else 0.08f),
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, themeColor.copy(alpha = 0.25f)),
+                border = BorderStroke(0.5.dp, bookAccent.copy(alpha = 0.25f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -895,7 +762,7 @@ fun SahihHadithCard(
                     Icon(
                         Icons.Default.Lightbulb,
                         contentDescription = null,
-                        tint = themeColor,
+                        tint = bookAccent,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -904,22 +771,22 @@ fun SahihHadithCard(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 11.5.sp,
-                        color = Color.White.copy(alpha = 0.95f),
-                        lineHeight = 16.sp
+                        color = theme.textPrimary,
+                        lineHeight = 17.sp
                     )
                 }
             }
 
-            // Quranic Evidence Spotlight Banner (الدليل القرآني وتكامل الوحيين)
+            // Quranic Evidence Spotlight Banner
             hadith.quranEvidence?.let { qe ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
-                    color = Color(0xFF0F2332),
+                    color = theme.primary.copy(alpha = if (theme.isDark) 0.12f else 0.07f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                    border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.35f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -929,20 +796,20 @@ fun SahihHadithCard(
                                 Icon(
                                     Icons.Default.MenuBook,
                                     contentDescription = null,
-                                    tint = Color(0xFF38BDF8),
-                                    modifier = Modifier.size(14.dp)
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "الدليل من القرآن الكريم",
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF38BDF8)
+                                    fontSize = 11.5.sp,
+                                    color = theme.primary
                                 )
                             }
                             Surface(
-                                color = Color(0xFF38BDF8).copy(alpha = 0.15f),
+                                color = theme.primary.copy(alpha = 0.14f),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
@@ -950,8 +817,8 @@ fun SahihHadithCard(
                                     fontFamily = NotoSansFont,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF7DD3FC),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    color = theme.primary,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -960,11 +827,11 @@ fun SahihHadithCard(
 
                         Text(
                             text = "« ${qe.verseText} »",
-                            fontFamily = CairoFont,
+                            fontFamily = AmiriFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = (fontSizeSp * 0.95f).sp,
-                            lineHeight = (fontSizeSp * 1.5f).sp,
-                            color = Color(0xFFE0F2FE),
+                            fontSize = (fontSizeSp * 0.98f).sp,
+                            lineHeight = (fontSizeSp * 1.55f).sp,
+                            color = theme.textPrimary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -974,8 +841,8 @@ fun SahihHadithCard(
                         Text(
                             text = "🔗 وجه التكامل: ${qe.relationType}",
                             fontFamily = NotoSansFont,
-                            fontSize = 10.5.sp,
-                            color = Color(0xFF94A3B8)
+                            fontSize = 11.sp,
+                            color = theme.textSecondary
                         )
                     }
                 }
@@ -983,64 +850,58 @@ fun SahihHadithCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Quick Actions Bar (نسخ، مشاركة، ريلز، وتفاصيل)
+            // Quick Actions Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Copy Button
-                    FilledTonalButton(
-                        onClick = onCopy,
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF1E293B)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("نسخ", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
-                    }
-
-                    // Share Button
-                    FilledTonalButton(
-                        onClick = onShare,
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF1E293B)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("مشاركة", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
-                    }
-
-                    // Video Creator Button
-                    Button(
-                        onClick = onConvertToVideo,
-                        colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("صناعة فيديو", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
+                IconButton(
+                    onClick = onCopy,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(theme.secondarySurface)
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.textPrimary, modifier = Modifier.size(18.dp))
                 }
 
-                // Expand/Collapse Details Button
-                TextButton(
+                IconButton(
+                    onClick = onShare,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(theme.secondarySurface)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = theme.textPrimary, modifier = Modifier.size(18.dp))
+                }
+
+                Button(
+                    onClick = onConvertToVideo,
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.MovieCreation, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("صناعة فيديو", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                OutlinedButton(
                     onClick = { isExpanded = !isExpanded },
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                    modifier = Modifier.height(32.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, bookAccent.copy(alpha = 0.65f)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Text(
-                        if (isExpanded) "إخفاء البيان ▲" else "الشرح والتدبر ▼",
-                        color = themeColor,
+                        if (isExpanded) "إخفاء ▲" else "الشرح ▼",
+                        color = bookAccent,
                         fontFamily = CairoFont,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1057,93 +918,90 @@ fun SahihHadithCard(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                    HorizontalDivider(color = theme.separator.copy(alpha = 0.45f), thickness = 0.5.dp)
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Secondary Sub-tabs: الشرح والبيان | الفوائد والضوابط | الدليل القرآني | تدبر واختبار
+                    // Secondary Sub-tabs
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         TabButton(
-                            title = "الشرح 📖",
+                            title = "الشرح",
                             isSelected = selectedTab == 0,
-                            accentColor = themeColor,
+                            accentColor = bookAccent,
                             onClick = { selectedTab = 0 },
                             modifier = Modifier.weight(1f)
                         )
                         TabButton(
-                            title = "الفوائد 💎",
+                            title = "الفوائد",
                             isSelected = selectedTab == 1,
-                            accentColor = themeColor,
+                            accentColor = bookAccent,
                             onClick = { selectedTab = 1 },
                             modifier = Modifier.weight(1f)
                         )
                         if (hadith.quranEvidence != null) {
                             TabButton(
-                                title = "القرآن 📜",
+                                title = "القرآن",
                                 isSelected = selectedTab == 2,
-                                accentColor = Color(0xFF38BDF8),
+                                accentColor = theme.primary,
                                 onClick = { selectedTab = 2 },
                                 modifier = Modifier.weight(1f)
                             )
                         }
                         if (hadith.quiz != null) {
                             TabButton(
-                                title = "اختبار ❓",
+                                title = "اختبار",
                                 isSelected = selectedTab == 3,
-                                accentColor = themeColor,
+                                accentColor = bookAccent,
                                 onClick = { selectedTab = 3 },
                                 modifier = Modifier.weight(1f)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     when (selectedTab) {
                         0 -> {
-                            // Explanation
                             Text(
                                 text = hadith.explanation,
                                 fontFamily = NotoSansFont,
-                                fontSize = 12.sp,
-                                lineHeight = 19.sp,
-                                color = TextPrimary.copy(alpha = 0.9f)
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp,
+                                color = theme.textPrimary
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "المصدر: ${hadith.reference}",
                                 fontFamily = NotoSansFont,
-                                fontSize = 10.sp,
-                                color = TextSecondary
+                                fontSize = 11.sp,
+                                color = theme.textSecondary
                             )
                         }
                         1 -> {
-                            // Practical Benefits
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 hadith.practicalBenefits.forEach { benefit ->
                                     Row(verticalAlignment = Alignment.Top) {
-                                        Text("✔", color = themeColor, fontSize = 12.sp, modifier = Modifier.padding(end = 6.dp))
+                                        Text("✔", color = theme.success, fontSize = 12.sp, modifier = Modifier.padding(end = 6.dp))
                                         Text(
                                             text = benefit,
                                             fontFamily = NotoSansFont,
-                                            fontSize = 12.sp,
-                                            lineHeight = 18.sp,
-                                            color = TextPrimary.copy(alpha = 0.9f)
+                                            fontSize = 12.5.sp,
+                                            lineHeight = 19.sp,
+                                            color = theme.textPrimary
                                         )
                                     }
                                 }
                             }
                         }
                         2 -> {
-                            // Quranic Evidence Deep Dive
                             hadith.quranEvidence?.let { qe ->
                                 Surface(
-                                    color = Color(0xFF0B1B2B),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f)),
+                                    color = theme.secondarySurface.copy(alpha = 0.7f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.35f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1157,15 +1015,15 @@ fun SahihHadithCard(
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
-                                                color = Color(0xFF38BDF8)
+                                                color = theme.primary
                                             )
                                             Surface(
-                                                color = Color(0xFF38BDF8).copy(alpha = 0.2f),
+                                                color = theme.primary.copy(alpha = 0.14f),
                                                 shape = RoundedCornerShape(6.dp)
                                             ) {
                                                 Text(
                                                     text = "تكامل الوحيين",
-                                                    color = Color(0xFF7DD3FC),
+                                                    color = theme.primary,
                                                     fontSize = 10.sp,
                                                     fontFamily = CairoFont,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1175,100 +1033,100 @@ fun SahihHadithCard(
 
                                         Text(
                                             text = "« ${qe.verseText} »",
-                                            fontFamily = CairoFont,
+                                            fontFamily = AmiriFont,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            lineHeight = 22.sp,
-                                            color = Color.White,
+                                            fontSize = 15.sp,
+                                            lineHeight = 24.sp,
+                                            color = theme.textPrimary,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.fillMaxWidth()
                                         )
 
-                                        HorizontalDivider(color = Color(0xFF1E293B), thickness = 0.5.dp)
+                                        HorizontalDivider(color = theme.separator.copy(alpha = 0.45f), thickness = 0.5.dp)
 
                                         Text(
                                             text = "🔹 وجه الدلالة والتكامل:\n${qe.relationType}",
                                             fontFamily = NotoSansFont,
-                                            fontSize = 11.5.sp,
-                                            lineHeight = 17.sp,
-                                            color = TextPrimary.copy(alpha = 0.9f)
+                                            fontSize = 12.sp,
+                                            lineHeight = 18.sp,
+                                            color = theme.textPrimary
                                         )
 
                                         Text(
                                             text = "💡 البيان والتفسير:\n${qe.commentary}",
                                             fontFamily = NotoSansFont,
-                                            fontSize = 11.5.sp,
-                                            lineHeight = 17.sp,
-                                            color = Color(0xFF94A3B8)
+                                            fontSize = 12.sp,
+                                            lineHeight = 18.sp,
+                                            color = theme.textSecondary
                                         )
                                     }
                                 }
                             }
                         }
                         3 -> {
-                            // Interactive Quiz
                             hadith.quiz?.let { quiz ->
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(
                                         text = quiz.question,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = TextPrimary
+                                        fontSize = 12.5.sp,
+                                        color = theme.textPrimary
                                     )
 
                                     quiz.options.forEachIndexed { index, option ->
                                         val isChosen = selectedOption == index
                                         val isCorrect = quiz.correctIndex == index
                                         val containerBg = when {
-                                            !isAnswered -> if (isChosen) themeColor.copy(alpha = 0.2f) else Color(0xFF0B0F19)
-                                            isCorrect -> Color(0xFF10B981).copy(alpha = 0.25f)
-                                            isChosen && !isCorrect -> Color(0xFFEF4444).copy(alpha = 0.25f)
-                                            else -> Color(0xFF0B0F19)
+                                            !isAnswered -> if (isChosen) bookAccent.copy(alpha = 0.16f) else theme.secondarySurface
+                                            isCorrect -> theme.success.copy(alpha = 0.18f)
+                                            isChosen && !isCorrect -> theme.destructive.copy(alpha = 0.18f)
+                                            else -> theme.secondarySurface
                                         }
-                                        val borderBorder = when {
-                                            !isAnswered -> if (isChosen) themeColor else Color(0xFF1E293B)
-                                            isCorrect -> Color(0xFF10B981)
-                                            isChosen && !isCorrect -> Color(0xFFEF4444)
-                                            else -> Color(0xFF1E293B)
+                                        val borderCol = when {
+                                            !isAnswered -> if (isChosen) bookAccent else theme.separator
+                                            isCorrect -> theme.success
+                                            isChosen && !isCorrect -> theme.destructive
+                                            else -> theme.separator
                                         }
 
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
+                                                .defaultMinSize(minHeight = 48.dp)
                                                 .clickable(enabled = !isAnswered) {
                                                     selectedOption = index
                                                     isAnswered = true
                                                 },
-                                            shape = RoundedCornerShape(8.dp),
+                                            shape = RoundedCornerShape(10.dp),
                                             color = containerBg,
-                                            border = BorderStroke(1.dp, borderBorder)
+                                            border = BorderStroke(1.dp, borderCol)
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
                                                     text = "${('أ'.code + index).toChar()}.",
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 11.sp,
-                                                    color = themeColor,
+                                                    fontSize = 12.sp,
+                                                    color = bookAccent,
                                                     modifier = Modifier.padding(end = 8.dp)
                                                 )
                                                 Text(
                                                     text = option,
                                                     fontFamily = NotoSansFont,
-                                                    fontSize = 11.5.sp,
-                                                    color = TextPrimary,
+                                                    fontSize = 12.sp,
+                                                    color = theme.textPrimary,
                                                     modifier = Modifier.weight(1f)
                                                 )
                                                 if (isAnswered) {
                                                     Icon(
                                                         imageVector = if (isCorrect) Icons.Default.CheckCircle else if (isChosen) Icons.Default.Cancel else Icons.Default.Circle,
                                                         contentDescription = null,
-                                                        tint = if (isCorrect) Color(0xFF10B981) else if (isChosen) Color(0xFFEF4444) else Color.Transparent,
-                                                        modifier = Modifier.size(16.dp)
+                                                        tint = if (isCorrect) theme.success else if (isChosen) theme.destructive else Color.Transparent,
+                                                        modifier = Modifier.size(18.dp)
                                                     )
                                                 }
                                             }
@@ -1277,16 +1135,16 @@ fun SahihHadithCard(
 
                                     if (isAnswered) {
                                         Surface(
-                                            color = Color(0xFF0B0F19),
-                                            shape = RoundedCornerShape(8.dp),
+                                            color = theme.primary.copy(alpha = 0.10f),
+                                            shape = RoundedCornerShape(10.dp),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Text(
                                                 text = "💡 التوجيه والبيان: ${quiz.explanation}",
                                                 fontFamily = NotoSansFont,
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF38BDF8),
-                                                modifier = Modifier.padding(8.dp)
+                                                fontSize = 11.5.sp,
+                                                color = theme.primary,
+                                                modifier = Modifier.padding(10.dp)
                                             )
                                         }
                                     }
@@ -1308,21 +1166,24 @@ fun TabButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Surface(
         modifier = modifier
-            .height(30.dp)
+            .heightIn(min = 42.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(6.dp),
-        color = if (isSelected) accentColor.copy(alpha = 0.2f) else Color(0xFF0B0F19),
-        border = BorderStroke(1.dp, if (isSelected) accentColor else Color(0xFF1E293B))
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) accentColor.copy(alpha = 0.16f) else theme.secondarySurface,
+        border = BorderStroke(0.8.dp, if (isSelected) accentColor else theme.separator.copy(alpha = 0.5f))
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp)) {
             Text(
                 text = title,
                 fontFamily = CairoFont,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 10.5.sp,
-                color = if (isSelected) accentColor else TextSecondary
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 11.sp,
+                color = if (isSelected) accentColor else theme.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -1333,6 +1194,13 @@ fun SahihChallengeDialog(
     activeBook: SahihBookType,
     onDismiss: () -> Unit
 ) {
+    val theme = QabasTheme.current
+    val bookAccent = if (activeBook == SahihBookType.BUKHARI) {
+        if (theme.isDark) AppleDarkGold else AppleLightGold
+    } else {
+        theme.success
+    }
+
     val hadiths = remember(activeBook) {
         SahihHadithsRepository.getHadithsForBook(activeBook).filter { it.quiz != null }.shuffled().take(5)
     }
@@ -1350,14 +1218,14 @@ fun SahihChallengeDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = GoldPrimary)
+                Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = bookAccent)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "تحدي وتدبر ${activeBook.titleAr}",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = TextPrimary
+                    color = theme.textPrimary
                 )
             }
         },
@@ -1372,36 +1240,36 @@ fun SahihChallengeDialog(
                         modifier = Modifier
                             .size(70.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.2f)),
+                            .background(bookAccent.copy(alpha = 0.16f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(40.dp))
+                        Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = bookAccent, modifier = Modifier.size(40.dp))
                     }
                     Text(
                         text = "ما شاء الله! مبارك إتمام التحدي",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = GoldPrimary,
+                        color = bookAccent,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = "حققت $score من أصل ${hadiths.size} إجابات صحيحة في تدبر وفهم الأحاديث الشريفة.",
                         fontFamily = NotoSansFont,
-                        fontSize = 12.sp,
-                        color = TextSecondary,
+                        fontSize = 12.5.sp,
+                        color = theme.textSecondary,
                         textAlign = TextAlign.Center
                     )
                     Surface(
-                        color = Color(0xFF0B0F19),
+                        color = theme.secondarySurface,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "«نضّر الله امرأً سمع مقالتي فوعاها فأداها كما سمعها» — زادك الله علماً وهدى وبركة.",
-                            color = Color(0xFF38BDF8),
+                            color = theme.primary,
                             fontFamily = CairoFont,
-                            fontSize = 11.sp,
+                            fontSize = 11.5.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(12.dp)
                         )
@@ -1418,31 +1286,31 @@ fun SahihChallengeDialog(
                     ) {
                         Text(
                             "السؤال ${currentIndex + 1} من ${hadiths.size}",
-                            color = activeBook.accentColor,
+                            color = theme.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = 11.5.sp
                         )
                         Text(
                             "النقاط: $score",
-                            color = GoldPrimary,
+                            color = bookAccent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = 11.5.sp
                         )
                     }
 
                     Surface(
-                        color = Color(0xFF0B0F19),
+                        color = theme.secondarySurface,
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = currentHadith.matn.take(120) + "...",
                             fontFamily = CairoFont,
-                            fontSize = 11.sp,
-                            color = TextSecondary,
-                            modifier = Modifier.padding(8.dp)
+                            fontSize = 11.5.sp,
+                            color = theme.textSecondary,
+                            modifier = Modifier.padding(10.dp)
                         )
                     }
 
@@ -1451,35 +1319,36 @@ fun SahihChallengeDialog(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        color = TextPrimary
+                        color = theme.textPrimary
                     )
 
                     quiz.options.forEachIndexed { index, option ->
                         val isChosen = selectedOption == index
                         val isCorrect = quiz.correctIndex == index
                         val bg = when {
-                            !isSubmitted -> if (isChosen) activeBook.accentColor.copy(alpha = 0.2f) else Color(0xFF0B0F19)
-                            isCorrect -> Color(0xFF10B981).copy(alpha = 0.25f)
-                            isChosen && !isCorrect -> Color(0xFFEF4444).copy(alpha = 0.25f)
-                            else -> Color(0xFF0B0F19)
+                            !isSubmitted -> if (isChosen) theme.primary.copy(alpha = 0.16f) else theme.secondarySurface
+                            isCorrect -> theme.success.copy(alpha = 0.2f)
+                            isChosen && !isCorrect -> theme.destructive.copy(alpha = 0.2f)
+                            else -> theme.secondarySurface
                         }
 
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .defaultMinSize(minHeight = 48.dp)
                                 .clickable(enabled = !isSubmitted) {
                                     selectedOption = index
                                 },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = bg,
-                            border = BorderStroke(1.dp, if (isChosen) activeBook.accentColor else Color(0xFF1E293B))
+                            border = BorderStroke(1.dp, if (isChosen) theme.primary else theme.separator)
                         ) {
                             Text(
                                 text = option,
                                 fontFamily = NotoSansFont,
-                                fontSize = 11.5.sp,
-                                color = TextPrimary,
-                                modifier = Modifier.padding(10.dp)
+                                fontSize = 12.sp,
+                                color = theme.textPrimary,
+                                modifier = Modifier.padding(12.dp)
                             )
                         }
                     }
@@ -1488,8 +1357,8 @@ fun SahihChallengeDialog(
                         Text(
                             text = "💡 ${quiz.explanation}",
                             fontFamily = NotoSansFont,
-                            fontSize = 11.sp,
-                            color = Color(0xFF38BDF8)
+                            fontSize = 11.5.sp,
+                            color = theme.primary
                         )
                     }
                 }
@@ -1499,10 +1368,11 @@ fun SahihChallengeDialog(
             if (isFinished) {
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(8.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text("تم", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("تم", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             } else if (!isSubmitted) {
                 Button(
@@ -1515,10 +1385,11 @@ fun SahihChallengeDialog(
                         }
                     },
                     enabled = selectedOption != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = activeBook.accentColor),
-                    shape = RoundedCornerShape(8.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text("تحقق من الإجابة", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("تحقق من الإجابة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             } else {
                 Button(
@@ -1531,22 +1402,26 @@ fun SahihChallengeDialog(
                             isFinished = true
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = activeBook.accentColor),
-                    shape = RoundedCornerShape(8.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Text(if (currentIndex + 1 < hadiths.size) "السؤال التالي" else "عرض النتيجة", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(if (currentIndex + 1 < hadiths.size) "السؤال التالي" else "عرض النتيجة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             }
         },
         dismissButton = {
             if (!isFinished) {
-                TextButton(onClick = onDismiss) {
-                    Text("إلغاء", color = TextSecondary, fontFamily = CairoFont)
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("إلغاء", color = theme.textSecondary, fontFamily = CairoFont)
                 }
             }
         },
-        containerColor = Color(0xFF151B2B),
-        shape = RoundedCornerShape(16.dp)
+        containerColor = theme.cardSurface,
+        shape = RoundedCornerShape(18.dp)
     )
 }
 
@@ -1559,6 +1434,7 @@ fun QuranicHarmonyDialog(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    val theme = QabasTheme.current
 
     var selectedBookFilter by remember { mutableStateOf<SahihBookType?>(null) }
     var harmonyQuery by remember { mutableStateOf("") }
@@ -1587,27 +1463,27 @@ fun QuranicHarmonyDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
-                            text = "تكامل الوحيين: القرآن والسنة 📖✨",
+                            text = "تكامل الوحيين: القرآن والسنة",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
-                            color = TextPrimary
+                            color = theme.textPrimary
                         )
                         Text(
                             text = "أحاديث الصحيحين المقترنة بأدلتها من كتاب الله",
                             fontFamily = NotoSansFont,
                             fontSize = 10.5.sp,
-                            color = Color(0xFF7DD3FC)
+                            color = theme.textSecondary
                         )
                     }
                 }
-                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textSecondary, modifier = Modifier.size(18.dp))
                 }
             }
         },
@@ -1618,116 +1494,62 @@ fun QuranicHarmonyDialog(
                     .heightIn(max = 500.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Book Filter Tabs (الكل | البخاري | مسلم)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val isAll = selectedBookFilter == null
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable { selectedBookFilter = null },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isAll) Color(0xFF38BDF8).copy(alpha = 0.2f) else Color(0xFF0B0F19),
-                        border = BorderStroke(1.dp, if (isAll) Color(0xFF38BDF8) else Color(0xFF1E293B))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("كافة الأحاديث (${SahihHadithsRepository.getHadithsWithQuranEvidence().size})", color = if (isAll) Color(0xFF38BDF8) else TextSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
-                        }
-                    }
-
-                    val isBukhari = selectedBookFilter == SahihBookType.BUKHARI
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable { selectedBookFilter = SahihBookType.BUKHARI },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isBukhari) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color(0xFF0B0F19),
-                        border = BorderStroke(1.dp, if (isBukhari) Color(0xFFF59E0B) else Color(0xFF1E293B))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("البخاري (${SahihHadithsRepository.getHadithsWithQuranEvidence(SahihBookType.BUKHARI).size})", color = if (isBukhari) Color(0xFFF59E0B) else TextSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
-                        }
-                    }
-
-                    val isMuslim = selectedBookFilter == SahihBookType.MUSLIM
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable { selectedBookFilter = SahihBookType.MUSLIM },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isMuslim) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF0B0F19),
-                        border = BorderStroke(1.dp, if (isMuslim) Color(0xFF10B981) else Color(0xFF1E293B))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("مسلم (${SahihHadithsRepository.getHadithsWithQuranEvidence(SahihBookType.MUSLIM).size})", color = if (isMuslim) Color(0xFF10B981) else TextSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
-                        }
-                    }
-                }
-
-                // Search field inside dialog
-                OutlinedTextField(
-                    value = harmonyQuery,
-                    onValueChange = { harmonyQuery = it },
-                    placeholder = { Text("ابحث بالسورة أو الآية أو موضوع الحديث...", fontSize = 11.sp, color = TextSecondary) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp)) },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF0B0F19),
-                        unfocusedContainerColor = Color(0xFF0B0F19),
-                        focusedBorderColor = Color(0xFF38BDF8),
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
+                AppleSegmentedControl(
+                    items = listOf(
+                        null to "الكل (${SahihHadithsRepository.getHadithsWithQuranEvidence().size})",
+                        SahihBookType.BUKHARI to "البخاري (${SahihHadithsRepository.getHadithsWithQuranEvidence(SahihBookType.BUKHARI).size})",
+                        SahihBookType.MUSLIM to "مسلم (${SahihHadithsRepository.getHadithsWithQuranEvidence(SahihBookType.MUSLIM).size})"
+                    ),
+                    selectedItem = selectedBookFilter,
+                    onSelect = { selectedBookFilter = it }
                 )
 
-                // Pairs List
+                AppleSearchBar(
+                    query = harmonyQuery,
+                    onQueryChange = { harmonyQuery = it },
+                    placeholder = "ابحث بالسورة أو الآية أو موضوع الحديث..."
+                )
+
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(allEvidenceHadiths, key = { it.id }) { hadith ->
                         val qe = hadith.quranEvidence ?: return@items
-                        val bookColor = hadith.bookType.accentColor
+                        val bookColor = if (hadith.bookType == SahihBookType.BUKHARI) {
+                            if (theme.isDark) AppleDarkGold else AppleLightGold
+                        } else {
+                            theme.success
+                        }
 
                         Surface(
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                            color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.45f),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(0.5.dp, theme.separator),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                // Header: Surah Tag + Book Tag
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Surface(
-                                        color = Color(0xFF38BDF8).copy(alpha = 0.2f),
+                                        color = theme.primary.copy(alpha = 0.14f),
                                         shape = RoundedCornerShape(6.dp)
                                     ) {
                                         Text(
                                             text = "📖 ${qe.surahName} [آية ${qe.ayahNumber}]",
-                                            color = Color(0xFF7DD3FC),
+                                            color = theme.primary,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = CairoFont,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
 
                                     Surface(
-                                        color = bookColor.copy(alpha = 0.15f),
+                                        color = bookColor.copy(alpha = 0.14f),
                                         shape = RoundedCornerShape(6.dp)
                                     ) {
                                         Text(
@@ -1735,74 +1557,71 @@ fun QuranicHarmonyDialog(
                                             color = bookColor,
                                             fontSize = 10.sp,
                                             fontFamily = CairoFont,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
 
-                                // Noble Ayah
                                 Surface(
-                                    color = Color(0xFF0B1B2B),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(0.5.dp, Color(0xFF38BDF8).copy(alpha = 0.3f)),
+                                    color = theme.primary.copy(alpha = if (theme.isDark) 0.12f else 0.07f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.3f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         text = "« ${qe.verseText} »",
-                                        fontFamily = CairoFont,
+                                        fontFamily = AmiriFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        lineHeight = 20.sp,
-                                        color = Color(0xFFE0F2FE),
+                                        fontSize = 14.5.sp,
+                                        lineHeight = 23.sp,
+                                        color = theme.textPrimary,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(10.dp)
                                     )
                                 }
 
-                                // Corresponding Hadith snippet
                                 Surface(
-                                    color = Color(0xFF0B0F19),
-                                    shape = RoundedCornerShape(8.dp),
+                                    color = theme.cardSurface,
+                                    shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
                                         Text(
                                             text = "${hadith.narrator}:",
                                             fontFamily = CairoFont,
-                                            fontSize = 10.5.sp,
-                                            color = TextSecondary
+                                            fontSize = 11.sp,
+                                            color = theme.textSecondary
                                         )
                                         Text(
                                             text = "«${hadith.matn}»",
-                                            fontFamily = CairoFont,
-                                            fontSize = 12.sp,
-                                            lineHeight = 18.sp,
-                                            color = TextPrimary
+                                            fontFamily = AmiriFont,
+                                            fontSize = 13.5.sp,
+                                            lineHeight = 22.sp,
+                                            color = theme.textPrimary
                                         )
                                     }
                                 }
 
-                                // Relationship & Commentary
                                 Text(
                                     text = "🔗 وجه التكامل والدلالة: ${qe.relationType}",
                                     fontFamily = NotoSansFont,
-                                    fontSize = 11.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF38BDF8)
+                                    color = theme.primary
                                 )
 
                                 Text(
                                     text = "💡 ${qe.commentary}",
                                     fontFamily = NotoSansFont,
-                                    fontSize = 10.5.sp,
-                                    lineHeight = 15.sp,
-                                    color = Color(0xFF94A3B8)
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    color = theme.textSecondary
                                 )
 
-                                // Action Buttons (Reels + Copy + Share)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
@@ -1811,9 +1630,9 @@ fun QuranicHarmonyDialog(
                                             clipboardManager.setText(AnnotatedString(text))
                                             Toast.makeText(context, "تم نسخ الآية والحديث بنجاح ✅", Toast.LENGTH_SHORT).show()
                                         },
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = TextSecondary, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.textSecondary, modifier = Modifier.size(17.dp))
                                     }
 
                                     IconButton(
@@ -1825,12 +1644,10 @@ fun QuranicHarmonyDialog(
                                             }
                                             context.startActivity(Intent.createChooser(intent, "مشاركة تكامل الوحيين"))
                                         },
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
-                                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = TextSecondary, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = theme.textSecondary, modifier = Modifier.size(17.dp))
                                     }
-
-                                    Spacer(modifier = Modifier.width(4.dp))
 
                                     Button(
                                         onClick = {
@@ -1838,14 +1655,16 @@ fun QuranicHarmonyDialog(
                                             onNavigateToVideoCreation(quote)
                                             onDismiss()
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
                                     ) {
-                                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("صناعة فيديو الوحيين", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        Text("صناعة فيديو", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                     }
                                 }
                             }
@@ -1857,13 +1676,14 @@ fun QuranicHarmonyDialog(
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
-                shape = RoundedCornerShape(8.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.heightIn(min = 48.dp)
             ) {
-                Text("إغلاق", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text("إغلاق", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
         },
-        containerColor = Color(0xFF151B2B),
-        shape = RoundedCornerShape(16.dp)
+        containerColor = theme.cardSurface,
+        shape = RoundedCornerShape(18.dp)
     )
 }

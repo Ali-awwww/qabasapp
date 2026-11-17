@@ -39,6 +39,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.qabas.app.R
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleSearchBar
+import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -699,6 +702,7 @@ fun AzkarScreen(
     viewModel: AzkarViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val morningList by viewModel.morningAzkar.collectAsState()
     val eveningList by viewModel.eveningAzkar.collectAsState()
     val sleepList by viewModel.sleepAzkar.collectAsState()
@@ -710,7 +714,6 @@ fun AzkarScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val speakingId by viewModel.speakingId.collectAsState()
 
-    // Counts completion
     val morningCompleted = morningList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
     val eveningCompleted = eveningList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
     val sleepCompleted = sleepList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
@@ -728,7 +731,6 @@ fun AzkarScreen(
         }
     }
 
-    // 🌟 Auto-sync Azkar completion to daily spiritual progress keys
     LaunchedEffect(morningCompleted, morningList.size) {
         if (morningList.isNotEmpty() && morningCompleted >= morningList.size) {
             prefs.edit().putBoolean("daily_morning_azkar_$todayKey", true).apply()
@@ -741,106 +743,88 @@ fun AzkarScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Manuscript Texture Background (Identical to ScholarBiographiesScreen)
-        AsyncImage(
-            model = R.drawable.scholar_manuscript_bg_1790092377371,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            alpha = 0.15f
+    fun copyZikrToClipboard(item: AzkarItem) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(
+            "Zikr",
+            "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}"
         )
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "تم نسخ الذكر إلى الحافظة", Toast.LENGTH_SHORT).show()
+    }
 
-        // Parchment Tint Overlay
+    val filteredMorning = remember(morningList, searchQuery) {
+        morningList.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    val filteredEvening = remember(eveningList, searchQuery) {
+        eveningList.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    val filteredSleep = remember(sleepList, searchQuery) {
+        sleepList.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    val filteredWaking = remember(wakingList, searchQuery) {
+        wakingList.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    val filteredPrayer = remember(prayerList, searchQuery) {
+        prayerList.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    val filteredMosque = remember(mosqueList, searchQuery) {
+        mosqueList.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    val anySearchMatches = filteredMorning.isNotEmpty() || filteredEvening.isNotEmpty() ||
+        filteredSleep.isNotEmpty() || filteredWaking.isNotEmpty() ||
+        filteredPrayer.isNotEmpty() || filteredMosque.isNotEmpty()
+
+    Scaffold(
+        containerColor = theme.background,
+        topBar = {
+            AppleTopBar(
+                title = "الأذكار اليومية",
+                subtitle = "حصن المؤمن وبركة اليوم والسكينة",
+                onBack = onBack,
+                actions = {
+                    if (speakingId != null) {
+                        IconButton(
+                            onClick = { viewModel.stopSpeaking() },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.VolumeOff,
+                                contentDescription = "إيقاف القراءة الصوتية للأذكار",
+                                tint = theme.primary
+                            )
+                        }
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AntiqueParchment.copy(alpha = 0.88f))
-        )
-
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                Column {
-                    TopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.WbSunny,
-                                    contentDescription = null,
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        "أذكار الصباح والمساء",
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 17.sp,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        "حصن المؤمن وبركة اليوم والسكينة",
-                                        fontFamily = CairoFont,
-                                        fontSize = 10.5.sp,
-                                        color = GoldSecondary.copy(alpha = 0.85f)
-                                    )
-                                }
-                            }
-                        },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "الرجوع من شاشة أذكار الصباح والمساء",
-                                    tint = GoldPrimary
-                                )
-                            }
-                        },
-                        actions = {
-                            if (speakingId != null) {
-                                IconButton(
-                                    onClick = { viewModel.stopSpeaking() },
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.VolumeOff,
-                                        contentDescription = "إيقاف القراءة الصوتية للأذكار",
-                                        tint = GoldPrimary
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = qabasCardSurface().copy(alpha = 0.95f)
-                        )
-                    )
-                    // Decorative Gold Divider (Zakhrafa)
-                    HorizontalDivider(
-                        color = GoldPrimary.copy(alpha = 0.35f),
-                        thickness = 1.dp
-                    )
-                }
-            }
-        ) { paddingValues ->
-            Box(
+                .padding(paddingValues),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.TopCenter
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 600.dp),
-                    contentPadding = PaddingValues(bottom = 40.dp, start = 16.dp, end = 16.dp, top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                // Header Intro & Spiritual Verse
                 item {
                     AzkarHeaderSummary(
                         morningTotal = morningList.size,
@@ -859,7 +843,6 @@ fun AzkarScreen(
                     )
                 }
 
-                // Separation & Tab Switcher (Styled like vintage leather / parchment tabs)
                 item {
                     AzkarTabSelector(
                         selectedTab = selectedTab,
@@ -867,7 +850,6 @@ fun AzkarScreen(
                     )
                 }
 
-                // Search Bar
                 item {
                     AzkarSearchBar(
                         query = searchQuery,
@@ -875,264 +857,203 @@ fun AzkarScreen(
                     )
                 }
 
-                // Filter lists based on search
-                val filteredMorning = morningList.filter {
-                    searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
-                }
-                val filteredEvening = eveningList.filter {
-                    searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
-                }
-                val filteredSleep = sleepList.filter {
-                    searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
-                }
-                val filteredWaking = wakingList.filter {
-                    searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
-                }
-                val filteredPrayer = prayerList.filter {
-                    searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
-                }
-                val filteredMosque = mosqueList.filter {
-                    searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+                if (searchQuery.isNotBlank() && !anySearchMatches) {
+                    item { EmptySearchResultCard(query = searchQuery) }
                 }
 
                 // TAB 0: Morning
                 if (selectedTab == 0 || selectedTab == 6) {
-                    item {
+                    item(key = "header_morning") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار الصباح",
                             subtitle = "حصن المؤمن وبركة اليوم",
                             icon = Icons.Default.WbSunny,
-                            badgeColor = ManuscriptGold,
+                            badgeColor = theme.warning,
                             totalCount = morningList.size,
                             completedCount = morningCompleted
                         )
                     }
-                    items(filteredMorning) { item ->
-                        AzkarManuscriptCard(
-                            item = item,
-                            currentCount = progressMap[item.id] ?: 0,
-                            isSpeaking = speakingId == item.id,
-                            onIncrement = {
-                                AppSoundManager.playDhikr()
-                                viewModel.incrementCount(item.id, item.targetCount)
-                            },
-                            onReset = { viewModel.resetCount(item.id) },
-                            onSpeak = { viewModel.speakZikr(item, context) },
-                            onShare = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+                    if (selectedTab == 0 && filteredMorning.isEmpty() && searchQuery.isNotBlank()) {
+                        item { EmptySearchResultCard(query = searchQuery) }
+                    } else {
+                        items(filteredMorning, key = { "morning_${it.id}" }) { item ->
+                            AzkarManuscriptCard(
+                                item = item,
+                                currentCount = progressMap[item.id] ?: 0,
+                                isSpeaking = speakingId == item.id,
+                                onIncrement = {
+                                    AppSoundManager.playDhikr()
+                                    viewModel.incrementCount(item.id, item.targetCount)
+                                },
+                                onReset = { viewModel.resetCount(item.id) },
+                                onSpeak = { viewModel.speakZikr(item, context) },
+                                onShare = { copyZikrToClipboard(item) }
+                            )
+                        }
+                    }
+                }
+
+                if (selectedTab == 6 && filteredMorning.isNotEmpty() && filteredEvening.isNotEmpty()) {
+                    item(key = "sep_morning_evening") {
+                        AzkarSectionSeparator()
                     }
                 }
 
                 // TAB 1: Evening
                 if (selectedTab == 1 || selectedTab == 6) {
-                    item {
+                    item(key = "header_evening") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار المساء",
                             subtitle = "سكينة الليل وحفظ الرحمن",
                             icon = Icons.Default.NightsStay,
-                            badgeColor = Color(0xFF8B5CF6),
+                            badgeColor = Color(0xFF5856D6),
                             totalCount = eveningList.size,
                             completedCount = eveningCompleted
                         )
                     }
-                    items(filteredEvening) { item ->
-                        AzkarManuscriptCard(
-                            item = item,
-                            currentCount = progressMap[item.id] ?: 0,
-                            isSpeaking = speakingId == item.id,
-                            onIncrement = {
-                                AppSoundManager.playDhikr()
-                                viewModel.incrementCount(item.id, item.targetCount)
-                            },
-                            onReset = { viewModel.resetCount(item.id) },
-                            onSpeak = { viewModel.speakZikr(item, context) },
-                            onShare = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+                    if (selectedTab == 1 && filteredEvening.isEmpty() && searchQuery.isNotBlank()) {
+                        item { EmptySearchResultCard(query = searchQuery) }
+                    } else {
+                        items(filteredEvening, key = { "evening_${it.id}" }) { item ->
+                            AzkarManuscriptCard(
+                                item = item,
+                                currentCount = progressMap[item.id] ?: 0,
+                                isSpeaking = speakingId == item.id,
+                                onIncrement = {
+                                    AppSoundManager.playDhikr()
+                                    viewModel.incrementCount(item.id, item.targetCount)
+                                },
+                                onReset = { viewModel.resetCount(item.id) },
+                                onSpeak = { viewModel.speakZikr(item, context) },
+                                onShare = { copyZikrToClipboard(item) }
+                            )
+                        }
                     }
                 }
 
                 // TAB 2: Sleep
                 if (selectedTab == 2 || selectedTab == 6) {
-                    item {
+                    item(key = "header_sleep") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار النوم",
                             subtitle = "استيداع النفس لرب العالمين",
                             icon = Icons.Default.Bedtime,
-                            badgeColor = Color(0xFF1E293B),
+                            badgeColor = theme.primary,
                             totalCount = sleepList.size,
                             completedCount = sleepCompleted
                         )
                     }
-                    items(filteredSleep) { item ->
-                        AzkarManuscriptCard(
-                            item = item,
-                            currentCount = progressMap[item.id] ?: 0,
-                            isSpeaking = speakingId == item.id,
-                            onIncrement = {
-                                AppSoundManager.playDhikr()
-                                viewModel.incrementCount(item.id, item.targetCount)
-                            },
-                            onReset = { viewModel.resetCount(item.id) },
-                            onSpeak = { viewModel.speakZikr(item, context) },
-                            onShare = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+                    if (selectedTab == 2 && filteredSleep.isEmpty() && searchQuery.isNotBlank()) {
+                        item { EmptySearchResultCard(query = searchQuery) }
+                    } else {
+                        items(filteredSleep, key = { "sleep_${it.id}" }) { item ->
+                            AzkarManuscriptCard(
+                                item = item,
+                                currentCount = progressMap[item.id] ?: 0,
+                                isSpeaking = speakingId == item.id,
+                                onIncrement = {
+                                    AppSoundManager.playDhikr()
+                                    viewModel.incrementCount(item.id, item.targetCount)
+                                },
+                                onReset = { viewModel.resetCount(item.id) },
+                                onSpeak = { viewModel.speakZikr(item, context) },
+                                onShare = { copyZikrToClipboard(item) }
+                            )
+                        }
                     }
                 }
 
                 // TAB 3: Waking
                 if (selectedTab == 3 || selectedTab == 6) {
-                    item {
+                    item(key = "header_waking") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار الاستيقاظ",
                             subtitle = "شكر الله على تجدد الحياة",
                             icon = Icons.Default.WbTwilight,
-                            badgeColor = Color(0xFFF59E0B),
+                            badgeColor = theme.warning,
                             totalCount = wakingList.size,
                             completedCount = wakingCompleted
                         )
                     }
-                    items(filteredWaking) { item ->
-                        AzkarManuscriptCard(
-                            item = item,
-                            currentCount = progressMap[item.id] ?: 0,
-                            isSpeaking = speakingId == item.id,
-                            onIncrement = {
-                                AppSoundManager.playDhikr()
-                                viewModel.incrementCount(item.id, item.targetCount)
-                            },
-                            onReset = { viewModel.resetCount(item.id) },
-                            onSpeak = { viewModel.speakZikr(item, context) },
-                            onShare = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+                    if (selectedTab == 3 && filteredWaking.isEmpty() && searchQuery.isNotBlank()) {
+                        item { EmptySearchResultCard(query = searchQuery) }
+                    } else {
+                        items(filteredWaking, key = { "waking_${it.id}" }) { item ->
+                            AzkarManuscriptCard(
+                                item = item,
+                                currentCount = progressMap[item.id] ?: 0,
+                                isSpeaking = speakingId == item.id,
+                                onIncrement = {
+                                    AppSoundManager.playDhikr()
+                                    viewModel.incrementCount(item.id, item.targetCount)
+                                },
+                                onReset = { viewModel.resetCount(item.id) },
+                                onSpeak = { viewModel.speakZikr(item, context) },
+                                onShare = { copyZikrToClipboard(item) }
+                            )
+                        }
                     }
                 }
 
                 // TAB 4: After Prayer
                 if (selectedTab == 4 || selectedTab == 6) {
-                    item {
+                    item(key = "header_prayer") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار بعد الصلاة",
                             subtitle = "تمام العبادة وزيادة الحسنات",
                             icon = Icons.Default.Mosque,
-                            badgeColor = Color(0xFF10B981),
+                            badgeColor = theme.success,
                             totalCount = prayerList.size,
                             completedCount = prayerCompleted
                         )
                     }
-                    items(filteredPrayer) { item ->
-                        AzkarManuscriptCard(
-                            item = item,
-                            currentCount = progressMap[item.id] ?: 0,
-                            isSpeaking = speakingId == item.id,
-                            onIncrement = {
-                                AppSoundManager.playDhikr()
-                                viewModel.incrementCount(item.id, item.targetCount)
-                            },
-                            onReset = { viewModel.resetCount(item.id) },
-                            onSpeak = { viewModel.speakZikr(item, context) },
-                            onShare = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+                    if (selectedTab == 4 && filteredPrayer.isEmpty() && searchQuery.isNotBlank()) {
+                        item { EmptySearchResultCard(query = searchQuery) }
+                    } else {
+                        items(filteredPrayer, key = { "prayer_${it.id}" }) { item ->
+                            AzkarManuscriptCard(
+                                item = item,
+                                currentCount = progressMap[item.id] ?: 0,
+                                isSpeaking = speakingId == item.id,
+                                onIncrement = {
+                                    AppSoundManager.playDhikr()
+                                    viewModel.incrementCount(item.id, item.targetCount)
+                                },
+                                onReset = { viewModel.resetCount(item.id) },
+                                onSpeak = { viewModel.speakZikr(item, context) },
+                                onShare = { copyZikrToClipboard(item) }
+                            )
+                        }
                     }
                 }
 
                 // TAB 5: Mosque
                 if (selectedTab == 5 || selectedTab == 6) {
-                    item {
+                    item(key = "header_mosque") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار المسجد",
                             subtitle = "أدب الدخول والتعلق ببيوت الله",
                             icon = Icons.Default.MeetingRoom,
-                            badgeColor = Color(0xFF0EA5E9),
+                            badgeColor = theme.accent,
                             totalCount = mosqueList.size,
                             completedCount = mosqueCompleted
                         )
                     }
-                    items(filteredMosque) { item ->
-                        AzkarManuscriptCard(
-                            item = item,
-                            currentCount = progressMap[item.id] ?: 0,
-                            isSpeaking = speakingId == item.id,
-                            onIncrement = {
-                                AppSoundManager.playDhikr()
-                                viewModel.incrementCount(item.id, item.targetCount)
-                            },
-                            onReset = { viewModel.resetCount(item.id) },
-                            onSpeak = { viewModel.speakZikr(item, context) },
-                            onShare = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                    }
-                }
-
-                // Distinct Visual Separator when viewing "Both" (الفصل بين أذكار الصباح وأذكار المساء)
-                if (selectedTab == 2) {
-                    item {
-                        AzkarSectionSeparator()
-                    }
-                }
-
-                // TAB 1: Evening Remembrances (أذكار المساء)
-                if (selectedTab == 1 || selectedTab == 2) {
-                    item {
-                        AzkarSectionHeaderBanner(
-                            title = "أذكار المساء المباركة",
-                            subtitle = "سكينة النفس وحفظ الليل • يُقال بعد صلاة العصر حتى غروب الشمس أو الليل",
-                            icon = Icons.Default.NightsStay,
-                            badgeColor = Color(0xFF935116),
-                            totalCount = filteredEvening.size,
-                            completedCount = eveningCompleted
-                        )
-                    }
-
-                    if (filteredEvening.isEmpty()) {
-                        item {
-                            EmptySearchResultCard(query = searchQuery)
-                        }
+                    if (selectedTab == 5 && filteredMosque.isEmpty() && searchQuery.isNotBlank()) {
+                        item { EmptySearchResultCard(query = searchQuery) }
                     } else {
-                        items(filteredEvening, key = { it.id }) { item ->
-                            val currentCount = progressMap[item.id] ?: 0
+                        items(filteredMosque, key = { "mosque_${it.id}" }) { item ->
                             AzkarManuscriptCard(
                                 item = item,
-                                currentCount = currentCount,
+                                currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
-                                onIncrement = { viewModel.incrementCount(item.id, item.targetCount) },
+                                onIncrement = {
+                                    AppSoundManager.playDhikr()
+                                    viewModel.incrementCount(item.id, item.targetCount)
+                                },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
-                                onShare = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("Zikr", "${item.title}\n\n${item.text}\n\nفضله: ${item.fadl}\nالمصدر: ${item.source}")
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "تم نسخ الذكر إلى الحافظة ✨", Toast.LENGTH_SHORT).show()
-                                }
+                                onShare = { copyZikrToClipboard(item) }
                             )
                         }
                     }
@@ -1140,26 +1061,23 @@ fun AzkarScreen(
 
                 // Footer Note
                 item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = AgedPaper.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.2f))
-                    ) {
+                    AppleCard {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
                                 Icons.Default.MenuBook,
                                 contentDescription = null,
-                                tint = ManuscriptGold,
-                                modifier = Modifier.size(24.dp)
+                                tint = theme.primary,
+                                modifier = Modifier.size(22.dp)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 "تحقيق الأذكار المعتمدة",
-                                color = ManuscriptGold,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -1167,10 +1085,11 @@ fun AzkarScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "جميع الأذكار منقولة بنصوصها المحققة وتشكيلها الكامل من الصحيحين ومسند الإمام أحمد والسنن المعتمدة، ليداوم عليها المسلم صباحاً ومساءً.",
-                                color = OldInk.copy(alpha = 0.75f),
+                                color = theme.textSecondary,
                                 fontFamily = NotoSansFont,
                                 fontSize = 12.sp,
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                lineHeight = 19.sp
                             )
                         }
                     }
@@ -1179,11 +1098,7 @@ fun AzkarScreen(
         }
     }
 }
-}
 
-/**
- * Top Summary card with Islamic verse and progress counters
- */
 @Composable
 fun AzkarHeaderSummary(
     morningTotal: Int,
@@ -1200,31 +1115,25 @@ fun AzkarHeaderSummary(
     mosqueDone: Int,
     onResetAll: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 32.dp, bottomStart = 32.dp, bottomEnd = 4.dp),
-        border = BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.35f)),
-        shadowElevation = 3.dp
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+    val theme = QabasTheme.current
+    AppleCard(cornerRadius = 18.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Surface(
                         shape = CircleShape,
-                        color = ManuscriptGold.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, ManuscriptGold),
-                        modifier = Modifier.size(36.dp)
+                        color = theme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 Icons.Default.AutoAwesome,
                                 contentDescription = null,
-                                tint = ManuscriptGold,
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1233,64 +1142,62 @@ fun AzkarHeaderSummary(
                     Column {
                         Text(
                             "حصن المسلم اليومي",
-                            color = ManuscriptGold,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
                             "طريق الحسنات والسكينة",
-                            color = OldInk.copy(alpha = 0.65f),
+                            color = theme.textSecondary,
                             fontFamily = NotoSansFont,
-                            fontSize = 12.sp
+                            fontSize = 11.5.sp
                         )
                     }
                 }
 
                 TextButton(
                     onClick = onResetAll,
-                    colors = ButtonDefaults.textButtonColors(contentColor = OldInk)
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("تصفير العدادات", fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("تصفير", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Quranic ayah
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AntiqueParchment.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                    .border(1.dp, ManuscriptGold.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                    .padding(vertical = 10.dp, horizontal = 14.dp),
+                    .background(theme.secondarySurface.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+                    .padding(vertical = 12.dp, horizontal = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     QuranDataProvider.getVerseText(13, 28) ?: "افتح المصحف لقراءة الآية.",
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = AmiriFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 19.sp,
+                    lineHeight = 32.sp,
                     textAlign = TextAlign.Center
                 )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Progress counters (Scrollable Row)
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item { ProgressPillCard("الصباح", "☀️", morningDone, morningTotal, modifier = Modifier.width(140.dp)) }
-                item { ProgressPillCard("المساء", "🌙", eveningDone, eveningTotal, modifier = Modifier.width(140.dp)) }
-                item { ProgressPillCard("النوم", "😴", sleepDone, sleepTotal, modifier = Modifier.width(140.dp)) }
-                item { ProgressPillCard("الاستيقاظ", "🌅", wakingDone, wakingTotal, modifier = Modifier.width(140.dp)) }
-                item { ProgressPillCard("الصلاة", "🕌", prayerDone, prayerTotal, modifier = Modifier.width(140.dp)) }
-                item { ProgressPillCard("المسجد", "🕋", mosqueDone, mosqueTotal, modifier = Modifier.width(140.dp)) }
+                item { ProgressPillCard("الصباح", morningDone, morningTotal, modifier = Modifier.width(134.dp)) }
+                item { ProgressPillCard("المساء", eveningDone, eveningTotal, modifier = Modifier.width(134.dp)) }
+                item { ProgressPillCard("النوم", sleepDone, sleepTotal, modifier = Modifier.width(134.dp)) }
+                item { ProgressPillCard("الاستيقاظ", wakingDone, wakingTotal, modifier = Modifier.width(134.dp)) }
+                item { ProgressPillCard("الصلاة", prayerDone, prayerTotal, modifier = Modifier.width(134.dp)) }
+                item { ProgressPillCard("المسجد", mosqueDone, mosqueTotal, modifier = Modifier.width(134.dp)) }
             }
         }
     }
@@ -1299,17 +1206,16 @@ fun AzkarHeaderSummary(
 @Composable
 fun ProgressPillCard(
     title: String,
-    icon: String,
     done: Int,
     total: Int,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val progress = if (total > 0) done.toFloat() / total.toFloat() else 0f
     Surface(
         modifier = modifier,
-        color = AntiqueParchment.copy(alpha = 0.6f),
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
+        color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.5f),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(
@@ -1318,18 +1224,18 @@ fun ProgressPillCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "$icon $title",
-                    color = OldInk,
+                    title,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp
                 )
                 Text(
-                    "$done / $total",
-                    color = ManuscriptGold,
-                    fontFamily = CairoFont,
+                    "$done/$total",
+                    color = theme.primary,
+                    fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = 12.sp
                 )
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -1337,119 +1243,79 @@ fun ProgressPillCard(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
+                    .height(5.dp)
                     .clip(CircleShape),
-                color = ManuscriptGold,
-                trackColor = OldInk.copy(alpha = 0.1f)
+                color = theme.primary,
+                trackColor = theme.separator.copy(alpha = 0.45f)
             )
         }
     }
 }
 
-/**
- * Tab switcher with distinct morning/evening tabs + both separated view
- */
 @Composable
 fun AzkarTabSelector(
     selectedTab: Int,
     onSelectTab: (Int) -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.35f))
-    ) {
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            val tabs = listOf(
-                Triple(0, "الصباح", "☀️"),
-                Triple(1, "المساء", "🌙"),
-                Triple(2, "النوم", "😴"),
-                Triple(3, "الاستيقاظ", "🌅"),
-                Triple(4, "الصلاة", "🕌"),
-                Triple(5, "المسجد", "🕋"),
-                Triple(6, "الفهرس الكامل", "📜")
-            )
+    val theme = QabasTheme.current
+    val tabs = remember {
+        listOf(
+            0 to "الصباح",
+            1 to "المساء",
+            2 to "النوم",
+            3 to "الاستيقاظ",
+            4 to "بعد الصلاة",
+            5 to "المسجد",
+            6 to "الكل"
+        )
+    }
 
-            items(tabs) { (index, title, icon) ->
-                val isSelected = selectedTab == index
-                Surface(
-                    modifier = Modifier
-                        .clickable { onSelectTab(index) },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isSelected) ManuscriptGold else Color.Transparent,
-                    border = if (isSelected) BorderStroke(1.dp, ManuscriptGold) else null
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(tabs, key = { it.first }) { (index, title) ->
+            val isSelected = selectedTab == index
+            Surface(
+                onClick = { onSelectTab(index) },
+                modifier = Modifier.defaultMinSize(minHeight = 42.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = if (isSelected) theme.primary else theme.cardSurface,
+                border = BorderStroke(
+                    0.75.dp,
+                    if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f)
+                )
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "$icon $title",
-                            color = if (isSelected) Color.White else OldInk,
-                            fontFamily = CairoFont,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 12.sp,
-                            maxLines = 1
-                        )
-                    }
+                    Text(
+                        text = title,
+                        color = if (isSelected) theme.onPrimary else theme.textPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 13.sp,
+                        maxLines = 1
+                    )
                 }
             }
         }
     }
 }
 
-/**
- * Vintage parchment styled search bar
- */
 @Composable
 fun AzkarSearchBar(
     query: String,
     onQueryChange: (String) -> Unit
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = {
-            Text(
-                "ابحث في الأذكار أو الفضائل (مثال: الاستغفار، الكرسي، فطرة)...",
-                color = OldInk.copy(alpha = 0.5f),
-                fontFamily = NotoSansFont,
-                fontSize = 13.sp
-            )
-        },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = ManuscriptGold)
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "مسح", tint = OldInk.copy(alpha = 0.6f))
-                }
-            }
-        },
-        singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = AgedPaper.copy(alpha = 0.7f),
-            unfocusedContainerColor = AgedPaper.copy(alpha = 0.5f),
-            focusedBorderColor = ManuscriptGold,
-            unfocusedBorderColor = ManuscriptGold.copy(alpha = 0.3f),
-            focusedTextColor = OldInk,
-            unfocusedTextColor = OldInk
-        )
+    AppleSearchBar(
+        query = query,
+        onQueryChange = onQueryChange,
+        placeholder = "ابحث في الأذكار أو الفضائل..."
     )
 }
 
-/**
- * Banner header for morning and evening sections
- */
 @Composable
 fun AzkarSectionHeaderBanner(
     title: String,
@@ -1459,128 +1325,102 @@ fun AzkarSectionHeaderBanner(
     totalCount: Int,
     completedCount: Int
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 4.dp),
-        border = BorderStroke(1.5.dp, ManuscriptGold.copy(alpha = 0.4f)),
-        shadowElevation = 2.dp
-    ) {
+    val theme = QabasTheme.current
+    AppleCard {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(46.dp),
+                modifier = Modifier.size(42.dp),
                 shape = CircleShape,
-                color = badgeColor.copy(alpha = 0.15f),
-                border = BorderStroke(2.dp, badgeColor)
+                color = badgeColor.copy(alpha = 0.14f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = badgeColor,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = OldInk,
-                    fontFamily = AmiriFont,
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontSize = 16.sp
                 )
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    color = OldInk.copy(alpha = 0.7f),
+                    color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 11.5.sp
                 )
             }
 
-            // Status chip
+            val allDone = completedCount >= totalCount && totalCount > 0
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = if (completedCount >= totalCount && totalCount > 0) ManuscriptGold else AntiqueParchment,
-                border = BorderStroke(1.dp, ManuscriptGold)
+                shape = RoundedCornerShape(16.dp),
+                color = if (allDone) theme.success else theme.secondarySurface
             ) {
                 Text(
                     text = "$completedCount / $totalCount",
-                    color = if (completedCount >= totalCount && totalCount > 0) Color.White else OldInk,
-                    fontFamily = CairoFont,
+                    color = if (allDone) Color.White else theme.textPrimary,
+                    fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 )
             }
         }
     }
 }
 
-/**
- * Islamic decorative separator between Morning and Evening sections
- */
 @Composable
 fun AzkarSectionSeparator() {
-    Column(
+    val theme = QabasTheme.current
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = theme.separator.copy(alpha = 0.5f),
+            thickness = 0.75.dp
+        )
+        Surface(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            color = theme.cardSurface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.5f))
         ) {
-            HorizontalDivider(
-                modifier = Modifier.weight(1f),
-                color = ManuscriptGold.copy(alpha = 0.4f),
-                thickness = 1.dp
-            )
-            Surface(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                color = AgedPaper,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, ManuscriptGold)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("☀️", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "فصل بين أذكار الصباح والمساء",
-                        color = ManuscriptGold,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("🌙", fontSize = 14.sp)
-                }
-            }
-            HorizontalDivider(
-                modifier = Modifier.weight(1f),
-                color = ManuscriptGold.copy(alpha = 0.4f),
-                thickness = 1.dp
+            Text(
+                "أذكار المساء",
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
             )
         }
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = theme.separator.copy(alpha = 0.5f),
+            thickness = 0.75.dp
+        )
     }
 }
 
-/**
- * The Azkar Card: Perfectly matching the visual design, shape, and colors of ScholarBiographyCard
- */
 @Composable
 fun AzkarManuscriptCard(
     item: AzkarItem,
@@ -1591,53 +1431,49 @@ fun AzkarManuscriptCard(
     onSpeak: () -> Unit,
     onShare: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val isDone = currentCount >= item.targetCount
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = AgedPaper,
-        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 36.dp, bottomStart = 36.dp, bottomEnd = 4.dp),
+        color = theme.cardSurface,
+        shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
-            width = if (isDone) 2.dp else 1.5.dp,
-            color = if (isDone) ManuscriptGold else ManuscriptGold.copy(alpha = 0.35f)
+            width = if (isDone) 1.2.dp else 0.5.dp,
+            color = if (isDone) theme.success else theme.separator.copy(alpha = 0.45f)
         ),
-        shadowElevation = if (isDone) 5.dp else 3.dp
+        shadowElevation = if (theme.isDark) 0.dp else 1.5.dp
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            // Header: Category, source, and repetition badge
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Category Chip
                 Surface(
-                    color = ManuscriptGold.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
+                    color = theme.primary.copy(alpha = 0.10f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "${item.category.icon} ${item.category.label}",
-                        color = ManuscriptGold,
+                        text = item.category.label,
+                        color = theme.primary,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
 
-                // Target Count Chip
                 Surface(
-                    color = AntiqueParchment,
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
+                    color = theme.secondarySurface.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = "التكرار: ${item.targetCount} ${if (item.targetCount == 1) "مرة" else if (item.targetCount <= 10) "مرات" else "مرة"}",
-                        color = OldInk,
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -1645,19 +1481,17 @@ fun AzkarManuscriptCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Dhikr Title
             Text(
                 text = item.title,
-                color = OldInk,
+                color = theme.textPrimary,
                 fontFamily = AmiriFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 22.sp
+                fontSize = 21.sp
             )
 
-            // Time note
             Text(
                 text = item.timeHint,
-                color = ManuscriptGold,
+                color = theme.primary,
                 fontFamily = CairoFont,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
@@ -1665,17 +1499,18 @@ fun AzkarManuscriptCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Main Text (Authentic Arabic with Tashkeel in Amiri font)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AntiqueParchment.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                    .border(1.dp, ManuscriptGold.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                    .background(
+                        theme.secondarySurface.copy(alpha = if (theme.isDark) 0.55f else 0.35f),
+                        RoundedCornerShape(12.dp)
+                    )
                     .padding(14.dp)
             ) {
                 Text(
                     text = item.text,
-                    color = OldInk,
+                    color = theme.textPrimary,
                     fontFamily = AmiriFont,
                     fontSize = 19.sp,
                     lineHeight = 34.sp,
@@ -1683,134 +1518,117 @@ fun AzkarManuscriptCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Virtue & Reward Box (Styled like "محنة وثبات الأجداد" in ScholarBiographiesScreen)
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = AntiqueParchment.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
+                color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.38f else 0.28f),
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = ManuscriptGold,
+                            tint = theme.primary,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "فضله وأثره في الحفظ والسكينة",
-                            color = ManuscriptGold,
+                            "فضله وأثره",
+                            color = theme.primary,
                             fontFamily = CairoFont,
-                            fontSize = 13.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = item.fadl,
-                        color = OldInk,
+                        color = theme.textPrimary,
                         fontFamily = NotoSansFont,
-                        fontSize = 13.5.sp,
-                        lineHeight = 22.sp
+                        fontSize = 13.sp,
+                        lineHeight = 21.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "المصدر: ${item.source}",
-                        color = OldInk.copy(alpha = 0.65f),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Interactive Bottom Row: Counter (Antique Seal Button) + Audio TTS + Share + Reset
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Secondary actions: Audio Listen, Share, Reset
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Audio Speech Button
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Surface(
                         onClick = onSpeak,
                         modifier = Modifier.size(48.dp),
                         shape = CircleShape,
-                        color = if (isSpeaking) ManuscriptGold else AntiqueParchment,
-                        border = BorderStroke(1.dp, ManuscriptGold)
+                        color = if (isSpeaking) theme.primary else theme.secondarySurface
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isSpeaking) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
                                 contentDescription = "استماع للذكر",
-                                tint = if (isSpeaking) Color.White else ManuscriptGold,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Share / Copy Button
-                    Surface(
-                        onClick = onShare,
-                        modifier = Modifier.size(48.dp),
-                        shape = CircleShape,
-                        color = AntiqueParchment,
-                        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "نسخ الذكر",
-                                tint = OldInk.copy(alpha = 0.8f),
+                                tint = if (isSpeaking) theme.onPrimary else theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
 
+                    Surface(
+                        onClick = onShare,
+                        modifier = Modifier.size(48.dp),
+                        shape = CircleShape,
+                        color = theme.secondarySurface
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "نسخ الذكر",
+                                tint = theme.textPrimary,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+
                     if (currentCount > 0) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        // Reset button
                         Surface(
                             onClick = onReset,
                             modifier = Modifier.size(48.dp),
                             shape = CircleShape,
-                            color = AntiqueParchment,
-                            border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
+                            color = theme.secondarySurface
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Refresh,
                                     contentDescription = "إعادة البدء",
-                                    tint = OldInk.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(18.dp)
+                                    tint = theme.textSecondary,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
                     }
                 }
 
-                // Interactive Counter Seal (Stamp Button)
                 Surface(
                     onClick = onIncrement,
-                    modifier = Modifier
-                        .height(50.dp)
-                        .clip(RoundedCornerShape(25.dp)),
-                    shape = RoundedCornerShape(25.dp),
-                    color = if (isDone) ManuscriptGold else Color.White.copy(alpha = 0.85f),
-                    border = BorderStroke(2.dp, ManuscriptGold),
-                    shadowElevation = if (isDone) 6.dp else 2.dp
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = if (isDone) theme.success else theme.primary,
+                    shadowElevation = if (isDone || !theme.isDark) 2.dp else 0.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 18.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (isDone) {
@@ -1818,7 +1636,7 @@ fun AzkarManuscriptCard(
                                 Icons.Default.CheckCircle,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -1832,16 +1650,16 @@ fun AzkarManuscriptCard(
                             Icon(
                                 Icons.Default.TouchApp,
                                 contentDescription = null,
-                                tint = ManuscriptGold,
+                                tint = theme.onPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "$currentCount / ${item.targetCount}",
-                                color = OldInk,
-                                fontFamily = CairoFont,
+                                color = theme.onPrimary,
+                                fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
+                                fontSize = 15.sp
                             )
                         }
                     }
@@ -1853,28 +1671,24 @@ fun AzkarManuscriptCard(
 
 @Composable
 fun EmptySearchResultCard(query: String) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        color = AgedPaper.copy(alpha = 0.7f),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.3f))
-    ) {
+    val theme = QabasTheme.current
+    AppleCard(modifier = Modifier.padding(vertical = 12.dp)) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 Icons.Default.SearchOff,
                 contentDescription = null,
-                tint = ManuscriptGold,
-                modifier = Modifier.size(40.dp)
+                tint = theme.textSecondary,
+                modifier = Modifier.size(38.dp)
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 "لم يتم العثور على أذكار تطابق: \"$query\"",
-                color = OldInk,
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -1883,7 +1697,7 @@ fun EmptySearchResultCard(query: String) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 "يرجى تجربة كلمة بحث أخرى أو تصفح الأذكار عبر التبويبات أعلاه.",
-                color = OldInk.copy(alpha = 0.7f),
+                color = theme.textSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center

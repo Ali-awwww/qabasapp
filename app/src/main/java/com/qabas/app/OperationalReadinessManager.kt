@@ -75,7 +75,6 @@ object OperationalReadinessManager {
         val huggingfaceKey = getKey("huggingface_key")
         val pexelsKey = getKey("pexels_key")
         val pixabayKey = getKey("pixabay_key")
-        val firebaseKey = getKey("firebase_key")
         val azureKey = getKey("azure_speech_key")
         val elevenlabsKey = getKey("elevenlabs_key")
 
@@ -84,7 +83,7 @@ object OperationalReadinessManager {
         val hasHuggingFace = isKeyValid(huggingfaceKey)
         val hasPexels = isKeyValid(pexelsKey)
         val hasPixabay = isKeyValid(pixabayKey)
-        val hasFirebase = isKeyValid(firebaseKey)
+        val hasSupabase = SupabaseConfig.isConfigured
         val hasHiggsfield = false // Higgsfield credentials are stored server-side and are not readable by this local-only report.
         val hasAudioCloud = isKeyValid(azureKey) || isKeyValid(elevenlabsKey)
 
@@ -94,7 +93,7 @@ object OperationalReadinessManager {
                 weight = 30,
                 isConfigured = hasGemini,
                 description = "المساعد الدعوي، صياغة السكريبتات، وتحليل الأفكار الإسلامية، والرؤية البصرية",
-                activeFeature = if (hasGemini) "متصل حقيقي مباشر (Gemini Flash Live)" else "التحليل البلاغي المحلي الصادق (أضف المفتاح للتشغيل السحابي)"
+                activeFeature = if (hasGemini) "متصل حقيقي مباشر (Gemini Flash Live)" else "يتطلب إدخال مفتاح Gemini للتشغيل السحابي"
             ),
             ServiceReadiness(
                 name = "Higgsfield AI Video Engine",
@@ -108,35 +107,35 @@ object OperationalReadinessManager {
                 weight = 15,
                 isConfigured = hasGroq,
                 description = "توليد الخطافات الفورية والوسوم السريعة (Llama 3.3)",
-                activeFeature = if (hasGroq) "معالجة فائقة السرعة مفعلة (~300ms)" else "توليد النصوص المدمج و Gemini كبديل صادق"
+                activeFeature = if (hasGroq) "معالجة فائقة السرعة مفعلة (~300ms)" else "توليد النصوص المدمج كبديل محلي"
             ),
             ServiceReadiness(
                 name = "Azure / ElevenLabs Audio",
                 weight = 15,
                 isConfigured = hasAudioCloud,
                 description = "التعليق الصوتي العصبي الفصيح ونبرات السرد الوثائقي",
-                activeFeature = if (hasAudioCloud) "التعليق الصوتي العصبي عالي النقاء متصل" else "محرك Edge-TTS الصوتي والمحلي المدمج مجاناً"
+                activeFeature = if (hasAudioCloud) "التعليق الصوتي العصبي عالي النقاء متصل" else "محرك النطق المدمج في الجهاز مجاناً"
             ),
             ServiceReadiness(
                 name = "Pexels & Pixabay APIs",
                 weight = 10,
                 isConfigured = hasPexels || hasPixabay,
                 description = "جلب فيديوهات وصور المعالم الإسلامية والطبيعة HD",
-                activeFeature = if (hasPexels || hasPixabay) "جلب وسائط حية من المكتبات العالمية" else "أرشيف Wikimedia و NASA والمشاهد المحلية المخزنة"
+                activeFeature = if (hasPexels || hasPixabay) "جلب وسائط حية من المكتبات العالمية" else "المكتبات والأصول المحلية المدمجة"
             ),
             ServiceReadiness(
                 name = "Hugging Face / FLUX 8K",
                 weight = 5,
                 isConfigured = hasHuggingFace,
                 description = "توليد صور وخلفيات إسلامية مخصصة بالذكاء الاصطناعي",
-                activeFeature = if (hasHuggingFace) "توليد صور الذكاء الاصطناعي مفعل" else "محرك FLUX.1 المدمج والتصاميم الجاهزة"
+                activeFeature = if (hasHuggingFace) "توليد صور الذكاء الاصطناعي مفعل" else "التصاميم والخلفيات المدمجة محلياً"
             ),
             ServiceReadiness(
-                name = "Firebase / Cloud Sync",
+                name = "Supabase Cloud Sync",
                 weight = 5,
-                isConfigured = hasFirebase,
-                description = "حفظ المشاريع سحابياً ومزامنة مجتمع الإلهام",
-                activeFeature = if (hasFirebase) "مزامنة سحابية حقيقية مفعلة" else "حفظ محلي فائق السرعة في قاعدة بيانات Room"
+                isConfigured = hasSupabase,
+                description = "حفظ المشاريع سحابياً ومزامنة الحسابات والمحتوى",
+                activeFeature = if (hasSupabase) "اتصال Supabase السحابي مهيأ ونشط" else "حفظ محلي على الجهاز (أضف مفاتيح Supabase للمزامنة)"
             )
         )
 
@@ -164,8 +163,8 @@ object OperationalReadinessManager {
                 "محرك Gemini يعمل بنجاح في صياغة المحتوى. يمكنك تفعيل مفاتيح الصوت والوسائط لفتح كامل الاستوديو."
             )
             else -> Pair(
-                "وضع الاستجابة المحلية ($totalScore%) 🟡",
-                "التطبيق يعمل بالوضع المحلي المحاكي. أضف مفتاح Gemini المجاني من الإعدادات للبدء الفوري بالذكاء الاصطناعي."
+                "الوضع المحلي الأساسي ($totalScore%) 🟡",
+                "التطبيق يعمل بالأدوات المحلية. أضف مفاتيح الذكاء الاصطناعي من الإعدادات لتفعيل الخدمات السحابية."
             )
         }
 

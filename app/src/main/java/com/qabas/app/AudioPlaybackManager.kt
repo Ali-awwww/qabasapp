@@ -321,15 +321,16 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                         if (file.exists()) {
                             setDataSource(track.audioUrl)
                         } else {
-                            val afd = assets.openFd("audio/recitation_yusuf.mp3")
-                            setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
-                            afd.close()
+                            throw IllegalStateException("الملف الصوتي غير موجود على الجهاز")
                         }
                     }
-                    else -> {
-                        val afd = assets.openFd("audio/recitation_yusuf.mp3")
+                    track.audioUrl.isBlank() -> {
+                        val afd = assets.openFd("audio/entry_ayah_nahl_125.m4a")
                         setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                         afd.close()
+                    }
+                    else -> {
+                        throw IllegalArgumentException("مسار الصوت غير مدعوم: ${track.audioUrl}")
                     }
                 }
 

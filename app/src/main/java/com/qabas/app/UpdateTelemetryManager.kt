@@ -4,10 +4,6 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import com.arthenica.smartexception.java.Exceptions
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,32 +11,34 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
 
 /**
- * 📡 UpdateTelemetryManager — وحدة الرصد الذكي لأخطاء التحديث والدلتا.
- * يدمج مكتبة smart-exception لتنقية وتلخيص مسارات الأخطاء دون فشل صامت،
- * مع رفع القياسات عن بعد إلى Firestore لتتبع versionCode وتكرار الفشل للأجهزة.
+ * UpdateTelemetryManager — وحدة الرصد الذكي لأخطاء التحديث والدلتا.
+ * تحفظ التقارير محلياً بانتظام وترسلها عبر Supabase الحصري عند توفر جلسة مصادق عليها.
  */
 object UpdateTelemetryManager {
 
     private const val TAG = "UpdateTelemetry"
     private const val PREFS_FAILURE_COUNTS = "qabas_update_failure_counts"
+    private const val LOCAL_REPORTS_FILE = "qabas_update_failures.json"
+    private const val REPORT_TYPE_DELTA = "update_delta_failure"
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val fileLock = Any()
 
     init {
         try {
             Exceptions.registerRootPackage("com.qabas.app")
             Exceptions.registerGroupPackage("com.arthenica")
             Exceptions.registerGroupPackage("io.github.jan.supabase")
-            Exceptions.registerGroupPackage("com.google.firebase")
             Exceptions.registerGroupPackage("okhttp3")
         } catch (e: Throwable) {
             Log.w(TAG, "Failed to register root packages for smart-exception: ${e.message}")
@@ -86,7 +84,7 @@ object UpdateTelemetryManager {
     }
 
     /**
-     * تسجيل خطأ تحديث وتحليله بواسطة smart-exception ثم رفعه سحابياً وعرضه في الواجهة.
+     * تسجيل خطأ تحديث وتحليله بواسطة smart-exception ثم حفظه محلياً ومزامنته مع Supabase.
      */
     fun recordFailure(
         context: Context,
@@ -127,7 +125,6 @@ object UpdateTelemetryManager {
             else -> "No stack trace available for phase: $phase"
         }
 
-        // حساب تكرار الفشل لنفس الجهاز ونفس الإصدار
         val prefs = context.getSharedPreferences(PREFS_FAILURE_COUNTS, Context.MODE_PRIVATE)
         val failureKey = "fail_${targetCode}_${phase.take(20)}"
         val newCount = prefs.getInt(failureKey, 0) + 1
@@ -137,7 +134,7 @@ object UpdateTelemetryManager {
         val safeFailureId = "fail_${System.currentTimeMillis()}_${sanitizedDeviceId}"
 
         val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: (Build.CPU_ABI ?: "unknown")
-        val userId = SupabaseServices.Auth.getCurrentUserId() ?: CloudServices.Auth.getCurrentUserId()
+        val userId = SupabaseServices.Auth.getCurrentUserId()
 
         val report = UpdateErrorReport(
             failureId = safeFailureId,
@@ -160,102 +157,152 @@ object UpdateTelemetryManager {
             _showErrorDialog.value = true
         }
 
-        // الرفع في الخلفية إلى Firestore
         scope.launch {
-            uploadReportToFirestore(context, report)
+            persistLocally(context, report)
+            uploadReportToSupabase(report)
         }
 
-        Log.e(TAG, "🚨 Update Failure Captured [$phase]: ${report.errorMessage}")
+        Log.e(TAG, "Update Failure Captured [$phase]: ${report.errorMessage}")
         return report
     }
 
-    /**
-     * رفع تقرير الفشل إلى Firestore في مجموعة /update_failures/{failureId}
-     */
-    suspend fun uploadReportToFirestore(context: Context, report: UpdateErrorReport): Boolean = withContext(Dispatchers.IO) {
-        return@withContext try {
-            val firestore = FirebaseManager.getFirestore(context)
-            val docRef = firestore.collection("update_failures").document(report.failureId)
-
-            val payload = hashMapOf<String, Any>(
-                "failureId" to report.failureId,
-                "deviceId" to report.deviceId,
-                "currentVersionCode" to report.currentVersionCode,
-                "currentVersionName" to report.currentVersionName,
-                "targetVersionCode" to report.targetVersionCode,
-                "targetVersionName" to report.targetVersionName,
-                "phase" to report.phase,
-                "errorMessage" to report.errorMessage,
-                "cleanStackTrace" to report.cleanStackTrace,
-                "failureCount" to report.failureCount,
-                "deviceAbi" to report.deviceAbi,
-                "createdAt" to Timestamp(Date(report.timestamp))
-            )
-
-            if (!report.userId.isNullOrBlank()) {
-                payload["userId"] = report.userId
+    private fun persistLocally(context: Context, report: UpdateErrorReport) {
+        synchronized(fileLock) {
+            try {
+                val list = readLocalReportsLocked(context).toMutableList()
+                list.add(0, report)
+                val trimmed = list.take(100)
+                val arr = JSONArray()
+                trimmed.forEach { item ->
+                    arr.put(JSONObject().apply {
+                        put("failureId", item.failureId)
+                        put("deviceId", item.deviceId)
+                        put("userId", item.userId ?: "")
+                        put("currentVersionCode", item.currentVersionCode)
+                        put("currentVersionName", item.currentVersionName)
+                        put("targetVersionCode", item.targetVersionCode)
+                        put("targetVersionName", item.targetVersionName)
+                        put("phase", item.phase)
+                        put("errorMessage", item.errorMessage)
+                        put("cleanStackTrace", item.cleanStackTrace)
+                        put("exceptionClass", item.exceptionClass ?: "")
+                        put("deviceAbi", item.deviceAbi)
+                        put("failureCount", item.failureCount)
+                        put("timestamp", item.timestamp)
+                    })
+                }
+                File(context.filesDir, LOCAL_REPORTS_FILE).writeText(arr.toString())
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed persisting local update failure report: ${e.message}")
             }
-            if (!report.exceptionClass.isNullOrBlank()) {
-                payload["exceptionClass"] = report.exceptionClass
-            }
+        }
+    }
 
-            docRef.set(payload, SetOptions.merge()).await()
-            Log.d(TAG, "📡 Uploaded update failure telemetry to Firestore: ${report.failureId}")
-            true
+    private fun readLocalReportsLocked(context: Context): List<UpdateErrorReport> {
+        return try {
+            val file = File(context.filesDir, LOCAL_REPORTS_FILE)
+            if (!file.exists()) return emptyList()
+            val arr = JSONArray(file.readText())
+            val out = mutableListOf<UpdateErrorReport>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                out.add(
+                    UpdateErrorReport(
+                        failureId = obj.optString("failureId", "local_$i"),
+                        deviceId = obj.optString("deviceId", "unknown"),
+                        userId = obj.optString("userId", "").takeIf { it.isNotBlank() },
+                        currentVersionCode = obj.optInt("currentVersionCode", 0),
+                        currentVersionName = obj.optString("currentVersionName", ""),
+                        targetVersionCode = obj.optInt("targetVersionCode", 0),
+                        targetVersionName = obj.optString("targetVersionName", ""),
+                        phase = obj.optString("phase", "UNKNOWN"),
+                        errorMessage = obj.optString("errorMessage", "No error message"),
+                        cleanStackTrace = obj.optString("cleanStackTrace", ""),
+                        exceptionClass = obj.optString("exceptionClass", "").takeIf { it.isNotBlank() },
+                        deviceAbi = obj.optString("deviceAbi", "unknown"),
+                        failureCount = obj.optInt("failureCount", 1),
+                        timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+            out
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to upload update failure report to Firestore: ${e.message}")
+            Log.w(TAG, "Error reading local update failure logs: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * مزامنة تقرير فشل التحديث عبر Supabase عند توفر مستخدم مصادق عليه.
+     */
+    suspend fun uploadReportToSupabase(report: UpdateErrorReport): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val userId = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext false
+            val email = SupabaseServices.Auth.getCurrentUserEmail().orEmpty().ifBlank { "telemetry@qabas.app" }
+            SupabaseServices.Database.recordBugReport(
+                userEmail = email,
+                screenName = "OTA:${report.phase}",
+                description = "${report.errorMessage}\n\nABI=${report.deviceAbi}, Target=v${report.targetVersionName}(${report.targetVersionCode})\n${report.cleanStackTrace.take(3500)}",
+                imageUrl = "",
+                reportType = REPORT_TYPE_DELTA,
+                appVersion = "${report.currentVersionName} (${report.currentVersionCode})",
+                deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
+                userId = userId
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to sync update failure to Supabase: ${e.message}")
             false
         }
     }
 
     /**
-     * جلب آخر تقارير الفشل من Firestore (للمطور فقط).
+     * جلب آخر تقارير الفشل من السجل المحلي و Supabase.
      */
     suspend fun fetchRecentFailures(context: Context, limitCount: Long = 30): Result<List<UpdateErrorReport>> = withContext(Dispatchers.IO) {
         runCatching {
-            val firestore = FirebaseManager.getFirestore(context)
-            val snapshot = firestore.collection("update_failures")
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .limit(limitCount)
-                .get()
-                .await()
-
-            snapshot.documents.mapNotNull { doc ->
-                try {
-                    val createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: System.currentTimeMillis()
-                    UpdateErrorReport(
-                        failureId = doc.getString("failureId") ?: doc.id,
-                        deviceId = doc.getString("deviceId") ?: "unknown",
-                        userId = doc.getString("userId"),
-                        currentVersionCode = doc.getLong("currentVersionCode")?.toInt() ?: 0,
-                        currentVersionName = doc.getString("currentVersionName") ?: "",
-                        targetVersionCode = doc.getLong("targetVersionCode")?.toInt() ?: 0,
-                        targetVersionName = doc.getString("targetVersionName") ?: "",
-                        phase = doc.getString("phase") ?: "UNKNOWN",
-                        errorMessage = doc.getString("errorMessage") ?: "No error message",
-                        cleanStackTrace = doc.getString("cleanStackTrace") ?: "",
-                        exceptionClass = doc.getString("exceptionClass"),
-                        deviceAbi = doc.getString("deviceAbi") ?: "unknown",
-                        failureCount = doc.getLong("failureCount")?.toInt() ?: 1,
-                        timestamp = createdAt
-                    )
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error parsing failure doc: ${doc.id}", e)
-                    null
-                }
+            val localList = synchronized(fileLock) { readLocalReportsLocked(context) }
+            val remoteList = if (SupabaseServices.isSupabaseAvailable && SupabaseServices.Auth.getCurrentUserId() != null) {
+                runCatching {
+                    SupabaseServices.Database.getAllBugReports()
+                        .filter { it.reportType == REPORT_TYPE_DELTA }
+                        .take(limitCount.toInt())
+                        .map { row ->
+                            UpdateErrorReport(
+                                failureId = row.id,
+                                deviceId = row.userId ?: row.userEmail,
+                                userId = row.userId,
+                                currentVersionCode = 0,
+                                currentVersionName = row.appVersion,
+                                targetVersionCode = 0,
+                                targetVersionName = "",
+                                phase = row.screenName.removePrefix("OTA:").ifBlank { "UPDATE" },
+                                errorMessage = row.description.lines().firstOrNull() ?: row.description,
+                                cleanStackTrace = row.description,
+                                exceptionClass = null,
+                                deviceAbi = row.deviceInfo,
+                                failureCount = 1,
+                                timestamp = System.currentTimeMillis()
+                            )
+                        }
+                }.getOrDefault(emptyList())
+            } else {
+                emptyList()
             }
+
+            (localList + remoteList)
+                .distinctBy { it.failureId }
+                .sortedByDescending { it.timestamp }
+                .take(limitCount.toInt())
         }
     }
 
     /**
-     * جلب ملخص وإحصاءات الأخطاء الشائعة أثناء تطبيق الدلتا مجمعة حسب النوع والطور (للوحة تحكم المطور).
+     * جلب ملخص وإحصاءات الأخطاء الشائعة أثناء تطبيق الدلتا مجمعة حسب النوع والطور.
      */
     suspend fun fetchCommonDeltaFailures(context: Context): Result<List<DeltaErrorSummary>> = withContext(Dispatchers.IO) {
         runCatching {
-            val recentListResult = fetchRecentFailures(context, limitCount = 60)
-            val list = recentListResult.getOrThrow()
+            val list = fetchRecentFailures(context, limitCount = 60).getOrThrow()
 
-            // Group by phase and primary error line
             val grouped = list.groupBy { item ->
                 val primaryLine = item.errorMessage.lines().firstOrNull()?.take(80) ?: "Unknown Error"
                 "${item.phase}::${primaryLine}"
@@ -282,29 +329,26 @@ object UpdateTelemetryManager {
         }
     }
 
-    /**
-     * تحويل التقرير إلى تنسيق Markdown تفصيلي وقابل للنسخ أو الإرسال.
-     */
     fun formatMarkdownReport(report: UpdateErrorReport): String {
         val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp))
         return """
-            ### 🛠️ تقرير تشخيص عطل التحديث (Qabas OTA Diagnostic)
+            ### تقرير تشخيص عطل التحديث (Qabas OTA Diagnostic)
             * **معرّف الخطأ:** `${report.failureId}`
             * **الوقت:** $dateFmt
-            * **معرّف الجهاز (Device ID):** `${report.deviceId}`
-            * **معمارية المعالج (ABI):** `${report.deviceAbi}`
-            * **الطور (Phase):** `${report.phase}`
+            * **معرّف الجهاز:** `${report.deviceId}`
+            * **معمارية المعالج:** `${report.deviceAbi}`
+            * **الطور:** `${report.phase}`
             * **الإصدار الحالي:** v${report.currentVersionName} (${report.currentVersionCode})
             * **الإصدار المستهدف:** v${report.targetVersionName} (${report.targetVersionCode})
             * **تكرار الفشل للجهاز:** ${report.failureCount}x
-            * **فئة الاستثناء (Exception):** `${report.exceptionClass ?: "Unknown"}`
+            * **فئة الاستثناء:** `${report.exceptionClass ?: "Unknown"}`
 
-            #### ⚠️ نص الخطأ الأساسي:
+            #### نص الخطأ الأساسي:
             ```text
             ${report.errorMessage}
             ```
 
-            #### 📋 المسار المنقّى (Smart Stack Trace):
+            #### المسار المنقّى:
             ```text
             ${report.cleanStackTrace}
             ```

@@ -24,7 +24,7 @@ enum class DetectedProvider(
     val color: Color
 ) {
     OPENROUTER("openrouter", "OpenRouter AI Gateway", "sk-or-", "anthropic/claude-sonnet-4.5", Color(0xFF38BDF8)),
-    GEMINI("gemini", "Google Gemini 3.5 Flash", "AIza / Aq", "gemini-3.5-flash", Color(0xFF00E5FF)),
+    GEMINI("gemini", "Google Gemini 2.5 Flash", "AIza / Aq", "gemini-2.5-flash", Color(0xFF00E5FF)),
     GROQ("groq", "Groq Lightning Llama", "gsk_", "llama-3.3-70b-versatile", Color(0xFFF59E0B)),
     OPENAI("openai", "OpenAI GPT-4o", "sk-", "gpt-4o", Color(0xFF10B981)),
     ANTHROPIC("anthropic", "Anthropic Claude", "sk-ant-", "claude-3-5-sonnet-20241022", Color(0xFFA855F7)),

@@ -530,7 +530,7 @@ object ReelPublishManager {
     suspend fun analyzeVideoWithAI(context: Context, videoUri: Uri): Pair<String, String>? = withContext(Dispatchers.IO) {
         runCatching {
             val model = Firebase.ai.generativeModel(
-                modelName = "gemini-3.8-flash",
+                modelName = "gemini-2.5-flash",
                 generationConfig = generationConfig {
                     responseMimeType = "application/json"
                     responseSchema = Schema.obj(

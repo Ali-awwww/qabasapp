@@ -568,8 +568,7 @@ object QabasTipsRepository {
 }
 
 /**
- * 🛸 شريط النصائح والحِكم الذكي فائق التجميل (Qabas Smart Tips & Wisdom Bar)
- * مصمم بنمط Cybernetic Glassmorphic HUD يجمع بين الفخامة الإسلامية والأناقة الكوانتية.
+ * شريط النصائح والحِكم الذكي (Qabas Smart Tips & Wisdom Bar) بنمط Apple HIG Light & Dark
  */
 @Composable
 fun QabasSmartTipsBar(
@@ -579,7 +578,9 @@ fun QabasSmartTipsBar(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
-    val primaryColor = qabasPrimary()
+    val theme = QabasTheme.current
+    val primaryColor = theme.primary
+
     var currentTipIndex by remember { mutableIntStateOf(0) }
     val quranTips by produceState(initialValue = emptyList<QabasTipItem>(), context) {
         value = try {
@@ -596,18 +597,14 @@ fun QabasSmartTipsBar(
         bukhariHadiths = withContext(Dispatchers.IO) { QabasBukhariRepository.load(context) }
     }
 
-    // الأقسام المتاحة بحسب رتبة المستخدم
     val availableCategories = remember(isDeveloper) {
-        if (isDeveloper) {
-            TipCategory.values().toList()
-        } else {
-            TipCategory.values().filter { !it.isDeveloperOnly }
-        }
+        if (isDeveloper) TipCategory.values().toList()
+        else TipCategory.values().filter { !it.isDeveloperOnly }
     }
 
     var selectedCategoryFilter by remember { mutableStateOf<TipCategory?>(null) }
     var isCategoryMenuExpanded by remember { mutableStateOf(false) }
-    
+
     val filteredTips = remember(isDeveloper, selectedCategoryFilter, quranTips, bukhariHadiths) {
         QabasTipsRepository.getTipsForUser(isDeveloper, selectedCategoryFilter, quranTips, bukhariHadiths)
     }
@@ -628,7 +625,6 @@ fun QabasSmartTipsBar(
         else -> 8_000L
     }
 
-    // مؤقت التدوير التلقائي: النصوص الشرعية 12 ثانية، وبقية النصائح 8 ثوانٍ.
     LaunchedEffect(isAutoRotating, filteredTips.size, selectedCategoryFilter, rotationDelay) {
         if (isAutoRotating && filteredTips.isNotEmpty()) {
             while (true) {
@@ -638,21 +634,13 @@ fun QabasSmartTipsBar(
         }
     }
 
-    val pulseTransition = rememberInfiniteTransition(label = "tipsPulse")
-    val glowAnim by pulseTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.95f,
-        animationSpec = infiniteRepeatable(tween(1300, easing = LinearEasing), RepeatMode.Reverse),
-        label = "glowAnim"
-    )
-
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ── 1. تصنيفات واضحة ومتناسقة (Modern Category Filters) ──
+        // Filter & Auto-rotate controls
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -662,23 +650,21 @@ fun QabasSmartTipsBar(
                 val selectedCategory = selectedCategoryFilter
                 val selectedCategoryTitle = selectedCategory?.title ?: "كل التصنيفات"
                 val selectedCategoryColor = selectedCategory?.accentColor ?: primaryColor
-                val selectedCategoryCount = QabasTipsRepository
-                    .getTipsForUser(isDeveloper, selectedCategory, quranTips, bukhariHadiths)
-                    .size
+                val selectedCategoryCount = filteredTips.size
 
-                // زر التصنيفات الملموم غير الشفاف (Solid & Content-fitted Button)
                 Surface(
                     onClick = {
                         AppSoundManager.playClick()
                         isCategoryMenuExpanded = true
                     },
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF071424),
-                    border = BorderStroke(1.dp, selectedCategoryColor.copy(alpha = 0.50f)),
-                    modifier = Modifier.height(36.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    color = theme.cardSurface,
+                    border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f)),
+                    shadowElevation = if (theme.isDark) 0.dp else 1.dp,
+                    modifier = Modifier.heightIn(min = 40.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 11.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
@@ -686,25 +672,25 @@ fun QabasSmartTipsBar(
                             imageVector = Icons.Default.Category,
                             contentDescription = null,
                             tint = selectedCategoryColor,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = selectedCategoryTitle,
-                            color = selectedCategoryColor,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.5.sp,
                             maxLines = 1
                         )
                         Surface(
                             shape = CircleShape,
-                            color = selectedCategoryColor.copy(alpha = 0.22f)
+                            color = selectedCategoryColor.copy(alpha = 0.14f)
                         ) {
                             Text(
                                 text = selectedCategoryCount.toString(),
                                 color = selectedCategoryColor,
                                 fontFamily = CairoFont,
-                                fontSize = 9.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -712,39 +698,38 @@ fun QabasSmartTipsBar(
                         Icon(
                             imageVector = if (isCategoryMenuExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                             contentDescription = if (isCategoryMenuExpanded) "إخفاء التصنيفات" else "عرض التصنيفات",
-                            tint = selectedCategoryColor,
-                            modifier = Modifier.size(15.dp)
+                            tint = theme.textSecondary,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
-                // قائمة التصنيفات الشفافة الفاخرة (Transparent Glassmorphic Dropdown)
                 DropdownMenu(
                     expanded = isCategoryMenuExpanded,
                     onDismissRequest = { isCategoryMenuExpanded = false },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = Color(0xB8071322),
-                    border = BorderStroke(1.dp, selectedCategoryColor.copy(alpha = 0.40f)),
-                    shadowElevation = 10.dp,
-                    modifier = Modifier.widthIn(min = 220.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    containerColor = theme.cardSurface,
+                    border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f)),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.widthIn(min = 230.dp)
                 ) {
                     DropdownMenuItem(
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("✦", fontSize = 13.sp)
+                                Text("✦", fontSize = 13.sp, color = primaryColor)
                                 Spacer(modifier = Modifier.width(9.dp))
                                 Text(
-                                    "كل التصنيفات",
-                                    color = if (selectedCategoryFilter == null) primaryColor else Color.White,
+                                    text = "كل التصنيفات",
+                                    color = if (selectedCategoryFilter == null) primaryColor else theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = if (selectedCategoryFilter == null) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    QabasTipsRepository.getTipsForUser(isDeveloper, null, quranTips, bukhariHadiths).size.toString(),
-                                    color = TextSecondary,
-                                    fontSize = 9.sp
+                                    text = QabasTipsRepository.getTipsForUser(isDeveloper, null, quranTips, bukhariHadiths).size.toString(),
+                                    color = theme.textSecondary,
+                                    fontSize = 10.sp
                                 )
                             }
                         },
@@ -754,7 +739,7 @@ fun QabasSmartTipsBar(
                             currentTipIndex = 0
                             isCategoryMenuExpanded = false
                         },
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp)
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     )
 
                     availableCategories.forEach { cat ->
@@ -767,17 +752,17 @@ fun QabasSmartTipsBar(
                                     Text(cat.iconEmoji, fontSize = 13.sp)
                                     Spacer(modifier = Modifier.width(9.dp))
                                     Text(
-                                        cat.title,
-                                        color = if (isSelected) cat.accentColor else Color.White,
+                                        text = cat.title,
+                                        color = if (isSelected) cat.accentColor else theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        catTipsCount.toString(),
-                                        color = if (isSelected) cat.accentColor else TextSecondary,
-                                        fontSize = 9.sp
+                                        text = catTipsCount.toString(),
+                                        color = if (isSelected) cat.accentColor else theme.textSecondary,
+                                        fontSize = 10.sp
                                     )
                                 }
                             },
@@ -787,13 +772,12 @@ fun QabasSmartTipsBar(
                                 currentTipIndex = 0
                                 isCategoryMenuExpanded = false
                             },
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp)
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         )
                     }
                 }
             }
 
-            // زر التدوير الحي المتناسق غير الشفاف (Solid Auto-Rotate Button)
             Surface(
                 onClick = {
                     AppSoundManager.playToggle()
@@ -801,88 +785,89 @@ fun QabasSmartTipsBar(
                     isAutoRotating = shouldRotate
                     Toast.makeText(
                         context,
-                        if (shouldRotate) "تم استئناف التدوير التلقائي ⏱️" else "تم إيقاف التدوير مؤقتاً ⏸️",
+                        if (shouldRotate) "تم استئناف التدوير التلقائي" else "تم إيقاف التدوير مؤقتاً",
                         Toast.LENGTH_SHORT
                     ).show()
                 },
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF071424),
+                shape = RoundedCornerShape(12.dp),
+                color = theme.cardSurface,
                 border = BorderStroke(
-                    1.dp,
-                    if (isAutoRotating) primaryColor.copy(alpha = 0.55f) else Color(0xFF334155).copy(alpha = 0.7f)
+                    0.5.dp,
+                    if (isAutoRotating) primaryColor.copy(alpha = 0.5f) else theme.separator.copy(alpha = 0.6f)
                 ),
-                modifier = Modifier.height(36.dp)
+                shadowElevation = if (theme.isDark) 0.dp else 1.dp,
+                modifier = Modifier.heightIn(min = 40.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 9.dp)
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
                 ) {
                     Icon(
                         imageVector = if (isAutoRotating) Icons.Default.Autorenew else Icons.Default.PauseCircle,
                         contentDescription = if (isAutoRotating) "التدوير التلقائي يعمل" else "التدوير التلقائي متوقف",
-                        tint = if (isAutoRotating) primaryColor else TextSecondary,
-                        modifier = Modifier.size(14.dp)
+                        tint = if (isAutoRotating) primaryColor else theme.textSecondary,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = if (isAutoRotating) "تدوير حي" else "متوقف",
-                        color = if (isAutoRotating) primaryColor else TextSecondary,
+                        color = if (isAutoRotating) primaryColor else theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
         }
 
-        // ── 2. شريط حكمة أوضح بهوية قبس (Refined Wisdom Ribbon) ──
+        // Apple HIG Wisdom Ribbon Card
         if (currentTip != null) {
             val tipColor = currentTip.category.accentColor
 
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(10.dp, RoundedCornerShape(18.dp), spotColor = tipColor.copy(alpha = 0.18f)),
-                shape = RoundedCornerShape(18.dp),
-                color = Color(0xFF081426).copy(alpha = 0.97f),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            tipColor.copy(alpha = glowAnim * 0.72f),
-                            tipColor.copy(alpha = 0.28f),
-                            GoldPrimary.copy(alpha = 0.5f)
-                        )
-                    )
-                )
+                onClick = {
+                    AppSoundManager.playClick()
+                    if (currentTip.bukhariHadith != null) selectedBukhariHadith = currentTip.bukhariHadith
+                    else selectedTipForDialog = currentTip
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = theme.cardSurface,
+                shadowElevation = if (theme.isDark) 0.dp else 1.5.dp,
+                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = if (theme.isDark) 0.65f else 0.35f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Surface(
+                            color = tipColor.copy(alpha = 0.13f),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(currentTip.category.iconEmoji, fontSize = 10.sp)
-                            Text(
-                                text = currentTip.category.title,
-                                color = tipColor.copy(alpha = 0.82f),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 8.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(currentTip.category.iconEmoji, fontSize = 11.sp)
+                                Text(
+                                    text = currentTip.category.title,
+                                    color = tipColor,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
-
-                        Spacer(modifier = Modifier.weight(1f))
 
                         IconButton(
                             onClick = {
@@ -890,17 +875,22 @@ fun QabasSmartTipsBar(
                                 if (currentTip.bukhariHadith != null) selectedBukhariHadith = currentTip.bukhariHadith
                                 else selectedTipForDialog = currentTip
                             },
-                            modifier = Modifier
-                                .size(25.dp)
-                                .clip(CircleShape)
-                                .background(tipColor.copy(alpha = 0.12f))
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = "فتح تفاصيل النصيحة",
-                                tint = tipColor,
-                                modifier = Modifier.size(14.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(tipColor.copy(alpha = 0.13f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "فتح تفاصيل النصيحة",
+                                    tint = tipColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
 
@@ -915,16 +905,16 @@ fun QabasSmartTipsBar(
                         label = "tipBarTextAnimation"
                     ) { tip ->
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = tip.text,
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = if (tip.category == TipCategory.QURAN || tip.category == TipCategory.SUNNAH) AmiriFont else CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = if (tip.category == TipCategory.QURAN || tip.category == TipCategory.SUNNAH) 13.sp else 11.5.sp,
-                                lineHeight = 18.sp,
+                                fontSize = if (tip.category == TipCategory.QURAN || tip.category == TipCategory.SUNNAH) 15.sp else 12.5.sp,
+                                lineHeight = 22.sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -933,17 +923,17 @@ fun QabasSmartTipsBar(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.BookmarkBorder,
+                                    imageVector = Icons.Default.BookmarkBorder,
                                     contentDescription = null,
                                     tint = tip.category.accentColor,
-                                    modifier = Modifier.size(11.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                                 Text(
                                     text = tip.sourceOrBadge,
                                     color = tip.category.accentColor,
                                     fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 10.5.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -955,16 +945,17 @@ fun QabasSmartTipsBar(
         }
     }
 
+    // Bukhari Hadith Detail Dialog (Apple Light & Dark)
     selectedBukhariHadith?.let { hadith ->
         val screenConfiguration = LocalConfiguration.current
         Dialog(onDismissRequest = { selectedBukhariHadith = null }) {
-            GlassmorphicSurface(
+            Surface(
                 modifier = Modifier
                     .width((screenConfiguration.screenWidthDp * 0.92f).dp)
                     .padding(vertical = 10.dp),
-                shape = RoundedCornerShape(24.dp),
-                backgroundColor = Color(0xFF071326).copy(alpha = 0.94f),
-                borderColor = TipCategory.SUNNAH.accentColor.copy(alpha = 0.6f)
+                shape = RoundedCornerShape(22.dp),
+                color = theme.cardSurface,
+                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
             ) {
                 Column(
                     modifier = Modifier
@@ -975,27 +966,65 @@ fun QabasSmartTipsBar(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("صحيح البخاري", color = TipCategory.SUNNAH.accentColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { selectedBukhariHadith = null }) { Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextSecondary) }
+                        Text(
+                            text = "صحيح البخاري",
+                            color = TipCategory.SUNNAH.accentColor,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { selectedBukhariHadith = null },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textSecondary)
+                        }
                     }
-                    Text(hadith.arabicText, color = Color.White, fontFamily = AmiriFont, fontSize = 21.sp, lineHeight = 34.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    hadith.book.takeIf { it.isNotBlank() }?.let { Text("الكتاب: $it", color = Color.White, fontFamily = CairoFont) }
-                    hadith.chapterNumber.takeIf { it.isNotBlank() }?.let { Text("رقم الباب: $it", color = Color.White, fontFamily = CairoFont) }
-                    hadith.chapterTitleArabic.takeIf { it.isNotBlank() }?.let { Text("عنوان الباب: $it", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
-                    hadith.englishText.takeIf { it.isNotBlank() }?.let { Text(it, color = Color(0xFFDCE5F1), fontSize = 13.sp, lineHeight = 21.sp) }
-                    hadith.grade.takeIf { it.isNotBlank() }?.let { Text("الدرجة: $it", color = GoldPrimary, fontFamily = CairoFont) }
-                    hadith.inBookReference.takeIf { it.isNotBlank() }?.let { Text("المرجع داخل الكتاب: $it", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp) }
-                    hadith.reference.takeIf { it.isNotBlank() }?.let { Text("المرجع: $it", color = TextSecondary, fontSize = 11.sp) }
-                    OutlinedButton(onClick = {
-                        clipboardManager.setText(AnnotatedString(hadith.arabicText))
-                        Toast.makeText(context, "تم نسخ نص الحديث", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("نسخ نص الحديث", fontFamily = CairoFont) }
+                    Surface(
+                        color = theme.secondarySurface.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = hadith.arabicText,
+                            color = theme.textPrimary,
+                            fontFamily = AmiriFont,
+                            fontSize = 21.sp,
+                            lineHeight = 34.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        )
+                    }
+                    hadith.book.takeIf { it.isNotBlank() }?.let { Text("الكتاب: $it", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp) }
+                    hadith.chapterNumber.takeIf { it.isNotBlank() }?.let { Text("رقم الباب: $it", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 13.sp) }
+                    hadith.chapterTitleArabic.takeIf { it.isNotBlank() }?.let { Text("عنوان الباب: $it", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                    hadith.englishText.takeIf { it.isNotBlank() }?.let { Text(it, color = theme.textSecondary, fontSize = 13.sp, lineHeight = 21.sp) }
+                    hadith.grade.takeIf { it.isNotBlank() }?.let { Text("الدرجة: $it", color = theme.primary, fontFamily = CairoFont, fontSize = 13.sp) }
+                    hadith.inBookReference.takeIf { it.isNotBlank() }?.let { Text("المرجع داخل الكتاب: $it", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 12.sp) }
+                    hadith.reference.takeIf { it.isNotBlank() }?.let { Text("المرجع: $it", color = theme.textSecondary, fontSize = 11.5.sp) }
+
+                    OutlinedButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(hadith.arabicText))
+                            Toast.makeText(context, "تم نسخ نص الحديث", Toast.LENGTH_SHORT).show()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, theme.separator),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                    ) {
+                        Text("نسخ نص الحديث", fontFamily = CairoFont, color = theme.primary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
     }
 
-    // ── 3. نافذة التفاصيل (Compact, Scrollable Wisdom Dialog) ──
+    // Compact Scrollable Tip / Verse Dialog (Apple Light & Dark)
     if (selectedTipForDialog != null) {
         val tip = selectedTipForDialog!!
         val tipColor = tip.category.accentColor
@@ -1003,14 +1032,13 @@ fun QabasSmartTipsBar(
         val screenConfiguration = LocalConfiguration.current
 
         Dialog(onDismissRequest = { selectedTipForDialog = null }) {
-            GlassmorphicSurface(
+            Surface(
                 modifier = Modifier
                     .width((screenConfiguration.screenWidthDp * 0.92f).dp)
-                    .padding(vertical = 10.dp)
-                    .shadow(24.dp, RoundedCornerShape(24.dp), spotColor = tipColor.copy(alpha = 0.24f)),
-                shape = RoundedCornerShape(24.dp),
-                backgroundColor = Color(0xFF071326).copy(alpha = 0.94f),
-                borderColor = tipColor.copy(alpha = 0.52f)
+                    .padding(vertical = 10.dp),
+                shape = RoundedCornerShape(22.dp),
+                color = theme.cardSurface,
+                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
             ) {
                 Column(
                     modifier = Modifier
@@ -1026,16 +1054,15 @@ fun QabasSmartTipsBar(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Surface(
-                            color = tipColor.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, tipColor.copy(alpha = 0.62f))
+                            color = tipColor.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Text(tip.category.iconEmoji, fontSize = 15.sp)
-                                Spacer(modifier = Modifier.width(7.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = tip.category.title,
                                     color = tipColor,
@@ -1048,15 +1075,14 @@ fun QabasSmartTipsBar(
 
                         if (tip.category.isDeveloperOnly) {
                             Surface(
-                                color = Color(0xFF00E5FF).copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.32f))
+                                color = theme.primary.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
-                                    text = "للمطور 🔒",
-                                    color = Color(0xFF00E5FF),
+                                    text = "للمطور",
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
-                                    fontSize = 10.sp,
+                                    fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
@@ -1065,55 +1091,48 @@ fun QabasSmartTipsBar(
 
                         IconButton(
                             onClick = { selectedTipForDialog = null },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF172338))
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "إغلاق التفاصيل",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(19.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(theme.secondarySurface),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "إغلاق التفاصيل",
+                                    tint = theme.textSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
 
                     Surface(
-                        color = Color(0xFF0B1930),
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, tipColor.copy(alpha = 0.34f)),
+                        color = theme.secondarySurface.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(13.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text(
                                 text = tip.text,
-                                color = Color(0xFFF8FAFC),
+                                color = theme.textPrimary,
                                 fontFamily = if (isScripture) AmiriFont else CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = if (isScripture) 20.sp else 16.sp,
-                                lineHeight = if (isScripture) 31.sp else 25.sp,
+                                lineHeight = if (isScripture) 32.sp else 25.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                Color.Transparent,
-                                                tipColor.copy(alpha = 0.5f),
-                                                GoldPrimary.copy(alpha = 0.5f),
-                                                Color.Transparent
-                                            )
-                                        )
-                                    )
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = theme.separator.copy(alpha = 0.6f)
                             )
 
                             Row(
@@ -1122,18 +1141,18 @@ fun QabasSmartTipsBar(
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.BookmarkBorder,
+                                    imageVector = Icons.Default.BookmarkBorder,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = theme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = (if (tip.category == TipCategory.QURAN) "موضع الآية: " else "المصدر والتصنيف: ") + tip.sourceOrBadge,
-                                    color = GoldPrimary,
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
+                                    fontSize = 12.sp,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -1142,13 +1161,13 @@ fun QabasSmartTipsBar(
 
                     if (!tip.actionableHint.isNullOrBlank()) {
                         Surface(
-                            color = Color(0xFF071C2C),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, Color(0xFF00CFE8).copy(alpha = 0.46f)),
+                            color = theme.primary.copy(alpha = if (theme.isDark) 0.14f else 0.08f),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.35f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Row(
@@ -1156,19 +1175,19 @@ fun QabasSmartTipsBar(
                                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                                 ) {
                                     Surface(
-                                        color = GoldPrimary.copy(alpha = 0.14f),
+                                        color = theme.primary.copy(alpha = 0.16f),
                                         shape = CircleShape
                                     ) {
                                         Icon(
-                                            Icons.Default.Lightbulb,
+                                            imageVector = Icons.Default.Lightbulb,
                                             contentDescription = null,
-                                            tint = GoldPrimary,
+                                            tint = theme.primary,
                                             modifier = Modifier.padding(6.dp).size(18.dp)
                                         )
                                     }
                                     Text(
                                         text = if (tip.category == TipCategory.QURAN) "التفسير الميسر" else "التوجيه والفائدة العملية",
-                                        color = Color(0xFF23D7E8),
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
@@ -1176,8 +1195,8 @@ fun QabasSmartTipsBar(
                                 }
                                 Text(
                                     text = tip.actionableHint,
-                                    color = Color(0xFFE2E8F0),
-                                    fontFamily = CairoFont,
+                                    color = theme.textPrimary,
+                                    fontFamily = NotoSansFont,
                                     fontSize = 13.sp,
                                     lineHeight = 22.sp,
                                     textAlign = TextAlign.Start,
@@ -1198,27 +1217,28 @@ fun QabasSmartTipsBar(
                                     tip.text,
                                     "— " + tip.sourceOrBadge,
                                     tip.actionableHint?.takeIf { it.isNotBlank() },
-                                    "(عبر استوديو قبس ✨)"
+                                    "(عبر استوديو قبس)"
                                 ).joinToString("\n\n")
                                 clipboardManager.setText(AnnotatedString(copyText))
-                                Toast.makeText(context, "تم نسخ النص إلى الحافظة بنجاح! 📋", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "تم نسخ النص إلى الحافظة بنجاح", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = theme.primary,
+                                contentColor = theme.onPrimary
+                            )
                         ) {
                             Icon(
-                                Icons.Default.ContentCopy,
+                                imageVector = Icons.Default.ContentCopy,
                                 contentDescription = null,
-                                tint = DeepSlate,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(7.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "نسخ النص",
-                                color = DeepSlate,
+                                text = "نسخ النص",
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -1234,18 +1254,18 @@ fun QabasSmartTipsBar(
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp),
+                                    .heightIn(min = 48.dp),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.2.dp, Color(0xFF00D8EA)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00D8EA))
+                                border = BorderStroke(1.dp, theme.primary),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.primary)
                             ) {
                                 Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(17.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    "لوحة المطور",
+                                    text = "لوحة المطور",
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }

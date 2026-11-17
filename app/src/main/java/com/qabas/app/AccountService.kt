@@ -26,12 +26,7 @@ class AccountService(private val context: Context) {
         }
 
     val hasCustomKeys: Boolean
-        get() {
-            val hasGemini = !AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY).isNullOrBlank()
-            val hasSettingsGemini = !context.getSharedPreferences("qabas_settings", Context.MODE_PRIVATE)
-                .getString("gemini_key", "").isNullOrBlank()
-            return hasGemini || hasSettingsGemini
-        }
+        get() = ServiceAvailabilityRegistry.hasCloudLlmKey(context)
 
     var isPremium: Boolean
         get() = prefs.getBoolean("is_premium", false) || isDeveloperOrAdmin || hasCustomKeys

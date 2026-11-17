@@ -2,9 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -21,52 +19,43 @@ interface PaymentService {
 }
 
 class RealPaymentService(private val context: Context) : PaymentService {
-    private val prefs = context.getSharedPreferences("real_payment_db", Context.MODE_PRIVATE)
-    
+
     override var userBalance: Int
-        get() {
-            val accountService = AppServices.getAccountService(context)
-            return accountService.walletBalance
-        }
+        get() = AppServices.getAccountService(context).walletBalance
         set(value) {
-            val accountService = AppServices.getAccountService(context)
-            accountService.walletBalance = value
+            AppServices.getAccountService(context).walletBalance = value.coerceAtLeast(0)
         }
 
     override suspend fun initialize(context: Context, publishableKey: String) {
-        // In a real Stripe integration, we would call PaymentConfiguration.init(context, publishableKey)
         withContext(Dispatchers.IO) {
-            delay(500)
-            println("Stripe initialized with key: $publishableKey")
+            // Initialize Google Play Billing connection transparently instead of simulated Stripe stubs
+            BillingManager.getInstance(context)
         }
     }
 
     override suspend fun createPaymentIntent(amount: Int, currency: String): String = withContext(Dispatchers.IO) {
         require(amount > 0) { "Payment amount must be greater than zero" }
-        // Normally calls backend to get client_secret. Here we simulate a real backend response.
-        delay(1000)
-        return@withContext "pi_test_123_secret_${System.currentTimeMillis()}"
+        throw IllegalStateException("بوابة الدفع المباشر بالبطاقة غير مفعلة — استخدم متجر Google Play Billing المعتمد.")
     }
 
     override suspend fun confirmPayment(context: Context, clientSecret: String): Boolean = withContext(Dispatchers.IO) {
-        // Normally calls PaymentSheet to confirm. Simulate success.
-        delay(1500)
-        return@withContext clientSecret.startsWith("pi_test")
+        // Never confirm test/simulated Stripe secrets
+        false
     }
 
     override suspend fun processPayment(amount: Int): Boolean = withContext(Dispatchers.IO) {
         if (amount <= 0) return@withContext false
-        delay(1000)
-        if (userBalance >= amount) {
-            userBalance -= amount
-            return@withContext true
+        val current = userBalance
+        if (current >= amount) {
+            userBalance = current - amount
+            true
+        } else {
+            false
         }
-        return@withContext false
     }
 
     override suspend fun recharge(amount: Int) = withContext(Dispatchers.IO) {
         require(amount > 0) { "Recharge amount must be greater than zero" }
-        // In reality, this is called after successful confirmPayment
         userBalance += amount
     }
 
@@ -78,14 +67,14 @@ class RealPaymentService(private val context: Context) : PaymentService {
             ===============================
             رقم المشروع: $projectId
             التاريخ: $date
-            المبلغ المدفوع: $amount$
+            المبلغ المدفوع: $amount عملة
             حالة الدفع: ناجح
             ===============================
             شكراً لثقتكم بنا!
         """.trimIndent()
-        
+
         val file = File(context.cacheDir, "invoice_$projectId.txt")
         file.writeText(invoiceText)
-        return@withContext file.absolutePath
+        file.absolutePath
     }
 }

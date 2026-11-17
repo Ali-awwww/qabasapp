@@ -3,51 +3,46 @@ package com.qabas.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import android.widget.Toast
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
- * نموذج بيانات التكوين السحابي لدعم واستدامة منصة قبس.
- * يتزامن مع Firestore لضمان وصول التعديلات لجميع المستخدمين فوراً.
+ * نموذج بيانات التكوين لدعم واستدامة منصة قبس.
  */
 data class SupportConfig(
     val whatsappGroupUrl: String = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
-    val whatsappGroupName: String = "مجتمع قبس الرسمي 🌟",
+    val whatsappGroupName: String = "مجتمع قبس الرسمي",
     val paypalUrl: String = "https://paypal.me/qabas_studio",
     val usdtTronAddress: String = "TYQabasStudioSupportOfficialTRC20Address99X",
     val bankName: String = "مصرف الراجحي / حساب المبادرات التقنية",
@@ -56,25 +51,20 @@ data class SupportConfig(
     val coffeeTierPrice: String = "$3 / 10 ر.س",
     val coffeeTierDesc: String = "مساهمة رمزية تسعد فريق العمل وتدعم شغف التطوير المستمر.",
     val aiTierPrice: String = "$10 / 35 ر.س",
-    val aiTierDesc: String = "تغطية تكاليف نماذج Gemini & Groq ومعالجة آلاف الفيديوهات الدعوية.",
+    val aiTierDesc: String = "تغطية تكاليف نماذج الذكاء الاصطناعي ومعالجة الفيديوهات الدعوية.",
     val serverTierPrice: String = "$25 / 95 ر.س",
     val serverTierDesc: String = "كفالة تشغيل خوادم قواعد البيانات وتخزين الصوتيات للمستخدمين.",
     val waqfTierPrice: String = "$100+ / 375 ر.س",
-    val waqfTierDesc: String = "دعم استراتيجي مستدام يخلد اسمك في لوحة شرف رعاة منصة قبس الخالدة.",
+    val waqfTierDesc: String = "دعم استراتيجي مستدام يخلد اسمك في لوحة شرف رعاة منصة قبس.",
     val shareMessage: String = "✨ أنصحكم بالانضمام لتطبيق ومجتمع «قبس» الإسلامي الشامل بدون إعلانات:\n📲 https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
     val lastUpdated: Long = 0L,
     val updatedBy: String = "admin"
 )
 
 /**
- * مدير تكوين الدعم السحابي (SupportConfigManager)
- * يقرأ محلياً من SharedPreferences ويحدث سحابياً عبر Firestore لجميع المستخدمين.
+ * مدير تكوين الدعم (SupportConfigManager) — يقرأ ويحفظ في SharedPreferences محلياً
  */
 object SupportConfigManager {
-    private const val TAG = "SupportConfigManager"
-    private const val COLLECTION = "app_config"
-    private const val DOC_ID = "support_config"
-
     private const val PREF_WHATSAPP_URL = "support_cfg_whatsapp_url"
     private const val PREF_WHATSAPP_NAME = "support_cfg_whatsapp_name"
     private const val PREF_PAYPAL_URL = "support_cfg_paypal_url"
@@ -93,6 +83,7 @@ object SupportConfigManager {
     private const val PREF_SHARE_MSG = "support_cfg_share_msg"
     private const val PREF_LAST_UPDATED = "support_cfg_last_updated"
     private const val PREF_UPDATED_BY = "support_cfg_updated_by"
+    private const val PREF_COMMUNITY_MESSAGES = "support_community_messages_json"
 
     @Volatile
     private var cachedConfig: SupportConfig? = null
@@ -161,6 +152,50 @@ object SupportConfigManager {
         writeLocal(context, stampedConfig)
         true
     }
+
+    fun loadSavedUserMessages(context: Context): List<SupportMessage> {
+        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val raw = prefs.getString(PREF_COMMUNITY_MESSAGES, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    add(
+                        SupportMessage(
+                            senderName = obj.optString("senderName", "صانع أثر"),
+                            message = obj.optString("message", ""),
+                            dateText = obj.optString("dateText", "محفوظ محلياً"),
+                            rating = obj.optInt("rating", 5),
+                            badge = obj.optString("badge", "رسالة داعم")
+                        )
+                    )
+                }
+            }.filter { it.message.isNotBlank() }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveUserMessage(context: Context, msg: SupportMessage) {
+        val existing = loadSavedUserMessages(context)
+        val updated = (listOf(msg) + existing).take(20)
+        val arr = JSONArray()
+        updated.forEach { item ->
+            arr.put(
+                JSONObject().apply {
+                    put("senderName", item.senderName)
+                    put("message", item.message)
+                    put("dateText", item.dateText)
+                    put("rating", item.rating)
+                    put("badge", item.badge)
+                }
+            )
+        }
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString(PREF_COMMUNITY_MESSAGES, arr.toString())
+            .apply()
+    }
 }
 
 data class SponsorshipTier(
@@ -181,36 +216,49 @@ data class SupportMessage(
     val badge: String
 )
 
+private val DEFAULT_COMMUNITY_MESSAGES = listOf(
+    SupportMessage(
+        senderName = "أبو عبد الرحمن • الرياض",
+        message = "جزاكم الله خير الجزاء على هذا العمل المبارك الذي يخدم كتاب الله وسنة رسوله بذكاء واحترافية. استمروا فنحن معكم بالدعاء والدعم.",
+        dateText = "منذ يومين",
+        rating = 5,
+        badge = "كافل خادم"
+    ),
+    SupportMessage(
+        senderName = "د. أنس الشريف • القاهرة",
+        message = "أفضل تطبيق لصناعة المحتوى الدعوي الهادف بدون منازع. التصميم فخم وخالٍ من أي إعلانات مزعجة.",
+        dateText = "منذ 4 أيام",
+        rating = 5,
+        badge = "داعم ذهبي"
+    ),
+    SupportMessage(
+        senderName = "فاطمة الزهراء • الدار البيضاء",
+        message = "بارك الله في جهود المطورين، كبسولات الحديث والقرآن أضافت لمسة نورانية لحياتنا اليومية.",
+        dateText = "منذ أسبوع",
+        rating = 5,
+        badge = "صانعة محتوى"
+    )
+)
+
 /**
- * قسم الدعم والمساهمة المتكامل في استدامة وتطوير خوادم ودعامات تطبيق قبس:
- * 1. الدعم المالي وكفالة الخوادم والذكاء الاصطناعي (Sponsoring Servers & AI Tokens)
- * 2. التقييم وكلمات الدعم والتشجيع المباشرة للمطورين
- * 3. الدعم بالنشر ومشاركة الخير (الدال على الخير كفاعله) ومجتمع واتساب الرسمي
- * 4. لوحة تحكم وتعديل بيانات الدعم السحابية الحية للمطور
+ * قسم الدعم والمساهمة في استدامة وتطوير منصة قبس — بتصميم Apple HIG للوضعين الفاتح والداكن
  */
 @Composable
 fun SupportContributionSection() {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
 
-    // التحقق من صلاحيات المطور
     val isDeveloper = remember(context) { AdminGuard.isDashboardAccessAllowed(context) }
 
-    // بيانات التكوين الحية
     var supportConfig by remember { mutableStateOf(SupportConfigManager.current(context)) }
-
-    // جلب التحديث السحابي التلقائي عند فتح الشاشة
     LaunchedEffect(Unit) {
-        val cloudCfg = SupportConfigManager.refreshFromCloud(context)
-        supportConfig = cloudCfg
+        supportConfig = SupportConfigManager.refreshFromCloud(context)
     }
 
-    // التبويب النشط: 0 = المساهمة المالية والخوادم، 1 = التقييم والرسائل، 2 = النشر ومجتمع واتساب
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // وسام الداعم والتقييم
     var isSupporterBadgeClaimed by remember {
         mutableStateOf(prefs.getBoolean("is_qabas_patron_claimed", false))
     }
@@ -218,44 +266,24 @@ fun SupportContributionSection() {
         mutableIntStateOf(prefs.getInt("user_support_rating", 5))
     }
     var userFeedbackText by remember { mutableStateOf("") }
+    var isSendingFeedback by remember { mutableStateOf(false) }
 
-    // الحوارات المنبثقة
     var showThankYouDialog by remember { mutableStateOf(false) }
     var showCryptoAddressDialog by remember { mutableStateOf(false) }
     var showBankDetailsDialog by remember { mutableStateOf(false) }
     var showDevEditDialog by remember { mutableStateOf(false) }
 
-    // قائمة رسائل الدعم المجتمعية الملهمة
     var supportMessagesList by remember {
         mutableStateOf(
-            listOf(
-                SupportMessage(
-                    senderName = "أبو عبد الرحمن • الرياض",
-                    message = "جزاكم الله خير الجزاء على هذا العمل المبارك الذي يخدم كتاب الله وسنة رسوله بذكاء واحترافية. استمروا فنحن معكم بالدعاء والدعم.",
-                    dateText = "منذ يومين",
-                    rating = 5,
-                    badge = "كافل خادم 🏛️"
-                ),
-                SupportMessage(
-                    senderName = "د. أنس الشريف • القاهرة",
-                    message = "أفضل تطبيق لصناعة المحتوى الدعوي الهادف بدون منازع. التصميم فخم وخالٍ من أي إعلانات مزعجة.",
-                    dateText = "منذ 4 أيام",
-                    rating = 5,
-                    badge = "داعم ذهبي 🌟"
-                ),
-                SupportMessage(
-                    senderName = "فاطمة الزهراء • الدار البيضاء",
-                    message = "بارك الله في جهود المطورين، كبسولات الحديث والقرآن أضافت لمسة نورانية لحياتنا اليومية.",
-                    dateText = "منذ أسبوع",
-                    rating = 5,
-                    badge = "صانعة محتوى 🎬"
-                )
-            )
+            SupportConfigManager.loadSavedUserMessages(context) + DEFAULT_COMMUNITY_MESSAGES
         )
     }
 
-    // أسهم كفالة الخوادم والذكاء الاصطناعي (ديناميكية وفق التكوين السحابي)
-    val sponsorshipTiers = remember(supportConfig) {
+    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val greenAccent = theme.success
+    val blueAccent = theme.primary
+
+    val sponsorshipTiers = remember(supportConfig, goldAccent, greenAccent, blueAccent) {
         listOf(
             SponsorshipTier(
                 id = "tier_coffee",
@@ -263,7 +291,7 @@ fun SupportContributionSection() {
                 priceText = supportConfig.coffeeTierPrice,
                 impactText = supportConfig.coffeeTierDesc,
                 icon = Icons.Default.Coffee,
-                accentColor = Color(0xFFF59E0B)
+                accentColor = if (theme.isDark) AppleDarkOrange else AppleLightOrange
             ),
             SponsorshipTier(
                 id = "tier_ai_tokens",
@@ -271,7 +299,7 @@ fun SupportContributionSection() {
                 priceText = supportConfig.aiTierPrice,
                 impactText = supportConfig.aiTierDesc,
                 icon = Icons.Default.Bolt,
-                accentColor = Color(0xFF10B981),
+                accentColor = greenAccent,
                 isPopular = true
             ),
             SponsorshipTier(
@@ -280,7 +308,7 @@ fun SupportContributionSection() {
                 priceText = supportConfig.serverTierPrice,
                 impactText = supportConfig.serverTierDesc,
                 icon = Icons.Default.Dns,
-                accentColor = Color(0xFF0EA5E9)
+                accentColor = blueAccent
             ),
             SponsorshipTier(
                 id = "tier_digital_waqf",
@@ -288,17 +316,15 @@ fun SupportContributionSection() {
                 priceText = supportConfig.waqfTierPrice,
                 impactText = supportConfig.waqfTierDesc,
                 icon = Icons.Default.WorkspacePremium,
-                accentColor = GoldPrimary
+                accentColor = goldAccent
             )
         )
     }
 
-    // دالة مساعدة لفتح الروابط أو نسخها عند التعذر
     fun openUrlSafely(url: String, fallbackChooserTitle: String = "فتح الرابط") {
         QabasLinkOpener.openUrl(context, url, fallbackChooserTitle)
     }
 
-    // 1. حوار تعديل بيانات الدعم للمطور (Developer Live Cloud Editor)
     if (showDevEditDialog && isDeveloper) {
         var editWhatsAppUrl by remember { mutableStateOf(supportConfig.whatsappGroupUrl) }
         var editWhatsAppName by remember { mutableStateOf(supportConfig.whatsappGroupName) }
@@ -308,36 +334,34 @@ fun SupportContributionSection() {
         var editBankIban by remember { mutableStateOf(supportConfig.bankIban) }
         var editHadithQuote by remember { mutableStateOf(supportConfig.hadithQuote) }
         var editCoffeePrice by remember { mutableStateOf(supportConfig.coffeeTierPrice) }
-        var editCoffeeDesc by remember { mutableStateOf(supportConfig.coffeeTierDesc) }
         var editAiPrice by remember { mutableStateOf(supportConfig.aiTierPrice) }
-        var editAiDesc by remember { mutableStateOf(supportConfig.aiTierDesc) }
         var editServerPrice by remember { mutableStateOf(supportConfig.serverTierPrice) }
-        var editServerDesc by remember { mutableStateOf(supportConfig.serverTierDesc) }
         var editWaqfPrice by remember { mutableStateOf(supportConfig.waqfTierPrice) }
-        var editWaqfDesc by remember { mutableStateOf(supportConfig.waqfTierDesc) }
         var editShareMsg by remember { mutableStateOf(supportConfig.shareMessage) }
         var isPublishing by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = { if (!isPublishing) showDevEditDialog = false },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f)),
+                            .background(theme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Tune, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        "تعديل وتجديد بيانات الدعم سحابياً 🛠️",
-                        color = GoldPrimary,
+                        "تعديل بيانات الدعم والمساهمة",
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        fontSize = 16.sp
                     )
                 }
             },
@@ -345,166 +369,131 @@ fun SupportContributionSection() {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 480.dp)
+                        .heightIn(max = 460.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Surface(
-                        color = Color(0xFF0F172A),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
-                            "💡 أي تعديل تحفظه هنا سيتم رفعه فوراً إلى سحابة Firestore ويظهر لجميع مستخدمي تطبيق قبس فور دخولهم.",
-                            color = Color(0xFF38BDF8),
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(8.dp),
-                            lineHeight = 16.sp
+                            "تُحفظ التعديلات محلياً وتُطبّق فوراً على شاشة الدعم على هذا الجهاز.",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(10.dp),
+                            lineHeight = 17.sp
                         )
                     }
 
-                    // 1. رابط مجموعة واتساب
-                    Text("رابط مجموعة واتساب الرسمية:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("رابط مجموعة واتساب الرسمية:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editWhatsAppUrl,
                         onValueChange = { editWhatsAppUrl = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = false,
-                        maxLines = 3,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF25D366),
-                            unfocusedBorderColor = Color(0xFF1E2B44),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
+                        shape = RoundedCornerShape(10.dp),
+                        maxLines = 3
                     )
 
-                    // 2. اسم المجموعة
-                    Text("عنوان/اسم المجموعة:", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("اسم المجموعة:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editWhatsAppName,
                         onValueChange = { editWhatsAppName = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E2B44),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
                     )
 
-                    // 3. رابط PayPal / الدفع الإلكتروني
-                    Text("رابط PayPal أو بوابة الدفع:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("رابط PayPal أو بوابة الدعم:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editPaypalUrl,
                         onValueChange = { editPaypalUrl = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF0070BA),
-                            unfocusedBorderColor = Color(0xFF1E2B44),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
                     )
 
-                    // 4. محفظة USDT (Tron)
-                    Text("عنوان محفظة USDT (شبكة TRC-20):", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("عنوان محفظة USDT (TRC-20):", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editUsdtAddress,
                         onValueChange = { editUsdtAddress = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF10B981),
-                            unfocusedBorderColor = Color(0xFF1E2B44),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
                     )
 
-                    // 5. الحساب البنكي والآيبان
-                    Text("اسم البنك والجهة:", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("اسم البنك:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editBankName,
                         onValueChange = { editBankName = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         singleLine = true
                     )
 
-                    Text("رقم الآيبان (IBAN):", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("رقم الآيبان (IBAN):", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editBankIban,
                         onValueChange = { editBankIban = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         singleLine = true
                     )
 
-                    // 6. الآية / الحديث الشريف التحفيزي
-                    Text("نص الحديث/الآية التحفيزية:", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("النص التحفيزي:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editHadithQuote,
                         onValueChange = { editHadithQuote = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         maxLines = 3
                     )
 
-                    // 7. أسعار وأوصاف الأسهم
-                    Text("أسعار ووصف أسهم المساهمة:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = editCoffeePrice,
                             onValueChange = { editCoffeePrice = it },
-                            label = { Text("سهم القهوة", fontSize = 10.sp) },
+                            label = { Text("سهم القهوة", fontSize = 11.sp) },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = editAiPrice,
                             onValueChange = { editAiPrice = it },
-                            label = { Text("سهم الذكاء", fontSize = 10.sp) },
+                            label = { Text("سهم الذكاء", fontSize = 11.sp) },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             singleLine = true
                         )
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = editServerPrice,
                             onValueChange = { editServerPrice = it },
-                            label = { Text("سهم الخادم", fontSize = 10.sp) },
+                            label = { Text("سهم الخادم", fontSize = 11.sp) },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = editWaqfPrice,
                             onValueChange = { editWaqfPrice = it },
-                            label = { Text("سهم الوقف", fontSize = 10.sp) },
+                            label = { Text("سهم الوقف", fontSize = 11.sp) },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             singleLine = true
                         )
                     }
 
-                    // 8. رسالة المشاركة التلقائية
-                    Text("رسالة المشاركة عبر التواصل:", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 11.sp)
+                    Text("رسالة المشاركة:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     OutlinedTextField(
                         value = editShareMsg,
                         onValueChange = { editShareMsg = it },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         maxLines = 3
                     )
                 }
@@ -523,207 +512,167 @@ fun SupportContributionSection() {
                                 bankIban = editBankIban.trim(),
                                 hadithQuote = editHadithQuote.trim(),
                                 coffeeTierPrice = editCoffeePrice.trim(),
-                                coffeeTierDesc = editCoffeeDesc.trim(),
                                 aiTierPrice = editAiPrice.trim(),
-                                aiTierDesc = editAiDesc.trim(),
                                 serverTierPrice = editServerPrice.trim(),
-                                serverTierDesc = editServerDesc.trim(),
                                 waqfTierPrice = editWaqfPrice.trim(),
-                                waqfTierDesc = editWaqfDesc.trim(),
                                 shareMessage = editShareMsg.trim()
                             )
-                            val success = SupportConfigManager.saveAndPublish(context, newCfg, AdminGuard.currentIdentity(context))
+                            SupportConfigManager.saveAndPublish(context, newCfg, AdminGuard.currentIdentity(context))
                             supportConfig = newCfg
                             isPublishing = false
                             showDevEditDialog = false
-                            if (success) {
-                                Toast.makeText(context, "تم حفظ ونشر البيانات السحابية لجميع المستخدمين بنجاح! 🚀", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "تم الحفظ محلياً (تأكد من اتصال Firebase السحابي)", Toast.LENGTH_SHORT).show()
-                            }
+                            Toast.makeText(context, "تم حفظ بيانات الدعم وتطبيقها بنجاح", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    enabled = !isPublishing
+                    enabled = !isPublishing,
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    if (isPublishing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                    Text("حفظ ونشر التعديلات للجميع 🌐", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("حفظ التعديلات", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showDevEditDialog = false },
-                    enabled = !isPublishing
-                ) {
-                    Text("إلغاء", color = qabasTextSecondary(), fontFamily = CairoFont)
+                TextButton(onClick = { showDevEditDialog = false }, enabled = !isPublishing) {
+                    Text("إلغاء", color = theme.textSecondary, fontFamily = CairoFont)
                 }
-            },
-            containerColor = Color(0xFF141C2B),
-            shape = RoundedCornerShape(18.dp)
+            }
         )
     }
 
-    // 2. حوار الشكر والدعاء
     if (showThankYouDialog) {
         AlertDialog(
             onDismissRequest = { showThankYouDialog = false },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Verified, contentDescription = null, tint = goldAccent, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("تقبل الله طاعتكم وعطاءكم 🌟", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("تقبل الله عطاءكم", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "«مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ»\nنشكركم من أعماق قلوبنا على مساهمتكم في تقوية دعامات وخوادم منصة قبس. تم تفعيل وسام (شريك استدامة قبس 🌟) في حسابكم.",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontSize = 13.sp,
-                        lineHeight = 20.sp
-                    )
-                }
+                Text(
+                    "«مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ»\nنشكركم على مساهمتكم في استدامة خوادم منصة قبس. تم تفعيل وسام (شريك استدامة قبس) في حسابكم.",
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
             },
             confirmButton = {
                 Button(
                     onClick = { showThankYouDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("الحمد لله", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("الحمد لله", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
-            },
-            containerColor = Color(0xFF141C2B),
-            shape = RoundedCornerShape(18.dp)
+            }
         )
     }
 
-    // 3. حوار عنوان محفظة USDT (Crypto)
     if (showCryptoAddressDialog) {
         AlertDialog(
             onDismissRequest = { showCryptoAddressDialog = false },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CurrencyExchange, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.CurrencyExchange, contentDescription = null, tint = greenAccent, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("عنوان محفظة الدعم (USDT)", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("محفظة الدعم (USDT)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         "شبكة TRC-20 (Tron Network):",
-                        color = Color.White,
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
                     )
                     Surface(
-                        color = Color(0xFF0F172A),
+                        color = theme.secondarySurface,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(
-                                text = supportConfig.usdtTronAddress,
-                                color = Color(0xFF38BDF8),
-                                fontFamily = NotoSansFont,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        Text(
+                            text = supportConfig.usdtTronAddress,
+                            color = theme.primary,
+                            fontFamily = RobotoMonoFont,
+                            fontSize = 11.5.sp,
+                            modifier = Modifier.padding(12.dp)
+                        )
                     }
-                    Button(
+                    ApplePrimaryButton(
+                        text = "نسخ عنوان المحفظة",
+                        icon = Icons.Default.ContentCopy,
                         onClick = {
                             clipboardManager.setText(AnnotatedString(supportConfig.usdtTronAddress))
-                            Toast.makeText(context, "تم نسخ عنوان المحفظة 📋", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("نسخ العنوان", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    }
+                            Toast.makeText(context, "تم نسخ عنوان المحفظة", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showCryptoAddressDialog = false }) {
-                    Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
+                    Text("إغلاق", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                 }
-            },
-            containerColor = Color(0xFF141C2B),
-            shape = RoundedCornerShape(18.dp)
+            }
         )
     }
 
-    // 4. حوار التحويل البنكي
     if (showBankDetailsDialog) {
         AlertDialog(
             onDismissRequest = { showBankDetailsDialog = false },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("التحويل البنكي ودعم المبادرة", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("التحويل البنكي", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${supportConfig.bankName}:", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(supportConfig.bankName, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Surface(
-                        color = Color(0xFF0F172A),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "IBAN: ${supportConfig.bankIban}",
-                            color = GoldPrimary,
-                            fontFamily = NotoSansFont,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(8.dp)
+                            color = theme.primary,
+                            fontFamily = RobotoMonoFont,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(12.dp)
                         )
                     }
-                    Button(
+                    ApplePrimaryButton(
+                        text = "نسخ رقم الآيبان",
+                        icon = Icons.Default.ContentCopy,
                         onClick = {
                             clipboardManager.setText(AnnotatedString(supportConfig.bankIban))
-                            Toast.makeText(context, "تم نسخ رقم الآيبان 📋", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("نسخ رقم الآيبان", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    }
+                            Toast.makeText(context, "تم نسخ رقم الآيبان", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showBankDetailsDialog = false }) {
-                    Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
+                    Text("إغلاق", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                 }
-            },
-            containerColor = Color(0xFF141C2B),
-            shape = RoundedCornerShape(18.dp)
+            }
         )
     }
 
-    // بطاقة الحاوية الشاملة
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .luxuryCardStyle(shapeRadius = 20.dp, borderAlpha = 0.35f, glowElevation = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface()),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // الهيدر الرئيسي مع الشعار والوسام وزر تحكم المطور
+    AppleCard(cornerRadius = 18.dp) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -733,41 +682,40 @@ fun SupportContributionSection() {
                     Box(
                         modifier = Modifier
                             .size(42.dp)
-                            .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.45f), CircleShape),
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(goldAccent.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.VolunteerActivism,
                             contentDescription = null,
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(24.dp)
+                            tint = goldAccent,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "دعم المنصة والمساهمة في استدامتها",
-                            color = qabasTextPrimary(),
+                            text = "دعم واستدامة منصة قبس",
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 16.sp
                         )
                         Text(
-                            text = "تقوية الخوادم • دعم الذكاء الاصطناعي • نشر الأثر",
-                            color = qabasTextSecondary(),
+                            text = "الخوادم • الذكاء الاصطناعي • نشر الأثر",
+                            color = theme.textSecondary,
                             fontFamily = NotoSansFont,
-                            fontSize = 11.sp
+                            fontSize = 12.sp
                         )
                     }
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val badgeColor = if (isSupporterBadgeClaimed) goldAccent else greenAccent
                     Surface(
-                        color = if (isSupporterBadgeClaimed) GoldPrimary.copy(alpha = 0.2f) else Color(0xFF10B981).copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isSupporterBadgeClaimed) GoldPrimary else Color(0xFF10B981).copy(alpha = 0.4f))
+                        color = badgeColor.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -776,470 +724,333 @@ fun SupportContributionSection() {
                             Icon(
                                 if (isSupporterBadgeClaimed) Icons.Default.Verified else Icons.Default.Favorite,
                                 contentDescription = null,
-                                tint = if (isSupporterBadgeClaimed) GoldPrimary else Color(0xFF10B981),
+                                tint = badgeColor,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isSupporterBadgeClaimed) "شريك استدامة 🌟" else "صدقة جارية ❤️",
-                                color = if (isSupporterBadgeClaimed) GoldPrimary else Color(0xFF10B981),
-                                fontSize = 10.sp,
+                                text = if (isSupporterBadgeClaimed) "شريك استدامة" else "مساهمة خيرية",
+                                color = badgeColor,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
                             )
                         }
                     }
 
-                    // زر تعديل المطور السحابي الحصري
                     if (isDeveloper) {
-                        Spacer(modifier = Modifier.height(4.dp))
                         Surface(
-                            color = Color(0xFF1E293B),
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            color = theme.primary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(7.dp),
                             modifier = Modifier.clickable { showDevEditDialog = true }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(11.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("تعديل البيانات (مطور) 🛠️", color = GoldPrimary, fontSize = 9.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Edit, contentDescription = "تعديل البيانات", tint = theme.primary, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("تعديل (مطور)", color = theme.primary, fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // الآية الكريمة المحفزة (ديناميكية)
+            // Quote Card
             Surface(
-                color = Color(0xFF0C1322).copy(alpha = 0.9f),
+                color = theme.secondarySurface,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFF1E2B44)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.FormatQuote, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.FormatQuote, contentDescription = null, tint = goldAccent, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = supportConfig.hadithQuote,
-                        color = GoldSecondary,
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ⭐ بطاقة مجتمع واتساب الرسمي البارزة مع زر الدخول والنسخ الفوري
+            // Official WhatsApp Community Card
+            val whatsappGreen = Color(0xFF25D366)
             Surface(
-                color = Color(0xFF0D1C16),
+                color = whatsappGreen.copy(alpha = if (theme.isDark) 0.12f else 0.08f),
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color(0xFF25D366).copy(alpha = 0.45f)),
+                border = BorderStroke(0.5.dp, whatsappGreen.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF25D366).copy(alpha = 0.2f))
-                                    .border(1.dp, Color(0xFF25D366).copy(alpha = 0.6f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(20.dp))
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = supportConfig.whatsappGroupName,
-                                    color = Color.White,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                                Text(
-                                    text = "مجتمع رواد وصناع المحتوى • متابعة التحديثات والاقتراحات",
-                                    color = Color(0xFF86EFAC),
-                                    fontFamily = NotoSansFont,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-
-                        Surface(
-                            color = Color(0xFF25D366).copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(6.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(whatsappGreen.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
+                            Icon(Icons.Default.Chat, contentDescription = null, tint = whatsappGreen, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "واتساب 💬",
-                                color = Color(0xFF25D366),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = supportConfig.whatsappGroupName,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "مجتمع رواد وصناع المحتوى • متابعة التحديثات",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // زر الدخول المباشر إلى واتساب
                         Button(
-                            onClick = {
-                                openUrlSafely(supportConfig.whatsappGroupUrl, "فتح مجموعة واتساب")
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            onClick = { openUrlSafely(supportConfig.whatsappGroupUrl, "فتح مجموعة واتساب") },
+                            colors = ButtonDefaults.buttonColors(containerColor = whatsappGreen, contentColor = Color.White),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1.3f).height(40.dp),
-                            contentPadding = PaddingValues(horizontal = 6.dp)
+                            modifier = Modifier.weight(1.3f).heightIn(min = 48.dp)
                         ) {
-                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFF062D15), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("دخول المجموعة 💬", color = Color(0xFF062D15), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("دخول المجموعة", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        // زر نسخ رابط المجموعة الفوري
-                        OutlinedButton(
+                        AppleSecondaryButton(
+                            text = "نسخ الرابط",
+                            icon = Icons.Default.ContentCopy,
+                            tint = whatsappGreen,
+                            modifier = Modifier.weight(1f),
                             onClick = {
                                 clipboardManager.setText(AnnotatedString(supportConfig.whatsappGroupUrl))
-                                Toast.makeText(context, "تم نسخ رابط مجموعة واتساب إلى الحافظة بنجاح 📋", Toast.LENGTH_SHORT).show()
-                            },
-                            border = BorderStroke(1.dp, Color(0xFF25D366)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f).height(40.dp),
-                            contentPadding = PaddingValues(horizontal = 6.dp)
-                        ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ الرابط 📋", color = Color(0xFF25D366), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                                Toast.makeText(context, "تم نسخ رابط مجموعة واتساب", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            // Segmented Tabs
+            AppleSegmentedControl(
+                items = listOf(
+                    0 to "كفالة الخوادم",
+                    1 to "التقييم والرسائل",
+                    2 to "نشر الخير"
+                ),
+                selectedItem = selectedTab,
+                onSelect = { selectedTab = it }
+            )
 
-            // شريط التبويبات الفاخر (3 أركان للدعم)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF0F172A), RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf(
-                    Triple(0, "كفالة الخوادم ⚡", Icons.Default.VolunteerActivism),
-                    Triple(1, "التقييم والرسائل ✍️", Icons.Default.RateReview),
-                    Triple(2, "نشر الخير 📢", Icons.Default.Share)
-                ).forEach { (idx, title, icon) ->
-                    val isSelected = selectedTab == idx
-                    Surface(
-                        color = if (isSelected) GoldPrimary else Color.Transparent,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { selectedTab = idx }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                icon,
-                                contentDescription = null,
-                                tint = if (isSelected) DeepSlate else qabasTextSecondary(),
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = title,
-                                color = if (isSelected) DeepSlate else qabasTextSecondary(),
-                                fontFamily = CairoFont,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // محتوى التبويبات التفاعلية
             AnimatedContent(
                 targetState = selectedTab,
                 label = "SupportTabAnimation"
             ) { tab ->
                 when (tab) {
                     0 -> {
-                        // 🪙 التبويب 1: المساهمة وكفالة الخوادم
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(
-                                text = "اختر سهم المساهمة المناسب لك:",
-                                color = qabasTextPrimary(),
+                                text = "اختر سهم المساهمة المناسب:",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
+                                fontSize = 14.sp
                             )
 
-                            // شبكة الأسهم والكفالات
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                sponsorshipTiers.forEach { tier ->
-                                    Surface(
-                                        color = if (tier.isPopular) Color(0xFF132035) else Color(0xFF0F1728),
-                                        shape = RoundedCornerShape(14.dp),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (tier.isPopular) tier.accentColor else Color(0xFF1E293B)
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                if (tier.id == "tier_coffee" || tier.id == "tier_ai_tokens") {
-                                                    openUrlSafely(supportConfig.paypalUrl, "دفع عبر PayPal")
-                                                } else if (tier.id == "tier_digital_waqf") {
-                                                    showBankDetailsDialog = true
-                                                } else {
-                                                    showCryptoAddressDialog = true
-                                                }
+                            sponsorshipTiers.forEach { tier ->
+                                Surface(
+                                    color = if (tier.isPopular) tier.accentColor.copy(alpha = 0.08f) else theme.secondarySurface,
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = if (tier.isPopular) BorderStroke(1.dp, tier.accentColor.copy(alpha = 0.45f)) else null,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            when (tier.id) {
+                                                "tier_coffee", "tier_ai_tokens" -> openUrlSafely(supportConfig.paypalUrl, "دفع عبر PayPal")
+                                                "tier_digital_waqf" -> showBankDetailsDialog = true
+                                                else -> showCryptoAddressDialog = true
                                             }
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(tier.accentColor.copy(alpha = 0.16f)),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(CircleShape)
-                                                        .background(tier.accentColor.copy(alpha = 0.15f))
-                                                        .border(1.dp, tier.accentColor.copy(alpha = 0.35f), CircleShape),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(tier.icon, contentDescription = null, tint = tier.accentColor, modifier = Modifier.size(20.dp))
-                                                }
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Column {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(
-                                                            text = tier.title,
-                                                            color = qabasTextPrimary(),
-                                                            fontFamily = CairoFont,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 13.sp
-                                                        )
-                                                        if (tier.isPopular) {
-                                                            Spacer(modifier = Modifier.width(6.dp))
-                                                            Surface(
-                                                                color = tier.accentColor.copy(alpha = 0.2f),
-                                                                shape = RoundedCornerShape(4.dp)
-                                                            ) {
-                                                                Text(
-                                                                    text = "الأكثر تأثيراً",
-                                                                    color = tier.accentColor,
-                                                                    fontFamily = CairoFont,
-                                                                    fontSize = 9.sp,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                    Text(
-                                                        text = tier.impactText,
-                                                        color = qabasTextSecondary(),
-                                                        fontFamily = NotoSansFont,
-                                                        fontSize = 10.sp,
-                                                        lineHeight = 14.sp
-                                                    )
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.width(8.dp))
-
-                                            Surface(
-                                                color = tier.accentColor.copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(8.dp),
-                                                border = BorderStroke(1.dp, tier.accentColor.copy(alpha = 0.4f))
-                                            ) {
+                                            Icon(tier.icon, contentDescription = null, tint = tier.accentColor, modifier = Modifier.size(20.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = tier.priceText,
-                                                    color = tier.accentColor,
+                                                    text = tier.title,
+                                                    color = theme.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 11.sp,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    fontSize = 13.5.sp
                                                 )
+                                                if (tier.isPopular) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        color = tier.accentColor.copy(alpha = 0.18f),
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "الأكثر تأثيراً",
+                                                            color = tier.accentColor,
+                                                            fontFamily = CairoFont,
+                                                            fontSize = 9.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
                                             }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = tier.impactText,
+                                                color = theme.textSecondary,
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 11.5.sp,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            color = tier.accentColor.copy(alpha = 0.14f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = tier.priceText,
+                                                color = tier.accentColor,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
                                         }
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
-
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "طرق المساهمة والدفع المتاحة:",
-                                color = qabasTextPrimary(),
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-
-                            // خيارات الدفع المباشرة
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // زر PayPal / الدعم الخارجي
-                                Button(
-                                    onClick = {
-                                        openUrlSafely(supportConfig.paypalUrl, "فتح رابط الدعم")
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0070BA)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f).height(42.dp),
-                                    contentPadding = PaddingValues(horizontal = 6.dp)
-                                ) {
-                                    Icon(Icons.Default.Payment, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("PayPal / بطاقة", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                // زر USDT Crypto
-                                OutlinedButton(
-                                    onClick = { showCryptoAddressDialog = true },
-                                    border = BorderStroke(1.dp, Color(0xFF10B981)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f).height(42.dp),
-                                    contentPadding = PaddingValues(horizontal = 6.dp)
-                                ) {
-                                    Icon(Icons.Default.CurrencyExchange, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("USDT (Tron)", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                // زر الحساب البنكي
-                                OutlinedButton(
-                                    onClick = { showBankDetailsDialog = true },
-                                    border = BorderStroke(1.dp, GoldPrimary),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f).height(42.dp),
-                                    contentPadding = PaddingValues(horizontal = 6.dp)
-                                ) {
-                                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("تحويل بنكي", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            // زر تأكيد المساهمة والحصول على الوسام
-                            Surface(
-                                color = GoldPrimary.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        isSupporterBadgeClaimed = true
-                                        prefs.edit().putBoolean("is_qabas_patron_claimed", true).apply()
-                                        showThankYouDialog = true
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(Icons.Default.Stars, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "قدمت مساهمتي! تفعيل وسام الشرف في حسابي 🌟",
-                                        color = GoldPrimary,
-                                        fontFamily = CairoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    1 -> {
-                        // ✍️ التبويب 2: التقييم والرسائل المباشرة للمطورين
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(
-                                text = "تقييمك وكلماتك تصنع الفارق معنا:",
-                                color = qabasTextPrimary(),
+                                text = "طرق المساهمة المتاحة:",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
 
-                            // شريط النجوم التفاعلي
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AppleSecondaryButton(
+                                    text = "PayPal",
+                                    icon = Icons.Default.Payment,
+                                    tint = theme.primary,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { openUrlSafely(supportConfig.paypalUrl, "فتح رابط الدعم") }
+                                )
+                                AppleSecondaryButton(
+                                    text = "USDT",
+                                    icon = Icons.Default.CurrencyExchange,
+                                    tint = greenAccent,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { showCryptoAddressDialog = true }
+                                )
+                                AppleSecondaryButton(
+                                    text = "تحويل بنكي",
+                                    icon = Icons.Default.AccountBalance,
+                                    tint = goldAccent,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { showBankDetailsDialog = true }
+                                )
+                            }
+
+                            AppleSecondaryButton(
+                                text = if (isSupporterBadgeClaimed) "وسام شريك الاستدامة مفعّل" else "قدمت مساهمتي — تفعيل وسام الشرف",
+                                icon = Icons.Default.Stars,
+                                tint = goldAccent,
+                                onClick = {
+                                    isSupporterBadgeClaimed = true
+                                    prefs.edit().putBoolean("is_qabas_patron_claimed", true).apply()
+                                    showThankYouDialog = true
+                                }
+                            )
+                        }
+                    }
+
+                    1 -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "تقييمك وكلماتك تصنع الفارق:",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+
                             Surface(
-                                color = Color(0xFF0F172A),
+                                color = theme.secondarySurface,
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(12.dp),
+                                    modifier = Modifier.padding(14.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
                                         text = when (userRating) {
-                                            5 -> "⭐⭐⭐⭐⭐ ممتاز ومتقن بارك الله فيكم!"
-                                            4 -> "⭐⭐⭐⭐ جيد جداً وبانتظار المزيد"
-                                            3 -> "⭐⭐⭐ جيد وبحاجة لبعض التطوير"
-                                            2 -> "⭐⭐ يحتاج تحسينات إضافية"
-                                            else -> "⭐ سأرسل ملاحظاتي للمطورين"
+                                            5 -> "ممتاز ومتقن بارك الله فيكم"
+                                            4 -> "جيد جداً وبانتظار المزيد"
+                                            3 -> "جيد وبحاجة لبعض التطوير"
+                                            2 -> "يحتاج تحسينات إضافية"
+                                            else -> "سأرسل ملاحظاتي للمطورين"
                                         },
-                                        color = GoldPrimary,
+                                        color = goldAccent,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontSize = 13.sp
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         (1..5).forEach { star ->
                                             IconButton(
                                                 onClick = {
                                                     userRating = star
                                                     prefs.edit().putInt("user_support_rating", star).apply()
                                                 },
-                                                modifier = Modifier.size(36.dp)
+                                                modifier = Modifier.size(48.dp)
                                             ) {
                                                 Icon(
                                                     if (star <= userRating) Icons.Default.Star else Icons.Outlined.StarOutline,
-                                                    contentDescription = "نجمة $star",
-                                                    tint = if (star <= userRating) GoldPrimary else Color.Gray,
+                                                    contentDescription = "تقييم $star نجوم",
+                                                    tint = if (star <= userRating) goldAccent else theme.textSecondary,
                                                     modifier = Modifier.size(30.dp)
                                                 )
                                             }
@@ -1248,75 +1059,80 @@ fun SupportContributionSection() {
                                 }
                             }
 
-                            // صندوق كتابة رسالة الدعم / المقترح
                             OutlinedTextField(
                                 value = userFeedbackText,
                                 onValueChange = { userFeedbackText = it },
                                 placeholder = {
                                     Text(
-                                        "اكتب دعاءً، كلمة شكر، أو مقترحاً تطويرياً لخوادم وميزات قبس...",
-                                        color = qabasTextSecondary(),
-                                        fontSize = 11.sp,
-                                        fontFamily = CairoFont
+                                        "اكتب كلمة شكر، دعاءً، أو مقترحاً تطويرياً لمنصة قبس...",
+                                        color = theme.textSecondary,
+                                        fontSize = 12.sp,
+                                        fontFamily = NotoSansFont
                                     )
                                 },
-                                modifier = Modifier.fillMaxWidth().height(100.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = GoldPrimary,
-                                    unfocusedBorderColor = Color(0xFF23304A),
-                                    focusedTextColor = qabasTextPrimary(),
-                                    unfocusedTextColor = qabasTextPrimary()
-                                )
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                                shape = RoundedCornerShape(12.dp)
                             )
 
-                            // زر إرسال الرسالة
-                            Button(
+                            ApplePrimaryButton(
+                                text = "إرسال رسالة الدعم والتشجيع",
+                                icon = Icons.Default.Send,
+                                isLoading = isSendingFeedback,
                                 onClick = {
-                                    if (userFeedbackText.isNotBlank()) {
-                                        val newMsg = SupportMessage(
-                                            senderName = "صانع أثر (أنت)",
-                                            message = userFeedbackText,
-                                            dateText = "الآن",
-                                            rating = userRating,
-                                            badge = "رسالة داعم 💌"
-                                        )
-                                        supportMessagesList = listOf(newMsg) + supportMessagesList
-                                        userFeedbackText = ""
-                                        Toast.makeText(context, "وصلت رسالتكم الكريمة لقلوب فريق التطوير، شكرًا لكم! ❤️", Toast.LENGTH_LONG).show()
-                                    } else {
+                                    val trimmed = userFeedbackText.trim()
+                                    if (trimmed.isBlank()) {
                                         Toast.makeText(context, "يرجى كتابة نص الرسالة أولاً", Toast.LENGTH_SHORT).show()
+                                        return@ApplePrimaryButton
                                     }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth().height(42.dp)
-                            ) {
-                                Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("إرسال رسالة الدعم والتشجيع", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
+                                    isSendingFeedback = true
+                                    val newMsg = SupportMessage(
+                                        senderName = "صانع أثر (أنت)",
+                                        message = trimmed,
+                                        dateText = "الآن",
+                                        rating = userRating,
+                                        badge = "رسالة داعم"
+                                    )
+                                    SupportConfigManager.saveUserMessage(context, newMsg)
+                                    supportMessagesList = SupportConfigManager.loadSavedUserMessages(context) + DEFAULT_COMMUNITY_MESSAGES
+                                    userFeedbackText = ""
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                                    coroutineScope.launch {
+                                        val sentToCloud = if (ServiceAvailabilityRegistry.isSupabaseReady()) {
+                                            withContext(Dispatchers.IO) {
+                                                SupabaseServices.Feedback.submitFeedback(
+                                                    type = "support_message_rating_$userRating",
+                                                    message = trimmed,
+                                                    userName = prefs.getString("user_display_name", "مستخدم قبس") ?: "مستخدم قبس"
+                                                ).isSuccess
+                                            }
+                                        } else false
+                                        isSendingFeedback = false
+                                        val toastText = if (sentToCloud) {
+                                            "تم حفظ رسالتك وإرسالها لفريق قبس بنجاح"
+                                        } else {
+                                            "تم حفظ رسالتك الكريمة محلياً بنجاح"
+                                        }
+                                        Toast.makeText(context, toastText, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            )
 
                             Text(
-                                text = "جدار محبة ودعاء مجتمع قبس:",
-                                color = qabasTextPrimary(),
+                                text = "كلمات مجتمع قبس:",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontSize = 13.sp
                             )
 
-                            // عرض رسائل المجتمع الملهمة
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                supportMessagesList.take(3).forEach { item ->
+                                supportMessagesList.take(4).forEach { item ->
                                     Surface(
-                                        color = Color(0xFF0D1424),
+                                        color = theme.secondarySurface,
                                         shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.dp, Color(0xFF1E2B45)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Column(modifier = Modifier.padding(10.dp)) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -1325,39 +1141,39 @@ fun SupportContributionSection() {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
                                                         text = item.senderName,
-                                                        color = GoldPrimary,
+                                                        color = theme.primary,
                                                         fontFamily = CairoFont,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 11.sp
+                                                        fontSize = 12.sp
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Surface(
-                                                        color = GoldPrimary.copy(alpha = 0.15f),
-                                                        shape = RoundedCornerShape(4.dp)
+                                                        color = theme.primary.copy(alpha = 0.12f),
+                                                        shape = RoundedCornerShape(6.dp)
                                                     ) {
                                                         Text(
                                                             text = item.badge,
-                                                            color = GoldPrimary,
+                                                            color = theme.primary,
                                                             fontFamily = CairoFont,
-                                                            fontSize = 8.sp,
-                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            fontSize = 9.5.sp,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                         )
                                                     }
                                                 }
                                                 Text(
                                                     text = item.dateText,
-                                                    color = qabasTextSecondary(),
+                                                    color = theme.textSecondary,
                                                     fontFamily = NotoSansFont,
-                                                    fontSize = 9.sp
+                                                    fontSize = 10.sp
                                                 )
                                             }
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Spacer(modifier = Modifier.height(6.dp))
                                             Text(
                                                 text = item.message,
-                                                color = qabasTextPrimary(),
-                                                fontFamily = CairoFont,
-                                                fontSize = 11.sp,
-                                                lineHeight = 16.sp
+                                                color = theme.textPrimary,
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 12.5.sp,
+                                                lineHeight = 18.sp
                                             )
                                         }
                                     }
@@ -1366,117 +1182,96 @@ fun SupportContributionSection() {
                         }
                     }
 
-                    2 -> {
-                        // 📢 التبويب 3: النشر والمشاركة ومجتمع واتساب
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    else -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                text = "كن شريكاً في الأجر عبر النشر والتطوع:",
-                                color = qabasTextPrimary(),
+                                text = "كن شريكاً في الأجر عبر النشر:",
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
+                                fontSize = 14.sp
                             )
 
-                            // بطاقة مشاركة التطبيق مع الأهل والأصدقاء
                             Surface(
-                                color = Color(0xFF0F172A),
+                                color = theme.secondarySurface,
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Share, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Default.Share, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("مشاركة رابط ورسالة التطبيق", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("مشاركة رابط ورسالة التطبيق", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                                     }
-                                    Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = supportConfig.shareMessage,
-                                        color = qabasTextSecondary(),
+                                        color = theme.textSecondary,
                                         fontFamily = NotoSansFont,
-                                        fontSize = 10.sp,
-                                        lineHeight = 15.sp
+                                        fontSize = 12.sp,
+                                        lineHeight = 18.sp
                                     )
-                                    Spacer(modifier = Modifier.height(10.dp))
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Button(
+                                        ApplePrimaryButton(
+                                            text = "مشاركة",
+                                            icon = Icons.Default.Send,
+                                            modifier = Modifier.weight(1f),
                                             onClick = {
                                                 val sendIntent = Intent().apply {
-                                                action = Intent.ACTION_SEND
-                                                putExtra(Intent.EXTRA_TEXT, supportConfig.shareMessage)
-                                                type = "text/plain"
+                                                    action = Intent.ACTION_SEND
+                                                    putExtra(Intent.EXTRA_TEXT, supportConfig.shareMessage)
+                                                    type = "text/plain"
+                                                }
+                                                context.startActivity(Intent.createChooser(sendIntent, "مشاركة تطبيق قبس"))
                                             }
-                                            context.startActivity(Intent.createChooser(sendIntent, "مشاركة تطبيق قبس"))
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.weight(1f).height(38.dp)
-                                    ) {
-                                        Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(15.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("مشاركة عبر التطبيقات", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = {
-                                            clipboardManager.setText(AnnotatedString(supportConfig.shareMessage))
-                                            Toast.makeText(context, "تم نسخ نص المشاركة ورابط واتساب 📋", Toast.LENGTH_SHORT).show()
-                                        },
-                                        border = BorderStroke(1.dp, GoldPrimary),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.weight(0.8f).height(38.dp)
-                                    ) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("نسخ النص", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        )
+                                        AppleSecondaryButton(
+                                            text = "نسخ النص",
+                                            icon = Icons.Default.ContentCopy,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = {
+                                                clipboardManager.setText(AnnotatedString(supportConfig.shareMessage))
+                                                Toast.makeText(context, "تم نسخ نص المشاركة", Toast.LENGTH_SHORT).show()
+                                            }
+                                        )
                                     }
                                 }
                             }
-                        }
 
-                        // بطاقة التقييم في المتجر
-                        Surface(
-                            color = Color(0xFF0F172A),
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Shop, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("تقييم 5 نجوم في متجر Google Play", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    "تقييمك الإيجابي وكلماتك الطيبة في المتجر ترفع من ظهور التطبيق وتوصله لملايين الباحثين عن المحتوى النقي.",
-                                    color = qabasTextSecondary(),
-                                    fontFamily = NotoSansFont,
-                                    fontSize = 10.sp,
-                                    lineHeight = 15.sp
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"))
-                                            context.startActivity(intent)
+                            Surface(
+                                color = theme.secondarySurface,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Shop, contentDescription = null, tint = greenAccent, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("تقييم التطبيق في المتجر", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                                    }
+                                    Text(
+                                        "تقييمك الإيجابي وكلماتك الطيبة تساعد في وصول التطبيق للمزيد من الباحثين عن المحتوى الهادف.",
+                                        color = theme.textSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 12.sp,
+                                        lineHeight = 18.sp
+                                    )
+                                    AppleSecondaryButton(
+                                        text = "كتابة تقييم في Google Play",
+                                        icon = Icons.Default.Star,
+                                        tint = greenAccent,
+                                        onClick = {
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"))
+                                                context.startActivity(intent)
+                                            }
                                         }
-                                    },
-                                    border = BorderStroke(1.dp, Color(0xFF10B981)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth().height(38.dp)
-                                ) {
-                                    Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(15.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("كتابة تقييم في المتجر", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    )
                                 }
                             }
                         }
@@ -1485,5 +1280,4 @@ fun SupportContributionSection() {
             }
         }
     }
-}
 }

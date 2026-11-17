@@ -40,6 +40,7 @@ fun MuslimToolsGlassDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val theme = QabasTheme.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -49,21 +50,21 @@ fun MuslimToolsGlassDialog(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
-                        .background(GoldPrimary.copy(alpha = 0.15f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape),
+                        .background(theme.primary.copy(alpha = 0.12f))
+                        .border(1.dp, theme.primary.copy(alpha = 0.3f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                    Icon(icon, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     title,
-                    color = GoldPrimary,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontSize = 17.sp
                 )
             }
         },
@@ -77,13 +78,13 @@ fun MuslimToolsGlassDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(Translator.tr("إغلاق"), color = GoldPrimary, fontFamily = CairoFont)
+                Text(Translator.tr("إغلاق"), color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
             }
         },
-        containerColor = Color(0xFF0F172A).copy(alpha = 0.95f),
-        shape = CutCornerShape(16.dp),
+        containerColor = theme.cardSurface,
+        shape = RoundedCornerShape(20.dp),
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.padding(16.dp)
+        modifier = Modifier.padding(16.dp).border(1.dp, theme.cardBorder, RoundedCornerShape(20.dp))
     )
 }
 
@@ -238,7 +239,7 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = CutCornerShape(10.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(Translator.tr("احسب الزكاة الآن"), color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
@@ -404,7 +405,7 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
             Surface(
                 color = Color(0xFF1E293B).copy(alpha = 0.5f),
-                shape = CutCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
             ) {
                 Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {

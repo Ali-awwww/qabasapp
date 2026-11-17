@@ -129,7 +129,7 @@ internal fun AgentKernelSettingsCard(context: Context) {
                 ) {
                     listOf(
                         null to "⚡ تلقائي الذكي (Auto)",
-                        "gemini-3.8-flash" to "💎 Gemini 3.8 Flash (سريع ودقيق)",
+                        "gemini-2.5-flash" to "💎 Gemini 2.5 Flash (سريع ودقيق)",
                         "llama-3.3-70b-versatile" to "⚡ Groq Llama 3.3 70B (فائق السرعة)",
                         "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free (مجاني ومفتوح)"
                     ).forEach { (id, label) ->

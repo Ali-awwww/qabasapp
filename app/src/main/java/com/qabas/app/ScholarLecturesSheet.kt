@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,7 @@ fun ScholarLecturesSheet(
     onLecturesCountChanged: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val prefs = remember { ScholarPreferences(context) }
 
     var selectedMainTab by remember { mutableIntStateOf(0) } // 0: الدروس المعتمدة (المطور), 1: مقترحات المستخدمين
@@ -58,7 +60,6 @@ fun ScholarLecturesSheet(
     var officialLectures by remember { mutableStateOf(prefs.getOfficialLectures(scholar.id, scholar.name)) }
     var userProposals by remember { mutableStateOf(prefs.getUserProposals(scholar.id)) }
 
-    // Forms visibility
     var showDevAddDialog by remember { mutableStateOf(false) }
     var showUserProposalDialog by remember { mutableStateOf(false) }
 
@@ -76,11 +77,11 @@ fun ScholarLecturesSheet(
                 userProposals = cloudProps
                 onLecturesCountChanged(cloudLecs.size)
                 if (showToast) {
-                    Toast.makeText(context, "تمت المزامنة مع سحابة Supabase بنجاح ☁️", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "تمت المزامنة مع سحابة Supabase بنجاح", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 if (showToast) {
-                    Toast.makeText(context, "تم الحفظ محلياً 💾", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "تم الحفظ محلياً", Toast.LENGTH_SHORT).show()
                 }
             } finally {
                 isSyncing = false
@@ -102,8 +103,8 @@ fun ScholarLecturesSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = AgedPaper,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = ManuscriptGold) }
+        containerColor = theme.cardSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = theme.separator) }
     ) {
         Column(
             modifier = Modifier
@@ -111,34 +112,38 @@ fun ScholarLecturesSheet(
                 .padding(horizontal = 20.dp, vertical = 6.dp)
                 .navigationBarsPadding()
         ) {
-            // Top Header: Title + Scholar Avatar + Dev Mode Toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = OldInk)
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textPrimary)
                 }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = "المكتبة العلمية والمقترحات",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = OldInk
+                        color = theme.textPrimary
                     )
                     Text(
                         text = scholar.name,
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = ManuscriptGold
+                        color = GoldPrimary
                     )
                 }
 
-                // Avatar or Dev Mode Button
                 Surface(
                     onClick = {
                         val next = !isDevMode
@@ -146,22 +151,23 @@ fun ScholarLecturesSheet(
                         prefs.setDeveloperMode(next)
                         Toast.makeText(
                             context,
-                            if (next) "تم تفعيل نمط المطور لإدارة الدروس 🛠️" else "تم العودة لنمط المستخدم العادي 👤",
+                            if (next) "تم تفعيل نمط المطور لإدارة الدروس" else "تم العودة لنمط المستخدم العادي",
                             Toast.LENGTH_SHORT
                         ).show()
                     },
+                    modifier = Modifier.heightIn(min = 40.dp),
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isDevMode) Color(0xFF0F172A) else ManuscriptGold.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, ManuscriptGold)
+                    color = if (isDevMode) theme.primary.copy(alpha = 0.16f) else theme.secondarySurface,
+                    border = BorderStroke(0.75.dp, if (isDevMode) theme.primary else theme.separator)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = if (isDevMode) Icons.Default.AdminPanelSettings else Icons.Default.Person,
                             contentDescription = "تبديل النمط",
-                            tint = if (isDevMode) Color(0xFFFBBF24) else ManuscriptGold,
+                            tint = if (isDevMode) theme.primary else theme.textSecondary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -170,7 +176,7 @@ fun ScholarLecturesSheet(
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isDevMode) Color.White else OldInk
+                            color = if (isDevMode) theme.primary else theme.textPrimary
                         )
                     }
                 }
@@ -184,13 +190,13 @@ fun ScholarLecturesSheet(
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
                 shape = RoundedCornerShape(12.dp),
-                color = OldInk.copy(alpha = 0.04f),
-                border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.35f))
+                color = theme.secondarySurface,
+                border = BorderStroke(0.75.dp, theme.separator)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -200,30 +206,23 @@ fun ScholarLecturesSheet(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = if (SupabaseServices.isSupabaseAvailable) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            color = if (SupabaseServices.isSupabaseAvailable) theme.success else theme.warning,
                             modifier = Modifier.size(8.dp)
                         ) {}
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (SupabaseServices.isSupabaseAvailable) "سحابة Supabase متصلة للجميع" else "الوضع المحلي (Offline)",
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    color = OldInk
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "☁️",
-                                    fontSize = 10.sp
-                                )
-                            }
+                            Text(
+                                text = if (SupabaseServices.isSupabaseAvailable) "سحابة Supabase متصلة للجميع" else "الوضع المحلي (Offline)",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = theme.textPrimary
+                            )
                             Text(
                                 text = if (isSyncing) "جاري تحديث البيانات السحابية..." else "أي إضافة تنشر سحابياً ليراها الجميع",
-                                fontFamily = CairoFont,
-                                fontSize = 9.5.sp,
-                                color = OldInk.copy(alpha = 0.65f)
+                                fontFamily = NotoSansFont,
+                                fontSize = 10.5.sp,
+                                color = theme.textSecondary
                             )
                         }
                     }
@@ -232,52 +231,51 @@ fun ScholarLecturesSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // زر التحديث اليدوي
                         IconButton(
                             onClick = { triggerCloudSync(showToast = true) },
                             enabled = !isSyncing,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             if (isSyncing) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(15.dp),
+                                    modifier = Modifier.size(18.dp),
                                     strokeWidth = 2.dp,
-                                    color = ManuscriptGold
+                                    color = theme.primary
                                 )
                             } else {
                                 Icon(
                                     Icons.Default.Sync,
                                     contentDescription = "مزامنة الآن",
-                                    tint = ManuscriptGold,
-                                    modifier = Modifier.size(17.dp)
+                                    tint = theme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
 
-                        // زر كود SQL لإعداد الجداول في Supabase
                         Surface(
                             onClick = { showSqlHelpDialog = true },
+                            modifier = Modifier.heightIn(min = 40.dp),
                             shape = RoundedCornerShape(8.dp),
-                            color = ManuscriptGold.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
+                            color = theme.cardSurface,
+                            border = BorderStroke(0.75.dp, theme.separator)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     Icons.Default.Code,
                                     contentDescription = "كود SQL",
-                                    tint = OldInk,
-                                    modifier = Modifier.size(13.dp)
+                                    tint = theme.textPrimary,
+                                    modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "كود SQL",
+                                    text = "SQL",
                                     fontFamily = CairoFont,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = OldInk
+                                    color = theme.textPrimary
                                 )
                             }
                         }
@@ -285,90 +283,34 @@ fun ScholarLecturesSheet(
                 }
             }
 
-            // Two Tabs Separating: 1) الدروس المعتمدة (رسمية) 2) مقترحات المستخدمين
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                    .padding(4.dp)
-            ) {
-                // Tab 1: الدروس والروابط المعتمدة (يدخل لها المستخدم)
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedMainTab = 0 },
-                    color = if (selectedMainTab == 0) ManuscriptGold else Color.Transparent,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Verified,
-                            contentDescription = null,
-                            tint = if (selectedMainTab == 0) Color.White else OldInk,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "الدروس المعتمدة (${officialLectures.size})",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = if (selectedMainTab == 0) Color.White else OldInk
-                        )
-                    }
-                }
-
-                // Tab 2: مقترحات المستخدمين (سرد أمعن)
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedMainTab = 1 },
-                    color = if (selectedMainTab == 1) ManuscriptGold else Color.Transparent,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Lightbulb,
-                            contentDescription = null,
-                            tint = if (selectedMainTab == 1) Color.White else OldInk,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "مقترحات الدروس (${userProposals.size})",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = if (selectedMainTab == 1) Color.White else OldInk
-                        )
-                    }
-                }
-            }
+            AppleSegmentedControl(
+                items = listOf(
+                    0 to "الدروس المعتمدة (${officialLectures.size})",
+                    1 to "مقترحات الدروس (${userProposals.size})"
+                ),
+                selectedItem = selectedMainTab,
+                onSelect = { selectedMainTab = it }
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // TAB 0: الدروس المعتمدة (المطور يضعها والمستخدم يدخل إليها)
             if (selectedMainTab == 0) {
-                // Developer Mode Action Button
                 if (isDevMode) {
                     Button(
                         onClick = { showDevAddDialog = true },
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF065F46)),
-                        shape = RoundedCornerShape(10.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = theme.success,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.AddCircle, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "🛠️ وضع المطور: نشر درس أو رابط معتمد جديد",
+                            "وضع المطور: نشر درس أو رابط معتمد جديد",
                             color = Color.White,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -378,24 +320,23 @@ fun ScholarLecturesSheet(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Header Note for Users
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = ManuscriptGold.copy(alpha = 0.08f),
+                    color = theme.primary.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
+                    border = BorderStroke(0.75.dp, theme.primary.copy(alpha = 0.25f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Info, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "هذه الدروس منتقاة وموثقة بعناية، انقر على أي درس للانتقال مباشرة ومشاهدته عبر يوتيوب أو المتصفح.",
-                            fontFamily = CairoFont,
+                            fontFamily = NotoSansFont,
                             fontSize = 11.5.sp,
-                            color = OldInk.copy(alpha = 0.85f),
+                            color = theme.textPrimary,
                             lineHeight = 17.sp
                         )
                     }
@@ -403,9 +344,10 @@ fun ScholarLecturesSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // List of Curated Official Lectures
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(officialLectures, key = { it.id }) { lecture ->
@@ -421,27 +363,12 @@ fun ScholarLecturesSheet(
                         )
                     }
                 }
-            }
-
-            // TAB 1: مقترحات المستخدمين (سرد أمعن واقتراح عناوين ومحاور جديدة)
-            else {
-                // User Proposal Action Button
-                Button(
+            } else {
+                ApplePrimaryButton(
+                    text = "اقترح عنوان درس أو محاضرة عن ${scholar.name}",
                     onClick = { showUserProposalDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "➕ اقترح عنوان درس أو محاضرة عن ${scholar.name}",
-                        color = Color.White,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp
-                    )
-                }
+                    icon = Icons.Default.EditNote
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -450,43 +377,46 @@ fun ScholarLecturesSheet(
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.5.sp,
-                    color = OldInk.copy(alpha = 0.8f)
+                    color = theme.textSecondary
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (userProposals.isEmpty()) {
                     Surface(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                        color = AntiqueParchment.copy(alpha = 0.7f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.25f))
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        color = theme.secondarySurface,
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(36.dp))
+                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(36.dp))
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "كن أول من يقترح عنوان درس أو سلسلة علمية!",
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp,
-                                color = OldInk
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "شارك فكرتك أو عنوان محاضرة ترى أن الأمة بحاجة إليها في سيرة ${scholar.name}",
-                                fontFamily = CairoFont,
-                                fontSize = 11.5.sp,
-                                color = OldInk.copy(alpha = 0.65f),
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp,
+                                color = theme.textSecondary,
                                 textAlign = TextAlign.Center
                             )
                         }
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(userProposals, key = { it.id }) { proposal ->
@@ -496,10 +426,9 @@ fun ScholarLecturesSheet(
                                 onUpvote = {
                                     prefs.upvoteProposal(proposal.id)
                                     refreshAll()
-                                    Toast.makeText(context, "جزاكم الله خيراً، تم تسجيل تأييدك للاقتراح 👍", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "جزاكم الله خيراً، تم تسجيل تأييدك للاقتراح", Toast.LENGTH_SHORT).show()
                                 },
                                 onAdoptAsOfficial = {
-                                    // Developer can convert user proposal into official lecture
                                     val newLecture = ScholarLecture(
                                         scholarId = proposal.scholarId,
                                         scholarName = proposal.scholarName,
@@ -514,7 +443,7 @@ fun ScholarLecturesSheet(
                                     prefs.addDeveloperLecture(newLecture)
                                     prefs.deleteUserProposal(proposal.id)
                                     refreshAll()
-                                    Toast.makeText(context, "تم اعتماد المقترح وإضافته رسمياً للدروس المعتمدة! 🌟", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم اعتماد المقترح وإضافته رسمياً للدروس المعتمدة", Toast.LENGTH_SHORT).show()
                                 },
                                 onDelete = {
                                     prefs.deleteUserProposal(proposal.id)
@@ -531,7 +460,6 @@ fun ScholarLecturesSheet(
         }
     }
 
-    // Modal Form for Developer to Add New Official Lecture
     if (showDevAddDialog) {
         DeveloperAddLectureDialog(
             scholar = scholar,
@@ -540,12 +468,11 @@ fun ScholarLecturesSheet(
                 prefs.addDeveloperLecture(newLec)
                 refreshAll()
                 showDevAddDialog = false
-                Toast.makeText(context, "تم نشر الدرس المعتمد بنجاح 🚀", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "تم نشر الدرس المعتمد بنجاح", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
-    // Modal Form for User to Propose Lecture
     if (showUserProposalDialog) {
         UserProposeLectureDialog(
             scholar = scholar,
@@ -554,12 +481,11 @@ fun ScholarLecturesSheet(
                 prefs.addUserProposal(newProp)
                 refreshAll()
                 showUserProposalDialog = false
-                Toast.makeText(context, "بارك الله فيك، تم إرسال مقترح الدرس بنجاح وسيحفظ سحابياً ✨", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "بارك الله فيك، تم إرسال مقترح الدرس بنجاح وسيحفظ سحابياً", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
-    // Modal for Supabase SQL Table Setup Guidance
     if (showSqlHelpDialog) {
         SupabaseSqlHelpDialog(
             onDismiss = { showSqlHelpDialog = false },
@@ -567,7 +493,7 @@ fun ScholarLecturesSheet(
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("Supabase Qabas SQL Schema", SUPABASE_SCHOLAR_SQL.trimIndent())
                 clipboard.setPrimaryClip(clip)
-                Toast.makeText(context, "تم نسخ كود SQL بنجاح! الصقه في Supabase SQL Editor واضغط Run ✅", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "تم نسخ كود SQL بنجاح! الصقه في Supabase SQL Editor واضغط Run", Toast.LENGTH_LONG).show()
                 showSqlHelpDialog = false
             }
         )
@@ -575,7 +501,7 @@ fun ScholarLecturesSheet(
 }
 
 /**
- * بطاقة عرض الدرس المعتمد من المطور (بسرد أمعن ومفصل وزر دخول مباشر)
+ * بطاقة عرض الدرس المعتمد من المطور
  */
 @Composable
 fun CuratedLectureItemCard(
@@ -585,80 +511,70 @@ fun CuratedLectureItemCard(
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AntiqueParchment,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.2.dp, ManuscriptGold.copy(alpha = 0.4f)),
-        shadowElevation = 2.dp
-    ) {
+    AppleCard(containerColor = theme.secondarySurface) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Badges Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Category Badge
                     Surface(
-                        color = ManuscriptGold.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.4f))
+                        color = GoldPrimary.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = lecture.category,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.5.sp,
-                            color = ManuscriptGold,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            fontSize = 11.sp,
+                            color = GoldPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
 
-                    // Duration / Format Badge
                     if (lecture.durationApprox.isNotBlank()) {
                         Surface(
-                            color = Color.Black.copy(alpha = 0.05f),
+                            color = theme.cardSurface,
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "⏱️ ${lecture.durationApprox}",
+                                text = lecture.durationApprox,
                                 fontFamily = CairoFont,
-                                fontSize = 10.5.sp,
-                                color = OldInk.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                fontSize = 11.sp,
+                                color = theme.textSecondary,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
                     }
                 }
 
-                // Official Platform Badge + Dev Delete
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        color = Color(0xFF047857).copy(alpha = 0.12f),
+                        color = theme.success.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Verified, contentDescription = null, tint = Color(0xFF047857), modifier = Modifier.size(12.dp))
+                            Icon(Icons.Default.Verified, contentDescription = null, tint = theme.success, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 text = "معتمد",
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                color = Color(0xFF047857)
+                                fontSize = 10.5.sp,
+                                color = theme.success
                             )
                         }
                     }
 
                     if (isDevMode) {
-                        IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف من المنصة", tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                        IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف من المنصة", tint = theme.destructive, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -666,46 +582,42 @@ fun CuratedLectureItemCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Title
             Text(
                 text = lecture.title,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.5.sp,
-                color = OldInk
+                fontSize = 15.sp,
+                color = theme.textPrimary
             )
 
-            // Speaker
             if (lecture.speaker.isNotBlank()) {
                 Spacer(modifier = Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Person, contentDescription = null, tint = theme.primary, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "المحاضر: ${lecture.speaker}",
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = OldInk.copy(alpha = 0.8f)
+                        color = theme.textSecondary
                     )
                 }
             }
 
-            // Synopsis (السرد الأمعن لمحتوى الدرس)
             if (lecture.synopsis.isNotBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = lecture.synopsis,
                     fontFamily = NotoSansFont,
                     fontSize = 12.5.sp,
-                    color = OldInk.copy(alpha = 0.85f),
+                    color = theme.textSecondary,
                     lineHeight = 19.sp
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // User Action Buttons: الدخول المباشر للمشاهدة + زر المشاركة عبر تطبيقات التواصل الاجتماعي + نسخ الرابط
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -713,55 +625,57 @@ fun CuratedLectureItemCard(
             ) {
                 Button(
                     onClick = onOpen,
-                    modifier = Modifier.weight(1.3f).height(42.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C)),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.destructive, contentColor = Color.White),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp)
                 ) {
                     Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "مشاهدة واستماع 🚀",
+                        text = "مشاهدة واستماع",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = 12.5.sp,
                         color = Color.White
                     )
                 }
 
-                // زر مشاركة رابط الدرس عبر تطبيقات التواصل الاجتماعي (واتساب، تيليجرام، فيسبوك، إلخ)
                 Button(
                     onClick = { shareLecture(context, lecture) },
-                    modifier = Modifier.weight(1.1f).height(42.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp)
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = theme.onPrimary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "مشاركة 📤",
+                        text = "مشاركة",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = Color.White
+                        fontSize = 12.5.sp,
+                        color = theme.onPrimary
                     )
                 }
 
-                // زر نسخ الرابط السريع
                 OutlinedButton(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("رابط درس ${lecture.title}", lecture.url)
                         clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, "تم نسخ رابط الدرس للحافظة 📋", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "تم نسخ رابط الدرس للحافظة", Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.size(42.dp),
+                    modifier = Modifier.size(48.dp),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, ManuscriptGold),
+                    border = BorderStroke(1.dp, theme.separator),
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ الرابط", tint = ManuscriptGold, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ الرابط", tint = theme.primary, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -769,7 +683,7 @@ fun CuratedLectureItemCard(
 }
 
 /**
- * بطاقة مقترح المستخدم بسرد عميق وتفصيلي وإمكانية التصويت
+ * بطاقة مقترح المستخدم
  */
 @Composable
 fun UserProposalItemCard(
@@ -780,62 +694,54 @@ fun UserProposalItemCard(
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AntiqueParchment,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.35f)),
-        shadowElevation = 2.dp
-    ) {
+    AppleCard(containerColor = theme.secondarySurface) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Topic + Status Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = Color(0xFF3B82F6).copy(alpha = 0.12f),
+                    color = theme.primary.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "💡 ${proposal.suggestedTopic}",
+                        text = proposal.suggestedTopic,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp,
-                        color = Color(0xFF1D4ED8),
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        fontSize = 11.sp,
+                        color = theme.primary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
 
                 Surface(
-                    color = ManuscriptGold.copy(alpha = 0.12f),
+                    color = GoldPrimary.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
                         text = proposal.status,
                         fontFamily = CairoFont,
-                        fontSize = 10.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = ManuscriptGold,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        color = GoldPrimary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Suggested Title
             Text(
                 text = "« ${proposal.suggestedTitle} »",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = OldInk
+                fontSize = 14.5.sp,
+                color = theme.textPrimary
             )
 
-            // Sheikh & Proposer info
             Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -844,42 +750,40 @@ fun UserProposalItemCard(
             ) {
                 if (proposal.suggestedSpeaker.isNotBlank()) {
                     Text(
-                        text = "🎙️ الشيخ المقترح: ${proposal.suggestedSpeaker}",
+                        text = "الشيخ المقترح: ${proposal.suggestedSpeaker}",
                         fontFamily = CairoFont,
                         fontSize = 11.5.sp,
-                        color = OldInk.copy(alpha = 0.75f)
+                        color = theme.textSecondary
                     )
                 }
                 Text(
                     text = "بواسطة: ${proposal.userProposerName}",
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
-                    color = ManuscriptGold
+                    color = theme.primary
                 )
             }
 
-            // Rationale (السرد الأمعن لأهمية الدرس المقترح)
             if (proposal.rationale.isNotBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
-                    color = Color.Black.copy(alpha = 0.03f),
+                    color = theme.cardSurface,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "📖 سبب الاقتراح والفائدة للأمة:\n${proposal.rationale}",
+                        text = "سبب الاقتراح والفائدة:\n${proposal.rationale}",
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp,
-                        color = OldInk.copy(alpha = 0.85f),
+                        color = theme.textPrimary,
                         lineHeight = 18.sp,
-                        modifier = Modifier.padding(8.dp)
+                        modifier = Modifier.padding(10.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Action Buttons: Upvote / Endorse + Share Proposal + Dev Adoption
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -889,45 +793,47 @@ fun UserProposalItemCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Upvote Button
                     Button(
                         onClick = onUpvote,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.ThumbUp, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(5.dp))
+                        Icon(Icons.Default.ThumbUp, contentDescription = null, modifier = Modifier.size(15.dp), tint = theme.onPrimary)
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "أؤيد (${proposal.upvotesCount})",
                             fontFamily = CairoFont,
-                            fontSize = 11.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = theme.onPrimary
                         )
                     }
 
-                    // Share Proposal Button
                     OutlinedButton(
                         onClick = { shareProposal(context, proposal) },
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, ManuscriptGold.copy(alpha = 0.6f)),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, theme.separator),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(14.dp), tint = ManuscriptGold)
+                        Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(15.dp), tint = theme.primary)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("مشاركة", fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ManuscriptGold)
+                        Text("مشاركة", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = theme.primary)
                     }
                 }
 
-                // If Dev Mode: Option to adopt as official lecture or delete
                 if (isDevMode) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = onAdoptAsOfficial) {
-                            Text("اعتماد ونشر", fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                        TextButton(
+                            onClick = onAdoptAsOfficial,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("اعتماد ونشر", fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = theme.success)
                         }
-                        IconButton(onClick = onDelete, modifier = Modifier.size(30.dp)) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                        IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = theme.destructive, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -946,6 +852,7 @@ fun DeveloperAddLectureDialog(
     onSave: (ScholarLecture) -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     var title by remember { mutableStateOf("") }
     var speaker by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
@@ -953,22 +860,22 @@ fun DeveloperAddLectureDialog(
     var synopsis by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("45 دقيقة") }
 
-    val categories = listOf("المحنة والثبات", "المناقب والفضائل", "الجهاد والفتوحات", "الفقه والحديث", "سيرة جامعة")
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "🛠️ نشر درس معتمد جديد في سيرة ${scholar.name}",
+                text = "نشر درس معتمد جديد في سيرة ${scholar.name}",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
-                color = OldInk
+                color = theme.textPrimary
             )
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
@@ -999,7 +906,7 @@ fun DeveloperAddLectureDialog(
                                 url = clip.getItemAt(0).text?.toString() ?: ""
                             }
                         }) {
-                            Text("لصق", fontFamily = CairoFont, fontSize = 11.sp, color = ManuscriptGold)
+                            Text("لصق", fontFamily = CairoFont, fontSize = 11.sp, color = theme.primary)
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -1043,22 +950,23 @@ fun DeveloperAddLectureDialog(
                         )
                     )
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF065F46))
+                colors = ButtonDefaults.buttonColors(containerColor = theme.success, contentColor = Color.White),
+                modifier = Modifier.heightIn(min = 48.dp)
             ) {
                 Text("نشر الدرس للجميع", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إلغاء", fontFamily = CairoFont, color = OldInk)
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("إلغاء", fontFamily = CairoFont, color = theme.textSecondary)
             }
         },
-        containerColor = AgedPaper
+        containerColor = theme.cardSurface
     )
 }
 
 /**
- * نافذة المستخدم لاقتراح عنوان درس ومحور علمي جديد بسرد أمعن
+ * نافذة المستخدم لاقتراح عنوان درس ومحور علمي جديد
  */
 @Composable
 fun UserProposeLectureDialog(
@@ -1067,35 +975,36 @@ fun UserProposeLectureDialog(
     onSave: (LectureProposal) -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     var suggestedTitle by remember { mutableStateOf("") }
     var suggestedSpeaker by remember { mutableStateOf("") }
     var suggestedTopic by remember { mutableStateOf("المحنة والثبات") }
     var rationale by remember { mutableStateOf("") }
     var userProposerName by remember { mutableStateOf("") }
 
-    val topics = listOf("المحنة والثبات", "فقه القيادة والعدل", "التربية والزهد", "الرد على الشبهات", "معارك وبطولات")
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "💡 اقتراح درس أو محاضرة عن ${scholar.name}",
+                text = "اقتراح درس أو محاضرة عن ${scholar.name}",
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
-                color = OldInk
+                color = theme.textPrimary
             )
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "شارك برأيك في موضوع أو فكرة درس ترى أنها تلهم المسلمين في سيرة هذا الإمام:",
-                    fontFamily = CairoFont,
-                    fontSize = 11.5.sp,
-                    color = OldInk.copy(alpha = 0.75f)
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.sp,
+                    color = theme.textSecondary
                 )
 
                 OutlinedTextField(
@@ -1154,23 +1063,21 @@ fun UserProposeLectureDialog(
                         )
                     )
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold)
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                modifier = Modifier.heightIn(min = 48.dp)
             ) {
-                Text("إرسال المقترح", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("إرسال المقترح", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.onPrimary)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إلغاء", fontFamily = CairoFont, color = OldInk)
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("إلغاء", fontFamily = CairoFont, color = theme.textSecondary)
             }
         },
-        containerColor = AgedPaper
+        containerColor = theme.cardSurface
     )
 }
 
-/**
- * دالة مساعدة لفتح الروابط عبر متصفح الجهاز أو تطبيق يوتيوب
- */
 fun openLectureUrl(context: Context, url: String) {
     try {
         var cleanUrl = url.trim()
@@ -1186,9 +1093,6 @@ fun openLectureUrl(context: Context, url: String) {
     }
 }
 
-/**
- * دالة لمشاركة رابط وتفاصيل الدرس المعتمد عبر تطبيقات التواصل الاجتماعي
- */
 fun shareLecture(context: Context, lecture: ScholarLecture) {
     try {
         val shareBody = buildString {
@@ -1226,9 +1130,6 @@ fun shareLecture(context: Context, lecture: ScholarLecture) {
     }
 }
 
-/**
- * دالة لمشاركة مقترح الدرس مع طلاب العلم
- */
 fun shareProposal(context: Context, proposal: LectureProposal) {
     try {
         val shareBody = buildString {
@@ -1272,29 +1173,31 @@ fun SupabaseSqlHelpDialog(
     onDismiss: () -> Unit,
     onCopySql: () -> Unit
 ) {
+    val theme = QabasTheme.current
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
                 onClick = onCopySql,
-                colors = ButtonDefaults.buttonColors(containerColor = ManuscriptGold),
-                shape = RoundedCornerShape(10.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.heightIn(min = 48.dp)
             ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = OldInk, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("📋 نسخ كود SQL بالكامل", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = OldInk)
+                Text("نسخ كود SQL بالكامل", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.onPrimary)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق", fontFamily = CairoFont, color = OldInk)
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("إغلاق", fontFamily = CairoFont, color = theme.textSecondary)
             }
         },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CloudSync, contentDescription = null, tint = ManuscriptGold, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.CloudSync, contentDescription = null, tint = theme.primary, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("تهيئة سحابة Supabase", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.5.sp, color = OldInk)
+                Text("تهيئة سحابة Supabase", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.5.sp, color = theme.textPrimary)
             }
         },
         text = {
@@ -1305,24 +1208,24 @@ fun SupabaseSqlHelpDialog(
             ) {
                 Text(
                     text = "لكي تظهر الدروس ومقترحات المستخدمين للجميع عبر السحابة، يجب إنشاء الجداول وسياسات الأمان في مشروعك بـ Supabase مرة واحدة فقط:",
-                    fontFamily = CairoFont,
+                    fontFamily = NotoSansFont,
                     fontSize = 12.5.sp,
-                    color = OldInk,
+                    color = theme.textPrimary,
                     lineHeight = 18.sp
                 )
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Surface(
-                    color = OldInk.copy(alpha = 0.05f),
-                    shape = RoundedCornerShape(8.dp),
+                    color = theme.secondarySurface,
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text("1️⃣ ادخل إلى لوحة تحكم مشروعك في supabase.com", fontFamily = CairoFont, fontSize = 11.5.sp, color = OldInk, fontWeight = FontWeight.SemiBold)
+                        Text("1. ادخل إلى لوحة تحكم مشروعك في supabase.com", fontFamily = CairoFont, fontSize = 12.sp, color = theme.textPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("2️⃣ اختر SQL Editor من القائمة الجانبية.", fontFamily = CairoFont, fontSize = 11.5.sp, color = OldInk, fontWeight = FontWeight.SemiBold)
+                        Text("2. اختر SQL Editor من القائمة الجانبية.", fontFamily = CairoFont, fontSize = 12.sp, color = theme.textPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("3️⃣ اضغط زر النسخ أدناه، والصق الكود ثم اضغط Run.", fontFamily = CairoFont, fontSize = 11.5.sp, color = OldInk, fontWeight = FontWeight.SemiBold)
+                        Text("3. اضغط زر النسخ أدناه، والصق الكود ثم اضغط Run.", fontFamily = CairoFont, fontSize = 12.sp, color = theme.textPrimary, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -1331,13 +1234,14 @@ fun SupabaseSqlHelpDialog(
                     text = "معاينة كود الجداول والسياسات:",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = ManuscriptGold
+                    fontSize = 11.5.sp,
+                    color = theme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Surface(
-                    color = Color(0xFF0F172A),
+                    color = theme.secondarySurface,
                     shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(0.75.dp, theme.separator),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 140.dp)
@@ -1345,8 +1249,8 @@ fun SupabaseSqlHelpDialog(
                     Text(
                         text = SUPABASE_SCHOLAR_SQL.trim(),
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 9.5.sp,
-                        color = Color(0xFF38BDF8),
+                        fontSize = 10.sp,
+                        color = theme.textPrimary,
                         modifier = Modifier
                             .padding(8.dp)
                             .verticalScroll(rememberScrollState())
@@ -1354,7 +1258,7 @@ fun SupabaseSqlHelpDialog(
                 }
             }
         },
-        containerColor = AgedPaper,
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(16.dp)
     )
 }

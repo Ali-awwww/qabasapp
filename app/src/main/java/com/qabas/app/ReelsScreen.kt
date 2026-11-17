@@ -50,11 +50,13 @@ import com.qabas.app.SupabaseServices
 import com.qabas.app.ui.components.ReelPlayer
 import com.qabas.app.ui.components.GeometricToolsDock
 import com.qabas.app.ui.components.DockTool
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.AmiriFont
-import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ReelSafetyGuardrails
 import com.qabas.app.ReelCrashBoundary
@@ -157,6 +159,7 @@ fun ReelsScreen(
     onOpenProfile: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val scope = rememberCoroutineScope()
 
     // Initialize Preferences
@@ -776,58 +779,61 @@ fun ReelsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0xFF050914)),
+                            .background(theme.background),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(horizontal = 28.dp)
+                        AppleCard(
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp)
+                                .widthIn(max = 420.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = null,
-                                tint = Color(0xFF00E5FF),
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "لا توجد مقاطع أثر محفوظة على الجهاز",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = if (isOnline) "ستظهر المقاطع هنا بعد تنزيلها مسبقاً." else "لا يمكن جلب المقاطع الآن دون اتصال بالإنترنت.",
-                                color = Color.White.copy(alpha = 0.72f),
-                                fontFamily = CairoFont,
-                                fontSize = 12.sp,
-                                textAlign = TextAlign.Center
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                        .background(theme.primary.copy(alpha = 0.14f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        tint = theme.primary,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "لا توجد مقاطع أثر محفوظة على الجهاز",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (isOnline) "ستظهر المقاطع هنا تلقائياً بعد تنزيلها للمشاهدة دون اتصال." else "لا يمكن جلب المقاطع الآن دون اتصال بالإنترنت.",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     }
                 } else if (allReels.isEmpty() && selectedTab != 2) {
-                    // Empty state: geometric balance (gradient void + weighted centering + capped width)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFF0B1324), Color.Black, Color(0xFF070B14))
-                                )
-                            )
+                            .background(theme.background)
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                     ) {
-                        // Faint watermark emblem filling the void
-                        Icon(
-                            imageVector = Icons.Default.SlowMotionVideo,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.04f),
-                            modifier = Modifier
-                                .size(280.dp)
-                                .align(Alignment.Center)
-                        )
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -835,134 +841,116 @@ fun ReelsScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Spacer(modifier = Modifier.weight(1f))
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
+                            AppleCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .widthIn(max = 420.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(Color(0xFF0F172A).copy(alpha = 0.92f))
-                                    .border(BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)), RoundedCornerShape(24.dp))
-                                    .padding(24.dp)
+                                    .widthIn(max = 420.dp),
+                                cornerRadius = 22.dp
                             ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = GoldPrimary.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                modifier = Modifier.size(72.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.VideoCall,
-                                        contentDescription = null,
-                                        tint = GoldPrimary,
-                                        modifier = Modifier.size(36.dp)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(24.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(68.dp)
+                                            .clip(CircleShape)
+                                            .background(theme.primary.copy(alpha = 0.14f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.VideoCall,
+                                            contentDescription = null,
+                                            tint = theme.primary,
+                                            modifier = Modifier.size(34.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Text(
+                                        text = "لا توجد مقاطع منشورة حالياً",
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp,
+                                        color = theme.textPrimary,
+                                        textAlign = TextAlign.Center
                                     )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = "كن أول من ينشر مقطعاً قرآنياً أو دعوياً مباركاً ليظهر للمجتمع.",
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 13.sp,
+                                        color = theme.textSecondary,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 20.sp
+                                    )
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        ApplePrimaryButton(
+                                            text = "نشر مقطع الآن",
+                                            icon = Icons.Default.Add,
+                                            onClick = { checkGuestInteraction { showPublishDialog = true } }
+                                        )
+                                        AppleSecondaryButton(
+                                            text = "تحديث",
+                                            icon = Icons.Default.Refresh,
+                                            onClick = { loadReels() }
+                                        )
+                                    }
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = "لا توجد مقاطع منشورة حالياً",
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color.White,
-                                textAlign = TextAlign.Center
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "كن أول من ينشر مقطعاً قرآنياً أو دعوياً مباركاً ليظهر لجميع المسلمين حول العالم ✨",
-                                fontFamily = CairoFont,
-                                fontSize = 12.5.sp,
-                                color = Color.White.copy(alpha = 0.7f),
-                                textAlign = TextAlign.Center,
-                                lineHeight = 18.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Button(
-                                    onClick = { checkGuestInteraction { showPublishDialog = true } },
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
-                                    shape = RoundedCornerShape(16.dp),
-                                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
-                                    modifier = Modifier.heightIn(min = 44.dp)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("نشر مقطع الآن", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
-                                }
-
-                                OutlinedButton(
-                                    onClick = { loadReels() },
-                                    shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                    modifier = Modifier.heightIn(min = 44.dp)
-                                ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("تحديث", fontFamily = CairoFont, fontSize = 12.5.sp, maxLines = 1)
-                                }
-                            }
+                            Spacer(modifier = Modifier.weight(1.2f))
                         }
-                        Spacer(modifier = Modifier.weight(1.2f))
                     }
-                }
-            } else {
-                if (displayReels.isEmpty()) {
-                    // توجد مقاطع لكن لا نتائج مطابقة للفلاتر/البحث الحالية
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(horizontal = 32.dp)
+                } else {
+                    if (displayReels.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(theme.background),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.SearchOff,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.5f),
-                                modifier = Modifier.size(46.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "لا نتائج مطابقة لبحثك أو تصنيفك الحالي",
-                                color = Color.White,
-                                fontFamily = CairoFont,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    selectedCategory = "ALL"
-                                    searchQuery = ""
-                                    isSearchActive = false
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-                                modifier = Modifier.heightIn(min = 44.dp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(horizontal = 32.dp)
                             ) {
-                                Icon(Icons.Default.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("مسح الفلاتر", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Icon(
+                                    imageVector = Icons.Default.SearchOff,
+                                    contentDescription = null,
+                                    tint = theme.textSecondary,
+                                    modifier = Modifier.size(46.dp)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "لا نتائج مطابقة لبحثك أو تصنيفك الحالي",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                AppleSecondaryButton(
+                                    text = "مسح الفلاتر",
+                                    icon = Icons.Default.FilterAltOff,
+                                    modifier = Modifier.widthIn(max = 220.dp),
+                                    onClick = {
+                                        selectedCategory = "ALL"
+                                        searchQuery = ""
+                                        isSearchActive = false
+                                    }
+                                )
                             }
                         }
-                    }
                 } else {
                     VerticalPager(
                         state = pagerState,
@@ -1220,7 +1208,7 @@ fun ReelsScreen(
                             DockTool(
                                 id = "publish",
                                 icon = if (isDeveloper) Icons.Default.Verified else Icons.Default.Add,
-                                label = if (isDeveloper) "نشر 👑" else "نشر",
+                                label = if (isDeveloper) "نشر مطور" else "نشر",
                                 onClick = {
                                     checkGuestInteraction {
                                         if (!currentSupabaseId.isNullOrBlank()) {
@@ -1251,7 +1239,7 @@ fun ReelsScreen(
                                     ReelPreferencesManager.triggerHaptic(context)
                                 },
                                 active = isAudioMuted,
-                                accent = Color(0xFFEF4444)
+                                accent = theme.destructive
                             ),
                             DockTool(
                                 id = "loop",
@@ -1297,7 +1285,7 @@ fun ReelsScreen(
                     )
                 }
 
-                // Top Spatial HUD Header (Clean, minimal, no empty space)
+                // Top Bar over full-bleed player (Apple frosted translucent chrome)
                 if (!isKhushuMode) {
                     Column(
                         modifier = Modifier
@@ -1312,145 +1300,132 @@ fun ReelsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Back Button in circular frosted glass pill
                             IconButton(
                                 onClick = onBack,
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF0F172A).copy(alpha = 0.75f))
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), CircleShape)
+                                    .background(Color(0xA61C1C1E))
+                                    .border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.22f)), CircleShape)
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "رجوع",
                                     tint = Color.White,
-                                    modifier = Modifier.size(19.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
 
-                             // Center Cybernetic Tabs Capsule (لك | متابعون | الأثر) — neatly fitted without truncation
+                            // Center Apple Frosted Segmented Pill (لك | متابعون | الأثر)
                             Surface(
                                 shape = RoundedCornerShape(22.dp),
-                                color = Color(0xFF0F172A).copy(alpha = 0.75f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                modifier = Modifier.height(38.dp)
+                                color = Color(0xB81C1C1E),
+                                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.20f)),
+                                modifier = Modifier.heightIn(min = 42.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                    modifier = Modifier
-                                        .padding(horizontal = 4.dp, vertical = 3.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier.padding(4.dp)
                                 ) {
-                                    // For You Tab
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(if (selectedTab == 0) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
-                                            .border(
-                                                BorderStroke(1.dp, if (selectedTab == 0) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
-                                                RoundedCornerShape(16.dp)
+                                    Surface(
+                                        onClick = {
+                                            if (!isOnline) {
+                                                Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) — يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                selectedTab = 0
+                                                isAlAtharMode = false
+                                            }
+                                            ReelPreferencesManager.triggerHaptic(context)
+                                        },
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = if (selectedTab == 0) theme.primary else Color.Transparent,
+                                        modifier = Modifier.heightIn(min = 36.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (!isOnline) "لك (أوفلاين)" else "لك",
+                                                fontFamily = CairoFont,
+                                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 12.sp,
+                                                softWrap = false,
+                                                maxLines = 1,
+                                                color = if (selectedTab == 0) theme.onPrimary else Color.White.copy(alpha = if (!isOnline) 0.45f else 0.85f)
                                             )
-                                            .clickable {
-                                                if (!isOnline) {
-                                                    Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) ✦ التبويب يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    selectedTab = 0
+                                        }
+                                    }
+
+                                    Surface(
+                                        onClick = {
+                                            if (!isOnline) {
+                                                Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) — يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                checkGuestInteraction {
+                                                    selectedTab = 1
                                                     isAlAtharMode = false
-                                                }
-                                                ReelPreferencesManager.triggerHaptic(context)
-                                            }
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = if (!isOnline) "لك 🔒" else "لك ✦",
-                                            fontFamily = CairoFont,
-                                            fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                            softWrap = false,
-                                            maxLines = 1,
-                                            color = if (selectedTab == 0) GoldPrimary else Color.White.copy(alpha = if (!isOnline) 0.4f else 0.7f)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(2.dp))
-
-                                    // Following Tab
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(if (selectedTab == 1) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
-                                            .border(
-                                                BorderStroke(1.dp, if (selectedTab == 1) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
-                                                RoundedCornerShape(16.dp)
-                                            )
-                                            .clickable {
-                                                if (!isOnline) {
-                                                    Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) ✦ التبويب يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    checkGuestInteraction {
-                                                        selectedTab = 1
-                                                        isAlAtharMode = false
-                                                        ReelPreferencesManager.triggerHaptic(context)
-                                                    }
+                                                    ReelPreferencesManager.triggerHaptic(context)
                                                 }
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
+                                        },
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = if (selectedTab == 1) theme.primary else Color.Transparent,
+                                        modifier = Modifier.heightIn(min = 36.dp)
                                     ) {
-                                        Text(
-                                            text = if (!isOnline) "متابعون 🔒" else "متابعون",
-                                            fontFamily = CairoFont,
-                                            fontWeight = if (selectedTab == 1) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                            softWrap = false,
-                                            maxLines = 1,
-                                            color = if (selectedTab == 1) GoldPrimary else Color.White.copy(alpha = if (!isOnline) 0.4f else 0.7f)
-                                        )
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "متابعون",
+                                                fontFamily = CairoFont,
+                                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 12.sp,
+                                                softWrap = false,
+                                                maxLines = 1,
+                                                color = if (selectedTab == 1) theme.onPrimary else Color.White.copy(alpha = if (!isOnline) 0.45f else 0.85f)
+                                            )
+                                        }
                                     }
 
-                                    Spacer(modifier = Modifier.width(2.dp))
-
-                                    // Al-Athar Mode Tab (Always visible for manual switching)
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(if (selectedTab == 2) GoldPrimary.copy(alpha = 0.22f) else Color.Transparent)
-                                            .border(
-                                                BorderStroke(1.dp, if (selectedTab == 2) GoldPrimary.copy(alpha = 0.6f) else Color.Transparent),
-                                                RoundedCornerShape(16.dp)
-                                            )
-                                            .clickable {
-                                                atharReels = SilentReelStorageManager.getDownloadedReels(context)
-                                                selectedTab = 2
-                                                selectedCategory = "ALL"
-                                                searchQuery = ""
-                                                isSearchActive = false
-                                                isAlAtharMode = true
-                                                ReelPreferencesManager.triggerHaptic(context)
-                                            }
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
+                                    Surface(
+                                        onClick = {
+                                            atharReels = SilentReelStorageManager.getDownloadedReels(context)
+                                            selectedTab = 2
+                                            selectedCategory = "ALL"
+                                            searchQuery = ""
+                                            isSearchActive = false
+                                            isAlAtharMode = true
+                                            ReelPreferencesManager.triggerHaptic(context)
+                                        },
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = if (selectedTab == 2) theme.primary else Color.Transparent,
+                                        modifier = Modifier.heightIn(min = 36.dp)
                                     ) {
-                                        Text(
-                                            text = "الأثر ✦",
-                                            fontFamily = CairoFont,
-                                            fontWeight = if (selectedTab == 2) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                            softWrap = false,
-                                            maxLines = 1,
-                                            color = if (selectedTab == 2) GoldPrimary else Color.White.copy(alpha = 0.7f)
-                                        )
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "الأثر",
+                                                fontFamily = CairoFont,
+                                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 12.sp,
+                                                softWrap = false,
+                                                maxLines = 1,
+                                                color = if (selectedTab == 2) theme.onPrimary else Color.White.copy(alpha = 0.85f)
+                                            )
+                                        }
                                     }
                                 }
                             }
 
-                            // Spacer mirroring the back button so the tabs stay perfectly centered
-                            Spacer(modifier = Modifier.size(38.dp))
+                            Spacer(modifier = Modifier.size(48.dp))
                         }
 
-                        // 📡 شريط تنبيه هادئ عند تصفح وضع الأثر أو انقطاع الاتصال
+                        // Quiet Al-Athar / Offline indicator pill
                         AnimatedVisibility(
                             visible = !isOnline || isAlAtharMode,
                             enter = expandVertically() + fadeIn(),
@@ -1463,28 +1438,35 @@ fun ReelsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF0F172A).copy(alpha = 0.90f),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
-                                    modifier = Modifier.clickable {
+                                    onClick = {
                                         if (isOnline) {
                                             loadReels(true)
                                         } else {
-                                            Toast.makeText(context, "لا يوجد اتصال بالإنترنت — وضع الأثر نشط للمشاهدة فقط ✦", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "وضع الأثر نشط للمشاهدة الهادئة دون اتصال", Toast.LENGTH_SHORT).show()
                                         }
                                         ReelPreferencesManager.triggerHaptic(context)
-                                    }
+                                    },
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xCC1C1C1E),
+                                    border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.45f))
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Spa,
+                                            contentDescription = null,
+                                            tint = theme.primary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = if (!isOnline) "« وضع الأثر الإجباري ✦ مشاهدة هادئة دون اتصال ودون تفاعل »" else "« وضع الأثر ✦ نفحات من وحي السكينة دون تفاعل »",
+                                            text = if (!isOnline) "وضع الأثر الإجباري • مشاهدة دون اتصال" else "وضع الأثر • مساحة للسكينة والتدبر",
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 11.5.sp,
-                                            color = GoldPrimary,
+                                            color = Color.White,
                                             maxLines = 1,
                                             softWrap = false
                                         )
@@ -1493,8 +1475,8 @@ fun ReelsScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Refresh,
                                                 contentDescription = "إعادة الاتصال",
-                                                tint = GoldPrimary,
-                                                modifier = Modifier.size(13.dp)
+                                                tint = theme.primary,
+                                                modifier = Modifier.size(14.dp)
                                             )
                                         }
                                     }
@@ -1502,75 +1484,98 @@ fun ReelsScreen(
                             }
                         }
 
-                        // Expandable Minimalist Search & Categories
+                        // Expandable Search & Categories
                         AnimatedVisibility(
                             visible = isSearchActive,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            Surface(
+                                color = theme.cardSurface.copy(alpha = 0.96f),
+                                shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp),
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                OutlinedTextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    placeholder = {
-                                        Text("ابحث عن تلاوة، شيخ، موضوع أو عنوان...", fontFamily = CairoFont, fontSize = 12.sp, color = Color.Gray)
-                                    },
-                                    trailingIcon = {
-                                        if (searchQuery.isNotEmpty()) {
-                                            IconButton(onClick = { searchQuery = "" }) {
-                                                Icon(Icons.Default.Clear, contentDescription = "مسح", tint = Color.White)
-                                            }
-                                        }
-                                    },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(18.dp),
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = GoldPrimary,
-                                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
-                                    )
-                                )
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
-                                    val categories = listOf(
-                                        "ALL" to "الكل 🌟",
-                                        "QURAN" to "تلاوات قرآنية 🌿",
-                                        "HADITH" to "أحاديث نبوية ⚡",
-                                        "STORIES" to "قصص وعبر 🛡️"
+                                    OutlinedTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        placeholder = {
+                                            Text(
+                                                "ابحث عن تلاوة، شيخ، أو موضوع...",
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 13.sp,
+                                                color = theme.textSecondary
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Search, contentDescription = null, tint = theme.textSecondary)
+                                        },
+                                        trailingIcon = {
+                                            if (searchQuery.isNotEmpty()) {
+                                                IconButton(
+                                                    onClick = { searchQuery = "" },
+                                                    modifier = Modifier.size(48.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Clear, contentDescription = "مسح", tint = theme.textSecondary)
+                                                }
+                                            }
+                                        },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = theme.primary,
+                                            unfocusedBorderColor = theme.separator.copy(alpha = 0.45f),
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary
+                                        )
                                     )
-                                    items(categories) { (key, label) ->
-                                        val isSelected = selectedCategory == key
-                                        Surface(
-                                            shape = RoundedCornerShape(14.dp),
-                                            color = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.08f),
-                                            border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.15f)),
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .clickable {
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        val categories = listOf(
+                                            "ALL" to "الكل",
+                                            "QURAN" to "تلاوات قرآنية",
+                                            "HADITH" to "أحاديث نبوية",
+                                            "STORIES" to "قصص وعبر"
+                                        )
+                                        items(categories) { (key, label) ->
+                                            val isSelected = selectedCategory == key
+                                            Surface(
+                                                onClick = {
                                                     selectedCategory = key
                                                     ReelPreferencesManager.triggerHaptic(context)
+                                                },
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = if (isSelected) theme.primary else theme.secondarySurface,
+                                                border = BorderStroke(
+                                                    width = if (isSelected) 0.dp else 0.5.dp,
+                                                    color = theme.separator.copy(alpha = 0.45f)
+                                                ),
+                                                modifier = Modifier.heightIn(min = 40.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = label,
+                                                        fontFamily = CairoFont,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isSelected) theme.onPrimary else theme.textPrimary
+                                                    )
                                                 }
-                                        ) {
-                                            Text(
-                                                text = label,
-                                                fontFamily = CairoFont,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) DeepSlate else Color.White,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                            )
+                                            }
                                         }
                                     }
                                 }
@@ -1578,29 +1583,34 @@ fun ReelsScreen(
                         }
                     }
                 } else {
-                    // Minimal Khushu Mode Exit Indicator
                     Surface(
+                        onClick = { isKhushuMode = false },
                         shape = RoundedCornerShape(20.dp),
-                        color = Color.Black.copy(alpha = 0.6f),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                        color = Color(0xB81C1C1E),
+                        border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.55f)),
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                             .padding(top = 12.dp)
-                            .clickable { isKhushuMode = false }
+                            .heightIn(min = 48.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                         ) {
-                            Text(text = "🌙", fontSize = 13.sp)
+                            Icon(
+                                imageVector = Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = theme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "وضع الخشوع مفعل (انقر للرجوع للوضع العادي)",
+                                text = "وضع الخشوع مفعل • انقر للعودة",
                                 fontFamily = CairoFont,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = GoldPrimary
+                                color = Color.White
                             )
                         }
                     }
@@ -1885,100 +1895,73 @@ fun GuestInteractionDialog(
     onDismiss: () -> Unit,
     onLogin: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Box(
+        AppleCard(
             modifier = Modifier
                 .padding(horizontal = 24.dp)
-                .widthIn(max = 420.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF0F172A).copy(alpha = 0.95f))
-                .border(BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.45f)), RoundedCornerShape(24.dp))
+                .widthIn(max = 420.dp),
+            cornerRadius = 22.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = GoldPrimary.copy(alpha = 0.15f),
-                    border = BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.5f)),
-                    modifier = Modifier.size(64.dp)
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(theme.primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "قفل تسجيل الدخول",
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "تسجيل الدخول",
+                        tint = theme.primary,
+                        modifier = Modifier.size(30.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "تسجيل الدخول مطلوب للتفاعل ✨",
+                    text = "تسجيل الدخول مطلوب للتفاعل",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
-                    color = Color.White,
+                    color = theme.textPrimary,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "مرحباً بك في قبس! لتتمكن من الإعجاب بالمقاطع، مشاركة التعليقات، حفظ الفيديوهات، ومتابعة القراء والعلماء، يرجى تسجيل الدخول بحسابك.",
-                    fontFamily = CairoFont,
+                    text = "لتتمكن من الإعجاب بالمقاطع ومشاركة التعليقات وحفظ المفضلة ومتابعة القرّاء، يرجى تسجيل الدخول بحسابك.",
+                    fontFamily = NotoSansFont,
                     fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.78f),
+                    color = theme.textSecondary,
                     textAlign = TextAlign.Center,
                     lineHeight = 20.sp
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Button(
-                        onClick = onLogin,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate)
-                    ) {
-                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "تسجيل الدخول بحسابك",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                    ) {
-                        Text(
-                            "إلغاء / متابعة كضيف",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                    }
+                    ApplePrimaryButton(
+                        text = "تسجيل الدخول بحسابك",
+                        icon = Icons.Default.Lock,
+                        onClick = onLogin
+                    )
+                    AppleSecondaryButton(
+                        text = "المتابعة كضيف",
+                        onClick = onDismiss
+                    )
                 }
             }
         }
@@ -2043,6 +2026,8 @@ fun ReelSpatialHUDOverlays(
         )
     }
 
+    val theme = QabasTheme.current
+
     if (isKhushuMode) return
 
     Box(
@@ -2050,47 +2035,42 @@ fun ReelSpatialHUDOverlays(
             .fillMaxSize()
             .navigationBarsPadding()
     ) {
-        // Bottom Meta Info (audio badge + collapsible creator/description)
+        // Bottom Meta Info (audio track pill)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 14.dp, end = 66.dp, bottom = 96.dp)
                 .fillMaxWidth()
         ) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Audio track badge
             Surface(
-                color = Color.Black.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.15f)),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onAudioClick() }
+                onClick = onAudioClick,
+                color = Color(0xA61C1C1E),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.22f)),
+                modifier = Modifier.heightIn(min = 36.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Icon(
                         Icons.Default.MusicNote,
                         contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(12.dp)
+                        tint = theme.primary,
+                        modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = "الصوت الأصلي للمقطع",
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = Color.White,
                         fontFamily = CairoFont,
-                        fontSize = 10.sp
+                        fontSize = 11.sp
                     )
                 }
             }
         }
 
-        // أزرار التفاعل الجانبية: مخفية كلياً في وضع الأثر (مشاهدة وسكينة فقط)
+        // Side interaction rail (hidden in Al-Athar mode)
         if (!isAlAtharMode) {
             Column(
                 modifier = Modifier
@@ -2108,13 +2088,12 @@ fun ReelSpatialHUDOverlays(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // مُرتّبة حسب الأهمية: إعجاب ← تعليق ← حفظ ← مشاركة ← المزيد
                         ReelRailButton(
                             icon = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             label = formatCount(likesCount),
-                            tint = if (isLiked) Color(0xFFEF4444) else Color.White,
+                            tint = if (isLiked) theme.destructive else Color.White,
                             onClick = onLike,
-                            contentOverride = { QabasPulseIcon(isActive = isLiked) }
+                            contentOverride = { QabasPulseIcon(isActive = isLiked, activeTint = theme.primary) }
                         )
                         ReelRailButton(
                             icon = Icons.Default.Comment,
@@ -2125,7 +2104,7 @@ fun ReelSpatialHUDOverlays(
                         ReelRailButton(
                             icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                             label = if (isSaved) "محفوظ" else "حفظ",
-                            tint = if (isSaved) GoldPrimary else Color.White,
+                            tint = if (isSaved) theme.primary else Color.White,
                             onClick = onSave
                         )
                         ReelRailButton(
@@ -2137,35 +2116,41 @@ fun ReelSpatialHUDOverlays(
                         ReelRailButton(
                             icon = Icons.Default.MoreHoriz,
                             label = "المزيد",
-                            tint = Color.White.copy(alpha = 0.85f),
+                            tint = Color.White.copy(alpha = 0.9f),
                             onClick = onMoreOptions
                         )
 
-                        // 🎵 Spinning audio disc (geometric hub)
+                        // Spinning audio disc
                         Box(
                             modifier = Modifier
-                                .padding(end = 2.dp)
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF0F172A).copy(alpha = 0.85f))
-                                .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
-                                .rotate(rotation)
                                 .clickable { onAudioClick() },
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(14.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(GoldPrimary)
-                            )
+                                    .background(Color(0xCC1C1C1E))
+                                    .border(1.5.dp, theme.primary.copy(alpha = 0.7f), CircleShape)
+                                    .rotate(rotation),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clip(CircleShape)
+                                        .background(theme.primary)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // الأسهم السفلية: إخفاء سهم التفاعل تماما في وضع الأثر
+        // Bottom corner toggle buttons
         Row(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -2189,49 +2174,44 @@ fun ReelSpatialHUDOverlays(
     }
 }
 
-/**
- * سهم تبديل موحّد (نفس القياس) مع اسمه أسفله
- */
 @Composable
 fun ReelArrowButton(
     expanded: Boolean,
     label: String,
     onClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(46.dp)
+        modifier = Modifier.width(50.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(46.dp)
+                .size(48.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF0F172A).copy(alpha = 0.75f))
-                .border(1.4.dp, GoldPrimary.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                .background(Color(0xB81C1C1E))
+                .border(0.5.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(14.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
                 contentDescription = label,
-                tint = GoldPrimary,
+                tint = theme.primary,
                 modifier = Modifier.size(26.dp)
             )
         }
         Text(
             text = label,
-            color = GoldPrimary,
+            color = Color.White,
             fontFamily = CairoFont,
-            fontSize = 9.5.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
 
-/**
- * زر تفاعلي فضائي شفاف بحجم لمس قياسي وتصميم أنيق
- */
 @Composable
 fun ReelActionPill(
     icon: ImageVector,
@@ -2246,10 +2226,10 @@ fun ReelActionPill(
         IconButton(
             onClick = onClick,
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF0F172A).copy(alpha = 0.55f))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), CircleShape)
+                .background(Color(0xB81C1C1E))
+                .border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.20f)), CircleShape)
         ) {
             Icon(
                 imageVector = icon,
@@ -2262,16 +2242,13 @@ fun ReelActionPill(
             text = label,
             color = Color.White,
             fontFamily = CairoFont,
-            fontSize = 9.5.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 1.dp)
+            modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
 
-/**
- * زر تفاعل هندسي بحواف مربعة دائرية — يُستخدم في عمود التفاعل اليساري
- */
 @Composable
 fun ReelRailButton(
     icon: ImageVector,
@@ -2282,14 +2259,14 @@ fun ReelRailButton(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(46.dp)
+        modifier = Modifier.width(48.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(Color(0xFF0F172A).copy(alpha = 0.62f))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), RoundedCornerShape(13.dp))
+                .size(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xB81C1C1E))
+                .border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.20f)), RoundedCornerShape(14.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
@@ -2300,7 +2277,7 @@ fun ReelRailButton(
                     imageVector = icon,
                     contentDescription = label,
                     tint = tint,
-                    modifier = Modifier.size(21.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
@@ -2308,19 +2285,18 @@ fun ReelRailButton(
             text = label,
             color = Color.White,
             fontFamily = CairoFont,
-            fontSize = 9.5.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
 
-/**
- * أيقونة «نبضة قبس» — تبقى محصورة في نفس مساحة أيقونة القلب القديمة (21.dp).
- * لا تستخدم حجماً أو padding خارجياً حتى لا تغيّر مساحة زر التفاعل أو موضع العداد.
- */
 @Composable
-private fun QabasPulseIcon(isActive: Boolean) {
+private fun QabasPulseIcon(
+    isActive: Boolean,
+    activeTint: Color = Color(0xFF0A84FF)
+) {
     val pulseScale = remember { Animatable(1f) }
     LaunchedEffect(isActive) {
         if (isActive) {
@@ -2339,7 +2315,7 @@ private fun QabasPulseIcon(isActive: Boolean) {
     ) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val radius = size.minDimension * 0.34f
-        val glow = if (isActive) Color(0xFFFFD166) else Color.White.copy(alpha = 0.42f)
+        val glow = if (isActive) activeTint else Color.White.copy(alpha = 0.72f)
         val stroke = Stroke(width = size.minDimension * 0.095f, cap = StrokeCap.Round)
         val crescent = Path().apply {
             moveTo(center.x + radius * 0.25f, center.y - radius)
@@ -2377,6 +2353,7 @@ fun ReelCommentsBottomSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
     var commentText by remember { mutableStateOf("") }
     var commentsList by remember { mutableStateOf<List<SupabaseServices.ReelCommentRow>>(emptyList()) }
@@ -2388,7 +2365,6 @@ fun ReelCommentsBottomSheet(
     var editCommentText by remember { mutableStateOf("") }
     var pendingDeleteComment by remember { mutableStateOf<SupabaseServices.ReelCommentRow?>(null) }
     var managingCommentId by remember { mutableStateOf<String?>(null) }
-    // حالة جلب التعليقات: تحميل / فشل — يُميَّزان عن القائمة الفارغة
     var commentsLoading by remember { mutableStateOf(true) }
     var commentsError by remember { mutableStateOf(false) }
 
@@ -2410,14 +2386,13 @@ fun ReelCommentsBottomSheet(
         val sanitized = ReelSafetyGuardrails.sanitizeCommentText(raw) ?: return@submit
         if (isPosting) return@submit
         if (!ReelSafetyGuardrails.canPostComment()) {
-            Toast.makeText(context, "يرجى الانتظار قليلاً قبل إرسال تعليق آخر ⏱️", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "يرجى الانتظار قليلاً قبل إرسال تعليق آخر", Toast.LENGTH_SHORT).show()
             return@submit
         }
         isPosting = true
         commentFeedback = "جارٍ إرسال التعليق..."
         commentFeedbackIsError = false
         coroutineScope.launch {
-            // استخدم اسم العرض المستخرج من هوية الجلسة، لا معرّف الحساب بدلاً منه.
             val inserted = runCatching {
                 withTimeoutOrNull(12_000L) {
                     SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, currentUserName, sanitized)
@@ -2426,14 +2401,14 @@ fun ReelCommentsBottomSheet(
             if (inserted != null) {
                 commentsList = commentsList + inserted
                 commentText = ""
-                commentFeedback = "تم نشر تعليقك بنجاح ✓"
+                commentFeedback = "تم نشر تعليقك بنجاح"
                 commentFeedbackIsError = false
                 onCommentPosted()
                 Toast.makeText(context, "تم نشر التعليق بنجاح", Toast.LENGTH_SHORT).show()
             } else {
                 commentFeedback = "تعذر إرسال التعليق. تحقق من الاتصال ثم أعد المحاولة."
                 commentFeedbackIsError = true
-                Toast.makeText(context, "تعذر إرسال التعليق حالياً، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "تعذر إرسال التعليق حالياً", Toast.LENGTH_SHORT).show()
             }
             isPosting = false
         }
@@ -2441,10 +2416,10 @@ fun ReelCommentsBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
-        contentColor = Color.White,
+        containerColor = theme.cardSurface,
+        contentColor = theme.textPrimary,
         dragHandle = {
-            BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f))
+            BottomSheetDefaults.DragHandle(color = theme.separator)
         }
     ) {
         Column(
@@ -2452,19 +2427,21 @@ fun ReelCommentsBottomSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp)
-                .fillMaxHeight(0.6f)
+                .fillMaxHeight(0.62f)
         ) {
             Text(
                 text = "التعليقات (${commentsList.size})",
-                color = Color.White,
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
             )
 
-            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+            HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.5f))
 
             if (commentsLoading) {
                 Box(
@@ -2473,7 +2450,7 @@ fun ReelCommentsBottomSheet(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
+                    CircularProgressIndicator(color = theme.primary, modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
                 }
             } else if (commentsError) {
                 Box(
@@ -2482,14 +2459,12 @@ fun ReelCommentsBottomSheet(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "تعذر تحميل التعليقات",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontFamily = CairoFont,
-                            fontSize = 13.sp
-                        )
-                    }
+                    Text(
+                        text = "تعذر تحميل التعليقات",
+                        color = theme.textSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 14.sp
+                    )
                 }
             } else if (commentsList.isEmpty()) {
                 Box(
@@ -2499,15 +2474,17 @@ fun ReelCommentsBottomSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "كن أول من يشارك بتعليق ملهم 💬",
-                        color = Color.White.copy(alpha = 0.5f),
+                        text = "كن أول من يشارك بتعليق طيب",
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontSize = 13.sp
+                        fontSize = 14.sp
                     )
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
@@ -2518,14 +2495,14 @@ fun ReelCommentsBottomSheet(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(GoldPrimary.copy(alpha = 0.2f)),
+                                    .background(theme.primary.copy(alpha = 0.14f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = c.userName.trim().firstOrNull()?.toString() ?: "م",
-                                    color = GoldPrimary,
+                                    color = theme.primary,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont
                                 )
@@ -2537,9 +2514,9 @@ fun ReelCommentsBottomSheet(
                                         text = c.userName.ifBlank {
                                             if (c.userId == currentUserId) currentUserName else "مستخدم قبس"
                                         },
-                                        color = Color.White.copy(alpha = 0.9f),
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
-                                        fontSize = 12.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -2548,9 +2525,9 @@ fun ReelCommentsBottomSheet(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "@$customId",
-                                            color = Color(0xFF00E5FF).copy(alpha = 0.82f),
+                                            color = theme.primary,
                                             fontFamily = RobotoMonoFont,
-                                            fontSize = 9.sp,
+                                            fontSize = 10.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -2559,9 +2536,9 @@ fun ReelCommentsBottomSheet(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "أنت",
-                                            color = GoldPrimary,
+                                            color = theme.primary,
                                             fontFamily = CairoFont,
-                                            fontSize = 9.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -2569,18 +2546,18 @@ fun ReelCommentsBottomSheet(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "تم التعديل",
-                                            color = Color.White.copy(alpha = 0.4f),
-                                            fontFamily = CairoFont,
-                                            fontSize = 9.sp
+                                            color = theme.textSecondary,
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 10.sp
                                         )
                                     }
                                 }
                                 Text(
                                     text = c.commentText,
-                                    color = Color.White,
-                                    fontFamily = CairoFont,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(top = 2.dp)
+                                    color = theme.textPrimary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 13.5.sp,
+                                    modifier = Modifier.padding(top = 3.dp)
                                 )
                             }
                             if (currentUserId.isNotBlank() && c.userId == currentUserId) {
@@ -2588,12 +2565,12 @@ fun ReelCommentsBottomSheet(
                                     IconButton(
                                         onClick = { expandedCommentMenuId = c.id },
                                         enabled = managingCommentId == null,
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.MoreVert,
                                             contentDescription = "إدارة التعليق",
-                                            tint = Color.White.copy(alpha = 0.65f),
+                                            tint = theme.textSecondary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -2611,8 +2588,8 @@ fun ReelCommentsBottomSheet(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("حذف التعليق", fontFamily = CairoFont) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                            text = { Text("حذف التعليق", fontFamily = CairoFont, color = theme.destructive) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = theme.destructive) },
                                             onClick = {
                                                 expandedCommentMenuId = null
                                                 pendingDeleteComment = c
@@ -2626,44 +2603,43 @@ fun ReelCommentsBottomSheet(
                 }
             }
 
-            // تفاعلات سريعة تُنشر كتعليق بدل ازدحام الشاشة
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items(SPIRITUAL_REACTIONS.take(4)) { reaction ->
                     Surface(
+                        onClick = { if (!isPosting) submitComment("${reaction.icon} ${reaction.text}") },
                         shape = RoundedCornerShape(14.dp),
-                        color = GoldPrimary.copy(alpha = 0.12f),
-                        border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.35f)),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable(enabled = !isPosting) {
-                                submitComment("${reaction.icon} ${reaction.text}")
-                            }
+                        color = theme.primary.copy(alpha = 0.12f),
+                        border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.35f)),
+                        modifier = Modifier.heightIn(min = 38.dp)
                     ) {
-                        Text(
-                            text = "${reaction.icon} ${reaction.text}",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
+                        Box(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "${reaction.icon} ${reaction.text}",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                color = theme.primary
+                            )
+                        }
                     }
                 }
             }
 
-            // Input Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)
+                    .padding(top = 10.dp)
                     .imePadding(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2674,15 +2650,17 @@ fun ReelCommentsBottomSheet(
                         commentFeedback = null
                     },
                     placeholder = {
-                        Text("اكتب تعليقاً طيباً...", fontFamily = CairoFont, fontSize = 12.sp, color = Color.Gray)
+                        Text("اكتب تعليقاً طيباً...", fontFamily = NotoSansFont, fontSize = 13.sp, color = theme.textSecondary)
                     },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = theme.primary,
+                        unfocusedBorderColor = theme.separator.copy(alpha = 0.5f),
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary,
+                        focusedContainerColor = theme.secondarySurface.copy(alpha = 0.5f),
+                        unfocusedContainerColor = theme.secondarySurface.copy(alpha = 0.4f)
                     ),
                     singleLine = true
                 )
@@ -2693,20 +2671,23 @@ fun ReelCommentsBottomSheet(
                     onClick = { submitComment(commentText) },
                     enabled = commentText.isNotBlank() && !isPosting,
                     modifier = Modifier
-                        .size(44.dp)
-                        .background(if (commentText.isNotBlank()) GoldPrimary else Color.White.copy(alpha = 0.1f), CircleShape)
+                        .size(48.dp)
+                        .background(
+                            if (commentText.isNotBlank()) theme.primary else theme.secondarySurface,
+                            CircleShape
+                        )
                 ) {
                     if (isPosting) {
                         CircularProgressIndicator(
-                            color = DeepSlate,
-                            modifier = Modifier.size(19.dp),
+                            color = theme.onPrimary,
+                            modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp
                         )
                     } else {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "إرسال",
-                            tint = if (commentText.isNotBlank()) DeepSlate else Color.Gray,
+                            tint = if (commentText.isNotBlank()) theme.onPrimary else theme.textSecondary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -2716,10 +2697,12 @@ fun ReelCommentsBottomSheet(
             commentFeedback?.let { feedback ->
                 Text(
                     text = feedback,
-                    color = if (commentFeedbackIsError) Color(0xFFFF8A80) else GoldPrimary,
+                    color = if (commentFeedbackIsError) theme.destructive else theme.success,
                     fontFamily = CairoFont,
-                    fontSize = 11.sp,
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    fontSize = 11.5.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
                     textAlign = TextAlign.Center
                 )
             }
@@ -2729,6 +2712,9 @@ fun ReelCommentsBottomSheet(
     editingComment?.let { target ->
         AlertDialog(
             onDismissRequest = { if (managingCommentId == null) editingComment = null },
+            containerColor = theme.cardSurface,
+            titleContentColor = theme.textPrimary,
+            textContentColor = theme.textPrimary,
             title = { Text("تعديل التعليق", fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
@@ -2743,6 +2729,7 @@ fun ReelCommentsBottomSheet(
             confirmButton = {
                 TextButton(
                     enabled = editCommentText.isNotBlank() && managingCommentId == null,
+                    modifier = Modifier.heightIn(min = 48.dp),
                     onClick = {
                         val safeText = ReelSafetyGuardrails.sanitizeCommentText(editCommentText) ?: return@TextButton
                         managingCommentId = target.id
@@ -2766,15 +2753,16 @@ fun ReelCommentsBottomSheet(
                     if (managingCommentId == target.id) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("حفظ")
+                        Text("حفظ", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.primary)
                     }
                 }
             },
             dismissButton = {
                 TextButton(
                     enabled = managingCommentId == null,
+                    modifier = Modifier.heightIn(min = 48.dp),
                     onClick = { editingComment = null }
-                ) { Text("إلغاء") }
+                ) { Text("إلغاء", fontFamily = CairoFont, color = theme.textSecondary) }
             }
         )
     }
@@ -2782,11 +2770,15 @@ fun ReelCommentsBottomSheet(
     pendingDeleteComment?.let { target ->
         AlertDialog(
             onDismissRequest = { if (managingCommentId == null) pendingDeleteComment = null },
+            containerColor = theme.cardSurface,
+            titleContentColor = theme.textPrimary,
+            textContentColor = theme.textSecondary,
             title = { Text("حذف التعليق؟", fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
-            text = { Text("سيتم حذف تعليقك نهائياً من هذا المقطع.", fontFamily = CairoFont) },
+            text = { Text("سيتم حذف تعليقك نهائياً من هذا المقطع.", fontFamily = NotoSansFont) },
             confirmButton = {
                 TextButton(
                     enabled = managingCommentId == null,
+                    modifier = Modifier.heightIn(min = 48.dp),
                     onClick = {
                         managingCommentId = target.id
                         coroutineScope.launch {
@@ -2810,15 +2802,16 @@ fun ReelCommentsBottomSheet(
                     if (managingCommentId == target.id) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("حذف")
+                        Text("حذف", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.destructive)
                     }
                 }
             },
             dismissButton = {
                 TextButton(
                     enabled = managingCommentId == null,
+                    modifier = Modifier.heightIn(min = 48.dp),
                     onClick = { pendingDeleteComment = null }
-                ) { Text("إلغاء") }
+                ) { Text("إلغاء", fontFamily = CairoFont, color = theme.textSecondary) }
             }
         )
     }
@@ -2826,35 +2819,20 @@ fun ReelCommentsBottomSheet(
 
 
 /**
- * 🌌 شاشة التحميل الإلكترونية الحديثة بنظام HUD الرقمي
- * متصلة بالنسبة المئوية الفعلية للتحميل مع تصميم كوانتي نيون أنيق.
+ * Apple HIG Clean Loading View for Reels Feed
  */
 @Composable
 fun ReelsInteractiveLoadingView(
     progress: Float,
     onRetry: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(400, easing = FastOutSlowInEasing),
-        label = "electronicProgressAnim"
+        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        label = "reelLoadingProgress"
     )
-
     val percentInt = (animatedProgress * 100).toInt()
-
-    val infiniteTransition = rememberInfiniteTransition(label = "hudPulse")
-    val scannerAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart),
-        label = "scannerAngle"
-    )
-    val glowPulse by infiniteTransition.animateFloat(
-        initialValue = 0.65f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "glowPulse"
-    )
 
     var waitTimerSeconds by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -2867,7 +2845,7 @@ fun ReelsInteractiveLoadingView(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(theme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -2875,105 +2853,32 @@ fun ReelsInteractiveLoadingView(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(24.dp)
         ) {
-            // ── 1. دائرة الـ HUD الإلكترونية المتصلة بالنسبة المئوية الحقيقية ──
             Box(
-                modifier = Modifier.size(136.dp),
+                modifier = Modifier.size(96.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // هالة ضوئية خلفية نيون
-                Box(
-                    modifier = Modifier
-                        .size(110.dp)
-                        .scale(glowPulse)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(Color(0xFF00E5FF).copy(alpha = 0.22f), Color.Transparent)
-                            ),
-                            CircleShape
-                        )
+                CircularProgressIndicator(
+                    progress = { animatedProgress },
+                    color = theme.primary,
+                    trackColor = theme.separator.copy(alpha = 0.3f),
+                    strokeWidth = 5.dp,
+                    strokeCap = StrokeCap.Round,
+                    modifier = Modifier.fillMaxSize()
                 )
-
-                // مسار الحلقة الخلفية
-                Canvas(modifier = Modifier.size(120.dp)) {
-                    drawCircle(
-                        color = Color(0xFF1E293B).copy(alpha = 0.5f),
-                        style = Stroke(width = 4.dp.toPx())
-                    )
-                }
-
-                // قوس النسبة المئوية الفعلي (Progress Arc)
-                Canvas(modifier = Modifier.size(120.dp)) {
-                    val sweep = animatedProgress * 360f
-                    if (sweep > 0f) {
-                        drawArc(
-                            brush = Brush.sweepGradient(
-                                listOf(
-                                    Color(0xFF00E5FF),
-                                    GoldPrimary,
-                                    Color(0xFF10B981),
-                                    Color(0xFF00E5FF)
-                                )
-                            ),
-                            startAngle = -90f,
-                            sweepAngle = sweep,
-                            useCenter = false,
-                            style = Stroke(
-                                width = 5.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
-                        )
-                    }
-                }
-
-                // شعاع المسح الإلكتروني
-                Canvas(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .rotate(scannerAngle)
-                ) {
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            listOf(
-                                Color.Transparent,
-                                Color(0xFF00E5FF).copy(alpha = 0.35f)
-                            )
-                        ),
-                        startAngle = 0f,
-                        sweepAngle = 45f,
-                        useCenter = true
-                    )
-                }
-
-                // النسبة المئوية في المنتصف بأسلوب رقمي إلكتروني حديث
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "$percentInt%",
-                        color = Color(0xFF00E5FF),
-                        fontFamily = RobotoMonoFont,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 26.sp,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "LIVE // SYNC",
-                        color = GoldPrimary.copy(alpha = 0.85f),
-                        fontFamily = RobotoMonoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 8.5.sp,
-                        letterSpacing = 1.5.sp
-                    )
-                }
+                Text(
+                    text = "$percentInt%",
+                    color = theme.textPrimary,
+                    fontFamily = RobotoMonoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // ── 2. العبارة النصية المطلوبة بدقة: جاري التحميل... ──
             Text(
-                text = "جاري التحميل...",
-                color = Color.White,
+                text = "جاري تحميل المقاطع...",
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
@@ -2982,40 +2887,30 @@ fun ReelsInteractiveLoadingView(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ── 3. شريط إلكتروني أفقي يعكس النسبة بدقة ──
-            Box(
+            LinearProgressIndicator(
+                progress = { animatedProgress },
                 modifier = Modifier
                     .width(180.dp)
                     .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF1E293B))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedProgress)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFF00E5FF), GoldPrimary)
-                            )
-                        )
-                )
-            }
+                    .clip(CircleShape),
+                color = theme.primary,
+                trackColor = theme.separator.copy(alpha = 0.35f)
+            )
 
-            // زر إعادة المحاولة في حال تأخر الاتصال
             if (waitTimerSeconds >= 5) {
                 Spacer(modifier = Modifier.height(18.dp))
                 TextButton(
                     onClick = onRetry,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF00E5FF))
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        "إعادة المحاولة 🔄",
+                        text = "إعادة المحاولة",
+                        color = theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 13.sp
                     )
                 }
             }
@@ -3024,8 +2919,7 @@ fun ReelsInteractiveLoadingView(
 }
 
 /**
- * شاشة التشخيص الشامل عند فشل جلب مقاطع الريلز من السحابة.
- * تقدم تشخيصاً فنياً دقيقاً ومباشراً بدون إخفاء التفاصيل أو فشل صامت.
+ * شاشة التشخيص الدقيق عند فشل جلب مقاطع الريلز من السحابة
  */
 @Composable
 fun ReelsFailureDiagnosticScreen(
@@ -3033,14 +2927,11 @@ fun ReelsFailureDiagnosticScreen(
     isRetrying: Boolean,
     onRetry: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF090D16), Color(0xFF05070B), Color(0xFF070B14))
-                )
-            )
+            .background(theme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
         contentAlignment = Alignment.Center
     ) {
@@ -3049,17 +2940,14 @@ fun ReelsFailureDiagnosticScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 440.dp)
-                .padding(horizontal = 20.dp, vertical = 24.dp)
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // كارت التشخيص الشامل
             ReelsDiagnosticCard(
                 diagnostic = diagnostic,
                 isRetrying = isRetrying
             )
 
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // الزر التفاعلي للمثلث اللانهائي مع عرض سرعة الاتصال
             InfiniteTriangleRetryButton(
                 latencyMs = diagnostic?.latencyMs,
                 isRetrying = isRetrying,
@@ -3069,14 +2957,12 @@ fun ReelsFailureDiagnosticScreen(
     }
 }
 
-/**
- * كارت تشخيص تفصيلي يعرض سبب الخطأ ورمز الاستجابة وحالة السحابة وقاطع الدائرة.
- */
 @Composable
 fun ReelsDiagnosticCard(
     diagnostic: SupabaseServices.ReelsFetchDiagnosticResult?,
     isRetrying: Boolean
 ) {
+    val theme = QabasTheme.current
     val httpCode = diagnostic?.httpCode
     val stage = diagnostic?.errorStage ?: "NETWORK"
     val latency = diagnostic?.latencyMs ?: 0L
@@ -3084,11 +2970,10 @@ fun ReelsDiagnosticCard(
     val cooldownSec = diagnostic?.remainingCooldownSec ?: 0
 
     val statusColor = when {
-        isRetrying -> Color(0xFF00E5FF)
-        httpCode == 200 -> Color(0xFF4ADE80)
-        isCircuit -> Color(0xFFF59E0B)
-        httpCode == 401 || httpCode == 403 -> Color(0xFFEF4444)
-        else -> Color(0xFFF87171)
+        isRetrying -> theme.primary
+        httpCode == 200 -> theme.success
+        isCircuit -> theme.warning
+        else -> theme.destructive
     }
 
     val statusTitle = when {
@@ -3100,18 +2985,12 @@ fun ReelsDiagnosticCard(
         else -> "تعذر استلام مقاطع الخلاصة"
     }
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1424).copy(alpha = 0.95f)),
-        border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(statusColor.copy(alpha = 0.6f), GoldPrimary.copy(alpha = 0.3f)))),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    AppleCard(cornerRadius = 18.dp) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // ترويسة الكارت
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -3128,57 +3007,52 @@ fun ReelsDiagnosticCard(
                             .background(statusColor)
                     )
                     Text(
-                        text = "تشخيص السحابة المتقدم",
+                        text = "تشخيص السحابة",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = Color.White
+                        fontSize = 15.sp,
+                        color = theme.textPrimary
                     )
                 }
 
-                // شارة الحالة
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = statusColor.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f))
+                    color = statusColor.copy(alpha = 0.14f)
                 ) {
                     Text(
                         text = if (httpCode != null && httpCode > 0) "HTTP $httpCode" else stage,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         color = statusColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // شريط المؤشرات الثلاثية (HTTP Code, Ping Latency, Guardrail)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // مؤشر زمن الاتصال والسرعة
                 MetricBadge(
                     modifier = Modifier.weight(1f),
-                    label = "سرعة الاستجابة",
+                    label = "الاستجابة",
                     value = if (latency > 0) "${latency}ms" else "--",
                     subValue = when {
-                        latency in 1..250 -> "سريع 🟢"
-                        latency in 251..650 -> "متوسط 🟡"
-                        latency > 650 -> "بطيء 🟠"
-                        else -> "منقطع ⚪"
+                        latency in 1..250 -> "سريع"
+                        latency in 251..650 -> "متوسط"
+                        latency > 650 -> "بطيء"
+                        else -> "منقطع"
                     },
                     accentColor = when {
-                        latency in 1..250 -> Color(0xFF4ADE80)
-                        latency in 251..650 -> Color(0xFFFACC15)
-                        else -> Color(0xFFFB923C)
+                        latency in 1..250 -> theme.success
+                        latency in 251..650 -> theme.warning
+                        else -> theme.destructive
                     }
                 )
 
-                // مؤشر رمز الاستجابة
                 MetricBadge(
                     modifier = Modifier.weight(1f),
                     label = "رمز الخادم",
@@ -3191,26 +3065,23 @@ fun ReelsDiagnosticCard(
                         null, 0 -> "لا اتصال"
                         else -> "استثناء"
                     },
-                    accentColor = if (httpCode == 200) Color(0xFF4ADE80) else Color(0xFFF87171)
+                    accentColor = if (httpCode == 200) theme.success else theme.destructive
                 )
 
-                // مؤشر درع الأمان
                 MetricBadge(
                     modifier = Modifier.weight(1f),
-                    label = "قاطع الحماية",
+                    label = "الحماية",
                     value = if (isCircuit) "${cooldownSec}s" else "جاهز",
-                    subValue = if (isCircuit) "مؤمّن 🛡️" else "طبيعي ⚡",
-                    accentColor = if (isCircuit) Color(0xFFF59E0B) else Color(0xFF00E5FF)
+                    subValue = if (isCircuit) "مؤمّن" else "طبيعي",
+                    accentColor = if (isCircuit) theme.warning else theme.primary
                 )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // نص التوضيح والخطأ الدقيق مع حماية الروابط برمز قفل
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color.Black.copy(alpha = 0.45f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = theme.secondarySurface,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -3223,36 +3094,36 @@ fun ReelsDiagnosticCard(
                             text = statusTitle,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.5.sp,
-                            color = Color.White
+                            fontSize = 13.sp,
+                            color = theme.textPrimary
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = "محمي",
-                                tint = Color(0xFF00E5FF).copy(alpha = 0.7f),
+                                tint = theme.primary,
                                 modifier = Modifier.size(13.dp)
                             )
-                            Spacer(modifier = Modifier.width(3.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "المسارات محجوبة أمنياً",
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp,
-                                color = Color(0xFF00E5FF).copy(alpha = 0.7f)
+                                text = "المسارات محمية",
+                                fontFamily = NotoSansFont,
+                                fontSize = 10.5.sp,
+                                color = theme.primary
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     val rawMsg = diagnostic?.errorMessage ?: "تحقق من اتصال جهازك بالإنترنت أو أعد المحاولة لتجاوز التهدئة."
                     val maskedMsg = rawMsg
-                        .replace(Regex("https?://[^\\s'\"]+"), "[🔒 مسار سحابي محمي]")
-                        .replace(Regex("\"[a-z0-9]+\\.supabase\\.co\""), "\"[🔒 نطاق السحابة]\"")
+                        .replace(Regex("https?://[^\\s'\"]+"), "[مسار سحابي محمي]")
+                        .replace(Regex("\"[a-z0-9]+\\.supabase\\.co\""), "\"[نطاق السحابة]\"")
                     Text(
                         text = maskedMsg,
                         fontFamily = NotoSansFont,
-                        fontSize = 11.5.sp,
-                        color = Color.White.copy(alpha = 0.78f),
-                        lineHeight = 16.sp
+                        fontSize = 12.sp,
+                        color = theme.textSecondary,
+                        lineHeight = 18.sp
                     )
                 }
             }
@@ -3268,226 +3139,116 @@ private fun MetricBadge(
     subValue: String,
     accentColor: Color
 ) {
+    val theme = QabasTheme.current
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF161F36),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
+        color = theme.secondarySurface,
+        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.45f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = label,
                 fontFamily = CairoFont,
-                fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.6f)
+                fontSize = 11.sp,
+                color = theme.textSecondary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
                 fontFamily = RobotoMonoFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.5.sp,
+                fontSize = 13.5.sp,
                 color = accentColor
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subValue,
-                fontFamily = CairoFont,
-                fontSize = 9.5.sp,
-                color = Color.White.copy(alpha = 0.8f)
+                fontFamily = NotoSansFont,
+                fontSize = 10.5.sp,
+                color = theme.textPrimary
             )
         }
     }
 }
 
-/**
- * زر تفاعلي ينشئ مثلثاً هندسياً مع حالة تفاعلية لانهائية ويعرض سرعة الاتصال بدقة.
- */
 @Composable
 fun InfiniteTriangleRetryButton(
     latencyMs: Long?,
     isRetrying: Boolean,
     onRetry: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "infinite_triangle_transition")
-
-    // تدوير المثلث اللانهائي
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (isRetrying) 1000 else 4500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "triangle_rotation"
-    )
-
-    // نبض الإشعاع والهالة
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "triangle_pulse"
-    )
-
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 0.85f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "triangle_glow"
-    )
-
-    Surface(
-        onClick = onRetry,
-        enabled = !isRetrying,
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xFF0F172A),
-        border = BorderStroke(
-            1.5.dp,
-            Brush.sweepGradient(
-                listOf(
-                    GoldPrimary.copy(alpha = glowAlpha),
-                    Color(0xFF00E5FF).copy(alpha = glowAlpha),
-                    GoldPrimary.copy(alpha = glowAlpha)
-                )
-            )
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
+    val theme = QabasTheme.current
+    AppleCard(
+        onClick = if (isRetrying) null else onRetry,
+        cornerRadius = 16.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .defaultMinSize(minHeight = 60.dp)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // المثلث الهندسي المتوهج التفاعلي
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .scale(pulseScale),
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(theme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
-                Canvas(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .rotate(rotation)
-                ) {
-                    val cx = size.width / 2f
-                    val cy = size.height / 2f
-                    val r = size.minDimension / 2.2f
-
-                    // زوايا المثلث متساوي الأضلاع
-                    val p1 = Offset(cx, cy - r)
-                    val p2 = Offset(cx + (r * cos(PI / 6)).toFloat(), cy + (r * sin(PI / 6)).toFloat())
-                    val p3 = Offset(cx - (r * cos(PI / 6)).toFloat(), cy + (r * sin(PI / 6)).toFloat())
-
-                    val trianglePath = Path().apply {
-                        moveTo(p1.x, p1.y)
-                        lineTo(p2.x, p2.y)
-                        lineTo(p3.x, p3.y)
-                        close()
-                    }
-
-                    // 1. هالة ضوئية خارجية
-                    drawPath(
-                        path = trianglePath,
-                        color = Color(0xFF00E5FF).copy(alpha = glowAlpha * 0.3f),
-                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                if (isRetrying) {
+                    CircularProgressIndicator(
+                        color = theme.primary,
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.5.dp
                     )
-
-                    // 2. تعبئة زجاجية ذهبية نيونية
-                    drawPath(
-                        path = trianglePath,
-                        brush = Brush.linearGradient(
-                            listOf(
-                                GoldPrimary.copy(alpha = 0.35f),
-                                Color(0xFF00E5FF).copy(alpha = 0.2f)
-                            )
-                        )
-                    )
-
-                    // 3. حواف المثلث النيونية
-                    drawPath(
-                        path = trianglePath,
-                        brush = Brush.linearGradient(
-                            listOf(
-                                Color(0xFF00E5FF),
-                                GoldPrimary,
-                                Color(0xFF00E5FF)
-                            )
-                        ),
-                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                    )
-
-                    // 4. نواة مركزية مضيئة
-                    drawCircle(
-                        color = Color(0xFF00E5FF),
-                        radius = 2.5.dp.toPx(),
-                        center = Offset(cx, cy)
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "إعادة المحاولة",
+                        tint = theme.primary,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // النصوص الإرشادية وحالة الزر
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isRetrying) "جاري تجاوز القاطع والفحص..." else "إعادة المحاولة وفحص الاتصال",
+                    text = if (isRetrying) "جاري فحص السحابة..." else "إعادة المحاولة وفحص الاتصال",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.5.sp,
-                    color = Color.White
+                    fontSize = 14.sp,
+                    color = theme.textPrimary
                 )
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (isRetrying) "تصفير قاطع الدائرة فورياً واستعلام الخادم" else "تصفير فوري للحماية واختبار سرعة الاستجابة",
-                    fontFamily = CairoFont,
-                    fontSize = 10.5.sp,
-                    color = Color.White.copy(alpha = 0.65f)
+                    text = if (isRetrying) "تصفير قاطع الدائرة واستعلام الخادم" else "تصفير الحماية واختبار سرعة الاستجابة",
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.5.sp,
+                    color = theme.textSecondary
                 )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // شارة سرعة الاتصال الفورية
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF1E293B),
-                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f))
+                color = theme.secondarySurface
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "⚡",
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = if (latencyMs != null && latencyMs > 0) "${latencyMs}ms" else "فحص",
-                        fontFamily = RobotoMonoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = Color(0xFF00E5FF)
-                    )
-                }
+                Text(
+                    text = if (latencyMs != null && latencyMs > 0) "${latencyMs}ms" else "فحص",
+                    fontFamily = RobotoMonoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.5.sp,
+                    color = theme.primary,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
             }
         }
     }
@@ -3508,6 +3269,7 @@ fun ReelDetailsBottomSheet(
     isAlAtharMode: Boolean = false
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val hudViewer = remember { CreatorFollowManager.currentViewer(context) }
     val creatorVerified = remember(reel.userId) { VerificationManager.isVerified(context, reel.userId) }
     var isFollowingCreator by remember(reel.userId) {
@@ -3522,32 +3284,22 @@ fun ReelDetailsBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF090E1A),
-        scrimColor = Color.Black.copy(alpha = 0.65f),
+        containerColor = theme.cardSurface,
+        contentColor = theme.textPrimary,
         dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 8.dp)
-                    .width(44.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.4f), Color(0xFF00E5FF).copy(alpha = 0.5f))))
-            )
+            BottomSheetDefaults.DragHandle(color = theme.separator)
         },
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp)
-                .padding(bottom = 32.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp)
         ) {
-            // ── 1. الهيدر: بطاقة صانع المحتوى الهندسية ──
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF131D31).copy(alpha = 0.7f),
-                border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.35f), Color(0xFF00E5FF).copy(alpha = 0.2f)))),
-                modifier = Modifier.fillMaxWidth()
+            AppleCard(
+                containerColor = theme.secondarySurface,
+                cornerRadius = 16.dp
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -3559,14 +3311,14 @@ fun ReelDetailsBottomSheet(
                         modifier = Modifier
                             .size(50.dp)
                             .clip(CircleShape)
-                            .border(1.5.dp, Brush.sweepGradient(listOf(GoldPrimary, Color(0xFF00E5FF), GoldPrimary)), CircleShape)
+                            .border(1.5.dp, theme.primary.copy(alpha = 0.55f), CircleShape)
                             .clickable {
                                 onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
                             }
                     ) {
                         AsyncImage(
-                            model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=D4AF37&color=0B0F19",
-                            contentDescription = null,
+                            model = reel.userAvatar ?: "https://ui-avatars.com/api/?name=${reel.userName}&background=007AFF&color=FFFFFF",
+                            contentDescription = "صورة صانع المحتوى",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
@@ -3576,7 +3328,7 @@ fun ReelDetailsBottomSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = reel.userName ?: "صانع محتوى قبس",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.5.sp,
@@ -3588,7 +3340,7 @@ fun ReelDetailsBottomSheet(
                                 Icon(
                                     Icons.Default.Verified,
                                     contentDescription = "موثق",
-                                    tint = GoldPrimary,
+                                    tint = theme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -3598,15 +3350,15 @@ fun ReelDetailsBottomSheet(
                             Icon(
                                 Icons.Default.Schedule,
                                 contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.45f),
-                                modifier = Modifier.size(12.dp)
+                                tint = theme.textSecondary,
+                                modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "نشر ${formatRelativeTime(reel.createdAt)}",
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontFamily = CairoFont,
-                                fontSize = 11.5.sp
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -3623,69 +3375,57 @@ fun ReelDetailsBottomSheet(
                             },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isFollowingCreator) Color.White.copy(alpha = 0.12f) else GoldPrimary,
-                                contentColor = if (isFollowingCreator) Color.White else DeepSlate
+                                containerColor = if (isFollowingCreator) theme.cardSurface else theme.primary,
+                                contentColor = if (isFollowingCreator) theme.textPrimary else theme.onPrimary
                             ),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                            modifier = Modifier.height(34.dp)
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.heightIn(min = 48.dp)
                         ) {
                             Text(
-                                text = if (isFollowingCreator) "متابَع ✓" else "+ متابعة",
+                                text = if (isFollowingCreator) "متابَع" else "متابعة",
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.5.sp
+                                fontSize = 13.sp
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // ── 2. عنوان المقطع ──
             Text(
                 text = reel.title,
-                color = Color.White,
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 19.sp,
-                lineHeight = 27.sp
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                lineHeight = 26.sp
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ── 3. وسوم وتصنيفات الفيديو ──
             if (reel.tags.any { it.isNotBlank() }) {
-                Row(
+                LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    reel.tags.filter { it.isNotBlank() }.forEach { rawTag ->
+                    items(reel.tags.filter { it.isNotBlank() }) { rawTag ->
                         val cleanTag = rawTag.trim().removePrefix("#")
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF131E35),
-                            border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.35f), Color(0xFF00E5FF).copy(alpha = 0.25f))))
+                            shape = RoundedCornerShape(10.dp),
+                            color = theme.primary.copy(alpha = 0.10f)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
                                 Text(
-                                    text = "#",
-                                    color = Color(0xFF00E5FF),
-                                    fontFamily = RobotoMonoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    text = cleanTag,
-                                    color = GoldPrimary,
+                                    text = "#$cleanTag",
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
@@ -3694,54 +3434,44 @@ fun ReelDetailsBottomSheet(
                 Spacer(modifier = Modifier.height(14.dp))
             }
 
-            // ── 4. الوصف التفصيلي للمقطع ──
             if (!reel.description.isNullOrBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.04f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                AppleCard(containerColor = theme.secondarySurface) {
                     Text(
                         text = reel.description,
-                        color = Color.White.copy(alpha = 0.88f),
-                        fontFamily = CairoFont,
+                        color = theme.textPrimary,
+                        fontFamily = NotoSansFont,
                         fontSize = 13.5.sp,
                         lineHeight = 22.sp,
                         modifier = Modifier.padding(14.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             } else {
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
-            // ── 5. بطاقات الإحصائيات أو شارة السكينة في وضع الأثر ──
             if (isAlAtharMode) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = GoldPrimary.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                ) {
+                AppleCard(containerColor = theme.primary.copy(alpha = 0.10f)) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Icon(
                             Icons.Default.Spa,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = theme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "« وضع الأثر ✦ مساحة للسكينة والتدبر دون تفاعل »",
+                            text = "وضع الأثر • مساحة للسكينة والتدبر",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = GoldPrimary
+                            fontSize = 13.sp,
+                            color = theme.primary
                         )
                     }
                 }
@@ -3755,21 +3485,21 @@ fun ReelDetailsBottomSheet(
                         icon = Icons.Default.Visibility,
                         count = liveViews,
                         label = "مشاهدة",
-                        accentColor = Color(0xFF00E5FF)
+                        accentColor = theme.primary
                     )
                     GeometricStatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Favorite,
                         count = liveLikes,
                         label = "إعجاب",
-                        accentColor = Color(0xFFEF4444)
+                        accentColor = theme.destructive
                     )
                     GeometricStatCard(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.Comment,
                         count = reel.commentsCount,
                         label = "تعليق",
-                        accentColor = GoldPrimary
+                        accentColor = theme.success
                     )
                 }
             }
@@ -3777,9 +3507,6 @@ fun ReelDetailsBottomSheet(
     }
 }
 
-/**
- * كارت إحصائي هندسي حديث ومصمم بدقة للتفاعلات الحقيقية
- */
 @Composable
 fun GeometricStatCard(
     modifier: Modifier = Modifier,
@@ -3788,43 +3515,44 @@ fun GeometricStatCard(
     label: String,
     accentColor: Color
 ) {
+    val theme = QabasTheme.current
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF131D31).copy(alpha = 0.8f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+        color = theme.secondarySurface,
+        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.45f))
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
-                shape = CircleShape,
-                color = accentColor.copy(alpha = 0.15f),
-                modifier = Modifier.size(30.dp)
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = formatCompactCount(count),
-                color = Color.White,
+                color = theme.textPrimary,
                 fontFamily = RobotoMonoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
             Text(
                 text = label,
-                color = Color.White.copy(alpha = 0.6f),
-                fontFamily = CairoFont,
-                fontSize = 11.sp
+                color = theme.textSecondary,
+                fontFamily = NotoSansFont,
+                fontSize = 11.5.sp
             )
         }
     }
@@ -3843,93 +3571,73 @@ fun AlAtharExplanationDialog(
     onDismiss: () -> Unit,
     onEnable: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Box(
+        AppleCard(
             modifier = Modifier
-                .padding(horizontal = 28.dp)
-                .widthIn(max = 440.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xFF0F172A).copy(alpha = 0.98f))
-                .border(BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.5f)), RoundedCornerShape(28.dp))
+                .padding(horizontal = 24.dp)
+                .widthIn(max = 440.dp),
+            cornerRadius = 22.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = GoldPrimary.copy(alpha = 0.15f),
-                    border = BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.5f)),
-                    modifier = Modifier.size(72.dp)
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(CircleShape)
+                        .background(theme.primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.CloudDownload,
-                            contentDescription = null,
-                            tint = GoldPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = null,
+                        tint = theme.primary,
+                        modifier = Modifier.size(34.dp)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
-                    text = "ميزة وضع الأثر 🕊️",
+                    text = "ميزة وضع الأثر",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Color.White,
+                    color = theme.textPrimary,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "عند تفعيل هذه الميزة، سيقوم التطبيق بتحميل مجموعة من المقاطع الإيمانية المختارة في الخلفية، لتتمكن من مشاهدتها والانتفاع بها حتى في حال انقطاع اتصالك بالإنترنت.",
-                    fontFamily = CairoFont,
+                    text = "عند تفعيل هذه الميزة، يقوم التطبيق بتحميل مجموعة من المقاطع الإيمانية المختارة لتتمكن من مشاهدتها حتى عند انقطاع الإنترنت.",
+                    fontFamily = NotoSansFont,
                     fontSize = 13.5.sp,
-                    color = Color.White.copy(alpha = 0.82f),
+                    color = theme.textSecondary,
                     textAlign = TextAlign.Center,
-                    lineHeight = 22.sp
+                    lineHeight = 21.sp
                 )
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Button(
-                        onClick = onEnable,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate)
-                    ) {
-                        Text(
-                            "تفعيل الآن ✨",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "ليس الآن",
-                            fontFamily = CairoFont,
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 13.sp
-                        )
-                    }
+                    ApplePrimaryButton(
+                        text = "تفعيل الآن",
+                        icon = Icons.Default.CloudDownload,
+                        onClick = onEnable
+                    )
+                    AppleSecondaryButton(
+                        text = "ليس الآن",
+                        onClick = onDismiss
+                    )
                 }
             }
         }
@@ -3938,9 +3646,10 @@ fun AlAtharExplanationDialog(
 
 @Composable
 fun StatItem(icon: ImageVector, label: String) {
+    val theme = QabasTheme.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text = label, color = Color.White.copy(alpha = 0.6f), fontFamily = CairoFont, fontSize = 12.sp)
+        Text(text = label, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
     }
 }

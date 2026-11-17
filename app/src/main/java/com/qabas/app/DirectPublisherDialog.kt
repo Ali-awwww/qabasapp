@@ -1,36 +1,40 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.theme.*
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleKeyRequiredBanner
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
 import kotlinx.coroutines.launch
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DirectPublisherDialog(
     scriptText: String,
@@ -38,18 +42,20 @@ fun DirectPublisherDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
 
-    var postTitle by remember { mutableStateOf(scriptText.take(50).ifBlank { "فيديو دعوي جديد عبر تطبيق قبس 🌟" }) }
-    var postDescription by remember { mutableStateOf("شاهد هذا المقطع الدعوي التدبري المبسط من إنتاج استوديو قبس لصناعة المحتوى الإسلامي ✨") }
+    var postTitle by remember { mutableStateOf(scriptText.take(50).ifBlank { "فيديو دعوي جديد عبر تطبيق قبس" }) }
+    var postDescription by remember { mutableStateOf("شاهد هذا المقطع الدعوي التدبري من إنتاج استوديو قبس") }
     var hashtagsText by remember { mutableStateOf("#قبس #ريلز_إسلامي #تدبر #حديث_شريف #دعوة_إلكترونية") }
 
-    var accounts by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
+    val accounts = remember { SocialAccountManager.getAccounts(context) }
     var selectedPlatformIds by remember {
         mutableStateOf(accounts.filter { it.isConnected }.map { it.id }.toMutableSet())
     }
 
+    val canDirectPublish = remember { ServiceAvailabilityRegistry.canPublishDirectlyViaSocialApi() }
     var isPublishing by remember { mutableStateOf(false) }
     var currentPublishLog by remember { mutableStateOf("") }
     var publishResults by remember { mutableStateOf<List<PublishResult>>(emptyList()) }
@@ -61,45 +67,58 @@ fun DirectPublisherDialog(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
-        containerColor = DeepSlate,
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(20.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Share, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Share, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("مركز النشر المباشر المتعدد (Cross-Publisher) 🚀", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    "مركز النشر والمشاركة",
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
             }
         },
         text = {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 480.dp)
+                    .heightIn(max = 460.dp)
             ) {
-                // Post Title Input
+                if (!canDirectPublish) {
+                    item {
+                        AppleKeyRequiredBanner(
+                            serviceName = "النشر الآلي عبر واجهات المنصات",
+                            reason = "النشر المباشر التلقائي يتطلب تفعيل مفاتيح OAuth Client ID لرفع الفيديو. يمكنك استخدام «المشاركة الأصلية للنظام» أدناه فوراً لنشر الفيديو."
+                        )
+                    }
+                }
+
                 item {
                     Column {
-                        Text("عنوان المنشور 📝", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("عنوان المنشور", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
                             value = postTitle,
                             onValueChange = { postTitle = it },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = GoldPrimary,
-                                unfocusedBorderColor = Color(0xFF1E293B),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = CardSurface,
-                                unfocusedContainerColor = CardSurface
+                                focusedBorderColor = theme.primary,
+                                unfocusedBorderColor = theme.separator,
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary,
+                                focusedContainerColor = theme.secondarySurface,
+                                unfocusedContainerColor = theme.secondarySurface
                             ),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(12.dp)
                         )
                     }
                 }
 
-                // Hashtags Row & AI Generator
                 item {
                     Column {
                         Row(
@@ -107,17 +126,17 @@ fun DirectPublisherDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("الوسوم والهاشتاجات (Hashtags) #", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("الوسوم (Hashtags)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Row {
                                 TextButton(onClick = { showScheduleDialog = true }) {
-                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("جدولة ⏰", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("جدولة", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                                 TextButton(onClick = { showSeoDialog = true }) {
-                                    Icon(Icons.Default.Analytics, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.Analytics, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("الـ SEO 📈", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("SEO", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -126,136 +145,122 @@ fun DirectPublisherDialog(
                             onValueChange = { hashtagsText = it },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = GoldPrimary,
-                                unfocusedBorderColor = Color(0xFF1E293B),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = CardSurface,
-                                unfocusedContainerColor = CardSurface
+                                focusedBorderColor = theme.primary,
+                                unfocusedBorderColor = theme.separator,
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary,
+                                focusedContainerColor = theme.secondarySurface,
+                                unfocusedContainerColor = theme.secondarySurface
                             ),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(12.dp)
                         )
                     }
                 }
 
-                // Target Platforms Selection List
                 item {
-                    Column {
-                        Text("اختر المنصات المستهدفة للنشر الفوري 🌐", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            accounts.forEach { account ->
-                                val isChecked = selectedPlatformIds.contains(account.id)
-                                val platformColor = when (account.id) {
-                                    "youtube" -> Color(0xFFF44336)
-                                    "tiktok" -> Color(0xFF00F2FE)
-                                    "instagram" -> Color(0xFFE1306C)
-                                    "twitter" -> Color(0xFF1DA1F2)
-                                    else -> Color(0xFF1877F2)
-                                }
-
-                                Box(
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("المنصات المربوطة", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        accounts.forEach { account ->
+                            val isChecked = selectedPlatformIds.contains(account.id)
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = canDirectPublish) {
+                                        val newSet = selectedPlatformIds.toMutableSet()
+                                        if (isChecked) newSet.remove(account.id) else newSet.add(account.id)
+                                        selectedPlatformIds = newSet
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isChecked) theme.primary.copy(alpha = 0.08f) else theme.secondarySurface,
+                                border = BorderStroke(0.5.dp, if (isChecked) theme.primary else theme.separator.copy(alpha = 0.45f))
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(if (isChecked) platformColor.copy(alpha = 0.15f) else CardSurface, RoundedCornerShape(10.dp))
-                                        .border(1.dp, if (isChecked) platformColor else Color(0xFF1E293B), RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            val newSet = selectedPlatformIds.toMutableSet()
-                                            if (isChecked) newSet.remove(account.id) else newSet.add(account.id)
-                                            selectedPlatformIds = newSet
-                                        }
-                                        .padding(10.dp)
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = isChecked,
+                                            enabled = canDirectPublish,
+                                            onCheckedChange = { checked ->
+                                                val newSet = selectedPlatformIds.toMutableSet()
+                                                if (checked == true) newSet.add(account.id) else newSet.remove(account.id)
+                                                selectedPlatformIds = newSet
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Column {
+                                            Text(account.name, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                            Text(account.handle, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                                        }
+                                    }
+                                    Text(
+                                        text = if (account.isConnected) "مربوط" else "غير مربوط",
+                                        color = if (account.isConnected) theme.success else theme.textSecondary,
+                                        fontFamily = CairoFont,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (isPublishing) {
+                    item {
+                        AppleCard(containerColor = theme.secondarySurface) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator(color = theme.primary, modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(currentPublishLog, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                if (publishResults.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("حالة النشر", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            publishResults.forEach { res ->
+                                AppleCard(containerColor = theme.secondarySurface) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().padding(10.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Checkbox(
-                                                checked = isChecked,
-                                                onCheckedChange = { checked ->
-                                                    val newSet = selectedPlatformIds.toMutableSet()
-                                                    if (checked == true) newSet.add(account.id) else newSet.remove(account.id)
-                                                    selectedPlatformIds = newSet
-                                                },
-                                                colors = CheckboxDefaults.colors(checkedColor = platformColor)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = if (res.isSuccess) theme.success else theme.warning,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(res.platformName, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            }
+                                            Text(
+                                                text = if (res.postUrl.isNotBlank()) res.postUrl else res.message,
+                                                color = theme.textSecondary,
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 11.sp,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Column {
-                                                Text(account.name, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                                Text(account.handle, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                                            }
                                         }
-
-                                        Text(
-                                            if (account.isConnected) "مربوط 🟢" else "غير مربوط ⚪",
-                                            color = if (account.isConnected) Color(0xFF4CAF50) else Color.Gray,
-                                            fontFamily = CairoFont,
-                                            fontSize = 10.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Publishing Progress Indicator Box
-                if (isPublishing) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF0B0F19), RoundedCornerShape(12.dp))
-                                .border(1.dp, GoldPrimary, RoundedCornerShape(12.dp))
-                                .padding(14.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(currentPublishLog, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-
-                // Results list after publishing
-                if (publishResults.isNotEmpty()) {
-                    item {
-                        Column {
-                            Text("روابط المنشورات المباشرة 🔗", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                publishResults.forEach { res ->
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
-                                            .border(1.dp, Color(0xFF4CAF50), RoundedCornerShape(10.dp))
-                                            .padding(10.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(res.platformName, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                }
-                                                Text(res.postUrl, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            }
-
+                                        if (res.postUrl.isNotBlank()) {
                                             IconButton(onClick = {
                                                 clipboardManager.setText(AnnotatedString(res.postUrl))
-                                                Toast.makeText(context, "تم نسخ رابط ${res.platformName}! 📋", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "تم نسخ الرابط", Toast.LENGTH_SHORT).show()
                                             }) {
-                                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.primary, modifier = Modifier.size(16.dp))
                                             }
                                         }
                                     }
@@ -271,11 +276,27 @@ fun DirectPublisherDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
+                ApplePrimaryButton(
+                    text = "فتح في تطبيقات النشر (Native Share)",
+                    icon = Icons.Default.Share,
+                    modifier = Modifier.testTag("native_share_video_button"),
+                    onClick = {
+                        SocialAccountManager.shareVideoNatively(
+                            context,
+                            videoFile,
+                            "$postTitle\n\n$postDescription\n\n$hashtagsText"
+                        )
+                    }
+                )
+
+                AppleSecondaryButton(
+                    text = "نشر آلي عبر API (يتطلب مفاتيح OAuth)",
+                    icon = Icons.Default.Send,
+                    enabled = canDirectPublish && !isPublishing,
                     onClick = {
                         if (selectedPlatformIds.isEmpty()) {
-                            Toast.makeText(context, "يرجى اختيار منصة واحدة على الأقل بالنقر عليها", Toast.LENGTH_SHORT).show()
-                            return@Button
+                            Toast.makeText(context, "يرجى اختيار منصة واحدة على الأقل", Toast.LENGTH_SHORT).show()
+                            return@AppleSecondaryButton
                         }
                         isPublishing = true
                         scope.launch {
@@ -288,40 +309,14 @@ fun DirectPublisherDialog(
                                 onProgressUpdate = { log -> currentPublishLog = log }
                             )
                             isPublishing = false
-                            Toast.makeText(context, "تم النشر المباشر عبر المنصات بنجاح! 🎉", Toast.LENGTH_LONG).show()
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    enabled = !isPublishing
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("نشر فوري عبر كافة المنصات المختارة 🚀", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-
-                // Native Share Fallback Button
-                OutlinedButton(
-                    onClick = {
-                        SocialAccountManager.shareVideoNatively(context, videoFile, "$postTitle\n\n$postDescription\n\n$hashtagsText")
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("فتح في تطبيق المنصة الأصلي (Native Share Sheet) 📲", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                }
+                    }
+                )
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isPublishing
-            ) {
-                Text("إغلاق", color = Color.Gray, fontFamily = CairoFont)
+            TextButton(onClick = onDismiss, enabled = !isPublishing) {
+                Text("إغلاق", color = theme.textSecondary, fontFamily = CairoFont)
             }
         }
     )

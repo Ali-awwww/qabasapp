@@ -570,7 +570,7 @@ private fun AddMemberDialog(
     val defaultModelFor: (DetectedProvider) -> String = {
         when (it) {
             DetectedProvider.OPENROUTER -> "anthropic/claude-sonnet-4.5"
-            DetectedProvider.GEMINI -> "gemini-3.5-flash"
+            DetectedProvider.GEMINI -> "gemini-2.5-flash"
             DetectedProvider.GROQ -> "llama-3.3-70b-versatile"
             DetectedProvider.OPENAI -> "gpt-4o"
             DetectedProvider.ANTHROPIC -> "claude-3-5-sonnet-20241022"

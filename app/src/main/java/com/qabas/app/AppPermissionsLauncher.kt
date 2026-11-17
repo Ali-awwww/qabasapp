@@ -80,19 +80,15 @@ fun AppPermissionsEntryLauncher(
     }
 
     if (showExplanationDialog) {
+        val theme = QabasTheme.current
         AlertDialog(
             onDismissRequest = { showExplanationDialog = false },
-            containerColor = Color(0xFF080D1A),
-            shape = RoundedCornerShape(22.dp),
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(20.dp),
             modifier = Modifier.border(
                 1.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF00E5FF).copy(alpha = 0.5f),
-                        Color(0xFF1E293B).copy(alpha = 0.5f)
-                    )
-                ),
-                RoundedCornerShape(22.dp)
+                theme.cardBorder,
+                RoundedCornerShape(20.dp)
             ),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -100,16 +96,16 @@ fun AppPermissionsEntryLauncher(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
-                            .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+                            .background(theme.primary.copy(alpha = 0.12f))
+                            .border(1.dp, theme.primary.copy(alpha = 0.3f), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.Shield, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("صلاحيات استوديو قبس", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("SPATIAL PERMISSION HUD", color = Color(0xFF00E5FF), fontFamily = NotoSansFont, fontSize = 9.sp, letterSpacing = 0.5.sp)
+                        Text("صلاحيات استوديو قبس", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("SPATIAL PERMISSION HUD", color = theme.primary, fontFamily = NotoSansFont, fontSize = 9.sp, letterSpacing = 0.5.sp)
                     }
                 }
             },
@@ -117,9 +113,9 @@ fun AppPermissionsEntryLauncher(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         "للحصول على أفضل تجربة واستفادة كاملة من أدوات الاستوديو، يحتاج التطبيق إلى الصلاحيات التالية:",
-                        color = Color(0xFFCBD5E1),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
-                        fontSize = 11.5.sp,
+                        fontSize = 12.sp,
                         lineHeight = 17.sp
                     )
                     PermissionExplItem(
@@ -148,18 +144,18 @@ fun AppPermissionsEntryLauncher(
                         showExplanationDialog = false
                         launcher.launch(permissionsToRequest)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = DeepSlate),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.height(40.dp)
+                    modifier = Modifier.height(44.dp)
                 ) {
-                    Icon(Icons.Default.Bolt, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("منح الصلاحيات 🚀", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("منح الصلاحيات 🚀", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExplanationDialog = false }) {
-                    Text("لاحقاً", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("لاحقاً", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         )
@@ -173,29 +169,30 @@ private fun PermissionExplItem(
     desc: String,
     accentColor: Color = GoldPrimary
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF0E1524),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+        color = theme.secondarySurface,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, theme.cardBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(36.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(accentColor.copy(alpha = 0.15f)),
+                    .background(accentColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text(title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Text(desc, color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 10.sp, lineHeight = 14.sp)
+                Text(title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(desc, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 10.5.sp, lineHeight = 15.sp)
             }
         }
     }

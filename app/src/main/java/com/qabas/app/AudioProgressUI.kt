@@ -1,45 +1,40 @@
 package com.qabas.app
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import java.util.Locale
 import kotlin.math.sin
 
 val EmeraldGreen = Color(0xFF10B981)
 
 /**
- * شريط وحوار التنزيل الحقيقي — تفاعلي بنسبة مئوية وسرعة وحجم بالبايت.
+ * حوار التنزيل الحقيقي بنمط Apple HIG — يعرض النسبة والسرعة والحجم الفعلي.
  */
 @Composable
 fun RealDownloadProgressDialog(
@@ -47,28 +42,18 @@ fun RealDownloadProgressDialog(
     progress: DownloadProgress,
     onCancelOrDismiss: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val animatedPercent by animateFloatAsState(
         targetValue = progress.percent.coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 200, easing = LinearEasing),
         label = "downloadProgressAnimation"
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
     AlertDialog(
         onDismissRequest = {
             if (progress.isCompleted || progress.isError) onCancelOrDismiss()
         },
-        containerColor = Color(0xFF0F172A),
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(20.dp),
         title = {
             Row(
@@ -79,8 +64,13 @@ fun RealDownloadProgressDialog(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (progress.isCompleted) EmeraldGreen.copy(alpha = 0.2f) else GoldPrimary.copy(alpha = 0.2f))
-                        .border(1.dp, if (progress.isCompleted) EmeraldGreen else GoldPrimary, CircleShape),
+                        .background(
+                            when {
+                                progress.isCompleted -> theme.success.copy(alpha = 0.16f)
+                                progress.isError -> theme.destructive.copy(alpha = 0.16f)
+                                else -> theme.primary.copy(alpha = 0.16f)
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -90,22 +80,26 @@ fun RealDownloadProgressDialog(
                             else -> Icons.Default.FileDownload
                         },
                         contentDescription = null,
-                        tint = if (progress.isCompleted) EmeraldGreen else if (progress.isError) Color(0xFFEF4444) else GoldPrimary,
+                        tint = when {
+                            progress.isCompleted -> theme.success
+                            progress.isError -> theme.destructive
+                            else -> theme.primary
+                        },
                         modifier = Modifier.size(22.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (progress.isCompleted) "اكتمل التنزيل بنجاح ✅" else if (progress.isError) "تعذر التنزيل ⚠️" else "جاري تنزيل الملف الصوتي",
-                        color = Color.White,
+                        text = if (progress.isCompleted) "اكتمل التنزيل بنجاح" else if (progress.isError) "تعذر التنزيل" else "جاري تنزيل الملف الصوتي",
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                     Text(
                         text = trackTitle,
-                        color = GoldPrimary,
+                        color = theme.primary,
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp,
                         maxLines = 1,
@@ -121,28 +115,26 @@ fun RealDownloadProgressDialog(
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // شريط التقدم الفاخر
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(Color(0xFF1E293B))
+                        .height(10.dp)
+                        .clip(CircleShape)
+                        .background(theme.secondarySurface)
                 ) {
-                    // شريط التعبئة المتدرج
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(animatedPercent)
+                            .clip(CircleShape)
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(GoldSecondary, GoldPrimary, Color(0xFFFBBF24))
+                                    listOf(theme.primary, theme.accent)
                                 )
                             )
                     )
                 }
 
-                // سطر الأرقام والإحصائيات الحية
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -150,17 +142,17 @@ fun RealDownloadProgressDialog(
                 ) {
                     Text(
                         text = "${(animatedPercent * 100).toInt()}%",
-                        color = GoldPrimary,
-                        fontFamily = NotoSansFont,
+                        color = theme.primary,
+                        fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 13.sp
                     )
 
                     val downloadedFormatted = AudioDownloadHelper.formatFileSize(progress.downloadedBytes)
                     val totalFormatted = AudioDownloadHelper.formatFileSize(progress.totalBytes.takeIf { it > 0 } ?: progress.downloadedBytes)
                     Text(
                         text = "$downloadedFormatted / $totalFormatted",
-                        color = TextSecondary,
+                        color = theme.textSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.sp
                     )
@@ -168,13 +160,13 @@ fun RealDownloadProgressDialog(
                     if (!progress.isCompleted && !progress.isError && progress.speedBytesPerSec > 0) {
                         val speedFormatted = AudioDownloadHelper.formatFileSize(progress.speedBytesPerSec) + "/s"
                         Surface(
-                            color = Color(0xFF1E293B),
-                            shape = RoundedCornerShape(4.dp)
+                            color = theme.success.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "⚡ $speedFormatted",
-                                color = EmeraldGreen,
-                                fontFamily = NotoSansFont,
+                                text = speedFormatted,
+                                color = theme.success,
+                                fontFamily = RobotoMonoFont,
                                 fontSize = 10.sp,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -182,7 +174,6 @@ fun RealDownloadProgressDialog(
                     }
                 }
 
-                // رسالة الحالة
                 val statusMessage = when {
                     progress.isCompleted -> "تم حفظ المقطع في مجلد التنزيلات (Downloads) بجهازك."
                     progress.isError -> progress.errorMessage ?: "حدث خطأ غير متوقع أثناء التنزيل."
@@ -190,9 +181,13 @@ fun RealDownloadProgressDialog(
                 }
                 Text(
                     text = statusMessage,
-                    color = if (progress.isError) Color(0xFFF87171) else if (progress.isCompleted) EmeraldGreen else TextSecondary,
+                    color = when {
+                        progress.isError -> theme.destructive
+                        progress.isCompleted -> theme.success
+                        else -> theme.textSecondary
+                    },
                     fontFamily = CairoFont,
-                    fontSize = 11.sp
+                    fontSize = 12.sp
                 )
             }
         },
@@ -200,28 +195,32 @@ fun RealDownloadProgressDialog(
             if (progress.isCompleted || progress.isError) {
                 Button(
                     onClick = onCancelOrDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = if (progress.isCompleted) EmeraldGreen else GoldPrimary),
-                    shape = RoundedCornerShape(10.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (progress.isCompleted) theme.success else theme.primary,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Text(
                         text = "تم",
-                        color = DeepSlate,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 13.sp
                     )
                 }
             } else {
                 OutlinedButton(
                     onClick = onCancelOrDismiss,
-                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(10.dp)
+                    border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Text(
                         text = "إلغاء التنزيل",
-                        color = Color(0xFFEF4444),
+                        color = theme.destructive,
                         fontFamily = CairoFont,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -230,17 +229,18 @@ fun RealDownloadProgressDialog(
 }
 
 /**
- * شريط الرفع الحقيقي والحي — تفاعلي مع مراحل التحميل وحساب النسبة والحجم.
+ * شريط الرفع الحقيقي بنمط Apple HIG.
  */
 @Composable
 fun RealUploadProgressBar(
-    progressPercent: Float, // 0.0 to 1.0
+    progressPercent: Float,
     stageText: String,
     uploadedBytes: Long = 0L,
     totalBytes: Long = 0L,
     speedBytesPerSec: Long = 0L,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val animatedPercent by animateFloatAsState(
         targetValue = progressPercent.coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 250, easing = LinearEasing),
@@ -248,9 +248,9 @@ fun RealUploadProgressBar(
     )
 
     Surface(
-        color = Color(0xFF0F172A),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -262,32 +262,32 @@ fun RealUploadProgressBar(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f)),
+                            .background(theme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.CloudUpload,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = theme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = stageText,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 13.sp
                     )
                 }
 
                 Text(
                     text = "${(animatedPercent * 100).toInt()}%",
-                    color = GoldPrimary,
-                    fontFamily = NotoSansFont,
+                    color = theme.primary,
+                    fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )
@@ -295,23 +295,19 @@ fun RealUploadProgressBar(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // شريط التقدم الفاخر
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0xFF1E293B))
+                    .height(8.dp)
+                    .clip(CircleShape)
+                    .background(theme.secondarySurface)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(animatedPercent)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(GoldSecondary, GoldPrimary, Color(0xFFFBBF24))
-                            )
-                        )
+                        .clip(CircleShape)
+                        .background(Brush.horizontalGradient(listOf(theme.primary, theme.accent)))
                 )
             }
 
@@ -326,18 +322,18 @@ fun RealUploadProgressBar(
                     val totFormatted = AudioDownloadHelper.formatFileSize(totalBytes)
                     Text(
                         text = "$upFormatted / $totFormatted",
-                        color = TextSecondary,
+                        color = theme.textSecondary,
                         fontFamily = NotoSansFont,
-                        fontSize = 10.sp
+                        fontSize = 11.sp
                     )
 
                     if (speedBytesPerSec > 0L) {
                         val spdFormatted = AudioDownloadHelper.formatFileSize(speedBytesPerSec) + "/s"
                         Text(
                             text = "سرعة الرفع: $spdFormatted",
-                            color = EmeraldGreen,
+                            color = theme.success,
                             fontFamily = NotoSansFont,
-                            fontSize = 10.sp
+                            fontSize = 11.sp
                         )
                     }
                 }
@@ -347,7 +343,7 @@ fun RealUploadProgressBar(
 }
 
 /**
- * التايم لاين الاحترافي الفاخر مع الموجات الصوتية، شريط التقدم الحي والمؤقت التنازلي فائق الدقة
+ * التايم لاين التفاعلي للموجات الصوتية متوافق مع الوضعين الفاتح والداكن.
  */
 @Composable
 fun LuxuryAudioTimelineBar(
@@ -357,6 +353,7 @@ fun LuxuryAudioTimelineBar(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     var isDragging by remember { mutableStateOf(false) }
     var dragPositionMs by remember { mutableLongStateOf(0L) }
 
@@ -369,7 +366,6 @@ fun LuxuryAudioTimelineBar(
         label = "smoothProgress"
     )
 
-    // موجات صوتية تحاكي ترددات التسجيل الحي
     val waveformPoints = remember(totalDurationMs) {
         val count = 48
         List(count) { i ->
@@ -380,8 +376,8 @@ fun LuxuryAudioTimelineBar(
 
     val infiniteTransition = rememberInfiniteTransition(label = "wavePulse")
     val wavePulse by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.15f,
+        initialValue = 0.88f,
+        targetValue = 1.12f,
         animationSpec = infiniteRepeatable(
             animation = tween(600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -389,30 +385,25 @@ fun LuxuryAudioTimelineBar(
         label = "wavePulse"
     )
 
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glowPulse"
-    )
+    val trackBgColor = theme.secondarySurface
+    val playedColor = theme.primary
+    val activeHeadColor = theme.success
+    val unplayedBarColor = theme.separator.copy(alpha = 0.55f)
+    val trackLineColor = theme.separator.copy(alpha = 0.35f)
+    val knobCenterColor = theme.cardSurface
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // رسم الموجات الصوتية والتايم لاين التفاعلي
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(42.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF0B1120))
-                .border(0.8.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                .background(trackBgColor)
+                .border(0.5.dp, theme.separator.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
                 .pointerInput(totalDurationMs) {
                     detectTapGestures { offset ->
                         val ratio = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        val targetMs = (ratio * totalDurationMs).toLong()
-                        onSeek(targetMs)
+                        onSeek((ratio * totalDurationMs).toLong())
                     }
                 }
                 .pointerInput(totalDurationMs) {
@@ -426,9 +417,7 @@ fun LuxuryAudioTimelineBar(
                             isDragging = false
                             onSeek(dragPositionMs)
                         },
-                        onDragCancel = {
-                            isDragging = false
-                        },
+                        onDragCancel = { isDragging = false },
                         onDrag = { change, _ ->
                             change.consume()
                             val ratio = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
@@ -437,26 +426,22 @@ fun LuxuryAudioTimelineBar(
                     )
                 }
         ) {
-            // رسم الموجات الصوتية بواسطة Canvas
             Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)) {
                 val barCount = waveformPoints.size
                 val spacing = 3.dp.toPx()
                 val totalSpacing = spacing * (barCount - 1)
                 val barWidth = ((size.width - totalSpacing) / barCount).coerceAtLeast(2.dp.toPx())
-
                 val activeWidth = size.width * animatedProgress
 
-                // Background track line
                 drawLine(
-                    color = Color(0xFF1E293B),
+                    color = trackLineColor,
                     start = Offset(0f, size.height / 2f),
                     end = Offset(size.width, size.height / 2f),
                     strokeWidth = 2.dp.toPx()
                 )
 
-                // Active glowing progress track line
                 drawLine(
-                    brush = Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary, Color(0xFF10B981))),
+                    brush = Brush.horizontalGradient(listOf(playedColor, activeHeadColor)),
                     start = Offset(0f, size.height / 2f),
                     end = Offset(activeWidth, size.height / 2f),
                     strokeWidth = 3.dp.toPx()
@@ -464,16 +449,16 @@ fun LuxuryAudioTimelineBar(
 
                 for (i in 0 until barCount) {
                     val x = i * (barWidth + spacing)
-                    val rawHeight = waveformPoints[i] * size.height * 0.75f
+                    val rawHeight = waveformPoints[i] * size.height * 0.72f
                     val pulse = if (isPlaying && x <= activeWidth) wavePulse else 1f
                     val barHeight = (rawHeight * pulse).coerceIn(4.dp.toPx(), size.height)
                     val y = (size.height - barHeight) / 2f
 
                     val isPlayed = (x + barWidth / 2f) <= activeWidth
                     val barColor = if (isPlayed) {
-                        if (x > activeWidth - 25.dp.toPx()) Color(0xFF10B981) else GoldPrimary
+                        if (x > activeWidth - 22.dp.toPx()) activeHeadColor else playedColor
                     } else {
-                        Color(0xFF1E293B)
+                        unplayedBarColor
                     }
 
                     drawRoundRect(
@@ -484,33 +469,23 @@ fun LuxuryAudioTimelineBar(
                     )
                 }
 
-                // خط ومؤشر الموضع الحالي (Playhead Knob & Halo)
-                if (isPlaying) {
-                    drawCircle(
-                        color = Color(0xFF10B981).copy(alpha = glowAlpha * 0.4f),
-                        radius = 8.dp.toPx(),
-                        center = Offset(activeWidth, size.height / 2f)
-                    )
-                }
-
                 drawCircle(
-                    color = Color.White,
-                    radius = 4.dp.toPx(),
+                    color = playedColor,
+                    radius = 5.dp.toPx(),
                     center = Offset(activeWidth, size.height / 2f)
                 )
                 drawCircle(
-                    color = GoldPrimary,
+                    color = knobCenterColor,
                     radius = 2.5.dp.toPx(),
                     center = Offset(activeWidth, size.height / 2f)
                 )
             }
 
-            // مؤشر السحب المنبثق عند السحب (Scrub Tooltip Bubble)
             if (isDragging) {
                 Surface(
-                    color = GoldPrimary,
-                    shape = RoundedCornerShape(6.dp),
-                    shadowElevation = 6.dp,
+                    color = theme.primary,
+                    shape = RoundedCornerShape(8.dp),
+                    shadowElevation = 4.dp,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 2.dp)
@@ -519,12 +494,12 @@ fun LuxuryAudioTimelineBar(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Schedule, null, tint = DeepSlate, modifier = Modifier.size(12.dp))
+                        Icon(Icons.Default.Schedule, null, tint = Color.White, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = formatAudioDuration(dragPositionMs),
-                            color = DeepSlate,
-                            fontFamily = NotoSansFont,
+                            color = Color.White,
+                            fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
@@ -536,7 +511,7 @@ fun LuxuryAudioTimelineBar(
 }
 
 /**
- * لوحة العداد الرقمي المزدوج والمؤقت التنازلي فائق الدقة (Accurate Live Countdown HUD)
+ * شريط التوقيت الرقمي الدقيق المتوافق مع Apple HIG.
  */
 @Composable
 fun AccurateAudioCountdownHud(
@@ -545,95 +520,71 @@ fun AccurateAudioCountdownHud(
     isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val remainingMs = (totalDurationMs - currentPositionMs).coerceAtLeast(0L)
     val progressPercent = if (totalDurationMs > 0) ((currentPositionMs.toFloat() / totalDurationMs.toFloat()) * 100).toInt().coerceIn(0, 100) else 0
-
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse_dot")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dot_alpha"
-    )
 
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // 1. الوقت المنقضي (Elapsed Time)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Surface(
-                color = Color(0xFF1E293B),
-                shape = RoundedCornerShape(6.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                color = theme.secondarySurface,
+                shape = RoundedCornerShape(6.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isPlaying) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981).copy(alpha = dotAlpha))
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
                     Text(
                         text = formatAudioDuration(currentPositionMs),
-                        color = GoldPrimary,
-                        fontFamily = NotoSansFont,
+                        color = theme.primary,
+                        fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     )
                 }
             }
 
-            // نسبة الإنجاز المئوية الحية
             Surface(
-                color = Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(4.dp)
+                color = theme.secondarySurface,
+                shape = RoundedCornerShape(6.dp)
             ) {
                 Text(
                     text = "$progressPercent%",
-                    color = Color.White.copy(alpha = 0.8f),
+                    color = theme.textSecondary,
                     fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 9.5.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp)
                 )
             }
         }
 
-        // 2. المؤقت التنازلي التفاعلي الدقيق (Countdown Remaining Timer)
         Surface(
-            color = Color(0xFF1E293B),
-            shape = RoundedCornerShape(6.dp),
-            border = BorderStroke(1.dp, if (isPlaying) Color(0xFF10B981).copy(alpha = 0.4f) else Color.White.copy(alpha = 0.15f))
+            color = if (isPlaying) theme.success.copy(alpha = 0.14f) else theme.secondarySurface,
+            shape = RoundedCornerShape(6.dp)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.HourglassBottom,
                     contentDescription = "الوقت المتبقي",
-                    tint = if (isPlaying) Color(0xFF10B981) else TextSecondary,
+                    tint = if (isPlaying) theme.success else theme.textSecondary,
                     modifier = Modifier.size(12.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "متبقي -${formatAudioDuration(remainingMs)}",
-                    color = if (isPlaying) Color(0xFF10B981) else TextSecondary,
-                    fontFamily = NotoSansFont,
+                    text = "-${formatAudioDuration(remainingMs)}",
+                    color = if (isPlaying) theme.success else theme.textSecondary,
+                    fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )
@@ -642,12 +593,9 @@ fun AccurateAudioCountdownHud(
     }
 }
 
-/**
- * تنسيق الوقت بالدقائق والثواني بدقة
- */
 fun formatAudioDuration(ms: Long): String {
     val totalSeconds = (ms / 1000).coerceAtLeast(0)
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+    return String.format(Locale.US, "%02d:%02d", minutes, seconds)
 }

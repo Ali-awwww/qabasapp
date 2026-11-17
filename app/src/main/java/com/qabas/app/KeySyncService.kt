@@ -129,8 +129,12 @@ object KeySyncService {
                 val editor = keyPrefs.edit()
                 result.keys.forEach { synced ->
                     if (synced.value.isNotBlank() && synced.service in KEY_FIELDS) {
-                        editor.putString(synced.service, synced.value)
-                        imported++
+                        val cleanValue = KeyPoolManager.sanitizeApiKey(synced.value)
+                        if (cleanValue.isNotBlank()) {
+                            editor.putString(synced.service, cleanValue)
+                            runCatching { KeyPoolManager.setSingleKey(synced.service, cleanValue) }
+                            imported++
+                        }
                     }
                 }
                 editor.apply()

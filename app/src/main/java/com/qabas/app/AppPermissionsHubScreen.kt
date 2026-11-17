@@ -50,6 +50,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -267,83 +269,40 @@ fun AppPermissionsHubScreen(
     }
 
     BackHandler { onBack() }
+    val theme = QabasTheme.current
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
-                                .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Shield,
-                                contentDescription = null,
-                                tint = Color(0xFF00E5FF),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                "لوحة أذونات وحماية النظام",
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                "SPATIAL HUD • PERMISSION SENTINEL",
-                                fontFamily = NotoSansFont,
-                                color = Color(0xFF00E5FF),
-                                fontSize = 9.sp,
-                                letterSpacing = 1.sp
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("permissions_hub_back_btn")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
-                    }
-                },
+            AppleTopBar(
+                title = "أذونات وحماية النظام",
+                subtitle = "إدارة أذونات العتاد والتشغيل بالخلفية",
+                onBack = onBack,
+                backTestTag = "permissions_hub_back_btn",
                 actions = {
-                    IconButton(onClick = {
-                        refreshAllPermissionStates()
-                        Toast.makeText(context, "تم تحديث حالة الأذونات ⚡", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = Color(0xFF00E5FF))
+                    IconButton(
+                        onClick = {
+                            refreshAllPermissionStates()
+                            Toast.makeText(context, "تم تحديث حالة الأذونات ⚡", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "تحديث",
+                            tint = theme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF060A13).copy(alpha = 0.95f)
-                )
+                }
             )
         },
-        containerColor = Color(0xFF060A13)
+        containerColor = theme.background
     ) { paddingValues ->
         Box(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF0A1329),
-                            Color(0xFF060A13),
-                            Color(0xFF03050A)
-                        ),
-                        radius = 1800f
-                    )
-                )
+                .background(theme.background)
         ) {
             Column(
                 modifier = Modifier
@@ -674,17 +633,17 @@ private fun HudReadinessTelemetryCard(
     onDeployAll: () -> Unit,
     onRunDiagnostics: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val statusColor = when {
-        readinessPercentage >= 100 -> Color(0xFF10B981)
-        readinessPercentage >= 60 -> Color(0xFF00E5FF)
-        else -> Color(0xFFF59E0B)
+        readinessPercentage >= 100 -> theme.success
+        readinessPercentage >= 60 -> theme.primary
+        else -> theme.warning
     }
 
-    Surface(
-        color = Color(0xFF0C1322).copy(alpha = 0.88f),
-        shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(statusColor.copy(alpha = 0.6f), Color(0xFF38BDF8).copy(alpha = 0.2f)))),
-        modifier = Modifier.fillMaxWidth()
+    AppleCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 18.dp,
+        containerColor = theme.cardSurface
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
@@ -711,50 +670,41 @@ private fun HudReadinessTelemetryCard(
                     }
                     Text(
                         text = "مستوى الجاهزية التشغيلية",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 18.sp
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
                     )
                     Text(
                         text = "لضمان رفع الأذان، تشغيل الكاميرا، وميكروفون الاستوديو بأعلى دقة",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = NotoSansFont,
-                        fontSize = 10.5.sp
+                        fontSize = 11.sp
                     )
                 }
 
-                // Cybernetic Circular HUD Metric
+                // Apple Circular Progress Metric
                 Box(
                     modifier = Modifier
-                        .size(68.dp)
+                        .size(64.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF070B14))
-                        .border(2.dp, statusColor.copy(alpha = 0.4f), CircleShape),
+                        .background(statusColor.copy(alpha = 0.12f))
+                        .border(1.5.dp, statusColor.copy(alpha = 0.4f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Rotating radar line
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .rotate(radarRotation)
-                            .border(1.dp, Brush.sweepGradient(listOf(Color.Transparent, statusColor.copy(alpha = 0.8f))), CircleShape)
-                    )
-
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "$readinessPercentage%",
-                            color = Color.White,
+                            color = statusColor,
                             fontFamily = CairoFont,
-                            fontWeight = FontWeight.Black,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
-                            text = "HUD",
-                            color = statusColor,
-                            fontFamily = NotoSansFont,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "جاهزية",
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 8.5.sp
                         )
                     }
                 }
@@ -769,25 +719,25 @@ private fun HudReadinessTelemetryCard(
                     onClick = onDeployAll,
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(42.dp),
+                        .defaultMinSize(minHeight = 44.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (readinessPercentage >= 100) Color(0xFF10B981) else Color(0xFF00E5FF)
+                        containerColor = if (readinessPercentage >= 100) theme.success else theme.primary
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
                         if (readinessPercentage >= 100) Icons.Default.CheckCircle else Icons.Default.Bolt,
                         contentDescription = null,
-                        tint = DeepSlate,
-                        modifier = Modifier.size(18.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (readinessPercentage >= 100) "كافة الدروع مفعلة ✓" else "تفعيل جميع الصلاحيات 🚀",
-                        color = DeepSlate,
+                        text = if (readinessPercentage >= 100) "كافة الأذونات مفعلة ✓" else "تفعيل جميع الصلاحيات 🚀",
+                        color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.5.sp
+                        fontSize = 12.sp
                     )
                 }
 
@@ -795,18 +745,18 @@ private fun HudReadinessTelemetryCard(
                     onClick = onRunDiagnostics,
                     modifier = Modifier
                         .weight(0.9f)
-                        .height(42.dp),
-                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(12.dp)
+                        .defaultMinSize(minHeight = 44.dp),
+                    border = BorderStroke(1.dp, theme.primary),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "فحص ذاتي ⚡",
-                        color = Color(0xFF38BDF8),
+                        color = theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 11.5.sp
                     )
                 }
             }
@@ -831,19 +781,21 @@ private fun CyberPermissionCard(
     testWaveformLevel: Float = 0f,
     onAction: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val statusColor = if (isGranted) Color(0xFF10B981) else accentColor
 
     Surface(
-        color = Color(0xFF0A101D).copy(alpha = 0.9f),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
             1.dp,
-            if (isGranted) Color(0xFF10B981).copy(alpha = 0.45f) else accentColor.copy(alpha = 0.35f)
+            if (isGranted) Color(0xFF10B981).copy(alpha = 0.35f) else theme.cardBorder
         ),
+        shadowElevation = if (theme.isDark) 0.dp else 2.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
@@ -856,8 +808,8 @@ private fun CyberPermissionCard(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(accentColor.copy(alpha = 0.15f))
-                            .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                            .background(accentColor.copy(alpha = 0.12f))
+                            .border(1.dp, accentColor.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(22.dp))
@@ -867,55 +819,55 @@ private fun CyberPermissionCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 title,
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp
+                                fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             if (isGranted) {
                                 Surface(
-                                    color = Color(0xFF10B981).copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(4.dp),
-                                    border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
                                 ) {
                                     Text(
                                         "ممنوح ✓",
                                         color = Color(0xFF10B981),
-                                        fontSize = 9.sp,
+                                        fontSize = 10.sp,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
                         }
                         Text(
                             code,
-                            color = accentColor,
+                            color = theme.textTertiary,
                             fontFamily = NotoSansFont,
-                            fontSize = 9.5.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
                 }
 
-                // Action trigger button
+                // Action trigger button (Apple HIG pill style)
                 Button(
                     onClick = onAction,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isGranted) Color(0xFF1E293B) else accentColor,
-                        contentColor = if (isGranted) Color(0xFF10B981) else DeepSlate
+                        containerColor = if (isGranted) theme.secondarySurface else accentColor,
+                        contentColor = if (isGranted) Color(0xFF10B981) else Color.White
                     ),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.height(34.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    modifier = Modifier.defaultMinSize(minHeight = 44.dp)
                 ) {
                     Text(
                         text = actionLabel,
                         fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -923,28 +875,29 @@ private fun CyberPermissionCard(
             // Description and Impact
             Text(
                 text = desc,
-                color = Color(0xFFCBD5E1),
+                color = theme.textSecondary,
                 fontFamily = CairoFont,
-                fontSize = 11.sp,
-                lineHeight = 16.sp
+                fontSize = 12.sp,
+                lineHeight = 18.sp
             )
 
             if (!isGranted) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFEF4444).copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFEF4444).copy(alpha = 0.08f))
+                        .border(BorderStroke(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.2f)), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = impact,
-                        color = Color(0xFFFCA5A5),
+                        color = Color(0xFFEF4444),
                         fontFamily = CairoFont,
-                        fontSize = 9.5.sp
+                        fontSize = 11.sp
                     )
                 }
             }
@@ -954,10 +907,10 @@ private fun CyberPermissionCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF0F172A))
-                        .padding(horizontal = 4.dp),
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(theme.secondarySurface)
+                        .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
@@ -966,10 +919,10 @@ private fun CyberPermissionCard(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxHeight()
+                                .fillMaxHeight(0.8f)
                                 .background(
-                                    color = if (i < measuredSegments) Color(0xFF38BDF8) else Color(0xFF334155),
-                                    shape = RoundedCornerShape(1.dp)
+                                    color = if (i < measuredSegments) theme.primary else theme.cardBorder,
+                                    shape = RoundedCornerShape(2.dp)
                                 )
                         )
                     }
@@ -978,3 +931,4 @@ private fun CyberPermissionCard(
         }
     }
 }
+

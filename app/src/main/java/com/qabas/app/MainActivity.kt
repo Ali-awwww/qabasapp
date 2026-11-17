@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
@@ -104,34 +105,26 @@ fun RatioButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Button(
+    val theme = QabasTheme.current
+    Surface(
         onClick = onClick,
-        modifier = modifier.height(40.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) Color.Transparent else DeepSlate
-        ),
-        shape = RoundedCornerShape(8.dp),
-        contentPadding = PaddingValues(0.dp)
+        modifier = modifier.heightIn(min = 44.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) theme.primary else theme.secondarySurface,
+        border = BorderStroke(
+            0.5.dp,
+            if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f)
+        )
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    if (isSelected) gradient
-                    else androidx.compose.ui.graphics.SolidColor(Color.Transparent),
-                    RoundedCornerShape(8.dp)
-                )
-                .border(
-                    1.dp,
-                    if (isSelected) Color.Transparent else Color(0xFF333333),
-                    RoundedCornerShape(8.dp)
-                ),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text,
-                color = if (isSelected) DeepSlate else Color.White,
-                fontWeight = FontWeight.Bold,
+                text = text,
+                color = if (isSelected) theme.onPrimary else theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 14.sp
             )
         }
@@ -410,18 +403,21 @@ class MainActivity : ComponentActivity() {
             }
 
             if (showReportDialog && screenshotBitmap != null) {
+                val theme = QabasTheme.current
                 Dialog(
                     onDismissRequest = { if (!isSubmitting) showReportDialog = false },
                     properties = DialogProperties(usePlatformDefaultWidth = false)
                 ) {
-                    GlassmorphicSurface(
+                    Surface(
                         modifier = Modifier
                             .widthIn(max = 480.dp)
                             .fillMaxWidth(0.92f)
                             .wrapContentHeight()
                             .padding(horizontal = 14.dp, vertical = 10.dp),
-                        shape = RoundedCornerShape(26.dp),
-                        borderColor = GoldPrimary.copy(alpha = 0.5f)
+                        shape = RoundedCornerShape(22.dp),
+                        color = theme.cardSurface,
+                        shadowElevation = if (theme.isDark) 4.dp else 12.dp,
+                        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
                     ) {
                         Column(
                             modifier = Modifier
@@ -436,10 +432,10 @@ class MainActivity : ComponentActivity() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Icon(Icons.Default.BugReport, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.BugReport, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                     Text(
                                         "إبلاغ أو اقتراح تحسين",
-                                        color = GoldPrimary,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -453,18 +449,17 @@ class MainActivity : ComponentActivity() {
                                         AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                                     },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = GoldPrimary.copy(alpha = 0.15f),
-                                    border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.45f))
+                                    color = theme.primary.copy(alpha = 0.12f)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(Icons.Default.ListAlt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ListAlt, contentDescription = null, tint = theme.primary, modifier = Modifier.size(14.dp))
                                         Text(
                                             if (myReports.isNotEmpty()) "طلباتي (${myReports.size})" else "طلباتي السابقة",
-                                            color = GoldPrimary,
+                                            color = theme.primary,
                                             fontFamily = CairoFont,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold
@@ -473,38 +468,37 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            // معاينة اللقطة
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(180.dp),
+                                    .height(176.dp),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                                colors = CardDefaults.cardColors(containerColor = theme.secondarySurface),
+                                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.5f))
                             ) {
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     AsyncImage(
                                         model = screenshotBitmap,
-                                        contentDescription = "Screenshot Preview",
+                                        contentDescription = "معاينة اللقطة",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Fit
                                     )
-                                    // شارة التشخيص الدقيق المرفق إن وُجد
                                     attachedTelemetry?.let { tel ->
                                         Surface(
-                                            shape = RoundedCornerShape(topStart = 10.dp, bottomEnd = 10.dp),
-                                            color = Color.Black.copy(alpha = 0.85f),
-                                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f)),
-                                            modifier = Modifier.align(Alignment.TopStart).padding(6.dp)
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = theme.cardSurface.copy(alpha = 0.92f),
+                                            border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.5f)),
+                                            modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                                                Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = theme.primary, modifier = Modifier.size(13.dp))
                                                 Text(
-                                                    text = "بصمة تشخيصية: ${tel.detectedProbableIssue.title}",
-                                                    color = Color(0xFF00E5FF),
+                                                    text = "تشخيص: ${tel.detectedProbableIssue.title}",
+                                                    color = theme.primary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold
@@ -515,54 +509,50 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            // نوع البلاغ
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 listOf(
-                                    "BUG" to "🐞 خلل عام",
-                                    "UI_OVERFLOW" to "📐 تداخل عناصر",
-                                    "IMPROVEMENT" to "💡 تحسين",
-                                    "CONTENT" to "📜 محتوى"
+                                    "BUG" to "خلل عام",
+                                    "UI_OVERFLOW" to "تداخل عناصر",
+                                    "IMPROVEMENT" to "تحسين",
+                                    "CONTENT" to "محتوى"
                                 ).forEach { (type, label) ->
                                     val selected = reportType == type
-                                    val chipColor = if (type == "UI_OVERFLOW") Color(0xFF00E5FF) else GoldPrimary
                                     Surface(
                                         onClick = {
                                             AppSoundManager.playToggle()
                                             reportType = type
                                             if (type == "UI_OVERFLOW" && description.isBlank()) {
-                                                description = "يوجد تداخل بين عناصر الواجهة (نصوص/أزرار/شارات) في هذه الشاشة."
+                                                description = "يوجد تداخل بين عناصر الواجهة في هذه الشاشة."
                                             }
                                         },
                                         shape = RoundedCornerShape(10.dp),
-                                        color = if (selected) chipColor else Color.White.copy(alpha = 0.08f),
-                                        border = BorderStroke(1.dp, if (selected) chipColor else Color.White.copy(alpha = 0.15f)),
+                                        color = if (selected) theme.primary else theme.secondarySurface,
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
                                             label,
-                                            color = if (selected) DeepSlate else Color.White,
-                                            fontSize = 10.5.sp,
+                                            color = if (selected) theme.onPrimary else theme.textPrimary,
+                                            fontSize = 11.sp,
                                             fontFamily = CairoFont,
-                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                             textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(vertical = 7.dp)
+                                            modifier = Modifier.padding(vertical = 8.dp)
                                         )
                                     }
                                 }
                             }
 
-                            // اختصارات سريعة للمشكلات الشائعة وزر التشخيص الفوري
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 listOf(
-                                    "تشخيص النظام 🔬" to "DIAGNOSE_NOW",
-                                    "تداخل نصوص 📐" to "يوجد تداخل وازدحام بين النصوص والأزرار في هذه الشاشة.",
-                                    "عناصر مقصوصة ✂️" to "توجد عناصر أو نصوص مقصوصة وغير كاملة الظهور."
+                                    "تشخيص النظام" to "DIAGNOSE_NOW",
+                                    "تداخل نصوص" to "يوجد تداخل وازدحام بين النصوص والأزرار في هذه الشاشة.",
+                                    "عناصر مقصوصة" to "توجد عناصر أو نصوص مقصوصة وغير كاملة الظهور."
                                 ).forEach { (chipTitle, chipAction) ->
                                     val isDiagnosticChip = chipAction == "DIAGNOSE_NOW"
                                     Surface(
@@ -579,7 +569,7 @@ class MainActivity : ComponentActivity() {
                                                 reportType = telemetry.detectedProbableIssue.code
                                                 val summary = "• رصد آلي: ${telemetry.detectedProbableIssue.title}\n• الأبعاد: ${telemetry.widthDp}×${telemetry.heightDp} dp (${telemetry.densityDpi} DPI)\n• الذاكرة: ${telemetry.usedRamMb}/${telemetry.maxRamMb} MB"
                                                 description = if (description.isBlank()) summary else "$description\n$summary"
-                                                Toast.makeText(context, "تم إجراء التشخيص الدقيق وإرفاق البصمة بنجاح 🔬", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "تم إجراء التشخيص وإرفاق التفاصيل", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 if (chipTitle.contains("تداخل")) {
                                                     reportType = "UI_OVERFLOW"
@@ -588,51 +578,48 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isDiagnosticChip) Color(0xFF00E5FF).copy(alpha = 0.2f) else Color(0xFF1E293B).copy(alpha = 0.6f),
-                                        border = BorderStroke(0.8.dp, if (isDiagnosticChip) Color(0xFF00E5FF).copy(alpha = 0.7f) else Color.White.copy(alpha = 0.2f)),
+                                        color = if (isDiagnosticChip) theme.primary.copy(alpha = 0.14f) else theme.secondarySurface,
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
                                             chipTitle,
-                                            color = if (isDiagnosticChip) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.85f),
-                                            fontSize = 9.sp,
+                                            color = if (isDiagnosticChip) theme.primary else theme.textSecondary,
+                                            fontSize = 10.sp,
                                             fontFamily = CairoFont,
-                                            fontWeight = if (isDiagnosticChip) FontWeight.Bold else FontWeight.Normal,
+                                            fontWeight = if (isDiagnosticChip) FontWeight.Bold else FontWeight.Medium,
                                             textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(vertical = 5.dp, horizontal = 2.dp),
+                                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
                                             maxLines = 1,
-                                            softWrap = false
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
                             }
 
-                            // الوصف
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
                                     value = description,
                                     onValueChange = { if (it.length <= 500) description = it },
-                                    placeholder = { Text("صف المشكلة أو الاقتراح بالتفصيل هنا...", color = Color.Gray, fontSize = 11.5.sp) },
+                                    placeholder = { Text("صف المشكلة أو الاقتراح بالتفصيل هنا...", color = theme.textSecondary, fontSize = 12.sp) },
                                     modifier = Modifier.fillMaxWidth().height(100.dp),
                                     shape = RoundedCornerShape(12.dp),
-                                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 12.5.sp, color = Color.White),
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 13.sp, color = theme.textPrimary),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = GoldPrimary,
-                                        unfocusedBorderColor = Color.White.copy(alpha = 0.25f)
+                                        focusedBorderColor = theme.primary,
+                                        unfocusedBorderColor = theme.separator.copy(alpha = 0.6f)
                                     )
                                 )
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                     Text(
                                         "${description.length}/500",
-                                        color = if (description.length > 450) Color(0xFFEF4444) else TextSecondary,
-                                        fontSize = 9.5.sp,
+                                        color = if (description.length > 450) theme.destructive else theme.textSecondary,
+                                        fontSize = 10.sp,
                                         fontFamily = CairoFont
                                     )
                                 }
                             }
 
-                            // أزرار التحكم
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -642,9 +629,9 @@ class MainActivity : ComponentActivity() {
                                         AppSoundManager.playClick()
                                         showReportDialog = false
                                     },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                                 ) {
-                                    Text("إلغاء", color = Color.White, fontFamily = CairoFont)
+                                    Text("إلغاء", color = theme.textSecondary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                                 }
 
                                 Button(
@@ -673,17 +660,17 @@ class MainActivity : ComponentActivity() {
                                             attachedTelemetry = null
                                         }
                                     },
-                                    modifier = Modifier.weight(1f).height(44.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
                                     shape = RoundedCornerShape(12.dp),
                                     enabled = !isSubmitting
                                 ) {
                                     if (isSubmitting) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = theme.onPrimary, strokeWidth = 2.dp)
                                     } else {
-                                        Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("إرسال", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("إرسال", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
                                 }
                             }
@@ -693,40 +680,55 @@ class MainActivity : ComponentActivity() {
             }
 
             if (showCameraChooser) {
+                val theme = QabasTheme.current
                 Dialog(onDismissRequest = { showCameraChooser = false }) {
-                    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFF1E293B)) {
-                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("إرفاق صورة للبلاغ", color = GoldPrimary, fontFamily = CairoFont, fontSize = 15.sp)
-                            TextButton(onClick = {
-                                showCameraChooser = false
-                                showFab = false
-                                scope.launch {
-                                    delay(150)
-                                    val bitmap = BugReportManager.captureScreenshot(view)
-                                    if (bitmap != null) {
-                                        val file = BugReportManager.saveBitmapToCache(context, bitmap)
-                                        screenshotBitmap = bitmap
-                                        screenshotFile = file
-                                        showReportDialog = true
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = theme.cardSurface,
+                        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("إرفاق صورة للبلاغ", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.45f))
+                            TextButton(
+                                onClick = {
+                                    showCameraChooser = false
+                                    showFab = false
+                                    scope.launch {
+                                        delay(150)
+                                        val bitmap = BugReportManager.captureScreenshot(view)
+                                        if (bitmap != null) {
+                                            val file = BugReportManager.saveBitmapToCache(context, bitmap)
+                                            screenshotBitmap = bitmap
+                                            screenshotFile = file
+                                            showReportDialog = true
+                                        }
+                                        showFab = true
                                     }
-                                    showFab = true
-                                }
-                            }) { Text("لقطة شاشة 📸", color = Color.White, fontFamily = CairoFont) }
-                            TextButton(onClick = {
-                                showCameraChooser = false
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                                    val file = File(context.cacheDir, "bug_camera_${System.currentTimeMillis()}.jpg")
-                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                                    pendingCameraFileUri = uri
-                                    cameraLauncher.launch(uri)
-                                } else {
-                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
-                            }) { Text("تصوير الآن 📷", color = Color.White, fontFamily = CairoFont) }
-                            TextButton(onClick = {
-                                showCameraChooser = false
-                                galleryLauncher.launch("image/*")
-                            }) { Text("من المعرض 🖼️", color = Color.White, fontFamily = CairoFont) }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("لقطة شاشة", color = theme.primary, fontFamily = CairoFont) }
+                            TextButton(
+                                onClick = {
+                                    showCameraChooser = false
+                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                        val file = File(context.cacheDir, "bug_camera_${System.currentTimeMillis()}.jpg")
+                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                        pendingCameraFileUri = uri
+                                        cameraLauncher.launch(uri)
+                                    } else {
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("التقاط بالكاميرا", color = theme.primary, fontFamily = CairoFont) }
+                            TextButton(
+                                onClick = {
+                                    showCameraChooser = false
+                                    galleryLauncher.launch("image/*")
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("اختيار من المعرض", color = theme.primary, fontFamily = CairoFont) }
                         }
                     }
                 }
@@ -966,129 +968,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-private fun GlassmorphicGeometricNavIcon(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    isSelected: Boolean,
-    scale: Float,
-    translationY: androidx.compose.ui.unit.Dp
-) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .offset(y = translationY)
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-    ) {
-        // 1. هالة النيون البصرية المشعة خلف الكبسولة الزجاجية عند التحديد
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                GoldPrimary.copy(alpha = 0.45f),
-                                Color(0xFF00E5FF).copy(alpha = 0.20f),
-                                Color.Transparent
-                            )
-                        ),
-                        shape = CircleShape
-                    )
-            )
-        }
-
-        // 2. الكبسولة الزجاجية المجسمة ثلاثية الأبعاد (3D Glassmorphic Geometric Pod)
-        Surface(
-            shape = RoundedCornerShape(13.dp),
-            color = if (isSelected) Color(0xFF141F36).copy(alpha = 0.90f) else Color(0xFF0F172A).copy(alpha = 0.45f),
-            shadowElevation = if (isSelected) 8.dp else 1.dp,
-            border = BorderStroke(
-                width = if (isSelected) 1.5.dp else 1.dp,
-                brush = if (isSelected) {
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFFFFF9D2),     // لمعان زجاجي علوي لامع
-                            GoldPrimary,           // ذهبي قبس الملكي
-                            Color(0xFF00E5FF),     // وميض نيون فيروزي
-                            GoldSecondary,
-                            Color(0xFF78590F)
-                        )
-                    )
-                } else {
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.20f),
-                            GoldPrimary.copy(alpha = 0.25f),
-                            Color.White.copy(alpha = 0.05f)
-                        )
-                    )
-                }
-            ),
-            modifier = Modifier.size(width = 38.dp, height = 34.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                // طبقة الانعكاس الزجاجي اللامع العلوي (Glossy Specular Glass Reflection)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth(0.85f)
-                        .height(11.dp)
-                        .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = if (isSelected) 0.36f else 0.14f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                // لمسة هندسية ذهبية ماسية في زوايا الكبسولة (Geometric Diamond Corner Accents)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 2.dp, end = 2.dp)
-                        .size(4.dp)
-                        .rotate(45f)
-                        .background(if (isSelected) GoldPrimary else GoldPrimary.copy(alpha = 0.35f))
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(bottom = 2.dp, start = 2.dp)
-                        .size(3.dp)
-                        .rotate(45f)
-                        .background(if (isSelected) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.20f))
-                )
-
-                // ظل داخلي ناعم للأيقونة لمنح عمق ثلاثي الأبعاد بارز
-                if (isSelected) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.Black.copy(alpha = 0.60f),
-                        modifier = Modifier
-                            .size(21.dp)
-                            .offset(x = 1.dp, y = 1.dp)
-                    )
-                }
-
-                // الأيقونة ثلاثية الأبعاد العائمة داخل الحجرة الزجاجية
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription,
-                    tint = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-}
+private data class AppleNavItem(
+    val route: AppState,
+    val selectedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    val unselectedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    val labelKey: String
+)
 
 @Composable
 fun QabasBottomNavigation(
@@ -1097,127 +982,86 @@ fun QabasBottomNavigation(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val theme = QabasTheme.current
+    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
     val navItems = remember {
         listOf(
-            Triple(AppState.HOME, Icons.Default.Home, "الرئيسية"),
-            Triple(AppState.AI_STUDIO_AGENT, Icons.Default.SmartToy, "الوكيل"),
-            Triple(AppState.REELS, Icons.Default.SlowMotionVideo, "ريلز"),
-            Triple(AppState.STUDIO_GATEWAY, Icons.Default.AutoAwesome, "الاستوديو"),
-            Triple(AppState.HASANAT_HUB, Icons.Default.Mosque, "المِشكاة"),
-            Triple(AppState.REQUEST_CHAT, Icons.Default.Chat, "تواصل")
+            AppleNavItem(AppState.HOME, Icons.Filled.Home, Icons.Outlined.Home, "الرئيسية"),
+            AppleNavItem(AppState.HASANAT_HUB, Icons.Filled.AutoStories, Icons.Outlined.AutoStories, "المِشكاة"),
+            AppleNavItem(AppState.REELS, Icons.Filled.PlayCircle, Icons.Outlined.PlayCircle, "ريلز"),
+            AppleNavItem(AppState.STUDIO_GATEWAY, Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome, "الاستوديو"),
+            AppleNavItem(AppState.SETTINGS, Icons.Filled.Settings, Icons.Outlined.Settings, "الإعدادات")
         )
     }
 
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 20.dp,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                ambientColor = GoldPrimary.copy(alpha = 0.25f),
-                spotColor = GoldSecondary.copy(alpha = 0.40f)
-            )
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .border(
-                width = 1.2.dp,
-                brush = Brush.horizontalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.08f),
-                        GoldPrimary.copy(alpha = 0.65f),
-                        Color(0xFF00E5FF).copy(alpha = 0.4f),
-                        GoldSecondary.copy(alpha = 0.55f),
-                        Color.White.copy(alpha = 0.08f)
-                    )
-                ),
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-            ),
-        color = Color(0xFF0B101D).copy(alpha = 0.96f)
+        modifier = modifier.fillMaxWidth(),
+        color = theme.cardSurface.copy(alpha = if (theme.isDark) 0.94f else 0.96f),
+        shadowElevation = if (theme.isDark) 0.dp else 4.dp
     ) {
-        NavigationBar(
-            containerColor = Color.Transparent,
-            contentColor = GoldPrimary,
-            tonalElevation = 0.dp,
-            windowInsets = WindowInsets.navigationBars,
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 66.dp)
-        ) {
-            navItems.forEach { (route, icon, labelKey) ->
-                val label = Translator.tr(labelKey)
-                val isSelected = currentRoute == route
-                val iconScale by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 1.22f else 1.0f,
-                    animationSpec = androidx.compose.animation.core.spring(
-                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-                    ),
-                    label = "nav_icon_scale"
-                )
-                val iconTranslationY by androidx.compose.animation.core.animateDpAsState(
-                    targetValue = if (isSelected) (-3).dp else 0.dp,
-                    animationSpec = androidx.compose.animation.core.spring(
-                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                        stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                    ),
-                    label = "nav_icon_trans_y"
-                )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = theme.separator.copy(alpha = 0.55f)
+            )
+            NavigationBar(
+                containerColor = Color.Transparent,
+                contentColor = theme.primary,
+                tonalElevation = 0.dp,
+                windowInsets = WindowInsets.navigationBars,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 62.dp)
+            ) {
+                navItems.forEach { item ->
+                    val label = Translator.tr(item.labelKey)
+                    val isSelected = currentRoute == item.route
+                    val iconScale by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (isSelected && !reducedMotion) 1.08f else 1.0f,
+                        animationSpec = androidx.compose.animation.core.spring(
+                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                        ),
+                        label = "nav_icon_scale"
+                    )
 
-                NavigationBarItem(
-                    modifier = Modifier.testTag(TestTags.NAV_ITEM_PREFIX + route.name),
-                    icon = {
-                        GlassmorphicGeometricNavIcon(
-                            icon = icon,
-                            contentDescription = label,
-                            isSelected = isSelected,
-                            scale = iconScale,
-                            translationY = iconTranslationY
-                        )
-                    },
-                    label = {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
+                    NavigationBarItem(
+                        modifier = Modifier.testTag(TestTags.NAV_ITEM_PREFIX + item.route.name),
+                        icon = {
+                            Icon(
+                                imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                                contentDescription = label,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
+                            )
+                        },
+                        label = {
                             Text(
                                 text = label,
                                 fontFamily = CairoFont,
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 11.sp,
                                 maxLines = 1,
                                 softWrap = false,
-                                overflow = TextOverflow.Clip,
-                                color = if (isSelected) GoldPrimary else TextSecondary.copy(alpha = 0.75f)
+                                overflow = TextOverflow.Ellipsis
                             )
-                            if (isSelected) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .width(18.dp)
-                                        .height(2.5.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(GoldPrimary, GoldSecondary)
-                                            )
-                                        )
-                                )
-                            }
-                        }
-                    },
-                    selected = isSelected,
-                    onClick = {
-                        runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
-                        AppSoundManager.playTabRouteSound(route)
-                        onNavigate(route)
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = GoldPrimary,
-                        unselectedIconColor = TextSecondary.copy(alpha = 0.7f),
-                        selectedTextColor = GoldPrimary,
-                        unselectedTextColor = TextSecondary.copy(alpha = 0.7f),
-                        indicatorColor = Color.Transparent
+                        },
+                        selected = isSelected,
+                        onClick = {
+                            runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                            AppSoundManager.playTabRouteSound(item.route)
+                            onNavigate(item.route)
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = theme.primary,
+                            unselectedIconColor = theme.textSecondary,
+                            selectedTextColor = theme.primary,
+                            unselectedTextColor = theme.textSecondary,
+                            indicatorColor = theme.primary.copy(alpha = if (theme.isDark) 0.16f else 0.10f)
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -1521,26 +1365,27 @@ fun ChoiceChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) GoldPrimary else CardSurface)
-            .border(
-                1.dp,
-                if (isSelected) GoldPrimary else Color(0xFF1E293B),
-                RoundedCornerShape(20.dp)
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = if (isSelected) DeepSlate else TextPrimary,
-            fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 16.dp)
+    val theme = QabasTheme.current
+    Surface(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 40.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = if (isSelected) theme.primary else theme.cardSurface,
+        border = BorderStroke(
+            0.5.dp,
+            if (isSelected) theme.primary else theme.separator.copy(alpha = 0.55f)
         )
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                color = if (isSelected) theme.onPrimary else theme.textPrimary,
+                fontFamily = CairoFont,
+                fontSize = 14.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
     }
 }
 
@@ -1551,64 +1396,67 @@ fun StyleCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) CardSurface.copy(alpha = 0.8f) else CardSurface)
-            .border(
-                1.dp,
-                if (isSelected) GoldPrimary else Color(0xFF1E293B),
-                RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = title,
-                color = if (isSelected) GoldPrimary else TextPrimary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = GoldPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-        Text(
-            text = description,
-            color = TextSecondary,
-            fontSize = 12.sp
+    val theme = QabasTheme.current
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected) theme.primary.copy(alpha = 0.08f) else theme.cardSurface,
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 0.5.dp,
+            color = if (isSelected) theme.primary else theme.separator.copy(alpha = 0.55f)
         )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = title,
+                    color = if (isSelected) theme.primary else theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = theme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Text(
+                text = description,
+                color = theme.textSecondary,
+                fontFamily = NotoSansFont,
+                fontSize = 12.sp
+            )
+        }
     }
 }
 
 @Composable
 fun PlayerBadge(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color.Black.copy(alpha = 0.6f))
-            .border(1.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+    val theme = QabasTheme.current
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = theme.cardSurface.copy(alpha = 0.9f),
+        border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.4f))
     ) {
         Text(
             text = text,
-            color = GoldPrimary,
+            color = theme.primary,
             fontSize = 12.sp,
             fontFamily = CairoFont,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
 }

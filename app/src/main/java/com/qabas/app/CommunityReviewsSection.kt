@@ -2,11 +2,8 @@ package com.qabas.app
 
 import android.os.Build
 import android.widget.Toast
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,22 +12,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,6 +46,7 @@ fun CommunityReviewsCard(
     onOpenSubmitReview: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
     var reviewsList by remember { mutableStateOf<List<SupabaseServices.AppReviewDto>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -78,21 +77,10 @@ fun CommunityReviewsCard(
     }
 
     val totalCount = reviewsList.size
-    val averageRating = if (reviewsList.isNotEmpty()) {
-        reviewsList.map { it.rating }.average()
-    } else {
-        0.0
-    }
+    val averageRating = if (reviewsList.isNotEmpty()) reviewsList.map { it.rating }.average() else 0.0
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.35f),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
-    ) {
+    AppleCard(modifier = modifier) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -103,53 +91,44 @@ fun CommunityReviewsCard(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(GoldPrimary.copy(alpha = 0.15f))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                            .background(theme.warning.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Star, contentDescription = null, tint = theme.warning, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             "آراء ومراجعات المجتمع",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 14.5.sp
                         )
                         Text(
-                            "تقييمات حقيقية موثقة سحابياً ✦",
-                            color = qabasTextSecondary(),
+                            "تقييمات حقيقية موثقة عبر Supabase",
+                            color = theme.textSecondary,
                             fontFamily = NotoSansFont,
-                            fontSize = 10.sp
+                            fontSize = 11.sp
                         )
                     }
                 }
 
-                Surface(
-                    color = GoldPrimary.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-                ) {
-                    Text(
-                        "Supabase Live 🛰️",
-                        color = GoldPrimary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = NotoSansFont,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                IconButton(onClick = { loadReviews() }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "تحديث التقييمات",
+                        tint = if (isLoading) theme.textSecondary else theme.primary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Rating & Stats Display Box
             Surface(
-                color = Color(0xFF09121E).copy(alpha = 0.85f),
+                color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.55f else 0.45f),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -158,148 +137,106 @@ fun CommunityReviewsCard(
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Big Star Score
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = GoldPrimary, strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = theme.primary, strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("جلب التقييمات...", color = qabasTextSecondary(), fontSize = 10.sp, fontFamily = CairoFont)
+                            Text("جلب التقييمات...", color = theme.textSecondary, fontSize = 10.5.sp, fontFamily = NotoSansFont)
                         } else if (totalCount == 0) {
                             Text(
-                                "5.0",
-                                color = GoldPrimary,
+                                if (errorMessage != null) "—" else "5.0",
+                                color = theme.warning,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Black,
-                                fontSize = 28.sp
+                                fontSize = 26.sp
                             )
-                            RatingStarsRow(rating = 5, size = 13.dp)
+                            RatingStarsRow(rating = if (errorMessage != null) 0 else 5, size = 14.dp)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                "كن أول من يقيّم!",
-                                color = qabasTextSecondary(),
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
+                                if (errorMessage != null) "تعذر الجلب" else "كن أول من يقيّم",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 10.5.sp
                             )
                         } else {
                             Text(
                                 String.format(Locale.US, "%.1f", averageRating),
-                                color = GoldPrimary,
+                                color = theme.warning,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Black,
-                                fontSize = 28.sp
+                                fontSize = 26.sp
                             )
-                            RatingStarsRow(rating = averageRating.toInt().coerceIn(1, 5), size = 13.dp)
+                            RatingStarsRow(rating = averageRating.toInt().coerceIn(1, 5), size = 14.dp)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "من إجمالي $totalCount تقييم",
-                                color = qabasTextSecondary(),
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 10.5.sp
                             )
                         }
                     }
 
-                    // Divider
                     Box(
                         modifier = Modifier
-                            .width(1.dp)
-                            .height(55.dp)
-                            .background(Color(0xFF1E2D4A))
+                            .width(0.5.dp)
+                            .height(54.dp)
+                            .background(theme.separator.copy(alpha = 0.6f))
                     )
 
-                    // Breakdown or Info
                     Column(
                         modifier = Modifier
                             .weight(1.4f)
                             .padding(start = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         if (totalCount > 0) {
                             val fiveStarCount = reviewsList.count { it.rating == 5 }
                             val fourStarCount = reviewsList.count { it.rating == 4 }
                             val threeStarCount = reviewsList.count { it.rating == 3 }
 
-                            RatingProgressBar(label = "5 ★", count = fiveStarCount, total = totalCount, color = GoldPrimary)
-                            RatingProgressBar(label = "4 ★", count = fourStarCount, total = totalCount, color = Color(0xFF10B981))
-                            RatingProgressBar(label = "3 ★", count = threeStarCount, total = totalCount, color = Color(0xFF00E5FF))
+                            RatingProgressBar("5 ★", fiveStarCount, totalCount, theme.warning)
+                            RatingProgressBar("4 ★", fourStarCount, totalCount, theme.success)
+                            RatingProgressBar("3 ★", threeStarCount, totalCount, theme.primary)
                         } else {
                             Text(
-                                "تقييمات المستخدمين تخزن مباشرة في سحابة Supabase ومربوطة بموديل الجهاز وإصدار التطبيق لضمان المصداقية التامة.",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 10.sp,
-                                fontFamily = CairoFont,
-                                lineHeight = 14.sp
+                                "تخزن مراجعات المستخدمين عبر Supabase وتربط بإصدار التطبيق لضمان الشفافية.",
+                                color = theme.textSecondary,
+                                fontSize = 11.sp,
+                                fontFamily = NotoSansFont,
+                                lineHeight = 16.sp
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Button: View all reviews
-                Button(
+                ApplePrimaryButton(
+                    text = "قراءة الآراء ($totalCount)",
+                    icon = Icons.Default.Forum,
                     onClick = { showReviewsDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1.2f).height(40.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Default.Forum, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "قراءة آراء المستخدمين (${totalCount})",
-                        color = DeepSlate,
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                    modifier = Modifier.weight(1.1f)
+                )
 
-                // Button: Submit review
-                OutlinedButton(
+                AppleSecondaryButton(
+                    text = "قيّم التطبيق",
+                    icon = Icons.Default.RateReview,
                     onClick = { showSubmitDialog = true },
-                    border = BorderStroke(1.dp, GoldPrimary),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Default.RateReview, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        "قيّم التطبيق الآن",
-                        color = GoldPrimary,
-                        fontFamily = CairoFont,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Button: Refresh
-                IconButton(
-                    onClick = { loadReviews() },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "تحديث التقييمات",
-                        tint = if (isLoading) GoldPrimary.copy(alpha = 0.4f) else GoldPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                    modifier = Modifier.weight(0.9f)
+                )
             }
         }
     }
 
-    // Dialog: List of Reviews
     if (showReviewsDialog) {
         CommunityReviewsListDialog(
             reviews = reviewsList,
@@ -318,21 +255,20 @@ fun CommunityReviewsCard(
                     }
                     if (res.isSuccess) {
                         loadReviews()
-                        Toast.makeText(context, "شكراً لإفادتك! تم تسجيل إعجابك بالمراجعة 👍", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "شكراً لإفادتك! تم تسجيل إعجابك بالمراجعة", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
         )
     }
 
-    // Dialog: Submit New Review
     if (showSubmitDialog) {
         SubmitAppReviewDialog(
             onDismiss = { showSubmitDialog = false },
             onSubmitSuccess = {
                 showSubmitDialog = false
                 loadReviews()
-                Toast.makeText(context, "تم إرسال تقييمك وحفظه في سحابة قبس بنجاح! جزاك الله خيراً 🌟", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "تم إرسال تقييمك وحفظه بنجاح", Toast.LENGTH_LONG).show()
             }
         )
     }
@@ -340,6 +276,7 @@ fun CommunityReviewsCard(
 
 @Composable
 private fun RatingProgressBar(label: String, count: Int, total: Int, color: Color) {
+    val theme = QabasTheme.current
     val progress = if (total > 0) count.toFloat() / total.toFloat() else 0f
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -347,29 +284,29 @@ private fun RatingProgressBar(label: String, count: Int, total: Int, color: Colo
     ) {
         Text(
             text = label,
-            color = Color(0xFF94A3B8),
-            fontSize = 9.sp,
+            color = theme.textSecondary,
+            fontSize = 10.sp,
             fontFamily = NotoSansFont,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(22.dp)
+            modifier = Modifier.width(24.dp)
         )
         Spacer(modifier = Modifier.width(4.dp))
         LinearProgressIndicator(
             progress = { progress },
             color = color,
-            trackColor = Color(0xFF1E293B),
+            trackColor = theme.separator.copy(alpha = 0.3f),
             modifier = Modifier
                 .weight(1f)
-                .height(5.dp)
+                .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = "$count",
-            color = Color(0xFFCBD5E1),
-            fontSize = 9.sp,
+            color = theme.textPrimary,
+            fontSize = 10.sp,
             fontFamily = NotoSansFont,
-            modifier = Modifier.width(16.dp),
+            modifier = Modifier.width(18.dp),
             textAlign = TextAlign.End
         )
     }
@@ -377,22 +314,19 @@ private fun RatingProgressBar(label: String, count: Int, total: Int, color: Colo
 
 @Composable
 fun RatingStarsRow(rating: Int, maxStars: Int = 5, size: androidx.compose.ui.unit.Dp = 16.dp) {
+    val theme = QabasTheme.current
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         for (i in 1..maxStars) {
             Icon(
                 imageVector = if (i <= rating) Icons.Default.Star else Icons.Outlined.StarOutline,
                 contentDescription = null,
-                tint = if (i <= rating) GoldPrimary else Color(0xFF475569),
+                tint = if (i <= rating) theme.warning else theme.textSecondary.copy(alpha = 0.45f),
                 modifier = Modifier.size(size)
             )
         }
     }
 }
 
-/**
- * نافذة استعراض جميع تقييمات المجتمع
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityReviewsListDialog(
     reviews: List<SupabaseServices.AppReviewDto>,
@@ -403,6 +337,7 @@ fun CommunityReviewsListDialog(
     onRefresh: () -> Unit,
     onHelpfulClicked: (SupabaseServices.AppReviewDto) -> Unit
 ) {
+    val theme = QabasTheme.current
     var selectedCategoryFilter by remember { mutableStateOf("الكل") }
 
     val filteredReviews = remember(reviews, selectedCategoryFilter) {
@@ -417,95 +352,80 @@ fun CommunityReviewsListDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.88f)
-                .clip(RoundedCornerShape(22.dp))
-                .border(1.dp, GoldPrimary.copy(alpha = 0.4f), RoundedCornerShape(22.dp)),
-            color = Color(0xFF0C1322)
+                .fillMaxHeight(0.88f),
+            shape = RoundedCornerShape(22.dp),
+            color = theme.background,
+            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header Bar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color(0xFF1E293B), Color(0xFF0F172A))
-                            )
-                        )
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(GoldPrimary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Forum, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    "مراجعات مجتمع قبس",
-                                    color = GoldPrimary,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                                Text(
-                                    "متوسط التقييم: ${if (reviews.isNotEmpty()) String.format(Locale.US, "%.1f", averageRating) else "5.0"} ★ (${reviews.size} مراجعة)",
-                                    color = qabasTextSecondary(),
-                                    fontFamily = CairoFont,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
-                        }
-                    }
-                }
-
-                // Filter & Actions Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                        .background(theme.cardSurface)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
-                        onClick = onOpenSubmit,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.AddComment, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("إضافة تقييمك", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(theme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Forum, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                "مراجعات مجتمع قبس",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                "متوسط التقييم: ${if (reviews.isNotEmpty()) String.format(Locale.US, "%.1f", averageRating) else "5.0"} ★ (${reviews.size} مراجعة)",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp
+                            )
+                        }
                     }
 
-                    IconButton(onClick = onRefresh, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textSecondary)
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                HorizontalDivider(color = theme.separator.copy(alpha = 0.45f), thickness = 0.5.dp)
 
-                // Reviews List
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ApplePrimaryButton(
+                        text = "إضافة تقييمك",
+                        icon = Icons.Default.AddComment,
+                        onClick = onOpenSubmit,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = onRefresh, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = theme.primary)
+                    }
+                }
+
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = GoldPrimary)
+                            CircularProgressIndicator(color = theme.primary)
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("جاري الاتصال بسحابة قبس...", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("جاري الاتصال بسحابة قبس...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 } else if (filteredReviews.isEmpty()) {
@@ -516,19 +436,13 @@ fun CommunityReviewsListDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.RateReview, contentDescription = null, tint = Color(0xFF475569), modifier = Modifier.size(54.dp))
+                            Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.textSecondary.copy(alpha = 0.5f), modifier = Modifier.size(54.dp))
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("لا توجد مراجعات حتى الآن", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("لا توجد مراجعات حتى الآن", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("كن أول من يشارك رأيه وتجربته مع التطبيق!", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            Text("كن أول من يشارك رأيه وتجربته مع التطبيق.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = onOpenSubmit,
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text("كتابة أول تقييم ✦", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                            }
+                            ApplePrimaryButton(text = "كتابة أول تقييم", onClick = onOpenSubmit)
                         }
                     }
                 } else {
@@ -552,14 +466,9 @@ private fun ReviewItemCard(
     review: SupabaseServices.AppReviewDto,
     onHelpful: () -> Unit
 ) {
-    Surface(
-        color = Color(0xFF0F172A),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Top: Author & Rating
+    val theme = QabasTheme.current
+    AppleCard {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -568,58 +477,55 @@ private fun ReviewItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.15f))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.3f), CircleShape),
+                            .background(theme.primary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Person, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = review.authorName.ifBlank { "مستخدم قبس" },
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontSize = 13.sp
                             )
                             if (review.verifiedUser) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Icon(Icons.Default.Verified, contentDescription = "موثوق", tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Verified, contentDescription = "موثوق", tint = theme.success, modifier = Modifier.size(13.dp))
                             }
                         }
                         if (review.createdAt != null) {
                             Text(
                                 text = formatReviewDate(review.createdAt),
-                                color = Color(0xFF64748B),
-                                fontSize = 9.sp,
+                                color = theme.textSecondary,
+                                fontSize = 10.sp,
                                 fontFamily = NotoSansFont
                             )
                         }
                     }
                 }
 
-                RatingStarsRow(rating = review.rating, size = 13.dp)
+                RatingStarsRow(rating = review.rating, size = 14.dp)
             }
 
-            // Comment text
             if (review.comment.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = review.comment,
-                    color = Color(0xFFE2E8F0),
-                    fontFamily = CairoFont,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp
+                    color = theme.textPrimary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 12.5.sp,
+                    lineHeight = 19.sp
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Footer: Device info & Helpful button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -628,57 +534,47 @@ private fun ReviewItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (review.deviceModel.isNotBlank()) {
                         Surface(
-                            color = Color(0xFF1E293B),
-                            shape = RoundedCornerShape(4.dp)
+                            color = theme.secondarySurface,
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                             ) {
-                                Icon(Icons.Default.Smartphone, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(10.dp))
+                                Icon(Icons.Default.Smartphone, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(11.dp))
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = review.deviceModel,
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 9.sp,
-                                    fontFamily = NotoSansFont
-                                )
+                                Text(review.deviceModel, color = theme.textSecondary, fontSize = 10.sp, fontFamily = NotoSansFont)
                             }
                         }
                         Spacer(modifier = Modifier.width(6.dp))
                     }
 
-                    Surface(
-                        color = Color(0xFF1E293B),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
+                    Surface(color = theme.secondarySurface, shape = RoundedCornerShape(6.dp)) {
                         Text(
                             text = review.appVersion,
-                            color = GoldSecondary,
-                            fontSize = 9.sp,
+                            color = theme.primary,
+                            fontSize = 10.sp,
                             fontFamily = NotoSansFont,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         )
                     }
                 }
 
-                // Helpful button
                 Surface(
-                    color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                    color = theme.secondarySurface.copy(alpha = 0.7f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(0.5.dp, Color(0xFF334155)),
                     modifier = Modifier.clickable { onHelpful() }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
-                        Icon(Icons.Default.ThumbUp, contentDescription = "مفيد", tint = Color(0xFF94A3B8), modifier = Modifier.size(11.dp))
+                        Icon(Icons.Default.ThumbUp, contentDescription = "مفيد", tint = theme.primary, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "مفيد (${review.helpfulCount})",
-                            color = Color(0xFFCBD5E1),
-                            fontSize = 10.sp,
+                            color = theme.textPrimary,
+                            fontSize = 10.5.sp,
                             fontFamily = CairoFont
                         )
                     }
@@ -688,18 +584,16 @@ private fun ReviewItemCard(
     }
 }
 
-/**
- * نافذة إرسال تقييم جديد ومباشر
- */
 @Composable
 fun SubmitAppReviewDialog(
     onDismiss: () -> Unit,
     onSubmitSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }
-    
+
     val savedName = remember {
         prefs.getString("user_display_name", null)
             ?: CloudServices.Auth.currentUser.value?.displayName
@@ -725,58 +619,56 @@ fun SubmitAppReviewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .clip(RoundedCornerShape(22.dp))
-                .border(1.dp, GoldPrimary.copy(alpha = 0.45f), RoundedCornerShape(22.dp)),
-            color = Color(0xFF0C1322)
+            modifier = Modifier.fillMaxWidth(0.92f),
+            shape = RoundedCornerShape(22.dp),
+            color = theme.cardSurface,
+            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.6f))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.RateReview, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "تقييم تطبيق قبس",
-                            color = GoldPrimary,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
                     }
-                    IconButton(onClick = onDismiss, enabled = !isSubmitting) {
-                        Icon(Icons.Default.Close, contentDescription = "إلغاء", tint = Color.White)
+                    IconButton(onClick = onDismiss, enabled = !isSubmitting, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "إلغاء", tint = theme.textSecondary)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Interactive Star Rating Selector
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF09121E), RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(theme.secondarySurface.copy(alpha = 0.65f))
                         .padding(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = when (rating) {
-                            5 -> "ممتاز جداً 🌟 (٥ من ٥)"
-                            4 -> "جيد جداً ✨ (٤ من ٥)"
-                            3 -> "جيد ومفيد 👍 (٣ من ٥)"
-                            2 -> "متوسط ⚡ (٢ من ٥)"
-                            else -> "يحتاج تحسين 🛠️ (١ من ٥)"
+                            5 -> "ممتاز جداً (٥ من ٥)"
+                            4 -> "جيد جداً (٤ من ٥)"
+                            3 -> "جيد ومفيد (٣ من ٥)"
+                            2 -> "متوسط (٢ من ٥)"
+                            else -> "يحتاج تحسين (١ من ٥)"
                         },
-                        color = GoldPrimary,
+                        color = theme.warning,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -792,15 +684,15 @@ fun SubmitAppReviewDialog(
                             IconButton(
                                 onClick = { rating = i },
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
-                                    .background(if (i <= rating) GoldPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                                    .background(if (i <= rating) theme.warning.copy(alpha = 0.14f) else Color.Transparent)
                             ) {
                                 Icon(
                                     imageVector = if (i <= rating) Icons.Default.Star else Icons.Outlined.StarOutline,
                                     contentDescription = "$i نجوم",
-                                    tint = if (i <= rating) GoldPrimary else Color(0xFF475569),
-                                    modifier = Modifier.size(32.dp)
+                                    tint = if (i <= rating) theme.warning else theme.textSecondary,
+                                    modifier = Modifier.size(30.dp)
                                 )
                             }
                         }
@@ -809,77 +701,65 @@ fun SubmitAppReviewDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Author Name Field
                 OutlinedTextField(
                     value = authorName,
                     onValueChange = { authorName = it },
-                    label = { Text("اسمك أو لقبك", fontFamily = CairoFont, fontSize = 11.sp) },
+                    label = { Text("اسمك أو لقبك", fontFamily = CairoFont, fontSize = 12.sp) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E2D4A),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Comment Field
                 OutlinedTextField(
                     value = comment,
                     onValueChange = { comment = it },
-                    label = { Text("رأيك وملاحظاتك الصادقة حول التطبيق...", fontFamily = CairoFont, fontSize = 11.sp) },
+                    label = { Text("رأيك وملاحظاتك حول التطبيق...", fontFamily = CairoFont, fontSize = 12.sp) },
                     minLines = 3,
                     maxLines = 5,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E2D4A),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Device Attachment Note
                 Surface(
-                    color = Color(0xFF0F172A),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    color = theme.secondarySurface.copy(alpha = 0.65f),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(13.dp))
+                        Icon(Icons.Default.Security, contentDescription = null, tint = theme.success, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "سيتم إرفاق: $deviceInfo (v${BuildConfig.VERSION_NAME}) لتوثيق المصداقية",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 9.sp,
+                            text = "سيتم إرفاق: $deviceInfo (v${BuildConfig.VERSION_NAME}) لتوثيق المراجعة",
+                            color = theme.textSecondary,
+                            fontSize = 10.5.sp,
                             fontFamily = NotoSansFont
                         )
                     }
                 }
 
                 if (errorMessage != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "عذراً: $errorMessage",
-                        color = Color(0xFFEF4444),
-                        fontSize = 11.sp,
-                        fontFamily = CairoFont
+                        color = theme.destructive,
+                        fontSize = 11.5.sp,
+                        fontFamily = NotoSansFont
                     )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Submit Button
-                Button(
+                ApplePrimaryButton(
+                    text = "إرسال التقييم",
+                    icon = Icons.Default.Send,
+                    isLoading = isSubmitting,
                     onClick = {
                         isSubmitting = true
                         errorMessage = null
@@ -899,24 +779,8 @@ fun SubmitAppReviewDialog(
                                 errorMessage = e.message ?: "تعذر الإرسال، تحقق من اتصالك بالإنترنت"
                             }
                         }
-                    },
-                    enabled = !isSubmitting,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("جاري الحفظ في السحابة...", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("إرسال التقييم واعتماده", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                }
+                )
             }
         }
     }

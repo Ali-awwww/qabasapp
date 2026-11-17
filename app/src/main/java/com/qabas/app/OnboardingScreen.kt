@@ -1,24 +1,12 @@
 package com.qabas.app
 
 import android.content.Context
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.Stroke
-import com.qabas.app.ui.components.GlassmorphicSurface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
@@ -27,15 +15,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleInsetDivider
+import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.theme.*
 
 data class CovenantRule(
@@ -48,6 +37,7 @@ data class CovenantRule(
 
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     var isAgreed by remember { mutableStateOf(false) }
 
@@ -58,171 +48,124 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 title = "إخلاص القصد ونفع الأمة",
                 description = "جعل صناعة المحتوى سبيلاً لنشر الفضيلة وتزكية النفوس وبناء الوعي الراشد، بعيداً عن الابتذال والتفاهة.",
                 icon = Icons.Default.VolunteerActivism,
-                badge = "PURITY"
+                badge = "الإخلاص"
             ),
             CovenantRule(
                 number = "02",
                 title = "النقاء الصوتي التام",
                 description = "الاعتماد الحصري على التلاوات القرآنية الندية، والأناشيد العذبة بدون معازف، والمؤثرات الصوتية الطبيعية.",
                 icon = Icons.Default.GraphicEq,
-                badge = "VOICE"
+                badge = "النقاء"
             ),
             CovenantRule(
                 number = "03",
                 title = "صون الحياء والوقار",
                 description = "الالتزام بالحشمة والسمت الإسلامي، واجتناب اللقطات الخادشة، وتجريد الرموز المولدة بالذكاء الاصطناعي.",
                 icon = Icons.Default.Security,
-                badge = "HAYA"
+                badge = "الوقار"
             ),
             CovenantRule(
                 number = "04",
                 title = "التوثيق والأمانة",
                 description = "عزو الآيات القرآنية بدقة متناهية، والاعتماد الحصري على الأحاديث الصحيحة والحسنة.",
                 icon = Icons.Default.MenuBook,
-                badge = "TRUST"
+                badge = "الأمانة"
             ),
             CovenantRule(
                 number = "05",
                 title = "الخطاب الرصين",
                 description = "ترسيخ قيم الرحمة والتوبة والأمل، واجتناب السباب، والتكفير، والجدل العقيم، وإثارة الشائعات.",
                 icon = Icons.Default.Diversity3,
-                badge = "UNITY"
+                badge = "الحكمة"
             )
         )
     }
 
-    val primaryColor = qabasPrimary()
-    val accentColor = qabasAccent()
-
-    val infiniteTransition = rememberInfiniteTransition(label = "covenantPulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeepSlate)
+            .background(theme.background)
     ) {
-        // 1. Background Grid HUD
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            val step = 50.dp.toPx()
-            for (i in 0..(w / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(i * step, 0f), Offset(i * step, h), 1f)
-            }
-            for (i in 0..(h / step).toInt()) {
-                drawLine(primaryColor.copy(alpha = 0.02f), Offset(0f, i * step), Offset(w, i * step), 1f)
-            }
-        }
-
-        // 2. Corner Decors
-        HudCornerDecor(modifier = Modifier.fillMaxSize(), color = primaryColor.copy(alpha = 0.2f))
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .widthIn(max = 600.dp)
+                .align(Alignment.Center)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Brand Header Badge (Geometric)
             Surface(
-                color = primaryColor.copy(alpha = 0.05f),
-                shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f))
+                color = theme.primary.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.size(6.dp).background(primaryColor.copy(alpha = pulseAlpha), CircleShape))
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Icon(Icons.Default.Verified, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "COVENANT PROTOCOL // QABAS 2.5",
-                        color = primaryColor,
-                        fontFamily = RobotoMonoFont,
+                        text = "ميثاق قبس الأخلاقي",
+                        color = theme.primary,
+                        fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
-                        letterSpacing = 2.sp
+                        fontSize = 12.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "ميثاق صُناع الأثر",
-                color = Color.White,
-                fontSize = 28.sp,
+                color = theme.textPrimary,
+                fontSize = 26.sp,
                 fontFamily = CairoFont,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
 
             Text(
-                text = "عهـد وأمانـة لنشـر الـهدى والـنـور برؤية عالمية",
-                color = TextSecondary.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Medium,
+                text = "عهد وأمانة لنشر الهدى والنور برؤية راشدة",
+                color = theme.textSecondary,
+                fontSize = 13.sp,
+                fontFamily = NotoSansFont,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
             )
 
-            // Scrollable Rules Container (Glassmorphic)
-            GlassmorphicSurface(
+            AppleCard(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.verticalGradient(listOf(primaryColor.copy(alpha = 0.3f), Color.Transparent)),
-                        shape = CutCornerShape(16.dp)
-                    ),
-                shape = CutCornerShape(16.dp),
-                backgroundColor = CardSurface.copy(alpha = 0.6f),
-                borderColor = Color.White.copy(alpha = 0.05f)
+                    .fillMaxWidth(),
+                cornerRadius = 18.dp
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(vertical = 8.dp)
                 ) {
-                    covenantRules.forEach { rule ->
+                    covenantRules.forEachIndexed { idx, rule ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.02f), CutCornerShape(8.dp))
-                                .border(0.5.dp, Color.White.copy(alpha = 0.05f), CutCornerShape(8.dp))
-                                .padding(12.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.Top
                         ) {
-                            // Number Badge (Minimalist)
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = rule.number,
-                                    color = primaryColor,
-                                    fontFamily = RobotoMonoFont,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 14.sp
-                                )
-                                Box(modifier = Modifier.size(12.dp, 1.dp).background(primaryColor.copy(alpha = 0.4f)))
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(theme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(rule.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(19.dp))
                             }
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -230,72 +173,80 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = rule.title,
-                                        color = Color.White,
+                                        text = "${rule.number}. ${rule.title}",
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontSize = 14.5.sp
                                     )
-                                    Text(
-                                        text = "[ ${rule.badge} ]",
-                                        color = accentColor.copy(alpha = 0.8f),
-                                        fontFamily = RobotoMonoFont,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp
-                                    )
+                                    Surface(
+                                        color = theme.primary.copy(alpha = 0.12f),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = rule.badge,
+                                            color = theme.primary,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
-
                                 Spacer(modifier = Modifier.height(4.dp))
-
                                 Text(
                                     text = rule.description,
-                                    color = TextSecondary.copy(alpha = 0.8f),
-                                    fontFamily = CairoFont,
-                                    fontSize = 11.5.sp,
-                                    lineHeight = 18.sp
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 19.sp
                                 )
                             }
+                        }
+                        if (idx < covenantRules.lastIndex) {
+                            AppleInsetDivider()
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Pledge Checkbox (Linear Minimalist)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .background(if (isAgreed) primaryColor.copy(alpha = 0.05f) else Color.Transparent, CutCornerShape(8.dp))
-                    .border(1.dp, if (isAgreed) primaryColor.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.1f), CutCornerShape(8.dp))
-                    .toggleable(value = isAgreed, role = Role.Checkbox, onValueChange = { isAgreed = it })
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = isAgreed,
-                    onCheckedChange = null,
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = primaryColor,
-                        uncheckedColor = Color.Gray,
-                        checkmarkColor = DeepSlate
+            AppleCard(cornerRadius = 14.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .toggleable(value = isAgreed, role = Role.Checkbox, onValueChange = { isAgreed = it })
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = isAgreed,
+                        onCheckedChange = null,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = theme.primary,
+                            uncheckedColor = theme.textSecondary,
+                            checkmarkColor = theme.onPrimary
+                        )
                     )
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "أقر وأتعهد بالالتزام بهذا الميثاق بروح إبداعية مسؤولة",
-                    color = if (isAgreed) Color.White else Color.Gray,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "أقر وأتعهد بالالتزام بهذا الميثاق بروح إبداعية مسؤولة",
+                        color = if (isAgreed) theme.textPrimary else theme.textSecondary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.5.sp
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Button (Geometric Solid)
-            Button(
+            ApplePrimaryButton(
+                text = "موافقة والبدء الآن",
+                icon = Icons.AutoMirrored.Filled.ArrowForward,
+                enabled = isAgreed,
                 onClick = {
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     prefs.edit()
@@ -304,37 +255,15 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         .putBoolean("has_accepted_covenant", true)
                         .apply()
                     onFinish()
-                },
-                enabled = isAgreed,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = primaryColor,
-                    contentColor = DeepSlate,
-                    disabledContainerColor = Color.White.copy(alpha = 0.05f),
-                    disabledContentColor = Color.Gray
-                ),
-                shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "تفعيل بروتوكول الإنتاج",
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, modifier = Modifier.size(20.dp))
                 }
-            }
+            )
 
             if (!isAgreed) {
                 Text(
                     text = "حدد مربع الإقرار للمتابعة",
-                    color = TextSecondary,
+                    color = theme.textSecondary,
                     fontFamily = CairoFont,
-                    fontSize = 11.sp,
+                    fontSize = 11.5.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -342,7 +271,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

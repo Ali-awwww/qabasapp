@@ -45,7 +45,7 @@ object AgentStreaming {
         systemInstruction: String,
         onPartial: (String) -> Unit
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
-        val m = model?.takeIf { it.isNotBlank() } ?: "gemini-3.5-flash"
+        val m = model?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash"
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$m:streamGenerateContent?alt=sse&key=$apiKey"
         val body = JSONObject().apply {
             put("contents", org.json.JSONArray().apply {

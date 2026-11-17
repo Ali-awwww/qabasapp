@@ -2,9 +2,8 @@ package com.qabas.app
 
 import android.app.Activity
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,35 +11,37 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.launch
+import com.qabas.app.ui.components.AppleCard
+import com.qabas.app.ui.components.AppleKeyRequiredBanner
+import com.qabas.app.ui.components.ApplePrimaryButton
+import com.qabas.app.ui.components.AppleTopBar
+import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.QabasTheme
+import com.qabas.app.ui.theme.TajawalFont
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PremiumUpgradeScreen(
     onBack: () -> Unit,
     onUpgraded: () -> Unit
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val theme = QabasTheme.current
     val billingManager = remember { BillingManager.getInstance(context) }
     val accountService = remember { AppServices.getAccountService(context) }
 
@@ -48,7 +49,9 @@ fun PremiumUpgradeScreen(
     var isProcessing by remember { mutableStateOf(false) }
 
     val productsMap by billingManager.products.collectAsStateWithLifecycle()
+    val isBillingReady by billingManager.isReady.collectAsStateWithLifecycle()
     val isBillingLoading by billingManager.isLoading.collectAsStateWithLifecycle()
+    val canPurchase = isBillingReady && productsMap.isNotEmpty()
 
     val monthlyPrice = remember(productsMap) {
         billingManager.getFormattedPrice(BillingManager.SUB_MONTHLY_PRO, "4.99$ / شهر")
@@ -58,10 +61,10 @@ fun PremiumUpgradeScreen(
     }
 
     DisposableEffect(billingManager) {
-        billingManager.onPurchaseSuccess = { productId ->
+        billingManager.onPurchaseSuccess = { _ ->
             isProcessing = false
             accountService.isPremium = true
-            Toast.makeText(context, Translator.tr("تم تفعيل اشتراك قبس برو بنجاح! 🎉"), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, Translator.tr("تم تفعيل اشتراك قبس برو بنجاح"), Toast.LENGTH_LONG).show()
             onUpgraded()
         }
         billingManager.onPurchaseCanceled = {
@@ -70,7 +73,7 @@ fun PremiumUpgradeScreen(
         }
         billingManager.onPurchaseError = { errorMsg ->
             isProcessing = false
-            Toast.makeText(context, Translator.tr("حدث خطأ أثناء الاشتراك: $errorMsg"), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, Translator.tr("تعذر الاشتراك: $errorMsg"), Toast.LENGTH_SHORT).show()
         }
         onDispose {
             billingManager.onPurchaseSuccess = null
@@ -80,105 +83,112 @@ fun PremiumUpgradeScreen(
     }
 
     Scaffold(
+        containerColor = theme.background,
         topBar = {
-            TopAppBar(
-                title = { Text(Translator.tr("ترقية الاشتراك"), fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-                    }
-                },
+            AppleTopBar(
+                title = Translator.tr("ترقية الاشتراك"),
+                onBack = onBack,
+                backTestTag = "premium_back_button",
                 actions = {
                     TextButton(
                         onClick = {
                             billingManager.restorePurchases { success, message ->
                                 Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                                if (success) {
-                                    onUpgraded()
-                                }
+                                if (success) onUpgraded()
                             }
                         },
-                        enabled = !isBillingLoading && !isProcessing
+                        enabled = isBillingReady && !isBillingLoading && !isProcessing,
+                        modifier = Modifier.testTag("restore_purchases_button")
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Restore, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(Translator.tr("استعادة"), fontFamily = NotoSansFont, color = GoldPrimary, fontSize = 14.sp)
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Restore,
+                            contentDescription = null,
+                            tint = if (isBillingReady) theme.primary else theme.textSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = Translator.tr("استعادة"),
+                            fontFamily = CairoFont,
+                            color = if (isBillingReady) theme.primary else theme.textSecondary,
+                            fontSize = 13.sp
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                }
             )
-        },
-        containerColor = DeepSlate
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(horizontal = 20.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Icon & Title
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .background(Brush.radialGradient(listOf(GoldPrimary.copy(alpha = 0.3f), Color.Transparent)), CircleShape)
-                    .border(1.5.dp, GoldPrimary, CircleShape),
+                    .clip(CircleShape)
+                    .background(theme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.WorkspacePremium,
                     contentDescription = null,
-                    tint = GoldPrimary,
-                    modifier = Modifier.size(40.dp)
+                    tint = theme.primary,
+                    modifier = Modifier.size(38.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = Translator.tr("استوديو قبس برو (Pro)"),
+                text = Translator.tr("استوديو قبس برو"),
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 24.sp,
-                color = GoldPrimary,
+                color = theme.textPrimary,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = Translator.tr("افتح كافة الإمكانيات الإبداعية، توليد ذكاء اصطناعي لا محدود، وتصدير سينمائي بجودة 4K فائقة الوضوح."),
-                fontFamily = CairoFont,
+                text = Translator.tr("توليد غير محدود عبر الذكاء الاصطناعي وتصدير سينمائي بدقة 4K بدون علامة مائية."),
+                fontFamily = NotoSansFont,
                 fontSize = 14.sp,
-                color = TextSecondary,
+                color = theme.textSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 22.sp
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            if (!canPurchase) {
+                Spacer(modifier = Modifier.height(16.dp))
+                AppleKeyRequiredBanner(
+                    serviceName = Translator.tr("الاشتراك عبر Google Play"),
+                    reason = Translator.tr("متجر Google Play Billing غير متصل أو لم يتم إعداد باقات الاشتراك لهذا الإصدار بعد.")
+                )
+            }
 
-            // Pricing Plans Selector
+            Spacer(modifier = Modifier.height(20.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Annual Plan Card
                 PlanCard(
                     title = Translator.tr("الباقة السنوية"),
                     price = annualPrice,
-                    subtext = Translator.tr("توفير 40% (3.33$/شهر)"),
+                    subtext = Translator.tr("توفير 40%"),
                     isSelected = selectedPlan == BillingManager.SUB_ANNUAL_PRO,
                     isPopular = true,
                     modifier = Modifier.weight(1f),
                     onClick = { selectedPlan = BillingManager.SUB_ANNUAL_PRO }
                 )
 
-                // Monthly Plan Card
                 PlanCard(
                     title = Translator.tr("الباقة الشهرية"),
                     price = monthlyPrice,
-                    subtext = Translator.tr("إلغاء بأي وقت"),
+                    subtext = Translator.tr("إلغاء في أي وقت"),
                     isSelected = selectedPlan == BillingManager.SUB_MONTHLY_PRO,
                     isPopular = false,
                     modifier = Modifier.weight(1f),
@@ -186,79 +196,54 @@ fun PremiumUpgradeScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Pro Features List
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = CardSurface),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+            AppleCard(cornerRadius = 16.dp) {
+                Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = Translator.tr("مميزات باقة قبس برو:"),
+                        text = Translator.tr("مميزات باقة قبس برو"),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        color = GoldPrimary,
+                        color = theme.textPrimary,
                         fontSize = 16.sp
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     FeatureRow(Translator.tr("صناعة وتوليد فيديوهات دعوية غير محدودة"))
                     FeatureRow(Translator.tr("وصول كامل للاستوديو الذكي والمونتاج الاحترافي"))
                     FeatureRow(Translator.tr("تصدير سينمائي بجودة 4K بدون علامة مائية"))
-                    FeatureRow(Translator.tr("أولوية قصوى لمعالجة نماذج الذكاء الاصطناعي"))
-                    FeatureRow(Translator.tr("الوصول لجميع خطوط وأصوات ElevenLabs الحصرية"))
+                    FeatureRow(Translator.tr("أولوية لمعالجة نماذج الذكاء الاصطناعي"))
+                    FeatureRow(Translator.tr("استخدام الأصوات العصبية المتقدمة عند ربط المفتاح"))
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Subscribe Button
-            Button(
-                onClick = {
-                    isProcessing = true
-                    val activity = context as? Activity
-                    if (activity != null) {
-                        billingManager.launchBillingFlow(
-                            activity = activity,
-                            productId = selectedPlan
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                enabled = !isProcessing && !isBillingLoading
-            ) {
-                if (isProcessing || isBillingLoading) {
-                    CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
+            ApplePrimaryButton(
+                text = if (selectedPlan == BillingManager.SUB_ANNUAL_PRO) {
+                    Translator.tr("اشترك سنوياً ووفر 40%")
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = DeepSlate)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (selectedPlan == BillingManager.SUB_ANNUAL_PRO) {
-                                Translator.tr("اشترك سنوياً ووفر 40%")
-                            } else {
-                                Translator.tr("اشترك شهرياً")
-                            },
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            color = DeepSlate
-                        )
+                    Translator.tr("اشترك شهرياً")
+                },
+                icon = Icons.Default.WorkspacePremium,
+                isLoading = isProcessing || isBillingLoading,
+                enabled = canPurchase && !isProcessing && !isBillingLoading,
+                modifier = Modifier.testTag("subscribe_pro_button"),
+                onClick = {
+                    val activity = context as? Activity
+                    if (activity == null) {
+                        Toast.makeText(context, Translator.tr("لا يمكن فتح نافذة الدفع من هذا السياق"), Toast.LENGTH_SHORT).show()
+                        return@ApplePrimaryButton
                     }
+                    isProcessing = true
+                    billingManager.launchBillingFlow(activity = activity, productId = selectedPlan)
                 }
-            }
+            )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = Translator.tr("تتم إدارة الاشتراك والدفع بأمان تام عبر Google Play"),
-                fontFamily = CairoFont,
-                color = TextSecondary,
+                text = Translator.tr("تتم إدارة الاشتراك والدفع بأمان عبر Google Play"),
+                fontFamily = NotoSansFont,
+                color = theme.textSecondary,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
@@ -276,53 +261,60 @@ private fun PlanCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) GoldPrimary else Color(0xFF1E293B)
-    val bgColor = if (isSelected) GoldPrimary.copy(alpha = 0.12f) else CardSurface
-
-    Box(
+    val theme = QabasTheme.current
+    Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(bgColor)
-            .border(if (isSelected) 2.dp else 1.dp, borderColor, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(14.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = if (isSelected) theme.primary.copy(alpha = 0.10f) else theme.cardSurface,
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 0.5.dp,
+            color = if (isSelected) theme.primary else theme.separator.copy(alpha = 0.45f)
+        )
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             if (isPopular) {
                 Surface(
-                    color = GoldPrimary,
-                    shape = RoundedCornerShape(6.dp),
+                    color = theme.primary,
+                    shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.padding(bottom = 6.dp)
                 ) {
                     Text(
                         text = Translator.tr("الأكثر توفيراً"),
-                        color = DeepSlate,
+                        color = theme.onPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
             }
-            Text(text = title, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 16.sp)
+            Text(text = title, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = theme.textPrimary, fontSize = 15.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = price, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = GoldPrimary, fontSize = 16.sp)
+            Text(text = price, fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = theme.primary, fontSize = 15.sp)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = subtext, fontFamily = NotoSansFont, color = TextSecondary, fontSize = 12.sp)
+            Text(text = subtext, fontFamily = NotoSansFont, color = theme.textSecondary, fontSize = 12.sp)
         }
     }
 }
 
 @Composable
 private fun FeatureRow(text: String) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(10.dp))
-        Text(text = text, fontFamily = NotoSansFont, color = TextPrimary, fontSize = 14.sp)
+        Text(text = text, fontFamily = NotoSansFont, color = theme.textPrimary, fontSize = 14.sp)
     }
 }
