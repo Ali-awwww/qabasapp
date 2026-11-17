@@ -107,6 +107,14 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
     var exportSource by remember { mutableStateOf<File?>(null) }
     var isExporting by remember { mutableStateOf(false) }
 
+    val handleBack: () -> Unit = {
+        if (isGenerating) {
+            generationJob?.cancel()
+        } else {
+            onBack()
+        }
+    }
+
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("video/mp4")
     ) { destination: Uri? ->
@@ -133,13 +141,7 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
         }
     }
 
-    BackHandler {
-        if (isGenerating) {
-            generationJob?.cancel()
-        } else {
-            onBack()
-        }
-    }
+    BackHandler(onBack = handleBack)
 
     val activeMode = HiggsfieldMode.valueOf(mode)
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -232,7 +234,7 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = handleBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color.White)
                     }
                 },
