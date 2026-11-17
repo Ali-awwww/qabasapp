@@ -282,6 +282,8 @@ data class QabasDesignTheme(
     val isNeon: Boolean = false,
     val secondarySurface: Color = AppleLightSecondarySurface,
     val separator: Color = AppleLightSeparator,
+    val cardBorder: Color = AppleLightSeparator,
+    val textTertiary: Color = AppleLightTertiaryLabel,
     val onPrimary: Color = Color.White,
     val success: Color = AppleLightGreen,
     val warning: Color = AppleLightOrange,
@@ -386,6 +388,12 @@ fun MyApplicationTheme(
             isNeon = false,
             secondarySurface = secBg,
             separator = sep,
+            cardBorder = sep,
+            textTertiary = if (darkTheme) {
+                if (highContrastMode) Color.White.copy(alpha = 0.68f) else AppleDarkSecondaryLabel.copy(alpha = 0.78f)
+            } else {
+                if (highContrastMode) Color.Black.copy(alpha = 0.68f) else AppleLightTertiaryLabel
+            },
             onPrimary = if (highContrastMode && darkTheme) Color.Black else Color.White,
             success = if (darkTheme) AppleDarkGreen else AppleLightGreen,
             warning = if (darkTheme) AppleDarkOrange else AppleLightOrange,
