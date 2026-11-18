@@ -3,6 +3,7 @@ package com.qabas.app
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -119,6 +120,17 @@ fun PhotoStudioScreen(
     var exportedPhotoPath by remember { mutableStateOf<String?>(null) }
     var exportType by remember { mutableStateOf("PHOTO") }
     var progressMessage by remember { mutableStateOf("") }
+    val canLeaveScreen = !processing && !isGeneratingAi
+
+    fun handleBack() {
+        if (canLeaveScreen) {
+            onBack()
+        } else {
+            Toast.makeText(context, "انتظر اكتمال المعالجة قبل مغادرة الاستوديو.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    BackHandler(onBack = ::handleBack)
 
     // أبعاد منطقة المعاينة للجرّ (بالـ px)
     var previewPxW by remember { mutableIntStateOf(0) }
@@ -168,7 +180,7 @@ fun PhotoStudioScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = ::handleBack, enabled = canLeaveScreen) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
             }
             Column(modifier = Modifier.weight(1f)) {
