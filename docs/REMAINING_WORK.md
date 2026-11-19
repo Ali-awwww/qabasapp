@@ -66,7 +66,7 @@ QABAS_KEY_VAULT_SECRET
 ## ملفات ومراجع العمل
 
 - سجل العيوب: `docs/SCREEN_DEFECTS.md`
-- تقرير التطوير: `docs/DEVELOPMENT_UPDATE_2026-11-13.md`
+- تقرير التطوير: `docs/DEVELOPMENT_UPDATE_2026-11-14.md`
 - طلب الدمج: `#83`
 - مشروع Supabase: `egkgygbvoeevakwkbvfu`
 - Edge Function: `qabas-key-vault`
