@@ -3,6 +3,7 @@ package com.qabas.app
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,15 +74,25 @@ data class PhotoTemplate(
 @Composable
 fun PhotoStudioScreen(
     onBack: () -> Unit,
+    initialImagePath: String? = null,
     onNavigateToAdvancedEdit: (String) -> Unit = {},
     onSaveProject: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var currentStep by remember { mutableStateOf(1) } // 1 = Select, 2 = Edit, 3 = Export
+    val initialImageUri = remember(initialImagePath) {
+        initialImagePath?.takeIf { it.isNotBlank() }?.let { path ->
+            if (path.startsWith("content://", ignoreCase = true) ||
+                path.startsWith("file://", ignoreCase = true) ||
+                path.startsWith("http://", ignoreCase = true) ||
+                path.startsWith("https://", ignoreCase = true)
+            ) Uri.parse(path) else Uri.fromFile(File(path))
+        }
+    }
+    var currentStep by remember(initialImageUri) { mutableStateOf(if (initialImageUri == null) 1 else 2) } // 1 = Select, 2 = Edit, 3 = Export
 
-    var selectedImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var selectedImageUris by remember(initialImageUri) { mutableStateOf(listOfNotNull(initialImageUri)) }
     var selectedTemplate by remember { mutableStateOf<PhotoTemplate?>(null) }
 
     // عدة التصميم
@@ -109,6 +121,17 @@ fun PhotoStudioScreen(
     var exportedPhotoPath by remember { mutableStateOf<String?>(null) }
     var exportType by remember { mutableStateOf("PHOTO") }
     var progressMessage by remember { mutableStateOf("") }
+    val canLeaveScreen = !processing && !isGeneratingAi
+
+    fun handleBack() {
+        if (canLeaveScreen) {
+            onBack()
+        } else {
+            Toast.makeText(context, "انتظر اكتمال المعالجة قبل مغادرة الاستوديو.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    BackHandler(onBack = ::handleBack)
 
     // أبعاد منطقة المعاينة للجرّ (بالـ px)
     var previewPxW by remember { mutableIntStateOf(0) }
@@ -158,7 +181,7 @@ fun PhotoStudioScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = ::handleBack, enabled = canLeaveScreen) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -292,38 +315,47 @@ fun PhotoStudioScreen(
                     progressMessage = "جاري تطبيق المعالجة وتصدير الصورة..."
 
                     coroutineScope.launch {
-                        val scale = when (outputQuality) {
-                            "4K" -> 2f
-                            "2K" -> 1.333f
-                            else -> 1f
-                        }
-                        val params = ImageAdjustmentParams(
-                            brightness = brightness,
-                            contrast = contrast,
-                            saturation = saturation,
-                            cropRatio = selectedCropRatio,
-                            filterId = filterId,
-                            bgMode = backgroundMode,
-                            bgPresetHexes = currentBgPreset?.hexes ?: emptyList(),
-                            aiImagePath = aiBgPath,
-                            textBlocks = textBlocks.filter { it.text.isNotBlank() },
-                            ornamentId = ornamentId,
-                            showBrandWatermark = showWatermark,
-                            outputFormat = outputFormat,
-                            resolutionScale = scale
-                        )
-                        val outFile = ImageEditorEngine.processAndExportImage(
-                            context = context,
-                            inputUri = selectedImageUris.firstOrNull(),
-                            params = params
-                        )
-                        processing = false
-                        if (outFile != null && outFile.exists()) {
-                            exportedPhotoPath = outFile.absolutePath
-                            Toast.makeText(context, "تم حفظ وتصدير الصورة بدقة عالية بنجاح ✦", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "حدث خطأ أثناء تصدير الصورة", Toast.LENGTH_LONG).show()
+                        try {
+                            val scale = when (outputQuality) {
+                                "4K" -> 2f
+                                "2K" -> 1.333f
+                                else -> 1f
+                            }
+                            val params = ImageAdjustmentParams(
+                                brightness = brightness,
+                                contrast = contrast,
+                                saturation = saturation,
+                                cropRatio = selectedCropRatio,
+                                filterId = filterId,
+                                bgMode = backgroundMode,
+                                bgPresetHexes = currentBgPreset?.hexes ?: emptyList(),
+                                aiImagePath = aiBgPath,
+                                textBlocks = textBlocks.filter { it.text.isNotBlank() },
+                                ornamentId = ornamentId,
+                                showBrandWatermark = showWatermark,
+                                outputFormat = outputFormat,
+                                resolutionScale = scale
+                            )
+                            val outFile = ImageEditorEngine.processAndExportImage(
+                                context = context,
+                                inputUri = selectedImageUris.firstOrNull(),
+                                params = params
+                            )
+                            if (outFile != null && outFile.exists()) {
+                                exportedPhotoPath = outFile.absolutePath
+                                Toast.makeText(context, "تم حفظ وتصدير الصورة بدقة عالية بنجاح ✦", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "حدث خطأ أثناء تصدير الصورة", Toast.LENGTH_LONG).show()
+                                currentStep = 2
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                             currentStep = 2
+                            Toast.makeText(context, "تعذر تصدير الصورة، حاول مرة أخرى", Toast.LENGTH_LONG).show()
+                        } finally {
+                            processing = false
                         }
                     }
                 },
@@ -337,7 +369,8 @@ fun PhotoStudioScreen(
                     processing = true
                     progressMessage = "جاري تحضير الفيديو..."
                     coroutineScope.launch {
-                        val outPath = File(context.cacheDir, "qabas_studio_${System.currentTimeMillis()}.mp4").absolutePath
+                        try {
+                            val outPath = File(context.cacheDir, "qabas_studio_${System.currentTimeMillis()}.mp4").absolutePath
                         var audioPathToUse: String? = null
                         if (selectedAudioOption == "مؤثرات طبيعية") {
                             progressMessage = "جاري تحميل المؤثرات..."
@@ -385,12 +418,20 @@ fun PhotoStudioScreen(
                             onProgress = { p, msg -> progressMessage = msg }
                         )
 
-                        processing = false
                         if (success) {
                             generatedVideoPath = outPath
                         } else {
                             Toast.makeText(context, "حدث خطأ أثناء الإنتاج.", Toast.LENGTH_LONG).show()
                             currentStep = 2
+                        }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            currentStep = 2
+                            Toast.makeText(context, "تعذر إنتاج الفيديو، حاول مرة أخرى", Toast.LENGTH_LONG).show()
+                        } finally {
+                            processing = false
                         }
                     }
                 },
@@ -405,6 +446,7 @@ fun PhotoStudioScreen(
                     progressMessage = "جاري تهيئة الصورة للإرسال إلى Higgsfield AI..."
 
                     coroutineScope.launch {
+                        try {
                         val inputUri = selectedImageUris.firstOrNull()
                         val cacheFile = File(context.cacheDir, "higgsfield_input_${System.currentTimeMillis()}.jpg")
                         try {
@@ -435,7 +477,6 @@ fun PhotoStudioScreen(
                             } else null
 
                             if (outVideo != null && outVideo.exists()) {
-                                processing = false
                                 generatedVideoPath = outVideo.absolutePath
                                 Toast.makeText(context, "تم تحريك المشهد بنجاح بواسطة Higgsfield AI! 🎬✨", Toast.LENGTH_LONG).show()
                             } else {
@@ -451,7 +492,6 @@ fun PhotoStudioScreen(
                                     audioPath = null,
                                     outputPath = fallbackPath
                                 )
-                                processing = false
                                 if (success) {
                                     generatedVideoPath = fallbackPath
                                 } else {
@@ -460,9 +500,17 @@ fun PhotoStudioScreen(
                                 }
                             }
                         } else {
-                            processing = false
                             currentStep = 2
                             Toast.makeText(context, "تعذر قراءة ملف الصورة.", Toast.LENGTH_SHORT).show()
+                        }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            currentStep = 2
+                            Toast.makeText(context, "تعذر تحريك الصورة، حاول مرة أخرى", Toast.LENGTH_LONG).show()
+                        } finally {
+                            processing = false
                         }
                     }
                 },
