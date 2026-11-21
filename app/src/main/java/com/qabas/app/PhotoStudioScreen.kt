@@ -393,12 +393,23 @@ fun PhotoStudioScreen(
                                 audioPathToUse = withContext(Dispatchers.IO) {
                                     val recitationFile = File(context.cacheDir, "recitation_alafasy_255.mp3")
                                     if (!recitationFile.exists()) {
-                                        java.net.URL("https://cdn.islamic.network/quran/audio/128/ar.alafasy/255.mp3")
-                                            .openStream().use { input ->
-                                                recitationFile.outputStream().use { output ->
-                                                    input.copyTo(output)
-                                                }
+                                        val connection = (java.net.URL("https://cdn.islamic.network/quran/audio/128/ar.alafasy/255.mp3")
+                                            .openConnection() as java.net.HttpURLConnection).apply {
+                                            connectTimeout = 15_000
+                                            readTimeout = 30_000
+                                            requestMethod = "GET"
+                                            doInput = true
+                                        }
+                                        try {
+                                            check(connection.responseCode in 200..299) {
+                                                "Recitation download failed: HTTP ${connection.responseCode}"
                                             }
+                                            connection.inputStream.use { input ->
+                                                recitationFile.outputStream().use { output -> input.copyTo(output) }
+                                            }
+                                        } finally {
+                                            connection.disconnect()
+                                        }
                                     }
                                     recitationFile.absolutePath
                                 }
