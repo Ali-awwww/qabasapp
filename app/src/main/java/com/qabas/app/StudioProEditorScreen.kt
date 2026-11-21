@@ -351,7 +351,7 @@ fun StudioProEditorScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF0F0F0F),
+        containerColor = DeepSlate,
         topBar = {
             TopAppBar(
                 title = {
@@ -487,7 +487,7 @@ fun StudioProEditorScreen(
                 // Video Container
                 Surface(
                     modifier = Modifier.fillMaxHeight(0.9f).aspectRatio(9f/16f),
-                    color = Color(0xFF1A1A1A),
+                    color = CardSurface,
                     shape = RoundedCornerShape(4.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
@@ -718,7 +718,7 @@ fun StudioProEditorScreen(
                 Column {
                     // Timeline Tools & Ruler
                     Row(
-                        modifier = Modifier.fillMaxWidth().height(32.dp).background(Color(0xFF1A1A1A)),
+                        modifier = Modifier.fillMaxWidth().height(32.dp).background(CardSurface),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -895,7 +895,7 @@ fun StudioProEditorScreen(
                 showTextEditor = false
                 editingTextClipId = null
             },
-            containerColor = Color(0xFF1A1A1A),
+            containerColor = CardSurface,
             title = {
                 Text(
                     if (editingTextClipId == null) "إضافة نص إلى الفيديو" else "تحرير النص",
@@ -952,7 +952,7 @@ fun StudioProEditorScreen(
     if (showAnimationPanel && selectedEditorClip != null) {
         ModalBottomSheet(
             onDismissRequest = { showAnimationPanel = false },
-            containerColor = Color(0xFF1A1A1A)
+            containerColor = CardSurface
         ) {
             AnimationWorkspace(
                 clip = selectedEditorClip,
@@ -977,7 +977,7 @@ fun StudioProEditorScreen(
     if (showAiMagicPanel) {
         ModalBottomSheet(
             onDismissRequest = { showAiMagicPanel = false },
-            containerColor = Color(0xFF0F0F0F)
+            containerColor = DeepSlate
         ) {
             AiMagicPanel()
         }
@@ -987,7 +987,7 @@ fun StudioProEditorScreen(
     if (projectState.workspaceMode == WorkspaceMode.EXPORT) {
         ModalBottomSheet(
             onDismissRequest = { projectState = projectState.copy(workspaceMode = WorkspaceMode.EDIT) },
-            containerColor = Color(0xFF0F0F0F)
+            containerColor = DeepSlate
         ) {
             ExportWorkspace(state = projectState)
         }
@@ -997,7 +997,7 @@ fun StudioProEditorScreen(
     if (projectState.workspaceMode == WorkspaceMode.AUDIO) {
         ModalBottomSheet(
             onDismissRequest = { projectState = projectState.copy(workspaceMode = WorkspaceMode.EDIT) },
-            containerColor = Color(0xFF0F0F0F)
+            containerColor = DeepSlate
         ) {
             AudioMixerWorkspace(
                 state = projectState,
@@ -1013,7 +1013,7 @@ fun StudioProEditorScreen(
     if (showLayerManager) {
         ModalBottomSheet(
             onDismissRequest = { showLayerManager = false },
-            containerColor = Color(0xFF1A1A1A)
+            containerColor = CardSurface
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                 Text("إدارة الطبقات (Layer Manager)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 18.sp)
@@ -1102,7 +1102,7 @@ fun StudioProEditorScreen(
     if (showTransitionPicker) {
         ModalBottomSheet(
             onDismissRequest = { showTransitionPicker = false },
-            containerColor = Color(0xFF1A1A1A)
+            containerColor = CardSurface
         ) {
             TransitionPicker(
                 onTransitionSelected = { transitionName ->
@@ -1127,7 +1127,7 @@ fun StudioProEditorScreen(
         
         ModalBottomSheet(
             onDismissRequest = { showAdjustPanel = false },
-            containerColor = Color(0xFF1A1A1A)
+            containerColor = CardSurface
         ) {
             AdjustPanel(
                 filters = currentClip?.filters ?: FilterParams(),
@@ -1208,7 +1208,7 @@ fun StudioProEditorScreen(
     if (showMediaBrowser) {
         ModalBottomSheet(
             onDismissRequest = { showMediaBrowser = false },
-            containerColor = Color(0xFF1A1A1A),
+            containerColor = CardSurface,
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
         ) {
             MediaAssetBrowser(
@@ -1252,7 +1252,7 @@ fun StudioProEditorScreen(
 
 @Composable
 fun TimelineRuler(totalMs: Long, zoom: Float, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.fillMaxWidth().height(24.dp).background(Color(0xFF1E1E1E))) {
+    Canvas(modifier = modifier.fillMaxWidth().height(24.dp).background(ThemeSecondarySurface)) {
         val step = 1000L // Use Long
         for (i in 0L..totalMs step step) {
             val x = (i.toFloat() / 10f) * zoom
@@ -1286,7 +1286,7 @@ fun TimelineTrackRow(
     ) {
         // Track Icon/Label (Layer Info)
         Box(
-            modifier = Modifier.width(40.dp).fillMaxHeight().background(Color(0xFF151515)),
+            modifier = Modifier.width(40.dp).fillMaxHeight().background(ThemeSecondarySurface),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -1301,7 +1301,7 @@ fun TimelineTrackRow(
         }
         
         // Track Content Area
-        Box(modifier = Modifier.width(timelineWidth).fillMaxHeight().background(Color(0xFF0F0F0F))) {
+        Box(modifier = Modifier.width(timelineWidth).fillMaxHeight().background(DeepSlate)) {
             track.clips.forEach { clip ->
                 key(clip.id) {
                 val isSelected = clip.id == selectedClipId
@@ -1555,7 +1555,7 @@ fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF2A2A2A))
+                        .background(ThemeSeparator)
                         .clickable { onTransitionSelected(name) }
                         .padding(16.dp)
                 ) {
@@ -1933,7 +1933,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                         modifier = Modifier
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF2A2A2A))
+                            .background(ThemeSeparator)
                             .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
                             .clickable { onAssetSelected(asset) },
                         contentAlignment = Alignment.Center
@@ -2080,7 +2080,7 @@ fun AdjustPanel(
             Button(
                 onClick = onDuplicate,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A))
+                colors = ButtonDefaults.buttonColors(containerColor = ThemeSeparator)
             ) {
                 Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))

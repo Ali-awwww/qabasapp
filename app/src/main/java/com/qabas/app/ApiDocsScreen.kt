@@ -270,7 +270,7 @@ fun ApiDocsScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "توثيق واجهات برمجة قبس",
+                                "توثيق واجهات برمجة مساعد المسلم",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -293,16 +293,16 @@ fun ApiDocsScreen(
                 actions = {
                     IconButton(onClick = {
                         val shareInfo = """
-                            ✨ واجهات برمجة تطبيقات قبس (Qabas API)
+                            ✨ واجهات برمجة تطبيقات مساعد المسلم (Qabas API)
                             🌐 Base URL: $baseUrl
                             🔑 Authentication: Bearer Token
-                            📑 التوثيق الرسمي والمختبر متاح داخل تطبيق قبس.
+                            📑 التوثيق الرسمي والمختبر متاح داخل تطبيق مساعد المسلم.
                         """.trimIndent()
                         val sendIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, shareInfo)
                         }
-                        context.startActivity(Intent.createChooser(sendIntent, "مشاركة توثيق واجهات قبس"))
+                        context.startActivity(Intent.createChooser(sendIntent, "مشاركة توثيق واجهات مساعد المسلم"))
                     }) {
                         Icon(Icons.Default.Share, contentDescription = "مشاركة التوثيق", tint = GoldPrimary)
                     }
@@ -420,7 +420,7 @@ fun ApiDocsScreen(
 
                                     responseLatencyMs = System.currentTimeMillis() - startTime
                                     responseStatusCode = code
-                                    responseOutput = body.ifBlank { "(استجابة فارغة من خادم قبس)" }
+                                    responseOutput = body.ifBlank { "(استجابة فارغة من خادم مساعد المسلم)" }
                                     Toast.makeText(context, "تم استلام الرد الفعلي (كود $code) ✓", Toast.LENGTH_SHORT).show()
                                 } catch (e: Exception) {
                                     responseLatencyMs = System.currentTimeMillis() - startTime
@@ -519,7 +519,7 @@ private fun EndpointsDocList(
                     ) {
                         Column {
                             Text(
-                                "بوابة خدمات قبس للمطورين",
+                                "بوابة خدمات مساعد المسلم للمطورين",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -1198,7 +1198,7 @@ private fun SecurityAndAuthTab(
                     }
 
                     Text(
-                        "تتطلب جميع استدعاءات واجهات برمجة قبس تمرير مفتاحك في ترويسة الطلب عبر المعيار القياسي Bearer Token لضمان التحقق وحماية حصص الاستهلاك:",
+                        "تتطلب جميع استدعاءات واجهات برمجة مساعد المسلم تمرير مفتاحك في ترويسة الطلب عبر المعيار القياسي Bearer Token لضمان التحقق وحماية حصص الاستهلاك:",
                         color = Color(0xFFCBD5E1),
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
@@ -1260,7 +1260,7 @@ private fun SecurityAndAuthTab(
                         Row(verticalAlignment = Alignment.Top) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("خلو تام من المعازف: ترفض خوادم قبس دمج أي مقاطع موسيقية أو إيقاعات محرمة.", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("خلو تام من المعازف: ترفض خوادم مساعد المسلم دمج أي مقاطع موسيقية أو إيقاعات محرمة.", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                         Row(verticalAlignment = Alignment.Top) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))

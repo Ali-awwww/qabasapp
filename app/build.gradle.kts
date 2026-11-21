@@ -67,6 +67,18 @@ android {
       keyAlias = "androiddebugkey"
       keyPassword = "android"
     }
+    // Release builds must be signed with a separately managed production key.
+    // Keep credentials outside the repository and fail closed when they are absent.
+    create("release") {
+      val releaseStorePath = providers.environmentVariable("RELEASE_KEYSTORE_PATH").orNull
+      val releaseStorePassword = providers.environmentVariable("RELEASE_KEYSTORE_PASSWORD").orNull
+      val releaseKeyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS").orNull
+      val releaseKeyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").orNull
+      if (!releaseStorePath.isNullOrBlank()) storeFile = file(releaseStorePath)
+      if (!releaseStorePassword.isNullOrBlank()) storePassword = releaseStorePassword
+      if (!releaseKeyAlias.isNullOrBlank()) keyAlias = releaseKeyAlias
+      if (!releaseKeyPassword.isNullOrBlank()) keyPassword = releaseKeyPassword
+    }
   }
 
   buildTypes {
@@ -75,7 +87,7 @@ android {
       isMinifyEnabled = false
       isShrinkResources = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("debugConfig")
+      signingConfig = signingConfigs.getByName("release")
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")
@@ -85,6 +97,7 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
+    isCoreLibraryDesugaringEnabled = true
   }
 
   buildFeatures {
@@ -184,6 +197,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 dependencies {
+  coreLibraryDesugaring(libs.desugar.jdk.libs)
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.material.icons.core)

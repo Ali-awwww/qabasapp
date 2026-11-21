@@ -159,7 +159,7 @@ fun ReelMoreOptionsSheet(
                     iconBackground = theme.primary,
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("Qabas Reel Link", reel.videoUrl)
+                        val clip = ClipData.newPlainText("Muslim Assistant Reel Link", reel.videoUrl)
                         clipboard.setPrimaryClip(clip)
                         ReelPreferencesManager.triggerHaptic(context)
                         Toast.makeText(context, "تم نسخ رابط المقطع إلى الحافظة", Toast.LENGTH_SHORT).show()
@@ -178,7 +178,7 @@ fun ReelMoreOptionsSheet(
                                 action = Intent.ACTION_SEND
                                 putExtra(
                                     Intent.EXTRA_TEXT,
-                                    "شاهد مقطع «${reel.title}» المميز عبر استوديو قبس: ${reel.videoUrl}"
+                                    "شاهد مقطع «${reel.title}» المميز عبر استوديو مساعد المسلم: ${reel.videoUrl}"
                                 )
                                 type = "text/plain"
                             }
@@ -223,7 +223,7 @@ fun ReelMoreOptionsSheet(
                             else -> "حذف المقطع نهائياً"
                         }
                         val deleteSubtitle = when {
-                            isOwner && !isDeveloper -> "إزالة هذا الفيديو الذي قمت بنشره نهائياً من منصة قبس"
+                            isOwner && !isDeveloper -> "إزالة هذا الفيديو الذي قمت بنشره نهائياً من منصة مساعد المسلم"
                             isDeveloper && !isOwner -> "إزالة هذا المقطع نهائياً من سحابة Supabase"
                             else -> "إزالة هذا المقطع نهائياً من قاعدة البيانات"
                         }

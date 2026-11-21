@@ -45,7 +45,7 @@ val ArefRuqaaFont = FontFamily(
 val AmiriFont = AmiriFontBase
 val RobotoMonoFont = FontFamily.Monospace
 
-/** خيارات الخط العام لواجهة قبس، وليست خطوط المصحف المتخصصة. */
+/** خيارات الخط العام لواجهة مساعد المسلم، وليست خطوط المصحف المتخصصة. */
 enum class AppFontChoice(
     val id: String,
     val title: String,

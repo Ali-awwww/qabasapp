@@ -21,9 +21,9 @@ class CreatorFollowManagerTest {
         assertTrue(
             CreatorFollowManager.identitiesMatch(
                 "user-123",
-                "منشئ قبس",
+                "منشئ مساعد المسلم",
                 "another-id",
-                "منشئ قبس",
+                "منشئ مساعد المسلم",
                 "creator@example.com"
             )
         )

@@ -73,8 +73,8 @@ fun StoreScreen(onBack: () -> Unit) {
 
     val storeItems = remember(productsMap) {
         listOf(
-            StoreItem(BillingManager.SUB_MONTHLY_PRO, "قبس برو - شهري", "توليد لا محدود + تصدير 4K + إزالة العلامة المائية", billingManager.getFormattedPrice(BillingManager.SUB_MONTHLY_PRO, "4.99$"), type = StoreItemType.PRO_SUB, icon = Icons.Default.WorkspacePremium),
-            StoreItem(BillingManager.SUB_ANNUAL_PRO, "قبس برو - سنوي", "خصم 40% على الباقة السنوية + جميع ميزات برو", billingManager.getFormattedPrice(BillingManager.SUB_ANNUAL_PRO, "39.99$"), type = StoreItemType.PRO_SUB, icon = Icons.Default.WorkspacePremium, isPopular = true),
+            StoreItem(BillingManager.SUB_MONTHLY_PRO, "مساعد المسلم برو - شهري", "توليد لا محدود + تصدير 4K + إزالة العلامة المائية", billingManager.getFormattedPrice(BillingManager.SUB_MONTHLY_PRO, "4.99$"), type = StoreItemType.PRO_SUB, icon = Icons.Default.WorkspacePremium),
+            StoreItem(BillingManager.SUB_ANNUAL_PRO, "مساعد المسلم برو - سنوي", "خصم 40% على الباقة السنوية + جميع ميزات برو", billingManager.getFormattedPrice(BillingManager.SUB_ANNUAL_PRO, "39.99$"), type = StoreItemType.PRO_SUB, icon = Icons.Default.WorkspacePremium, isPopular = true),
             StoreItem(BillingManager.COIN_500, "500 نقطة", "رصيد سريع لإنتاج المحتوى", billingManager.getFormattedPrice(BillingManager.COIN_500, "0.99$"), 500, StoreItemType.COINS, Icons.Default.Toll),
             StoreItem(BillingManager.COIN_1200, "1200 نقطة", "الأكثر مبيعاً (+200 مجاناً)", billingManager.getFormattedPrice(BillingManager.COIN_1200, "1.99$"), 1200, StoreItemType.COINS, Icons.Default.Toll, isPopular = true),
             StoreItem(BillingManager.COIN_3000, "3000 نقطة", "قيمة استثنائية لصناع المحتوى", billingManager.getFormattedPrice(BillingManager.COIN_3000, "4.99$"), 3000, StoreItemType.COINS, Icons.Default.Toll),
@@ -252,7 +252,7 @@ fun StoreScreen(onBack: () -> Unit) {
 
             item(span = { GridItemSpan(2) }) {
                 Text(
-                    "باقات قبس برو",
+                    "باقات مساعد المسلم برو",
                     color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,

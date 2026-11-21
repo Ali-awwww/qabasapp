@@ -10,7 +10,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 🛰️ NotificationPreferencesManager — مدير إعدادات وتفضيلات إشعارات قبس المتقدم
+ * 🛰️ NotificationPreferencesManager — مدير إعدادات وتفضيلات إشعارات مساعد المسلم المتقدم
  * يدعم التخزين الفوري، وتحديث الحالة التفاعلية، وجدولة المواعيد الإيمانية تلقائياً.
  */
 object NotificationPreferencesManager {

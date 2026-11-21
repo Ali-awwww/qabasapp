@@ -182,7 +182,7 @@ object CloudServices {
             return SupabaseServices.Database.getAllUsers().map {
                 mapOf(
                     "id" to it.id,
-                    "name" to (it.name ?: "مستخدم قبس"),
+                    "name" to (it.name ?: "مستخدم مساعد المسلم"),
                     "email" to (it.email ?: ""),
                     "type" to it.type,
                     "status" to (it.status ?: "active")

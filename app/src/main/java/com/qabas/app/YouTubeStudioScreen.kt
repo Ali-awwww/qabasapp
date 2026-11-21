@@ -158,7 +158,7 @@ fun YouTubeStudioScreen(
         }) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+                colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(20.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333))
             ) {
@@ -244,7 +244,7 @@ fun YouTubeStudioScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F0F0F))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
             )
         }
     ) { padding ->
@@ -258,8 +258,8 @@ fun YouTubeStudioScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF141414))
-                        .border(1.dp, Color(0xFF222222), RoundedCornerShape(16.dp))
+                        .background(CardSurface)
+                        .border(1.dp, ThemeSeparator, RoundedCornerShape(16.dp))
                         .padding(20.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -359,8 +359,8 @@ fun YouTubeStudioScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF141414))
-                        .border(1.dp, Color(0xFF222222), RoundedCornerShape(16.dp))
+                        .background(CardSurface)
+                        .border(1.dp, ThemeSeparator, RoundedCornerShape(16.dp))
                         .padding(20.dp)
                 ) {
                     Text(
@@ -402,8 +402,8 @@ fun ToolCard(tool: ToolItem, onClick: () -> Unit = {}) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF141414))
-            .border(1.dp, Color(0xFF222222), RoundedCornerShape(16.dp))
+            .background(CardSurface)
+            .border(1.dp, ThemeSeparator, RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -437,7 +437,7 @@ fun ThumbnailGeneratorDialog(onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(24.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333))
         ) {
@@ -512,7 +512,7 @@ fun ThumbnailGeneratorDialog(onDismiss: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .background(Color(0xFF222222), RoundedCornerShape(8.dp))
+                                .background(ThemeSeparator, RoundedCornerShape(8.dp))
                                 .border(1.dp, Color(0xFF333333), RoundedCornerShape(8.dp))
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically

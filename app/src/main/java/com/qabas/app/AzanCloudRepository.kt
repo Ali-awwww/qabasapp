@@ -47,7 +47,7 @@ object AzanCloudRepository {
                     id = "cloud_${it.id}",
                     nameAr = it.nameAr,
                     muezzinAr = it.muezzinAr,
-                    description = it.description.ifBlank { "أذان سحابي من استوديو قبس ☁️" },
+                    description = it.description.ifBlank { "أذان سحابي من استوديو مساعد المسلم ☁️" },
                     streamUrl = it.audioUrl,
                     isFajrSpecific = it.isFajrSpecific
                 )

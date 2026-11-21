@@ -155,7 +155,8 @@ fun HomeScreen(
     var isRecordingVoice by remember { mutableStateOf(false) }
     val recorderHelper = remember { AudioRecorderHelper(context) }
 
-    var selectedSector by remember { mutableIntStateOf(0) }
+    // يبدأ المنتج من مساحة المسلم، مع إبقاء الاستوديو والمشاريع والذكاء الاصطناعي متاحة من التبويبات.
+    var selectedSector by remember { mutableIntStateOf(1) }
     val activeAiEngine by AiModelLatencyRouter.activeEngine.collectAsState()
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
@@ -443,7 +444,7 @@ fun HomeScreen(
                                 )
                             }
                             Text(
-                                text = "قبس ستوديو",
+                                text = "مساعد المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -674,28 +675,28 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             SpatialLaunchpadCard(
-                                title = "الوكيل الذكي",
-                                subtitle = "AI Studio",
-                                icon = Icons.Default.SmartToy,
-                                accentColor = theme.accent,
-                                modifier = Modifier.weight(1f),
-                                onClick = onAiStudioAgent
-                            )
-                            SpatialLaunchpadCard(
-                                title = "الإنتاج الذكي",
-                                subtitle = "الاستوديو",
-                                icon = Icons.Default.AutoAwesome,
-                                accentColor = theme.primary,
-                                modifier = Modifier.weight(1f),
-                                onClick = onStudioGateway
-                            )
-                            SpatialLaunchpadCard(
                                 title = "مِشكاة الهُدى",
                                 subtitle = "المصحف والحديث",
                                 icon = Icons.Default.Mosque,
-                                accentColor = theme.success,
+                                accentColor = theme.accent,
                                 modifier = Modifier.weight(1f),
                                 onClick = onMishkatHub
+                            )
+                            SpatialLaunchpadCard(
+                                title = "الأذكار",
+                                subtitle = "حصن المسلم",
+                                icon = Icons.Default.Favorite,
+                                accentColor = theme.success,
+                                modifier = Modifier.weight(1f),
+                                onClick = onAzkar
+                            )
+                            SpatialLaunchpadCard(
+                                title = "مواقيت الصلاة",
+                                subtitle = "الصلاة والقبلة",
+                                icon = Icons.Default.Explore,
+                                accentColor = theme.primary,
+                                modifier = Modifier.weight(1f),
+                                onClick = onPrayerTimes
                             )
                         }
                     }
@@ -761,18 +762,18 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         SpatialSectorTabButton(
+                            title = "مساحة المسلم",
+                            icon = Icons.Default.Mosque,
+                            isSelected = selectedSector == 1,
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedSector = 1 }
+                        )
+                        SpatialSectorTabButton(
                             title = "الاستوديوهات",
                             icon = Icons.Default.VideoLibrary,
                             isSelected = selectedSector == 0,
                             modifier = Modifier.weight(1f),
                             onClick = { selectedSector = 0 }
-                        )
-                        SpatialSectorTabButton(
-                            title = "مِشكاة الهُدى",
-                            icon = Icons.Default.Mosque,
-                            isSelected = selectedSector == 1,
-                            modifier = Modifier.weight(1f),
-                            onClick = { selectedSector = 1 }
                         )
                         SpatialSectorTabButton(
                             title = "أدوات الذكاء",
@@ -811,7 +812,7 @@ fun HomeScreen(
                                     onClick = onAiStudioAgent
                                 )
                                 SpatialHudCard(
-                                    title = "استوديو قبس الشامل",
+                                    title = "مركز الإنتاج المتكامل",
                                     subtitle = "البوابة المركزية ومسارات الإنتاج الذكية",
                                     badge = "الرئيسي",
                                     badgeColor = theme.primary,

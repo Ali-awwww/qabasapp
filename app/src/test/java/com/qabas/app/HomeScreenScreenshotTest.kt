@@ -61,7 +61,7 @@ class HomeScreenScreenshotTest {
                 }
             }
             composeRule.waitForIdle()
-            composeRule.onNodeWithText("قَبَس").assertIsDisplayed()
+            composeRule.onNodeWithText("مساعد المسلم").assertIsDisplayed()
             composeRule.onRoot().captureRoboImage()
         } catch (e: Throwable) {
             e.printStackTrace(System.out)

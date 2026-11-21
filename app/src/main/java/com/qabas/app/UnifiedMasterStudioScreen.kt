@@ -50,7 +50,7 @@ import java.io.File
 
 /**
  * 🌟 استوديو العمل المتقن الشامل (Unified Masterpiece Studio)
- * يدمج جميع إمكانيات قبس (السيناريو + التعليق الصوتي + لقطات B-Roll + صور FLUX 8K + الكابشنز الحركية + المصغرة + الـ SEO)
+ * يدمج جميع إمكانيات مساعد المسلم (السيناريو + التعليق الصوتي + لقطات B-Roll + صور FLUX 8K + الكابشنز الحركية + المصغرة + الـ SEO)
  * في تدفق عمل واحد متكامل ينتج عملاً دعوياً متقناً بضغطة زر واحدة.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,19 +257,19 @@ fun UnifiedMasterStudioScreen(
 
                     if (!rawSeo.isNullOrBlank() && rawSeo.contains("{")) {
                         val obj = org.json.JSONObject(rawSeo.substring(rawSeo.indexOf("{"), rawSeo.lastIndexOf("}") + 1))
-                        seoTitle = obj.optString("title", "✨ $topicText | قبس")
-                        seoDescription = obj.optString("description", "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم.")
-                        seoHashtags = obj.optString("hashtags", "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور")
+                        seoTitle = obj.optString("title", "✨ $topicText | مساعد المسلم")
+                        seoDescription = obj.optString("description", "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو مساعد المسلم لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم.")
+                        seoHashtags = obj.optString("hashtags", "#مساعد_المسلم #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور")
                     } else {
                         // fallback ثابت إذا لم يتوفر مزود حقيقي
-                        seoTitle = "✨ $topicText | قبس"
-                        seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
-                        seoHashtags = "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
+                        seoTitle = "✨ $topicText | مساعد المسلم"
+                        seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو مساعد المسلم لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
+                        seoHashtags = "#مساعد_المسلم #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
                     }
                 } catch (_: Exception) {
-                    seoTitle = "✨ $topicText | قبس"
-                    seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو قبس لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
-                    seoHashtags = "#قبس #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
+                    seoTitle = "✨ $topicText | مساعد المسلم"
+                    seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو مساعد المسلم لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
+                    seoHashtags = "#مساعد_المسلم #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
                 }
 
                 generationProgress = 1.0f
@@ -287,7 +287,7 @@ fun UnifiedMasterStudioScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF050811),
+        containerColor = DeepSlate,
         topBar = {
             TopAppBar(
                 title = {
@@ -342,7 +342,7 @@ fun UnifiedMasterStudioScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF030712).copy(alpha = 0.95f))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate.copy(alpha = 0.95f))
             )
         }
     ) { paddingValues ->
@@ -359,7 +359,7 @@ fun UnifiedMasterStudioScreen(
             // =========================================================================
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF0B132B).copy(alpha = 0.85f),
+                backgroundColor = CardSurface.copy(alpha = 0.85f),
                 borderColor = primaryColor.copy(alpha = 0.45f),
                 shape = CutCornerShape(12.dp)
             ) {
@@ -398,9 +398,9 @@ fun UnifiedMasterStudioScreen(
                         shape = CutCornerShape(8.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedContainerColor = Color(0xFF070C18),
-                            unfocusedContainerColor = Color(0xFF070C18),
+                            unfocusedBorderColor = ThemeSeparator,
+                            focusedContainerColor = DeepSlate,
+                            unfocusedContainerColor = DeepSlate,
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         ),
@@ -421,8 +421,8 @@ fun UnifiedMasterStudioScreen(
                             Surface(
                                 onClick = { topicText = preset },
                                 shape = CutCornerShape(4.dp),
-                                color = Color(0xFF131D33),
-                                border = BorderStroke(0.7.dp, Color(0xFF1E293B))
+                                color = ThemeSecondarySurface,
+                                border = BorderStroke(0.7.dp, ThemeSeparator)
                             ) {
                                 Text(
                                     preset,
@@ -449,7 +449,7 @@ fun UnifiedMasterStudioScreen(
                                     Surface(
                                         onClick = { selectedRatio = ratio },
                                         shape = CutCornerShape(4.dp),
-                                        color = if (isSelected) primaryColor else Color(0xFF131D33),
+                                        color = if (isSelected) primaryColor else ThemeSecondarySurface,
                                         modifier = Modifier.weight(1f).height(32.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
@@ -478,8 +478,8 @@ fun UnifiedMasterStudioScreen(
                                     Surface(
                                         onClick = { selectedVoice = vId },
                                         shape = CutCornerShape(4.dp),
-                                        color = if (isSelected) primaryColor.copy(alpha = 0.2f) else Color(0xFF131D33),
-                                        border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B)),
+                                        color = if (isSelected) primaryColor.copy(alpha = 0.2f) else ThemeSecondarySurface,
+                                        border = BorderStroke(1.dp, if (isSelected) primaryColor else ThemeSeparator),
                                         modifier = Modifier.height(32.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
@@ -500,8 +500,8 @@ fun UnifiedMasterStudioScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF0C1424), CutCornerShape(6.dp))
-                            .border(0.8.dp, Color(0xFF1E293B), CutCornerShape(6.dp))
+                            .background(ThemeSecondarySurface, CutCornerShape(6.dp))
+                            .border(0.8.dp, ThemeSeparator, CutCornerShape(6.dp))
                             .padding(8.dp)
                     ) {
                         Row(
@@ -512,12 +512,12 @@ fun UnifiedMasterStudioScreen(
                             Text("🎬 محرك الإنتاج البصري والفيديو:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp)
                             Surface(
                                 shape = CutCornerShape(4.dp),
-                                color = if (isHiggsfieldConfigured) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.15f),
-                                border = BorderStroke(0.6.dp, if (isHiggsfieldConfigured) Color(0xFF10B981) else Color(0xFFF59E0B))
+                                color = if (isHiggsfieldConfigured) ThemeSuccess.copy(alpha = 0.15f) else ThemeWarning.copy(alpha = 0.15f),
+                                border = BorderStroke(0.6.dp, if (isHiggsfieldConfigured) ThemeSuccess else ThemeWarning)
                             ) {
                                 Text(
                                     if (isHiggsfieldConfigured) "Higgsfield متصل 🟢" else "Higgsfield يحتاج مفتاح 🔑",
-                                    color = if (isHiggsfieldConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    color = if (isHiggsfieldConfigured) ThemeSuccess else ThemeWarning,
                                     fontFamily = CairoFont,
                                     fontSize = 9.sp,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -533,8 +533,8 @@ fun UnifiedMasterStudioScreen(
                             Surface(
                                 onClick = { selectedVisualEngine = "flux" },
                                 shape = CutCornerShape(4.dp),
-                                color = if (isFluxSelected) primaryColor.copy(alpha = 0.2f) else Color(0xFF131D33),
-                                border = BorderStroke(1.dp, if (isFluxSelected) primaryColor else Color(0xFF1E293B)),
+                                color = if (isFluxSelected) primaryColor.copy(alpha = 0.2f) else ThemeSecondarySurface,
+                                border = BorderStroke(1.dp, if (isFluxSelected) primaryColor else ThemeSeparator),
                                 modifier = Modifier.weight(1f).height(34.dp).testTag("visual_engine_flux")
                             ) {
                                 Row(
@@ -553,8 +553,8 @@ fun UnifiedMasterStudioScreen(
                             Surface(
                                 onClick = { selectedVisualEngine = "higgsfield" },
                                 shape = CutCornerShape(4.dp),
-                                color = if (isHiggsSelected) Color(0xFF00F2FE).copy(alpha = 0.2f) else Color(0xFF131D33),
-                                border = BorderStroke(1.dp, if (isHiggsSelected) Color(0xFF00F2FE) else Color(0xFF1E293B)),
+                                color = if (isHiggsSelected) GoldPrimary.copy(alpha = 0.2f) else ThemeSecondarySurface,
+                                border = BorderStroke(1.dp, if (isHiggsSelected) GoldPrimary else ThemeSeparator),
                                 modifier = Modifier.weight(1.3f).height(34.dp).testTag("visual_engine_higgsfield")
                             ) {
                                 Row(
@@ -562,9 +562,9 @@ fun UnifiedMasterStudioScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = if (isHiggsSelected) Color(0xFF00F2FE) else Color.Gray, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = if (isHiggsSelected) GoldPrimary else Color.Gray, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Higgsfield AI (فيديو سينمائي 🛸)", color = if (isHiggsSelected) Color(0xFF00F2FE) else Color.White, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("Higgsfield AI (فيديو سينمائي 🛸)", color = if (isHiggsSelected) GoldPrimary else Color.White, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -586,12 +586,12 @@ fun UnifiedMasterStudioScreen(
                                     Surface(
                                         onClick = { selectedCameraMotion = mKey },
                                         shape = CutCornerShape(3.dp),
-                                        color = if (isMSelected) Color(0xFF00F2FE).copy(alpha = 0.15f) else Color(0xFF080D1A),
-                                        border = BorderStroke(0.7.dp, if (isMSelected) Color(0xFF00F2FE) else Color(0xFF1E293B)),
+                                        color = if (isMSelected) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF080D1A),
+                                        border = BorderStroke(0.7.dp, if (isMSelected) GoldPrimary else ThemeSeparator),
                                         modifier = Modifier.weight(1f).height(28.dp).testTag("camera_motion_$mKey")
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Text(mLabel, color = if (isMSelected) Color(0xFF00F2FE) else Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 9.sp)
+                                            Text(mLabel, color = if (isMSelected) GoldPrimary else Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 9.sp)
                                         }
                                     }
                                 }
@@ -605,7 +605,7 @@ fun UnifiedMasterStudioScreen(
                         enabled = !isGeneratingMasterpiece,
                         modifier = Modifier.fillMaxWidth().height(48.dp).testTag("masterpiece_launch_button"),
                         shape = CutCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, disabledContainerColor = Color(0xFF1E293B))
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, disabledContainerColor = ThemeSeparator)
                     ) {
                         if (isGeneratingMasterpiece) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), color = DeepSlate, strokeWidth = 2.dp)
@@ -631,7 +631,7 @@ fun UnifiedMasterStudioScreen(
                                 progress = { generationProgress },
                                 modifier = Modifier.fillMaxWidth().height(4.dp),
                                 color = primaryColor,
-                                trackColor = Color(0xFF151B2B)
+                                trackColor = ThemeSecondarySurface
                             )
                             Text(
                                 generationStage,
@@ -666,8 +666,8 @@ fun UnifiedMasterStudioScreen(
                         Surface(
                             onClick = { selectedCockpitTab = idx },
                             shape = CutCornerShape(4.dp),
-                            color = if (isSelected) primaryColor else Color(0xFF0B132B).copy(alpha = 0.6f),
-                            border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B)),
+                            color = if (isSelected) primaryColor else CardSurface.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, if (isSelected) primaryColor else ThemeSeparator),
                             modifier = Modifier.height(34.dp)
                         ) {
                             Row(
@@ -799,11 +799,11 @@ private fun MasterFullPackageTab(
                 ) {
                     Text("معاينة العمل النهائي المتقن", color = primaryColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Surface(
-                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        color = ThemeSuccess.copy(alpha = 0.15f),
                         shape = CutCornerShape(4.dp),
-                        border = BorderStroke(0.6.dp, Color(0xFF10B981))
+                        border = BorderStroke(0.6.dp, ThemeSuccess)
                     ) {
-                        Text("READY TO EXPORT ✦", color = Color(0xFF10B981), fontFamily = RobotoMonoFont, fontSize = 8.5.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        Text("READY TO EXPORT ✦", color = ThemeSuccess, fontFamily = RobotoMonoFont, fontSize = 8.5.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                     }
                 }
 
@@ -820,8 +820,8 @@ private fun MasterFullPackageTab(
                                 .width(120.dp)
                                 .height(170.dp)
                                 .clip(CutCornerShape(8.dp))
-                                .background(Color(0xFF0F172A))
-                                .border(1.dp, if (index == 0) primaryColor else Color(0xFF1E293B), CutCornerShape(8.dp))
+                                .background(DeepSlate)
+                                .border(1.dp, if (index == 0) primaryColor else ThemeSeparator, CutCornerShape(8.dp))
                                 .clickable { selectedPreviewIndex = index }
                         ) {
                             if (isVideoMediaUrl(scene.mediaUrl) && index == selectedPreviewIndex) {
@@ -866,7 +866,7 @@ private fun MasterFullPackageTab(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF101726), CutCornerShape(6.dp))
+                        .background(ThemeSecondarySurface, CutCornerShape(6.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -880,7 +880,7 @@ private fun MasterFullPackageTab(
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("جودة الإنتاج", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
-                        Text(if (scenes.any { it.mediaUrl?.contains("mp4") == true || it.mediaUrl?.contains("higgsfield") == true }) "Higgsfield 🎬" else "8K FLUX.1", color = Color(0xFF00F2FE), fontSize = 11.5.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                        Text(if (scenes.any { it.mediaUrl?.contains("mp4") == true || it.mediaUrl?.contains("higgsfield") == true }) "Higgsfield 🎬" else "8K FLUX.1", color = GoldPrimary, fontSize = 11.5.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -904,7 +904,7 @@ private fun MasterFullPackageTab(
                         modifier = Modifier.weight(1f).height(46.dp),
                         shape = CutCornerShape(8.dp),
                         border = BorderStroke(1.dp, accentColor),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0F172A))
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = DeepSlate)
                     ) {
                         Icon(Icons.Default.MovieFilter, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -940,8 +940,8 @@ private fun MasterScenesEditorTab(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = CutCornerShape(8.dp),
-                color = Color(0xFF0C1424),
-                border = BorderStroke(0.8.dp, Color(0xFF1E293B))
+                color = ThemeSecondarySurface,
+                border = BorderStroke(0.8.dp, ThemeSeparator)
             ) {
                 Row(
                     modifier = Modifier.padding(10.dp),
@@ -951,7 +951,7 @@ private fun MasterScenesEditorTab(
                         modifier = Modifier
                             .size(54.dp)
                             .clip(CutCornerShape(6.dp))
-                            .background(Color(0xFF060B14))
+                            .background(DeepSlate)
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(context).data(scene.mediaUrl).crossfade(true).build(),
@@ -981,7 +981,7 @@ private fun MasterScenesEditorTab(
                     }
 
                     Surface(
-                        color = Color(0xFF1E293B),
+                        color = ThemeSeparator,
                         shape = CutCornerShape(4.dp)
                     ) {
                         Text(scene.transitionType, color = Color(0xFF94A3B8), fontFamily = RobotoMonoFont, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
@@ -1029,7 +1029,7 @@ private fun MasterPosterThumbnailTab(
                 .width(if (ratio == "16:9") 320.dp else 220.dp)
                 .height(if (ratio == "16:9") 180.dp else 320.dp)
                 .clip(CutCornerShape(12.dp))
-                .background(Color(0xFF090E1A))
+                .background(DeepSlate)
                 .border(1.2.dp, primaryColor.copy(alpha = 0.6f), CutCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
@@ -1063,8 +1063,8 @@ private fun MasterVoiceTrackTab(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = CutCornerShape(10.dp),
-            color = Color(0xFF0C1424),
-            border = BorderStroke(1.dp, Color(0xFF1E293B))
+            color = ThemeSecondarySurface,
+            border = BorderStroke(1.dp, ThemeSeparator)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
@@ -1078,10 +1078,10 @@ private fun MasterVoiceTrackTab(
                         Text("القارئ: $selectedVoice", color = Color.White, fontFamily = RobotoMonoFont, fontSize = 12.sp)
                     }
                     Surface(
-                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        color = ThemeSuccess.copy(alpha = 0.15f),
                         shape = CutCornerShape(4.dp)
                     ) {
-                        Text("STUDIO QUALITY", color = Color(0xFF10B981), fontFamily = RobotoMonoFont, fontSize = 8.5.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        Text("STUDIO QUALITY", color = ThemeSuccess, fontFamily = RobotoMonoFont, fontSize = 8.5.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                     }
                 }
 
@@ -1131,8 +1131,8 @@ private fun MasterViralSeoTab(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = CutCornerShape(8.dp),
-            color = Color(0xFF0C1424),
-            border = BorderStroke(0.8.dp, Color(0xFF1E293B))
+            color = ThemeSecondarySurface,
+            border = BorderStroke(0.8.dp, ThemeSeparator)
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
                 Text("العنوان المقترح للريلز والشورتس:", color = primaryColor, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
@@ -1145,8 +1145,8 @@ private fun MasterViralSeoTab(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = CutCornerShape(8.dp),
-            color = Color(0xFF0C1424),
-            border = BorderStroke(0.8.dp, Color(0xFF1E293B))
+            color = ThemeSecondarySurface,
+            border = BorderStroke(0.8.dp, ThemeSeparator)
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
                 Text("الهاشتاغات الفيروسية المتوافقة مع خوارزميات النشر:", color = primaryColor, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)

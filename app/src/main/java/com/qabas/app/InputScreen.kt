@@ -305,7 +305,7 @@ fun InputScreen(
                             fontSize = 18.sp
                         )
                         Text(
-                            Translator.tr("استوديو قبس الذكي لإنتاج الفيديوهات"),
+                            Translator.tr("استوديو مساعد المسلم الذكي لإنتاج الفيديوهات"),
                             color = TextSecondary,
                             fontFamily = NotoSansFont,
                             fontSize = 11.sp
@@ -436,7 +436,7 @@ fun InputScreen(
                                         fontSize = 16.sp
                                     )
                                     Text(
-                                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب قبس"),
+                                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب مساعد المسلم"),
                                         color = TextSecondary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 12.sp
@@ -814,7 +814,7 @@ fun InputScreen(
                                             Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                Translator.tr("مكتبة قبس 🎙️"),
+                                                Translator.tr("مكتبة مساعد المسلم 🎙️"),
                                                 color = GoldPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,

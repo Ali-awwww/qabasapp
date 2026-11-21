@@ -55,18 +55,18 @@ fun VideoImportSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF151B2B), RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF34D399).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                .background(CardSurface, RoundedCornerShape(12.dp))
+                .border(1.dp, ThemeSuccess.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = ThemeSuccess, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     Translator.tr("المدخل المختار: فيديو من الجهاز 🎬"),
-                    color = Color(0xFF34D399),
+                    color = ThemeSuccess,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -91,8 +91,8 @@ fun VideoImportSection(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-            border = BorderStroke(1.dp, Color(0xFF34D399).copy(alpha = 0.4f))
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, ThemeSuccess.copy(alpha = 0.4f))
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -100,11 +100,11 @@ fun VideoImportSection(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFF34D399).copy(alpha = 0.15f),
+                    color = ThemeSuccess.copy(alpha = 0.15f),
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(26.dp))
+                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = ThemeSuccess, modifier = Modifier.size(26.dp))
                     }
                 }
                 Spacer(modifier = Modifier.width(14.dp))
@@ -117,7 +117,7 @@ fun VideoImportSection(
                         fontSize = 16.sp
                     )
                     Text(
-                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب قبس"),
+                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب مساعد المسلم"),
                         color = TextSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp
@@ -137,8 +137,8 @@ fun VideoImportSection(
                         )
                     },
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-                border = BorderStroke(1.5.dp, Color(0xFF34D399).copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(containerColor = DeepSlate),
+                border = BorderStroke(1.5.dp, ThemeSuccess.copy(alpha = 0.5f))
             ) {
                 Column(
                     modifier = Modifier
@@ -149,11 +149,11 @@ fun VideoImportSection(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFF34D399).copy(alpha = 0.18f),
+                        color = ThemeSuccess.copy(alpha = 0.18f),
                         modifier = Modifier.size(68.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(34.dp))
+                            Icon(Icons.Default.UploadFile, contentDescription = null, tint = ThemeSuccess, modifier = Modifier.size(34.dp))
                         }
                     }
                     Text(
@@ -178,7 +178,7 @@ fun VideoImportSection(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34D399)),
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemeSuccess),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
@@ -199,7 +199,7 @@ fun VideoImportSection(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
+                colors = CardDefaults.cardColors(containerColor = CardSurface),
                 border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
             ) {
                 Column(
@@ -212,11 +212,11 @@ fun VideoImportSection(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF34D399).copy(alpha = 0.15f),
+                            color = ThemeSuccess.copy(alpha = 0.15f),
                             modifier = Modifier.size(52.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Movie, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(28.dp))
+                                Icon(Icons.Default.Movie, contentDescription = null, tint = ThemeSuccess, modifier = Modifier.size(28.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(14.dp))
@@ -232,11 +232,11 @@ fun VideoImportSection(
                             Spacer(modifier = Modifier.height(4.dp))
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.2f)
+                                color = ThemeSuccess.copy(alpha = 0.2f)
                             ) {
                                 Text(
                                     text = Translator.tr("جاهز للمونتاج والتعديل ✓"),
-                                    color = Color(0xFF34D399),
+                                    color = ThemeSuccess,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
@@ -258,7 +258,7 @@ fun VideoImportSection(
                                 )
                             },
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            border = BorderStroke(1.dp, ThemeSeparator),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
@@ -276,12 +276,12 @@ fun VideoImportSection(
                                 )
                             },
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, ThemeDestructive.copy(alpha = 0.5f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = ThemeDestructive, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(Translator.tr("إزالة 🗑️"), color = Color(0xFFF87171), fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text(Translator.tr("إزالة 🗑️"), color = ThemeDestructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
 

@@ -9,7 +9,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * 🛰️ خدمة استقبال الإشعارات السحابية (FCM) لتطبيق قبس
+ * 🛰️ خدمة استقبال الإشعارات السحابية (FCM) لتطبيق مساعد المسلم
  * تتعامل مع التنبيهات الفورية، التحديثات، ورسائل النظام لضمان البقاء في الخلفية.
  */
 class MyFirebaseMessagingService : FirebaseMessagingService() {
@@ -32,7 +32,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.d(TAG, "عنوان الإشعار: ${it.title}, نص الإشعار: ${it.body}")
             NotificationHelper.showNotification(
                 context = applicationContext,
-                title = it.title ?: "تنبيه جديد من قبس",
+                title = it.title ?: "تنبيه جديد من مساعد المسلم",
                 message = it.body ?: ""
             )
         }
@@ -53,7 +53,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             )
             return
         }
-        val title = data["title"] ?: "تحديث من قبس"
+        val title = data["title"] ?: "تحديث من مساعد المسلم"
         val message = data["message"] ?: ""
         val shareText = data["share_text"]
         

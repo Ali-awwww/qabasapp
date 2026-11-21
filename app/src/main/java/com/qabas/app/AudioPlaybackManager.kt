@@ -24,7 +24,7 @@ import java.io.File
 data class PlayableAudioTrack(
     val id: String,
     val title: String,
-    val artist: String = "قبس",
+    val artist: String = "مساعد المسلم",
     val audioUrl: String,
     val duration: String = "0:00",
     val category: String = "تلاوات قرآنية",
@@ -251,8 +251,8 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val currentTrack = AudioPlaybackManager.currentTrack.value ?: PlayableAudioTrack(
             id = "default_track",
-            title = "صوتيات قبس الدعوية",
-            artist = "قبس",
+            title = "صوتيات مساعد المسلم الدعوية",
+            artist = "مساعد المسلم",
             audioUrl = ""
         )
         try {

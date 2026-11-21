@@ -1,9 +1,5 @@
 package com.qabas.app.ui.input
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.Translator
+import com.qabas.app.ui.components.QabasDesignCard
 import com.qabas.app.ui.theme.*
 
 @Composable
@@ -37,13 +34,9 @@ fun SourceTypeCard(
     accentColor: Color,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
+    QabasDesignCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -69,7 +62,7 @@ fun SourceTypeCard(
                 ) {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = TextPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
@@ -102,7 +95,7 @@ fun SourceTypeCard(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = Color(0xFF475569),
+                tint = ThemeSeparator,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -126,11 +119,9 @@ fun SourceTypeSelector(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(
+        QabasDesignCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+            containerColor = CardSurface
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),

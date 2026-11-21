@@ -134,7 +134,7 @@ fun RegisterScreen(
             )
 
             Text(
-                text = "سجل انضمامك لمجتمع قبس الرقمي",
+                text = "سجل انضمامك لمجتمع مساعد المسلم الرقمي",
                 color = theme.textSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 13.sp,
@@ -542,7 +542,7 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(12.dp))
             TextButton(onClick = onNavigateToRules) {
                 Text(
-                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
+                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام مساعد المسلم",
                     color = theme.primary,
                     fontFamily = CairoFont,
                     fontSize = 11.5.sp,
@@ -790,7 +790,7 @@ fun ForgotPasswordScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق قبس، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
+                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق مساعد المسلم، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.5.sp,

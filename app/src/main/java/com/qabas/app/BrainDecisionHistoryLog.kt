@@ -283,7 +283,7 @@ fun BrainDecisionHistoryLog(
                 "الكل" -> true
                 "توافق عالي (+90%)" -> item.decision.compatibilityScore >= 90
                 "تم تقييمه إيجاباً" -> item.userFeedback == true
-                "أنماط مخصصة" -> item.influencingStyleObject != null && !item.influencingStyleObject.name.contains("قبس الأساسية")
+                "أنماط مخصصة" -> item.influencingStyleObject != null && !item.influencingStyleObject.name.contains("مساعد المسلم الأساسية")
                 else -> true
             }
 
@@ -789,7 +789,7 @@ private fun InfluencingStyleObjectCard(
     fallbackStyleName: String,
     onInspect: () -> Unit
 ) {
-    val styleName = styleObject?.name ?: fallbackStyleName.ifBlank { "هوية قبس السينمائية التراكمية" }
+    val styleName = styleObject?.name ?: fallbackStyleName.ifBlank { "هوية مساعد المسلم السينمائية التراكمية" }
     val primaryColor = remember(styleObject) {
         try {
             Color(android.graphics.Color.parseColor(styleObject?.visualStyle?.primaryColorHex ?: "#E8C547"))
@@ -923,7 +923,7 @@ private fun HistoryStatsOverviewBar(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.HistoryEdu, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                    Text("سجل قرارات عقل قبس (Brain Decisions Log)", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
+                    Text("سجل قرارات عقل مساعد المسلم (Brain Decisions Log)", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
                 }
 
                 if (totalDecisions > 0) {
@@ -1138,7 +1138,7 @@ private fun EmptyHistoryStateView(
         )
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = if (hasAnyHistory) "لا توجد نتائج مطابقة لخيارات البحث أو التصفية" else "لا توجد قرارات مسجلة في عقل قبس حتى الآن",
+            text = if (hasAnyHistory) "لا توجد نتائج مطابقة لخيارات البحث أو التصفية" else "لا توجد قرارات مسجلة في عقل مساعد المسلم حتى الآن",
             color = TextPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 15.sp,

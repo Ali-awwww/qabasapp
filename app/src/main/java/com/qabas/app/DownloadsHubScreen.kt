@@ -1042,7 +1042,7 @@ fun DownloadsHubScreen(
                                     subtitle = if (activeReelDownloads.isNotEmpty()) {
                                         "تابع التقدم من لوحة التنزيلات النشطة أعلاه؛ ستظهر الريلز هنا فور اكتمالها."
                                     } else {
-                                        "يمكنك تنزيل أي ريل من قسم «ريلز قبس» أو إدخال رابطه المباشر لحفظه في الهاتف وتشغيله بدون إنترنت."
+                                        "يمكنك تنزيل أي ريل من قسم «ريلز مساعد المسلم» أو إدخال رابطه المباشر لحفظه في الهاتف وتشغيله بدون إنترنت."
                                     },
                                     actionText = "استعراض خلاصات الريلز 🎬",
                                     onAction = onOpenReels
@@ -1659,7 +1659,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "مساحة قبس: ${metrics.totalQabasFormatted}",
+                text = "مساحة مساعد المسلم: ${metrics.totalQabasFormatted}",
                 fontFamily = CairoFont,
                 fontSize = 10.5.sp,
                 color = Color.White.copy(alpha = 0.8f)
@@ -2451,7 +2451,7 @@ private fun AppUpdatesHubSection(
                     // ملاحظات الإصدار (Release Notes)
                     if (updateItem.fileExists) {
                         Text(
-                            text = "ملف التحديث محفوظ مؤقتاً داخل مساحة قبس الخاصة، وليس في مجلد التنزيلات.",
+                            text = "ملف التحديث محفوظ مؤقتاً داخل مساحة مساعد المسلم الخاصة، وليس في مجلد التنزيلات.",
                             fontFamily = CairoFont,
                             fontSize = 10.sp,
                             color = TextSecondary
@@ -2812,7 +2812,7 @@ private fun GgufModelCard(
 
             if (isInstalled) {
                 Text(
-                    text = "مكان الملف: مساحة قبس الخاصة — لا يظهر في مجلد التنزيلات العام.",
+                    text = "مكان الملف: مساحة مساعد المسلم الخاصة — لا يظهر في مجلد التنزيلات العام.",
                     fontFamily = CairoFont,
                     fontSize = 10.sp,
                     color = TextSecondary
@@ -3184,8 +3184,8 @@ private fun DownloadedReelCard(
             }
 
             Text(
-                text = if (reel.fileExists) "الموقع: داخل مساحة قبس الخاصة · متاح دون اتصال"
-                    else "الملف مفقود من مساحة قبس — يمكنك إعادة تنزيله أو إزالة السجل.",
+                text = if (reel.fileExists) "الموقع: داخل مساحة مساعد المسلم الخاصة · متاح دون اتصال"
+                    else "الملف مفقود من مساحة مساعد المسلم — يمكنك إعادة تنزيله أو إزالة السجل.",
                 fontFamily = CairoFont,
                 fontSize = 10.sp,
                 color = if (reel.fileExists) TextSecondary else Color(0xFFF59E0B)
@@ -3284,7 +3284,7 @@ private fun DownloadedMediaCard(
                     }
                     Text(
                         text = when {
-                            media.fileExists -> "الموقع: داخل مساحة قبس الخاصة"
+                            media.fileExists -> "الموقع: داخل مساحة مساعد المسلم الخاصة"
                             !media.sourceUrl.isNullOrBlank() -> "الملف مفقود — يمكنك إعادة تنزيله أو إزالة السجل."
                             else -> "الملف مفقود — رابط إعادة التنزيل غير محفوظ."
                         },
@@ -3554,7 +3554,7 @@ private fun shareVideoFile(context: Context, localPath: String, title: String) {
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "video/mp4"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_TEXT, "شاهد ريل «$title» عبر استوديو قبس")
+            putExtra(Intent.EXTRA_TEXT, "شاهد ريل «$title» عبر استوديو مساعد المسلم")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(shareIntent, "مشاركة الفيديو"))

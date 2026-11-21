@@ -112,7 +112,7 @@ object ScholarCardImageGenerator {
         }
 
         sb.append("\n────────────────────\n")
-        sb.append("📱 تطبيق قَبَس • نورٌ وسيرةٌ وثبات\n")
+        sb.append("📱 تطبيق مساعد المسلم • نورٌ وسيرةٌ وثبات\n")
         sb.append("🤲 انشر هذه السيرة المباركة لتكون صدقة جارية لك ولأهلك")
 
         return sb.toString()
@@ -168,7 +168,7 @@ object ScholarCardImageGenerator {
         }
 
         // Text Paints
-        val paintOldInk = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        val paintBodyText = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = themeColors.primaryText
             textSize = 28f
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
@@ -198,25 +198,25 @@ object ScholarCardImageGenerator {
         totalHeight += topHeaderHeight
 
         // Pre-create layouts for measurement
-        val introLayout = createStaticLayout(scholar.brief, paintOldInk, contentWidth - 40)
+        val introLayout = createStaticLayout(scholar.brief, paintBodyText, contentWidth - 40)
         var introCardH = introLayout.height + 80
         scholar.travelDistance?.let {
-            val travelL = createStaticLayout("الرحلة والطلب: $it", paintOldInk, contentWidth - 40)
+            val travelL = createStaticLayout("الرحلة والطلب: $it", paintBodyText, contentWidth - 40)
             introCardH += travelL.height + 20
         }
         totalHeight += introCardH + 30
 
         val harmedLayout = scholar.whoHarmedHimAndHow?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 40)
+            createStaticLayout(it, paintBodyText, contentWidth - 40)
         }
         val harmedCardH = if (harmedLayout != null) harmedLayout.height + 90 else 0
         if (harmedCardH > 0) totalHeight += harmedCardH + 30
 
         val howLayout = scholar.howHeEndured?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 40)
+            createStaticLayout(it, paintBodyText, contentWidth - 40)
         }
         val whyLayout = scholar.whyHeEndured?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 40)
+            createStaticLayout(it, paintBodyText, contentWidth - 40)
         }
         val enduranceCardH = if (howLayout != null || whyLayout != null) {
             (howLayout?.height ?: 0) + (whyLayout?.height ?: 0) + 160
@@ -224,13 +224,13 @@ object ScholarCardImageGenerator {
         if (enduranceCardH > 0) totalHeight += enduranceCardH + 30
 
         val deathLayout = scholar.deathScene?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 40)
+            createStaticLayout(it, paintBodyText, contentWidth - 40)
         }
         val lastWordsLayout = scholar.lastWords?.let {
             createStaticLayout("« $it »", paintQuote, contentWidth - 60)
         }
         val funeralLayout = scholar.funeralImpact?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 40)
+            createStaticLayout(it, paintBodyText, contentWidth - 40)
         }
         val hasDeathDetails = deathLayout != null || lastWordsLayout != null || funeralLayout != null
         val deathCardH = if (hasDeathDetails) {
@@ -239,10 +239,10 @@ object ScholarCardImageGenerator {
         if (deathCardH > 0) totalHeight += deathCardH + 30
 
         val messageLayout = scholar.messageToGrandson?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 60)
+            createStaticLayout(it, paintBodyText, contentWidth - 60)
         }
         val challengeLayout = scholar.modernChallenge?.let {
-            createStaticLayout(it, paintOldInk, contentWidth - 60)
+            createStaticLayout(it, paintBodyText, contentWidth - 60)
         }
         val messageCardH = (messageLayout?.height ?: 0) + (challengeLayout?.height ?: 0) + 160
         if (messageCardH > 0) totalHeight += messageCardH + 30
@@ -571,7 +571,7 @@ object ScholarCardImageGenerator {
         canvas.drawCircle(width / 2f, currentY + 10f, 6f, dividerPaint)
 
         currentY += 45f
-        canvas.drawText("تطبيق قَبَس • مَنَارَةُ النُّورِ وَسِيَرُ الثَّبَاتِ", width / 2f, currentY, footerPaint)
+        canvas.drawText("تطبيق مساعد المسلم • مَنَارَةُ النُّورِ وَسِيَرُ الثَّبَاتِ", width / 2f, currentY, footerPaint)
         currentY += 32f
         canvas.drawText("انشر هذه السيرة تؤجر • صدقة جارية للأمة والمؤمنين", width / 2f, currentY, subFooterPaint)
 
@@ -743,10 +743,10 @@ object ScholarCardImageGenerator {
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "سيرة الإمام ${scholar.name} - تطبيق قبس")
+            putExtra(Intent.EXTRA_SUBJECT, "سيرة الإمام ${scholar.name} - تطبيق مساعد المسلم")
             putExtra(
                 Intent.EXTRA_TEXT,
-                "✨ سيرة الإمام ${scholar.name}\n${scholar.brief}\n\n« ${scholar.enduranceQuote ?: ""} »\n\n📱 تطبيق قبس للإنتاج والسير الإسلامية"
+                "✨ سيرة الإمام ${scholar.name}\n${scholar.brief}\n\n« ${scholar.enduranceQuote ?: ""} »\n\n📱 تطبيق مساعد المسلم للإنتاج والسير الإسلامية"
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

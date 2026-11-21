@@ -209,7 +209,7 @@ object CreatorFollowManager {
         val displayName = appPrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
             ?: appPrefs.getString("user_display_name", null)?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("full_name")
-            ?: "صانع محتوى قبس"
+            ?: "صانع محتوى مساعد المسلم"
         val avatar = AccountScopedPreferences.forCurrentAccount(context)
             ?.getString("user_avatar_uri", null)?.takeIf { it.isNotBlank() }
             ?: SupabaseServices.Auth.getCurrentUserMeta("avatar_url")

@@ -27,11 +27,11 @@ import com.qabas.app.ui.theme.*
 @Composable
 fun SmartPublishScheduleDialog(
     initialTitle: String,
-    initialHashtags: String = "#قبس #أثر_لا_ينقطع #ريلز_دعوي",
+    initialHashtags: String = "#مساعد_المسلم #أثر_لا_ينقطع #ريلز_دعوي",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var title by remember { mutableStateOf(initialTitle.ifBlank { "فيديو دعوي مبارك من استوديو قبس 🌟" }) }
+    var title by remember { mutableStateOf(initialTitle.ifBlank { "فيديو دعوي مبارك من استوديو مساعد المسلم 🌟" }) }
     var selectedPlatformId by remember { mutableStateOf("tiktok") }
     
     val platforms = remember {

@@ -143,7 +143,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
             // نص مضغوط في الصف المطوي (يمنع القطع بـ«…») — النص الكامل يظهر في العرض الموسّع
             .setContentText(message.substringBefore(" — "))
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setSubText("قبس")
+            .setSubText("مساعد المسلم")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(openPendingIntent)

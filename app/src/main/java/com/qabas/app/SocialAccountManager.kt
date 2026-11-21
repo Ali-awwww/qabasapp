@@ -227,7 +227,7 @@ object SocialAccountManager {
                 id = "website",
                 platformName = "الموقع الرسمي",
                 handle = "qabas.studio",
-                displayName = "بوابة قبس الرسمية والمستودع السحابي 🌐",
+                displayName = "بوابة مساعد المسلم الرسمية والمستودع السحابي 🌐",
                 description = "الموقع والمستودع السحابي الرسمي: تنزيل الـ APK، سجل التحديثات الحية، والدروس العلمية",
                 url = prefs.getString("official_website_url", QabasWebConfig.OFFICIAL_WEBSITE_URL) ?: QabasWebConfig.OFFICIAL_WEBSITE_URL,
                 followersDisplay = "الموقع المعتمد ✦",
@@ -236,8 +236,8 @@ object SocialAccountManager {
             OfficialChannelInfo(
                 id = "group",
                 platformName = "مجموعة المجتمع",
-                handle = "Qabas Community",
-                displayName = "مجموعة ومجتمع قبس الرسمي 💬",
+                handle = "Muslim Assistant Community",
+                displayName = "مجموعة ومجتمع مساعد المسلم الرسمي 💬",
                 description = "مجموعة نقاش المبدعين وطلاب العلم والدعم الفني المباشر",
                 url = QabasWebConfig.getOfficialGroupUrl(context),
                 followersDisplay = "مجتمع معتمد ✦",
@@ -247,8 +247,8 @@ object SocialAccountManager {
                 id = "youtube",
                 platformName = "YouTube",
                 handle = prefs.getString("official_yt_handle", "@Qabas.Official") ?: "@Qabas.Official",
-                displayName = "قبس | Qabas",
-                description = "قناة قبس الرسمية على يوتيوب - مقاطع وتدبرات دعوية مرئية",
+                displayName = "مساعد المسلم",
+                description = "قناة مساعد المسلم الرسمية على يوتيوب - مقاطع وتدبرات دعوية مرئية",
                 url = prefs.getString("official_yt_url", "https://www.youtube.com/@Qabas.Official") ?: "https://www.youtube.com/@Qabas.Official",
                 followersDisplay = "قناة معتمدة ✦"
             ),
@@ -256,8 +256,8 @@ object SocialAccountManager {
                 id = "facebook",
                 platformName = "Facebook",
                 handle = prefs.getString("official_fb_handle", "Qabas.Official") ?: "Qabas.Official",
-                displayName = "قبس | زاد العقل والقلب",
-                description = "الصفحة الرسمية لمجتمع قبس الدعوي على فيسبوك",
+                displayName = "مساعد المسلم | زاد العقل والقلب",
+                description = "الصفحة الرسمية لمجتمع مساعد المسلم الدعوي على فيسبوك",
                 url = prefs.getString("official_fb_url", "https://www.facebook.com/Qabas.Official") ?: "https://www.facebook.com/Qabas.Official",
                 followersDisplay = "صفحة موثقة ✦"
             ),
@@ -265,7 +265,7 @@ object SocialAccountManager {
                 id = "instagram",
                 platformName = "Instagram",
                 handle = prefs.getString("official_insta_handle", "qabas_official") ?: "qabas_official",
-                displayName = "قبس | Qabas",
+                displayName = "مساعد المسلم",
                 description = "الحساب الرسمي للريلز والتصاميم اليومية على إنستغرام",
                 url = prefs.getString("official_insta_url", "https://www.instagram.com/qabas_official") ?: "https://www.instagram.com/qabas_official",
                 followersDisplay = "حساب موثق ✦"
@@ -274,7 +274,7 @@ object SocialAccountManager {
                 id = "threads",
                 platformName = "Threads",
                 handle = prefs.getString("official_threads_handle", "qabas_official") ?: "qabas_official",
-                displayName = "قبس | Qabas Threads",
+                displayName = "مساعد المسلم Threads",
                 description = "تأملات وخواطر إيمانية سريعة على منصة ثريدز",
                 url = prefs.getString("official_threads_url", "https://www.threads.net/@qabas_official") ?: "https://www.threads.net/@qabas_official",
                 followersDisplay = "رسمي ✦"
@@ -283,7 +283,7 @@ object SocialAccountManager {
                 id = "tiktok",
                 platformName = "TikTok",
                 handle = prefs.getString("official_tiktok_handle", "@qabas_official") ?: "@qabas_official",
-                displayName = "قبس | Qabas Shorts",
+                displayName = "مساعد المسلم Shorts",
                 description = "مقاطع قصيرة سريعة وريلز دعوي هادف",
                 url = prefs.getString("official_tiktok_url", "https://www.tiktok.com/@qabas_official") ?: "https://www.tiktok.com/@qabas_official",
                 followersDisplay = "استوديو رسمي ✦"
@@ -1146,7 +1146,7 @@ class SmartPublishReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val title = intent?.getStringExtra("title") ?: "فيديو دعوي جديد"
         val platformName = intent?.getStringExtra("platform_name") ?: "منصات التواصل"
-        val hashtags = intent?.getStringExtra("hashtags") ?: "#قبس #أثر_لا_ينقطع"
+        val hashtags = intent?.getStringExtra("hashtags") ?: "#مساعد_المسلم #أثر_لا_ينقطع"
         SocialAccountManager.triggerPublishNotification(context, title, platformName, hashtags)
     }
 }

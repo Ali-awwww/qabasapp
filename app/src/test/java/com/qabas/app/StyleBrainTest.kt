@@ -98,7 +98,7 @@ class StyleBrainTest {
 
         val absorbed = StyleBrain.absorbStyleFromAnalysis(
             context = context,
-            name = "وثائقي قبس الذهبي",
+            name = "وثائقي مساعد المسلم الذهبي",
             source = "test_source.mp4",
             analysisResult = analysis
         )

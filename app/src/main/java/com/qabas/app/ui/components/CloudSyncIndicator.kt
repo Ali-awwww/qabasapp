@@ -33,7 +33,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.SupabaseServices
+import com.qabas.app.ui.theme.AppThemePreset
+import com.qabas.app.ui.theme.CyberDarkGreen
+import com.qabas.app.ui.theme.CyberDarkOrange
+import com.qabas.app.ui.theme.CyberDarkSecondarySurface
+import com.qabas.app.ui.theme.CyberDarkSecondaryLabel
 import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.ThemeManager
 
 /**
  * حالات المزامنة السحابية
@@ -103,6 +109,7 @@ fun CloudSyncIndicator(
     val context = LocalContext.current
     val isNetworkOnline by rememberIsNetworkAvailable()
     val isSupabaseConfigured = remember { SupabaseServices.isSupabaseAvailable }
+    val isCyberTheme = ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE
 
     val syncState = remember(isNetworkOnline, isSupabaseConfigured, isSyncing) {
         when {
@@ -136,18 +143,18 @@ fun CloudSyncIndicator(
 
     val accentColor by animateColorAsState(
         targetValue = when (syncState) {
-            CloudSyncState.CONNECTED -> Color(0xFF10B981) // زمردي مشع
-            CloudSyncState.SYNCING -> Color(0xFFFFA000)   // كهرماني ذهبي
-            CloudSyncState.OFFLINE -> Color(0xFF94A3B8)   // رمادي هادئ
+            CloudSyncState.CONNECTED -> if (isCyberTheme) CyberDarkGreen else Color(0xFF10B981) // زمردي مشع
+            CloudSyncState.SYNCING -> if (isCyberTheme) CyberDarkOrange else Color(0xFFFFA000)   // كهرماني ذهبي
+            CloudSyncState.OFFLINE -> if (isCyberTheme) CyberDarkSecondaryLabel else Color(0xFF94A3B8)   // رمادي هادئ
         },
         label = "accentColor"
     )
 
     val backgroundColor by animateColorAsState(
         targetValue = when (syncState) {
-            CloudSyncState.CONNECTED -> Color(0xFF064E3B).copy(alpha = 0.35f)
-            CloudSyncState.SYNCING -> Color(0xFF78350F).copy(alpha = 0.45f)
-            CloudSyncState.OFFLINE -> Color(0xFF1E293B).copy(alpha = 0.5f)
+            CloudSyncState.CONNECTED -> if (isCyberTheme) CyberDarkGreen.copy(alpha = 0.18f) else Color(0xFF064E3B).copy(alpha = 0.35f)
+            CloudSyncState.SYNCING -> if (isCyberTheme) CyberDarkOrange.copy(alpha = 0.18f) else Color(0xFF78350F).copy(alpha = 0.45f)
+            CloudSyncState.OFFLINE -> if (isCyberTheme) CyberDarkSecondarySurface.copy(alpha = 0.7f) else Color(0xFF1E293B).copy(alpha = 0.5f)
         },
         label = "bgColor"
     )

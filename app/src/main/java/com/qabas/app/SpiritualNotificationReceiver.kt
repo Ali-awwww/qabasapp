@@ -91,7 +91,7 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
             builder = builder,
             context = context,
             notifId = notifId,
-            shareText = "$title\n$message\n🌿 عبر استوديو قبس"
+            shareText = "$title\n$message\n🌿 عبر استوديو مساعد المسلم"
         )
 
         // أداة 3: تأكيد قراءة الورد

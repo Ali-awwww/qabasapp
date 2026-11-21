@@ -389,7 +389,7 @@ fun generateSeoRecommendations(
 
     val isShorts = platform.contains("Shorts") || platform.contains("Instagram")
 
-    tags.add(SeoTagRecommendation("#قبس", "1.2M", 99, "علامة التطبيق"))
+    tags.add(SeoTagRecommendation("#مساعد_المسلم", "1.2M", 99, "علامة التطبيق"))
     tags.add(SeoTagRecommendation(if (isShorts) "#Shorts" else "#YouTube", "180M", 98, "منصة"))
     tags.add(SeoTagRecommendation("#محتوى_هادف", "8.5M", 95, "تصنيف"))
 

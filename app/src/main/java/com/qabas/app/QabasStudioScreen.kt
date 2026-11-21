@@ -576,7 +576,7 @@ fun QabasStudioScreen(
                                 }
                             }
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("قبس", color = currentCardTheme.accentColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("مساعد المسلم", color = currentCardTheme.accentColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
 
                         Column(
@@ -1117,7 +1117,7 @@ fun QabasStudioScreen(
                         onClick = {
                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val label = if (narratorText.isNotBlank()) "$narratorText\n$inputText" else inputText
-                            val fullText = "$label\n\nحكم المحدث: ${hadithStatus.ifBlank { "-" }}\nالمصدر: ${hadithSource.ifBlank { "-" }}\nتصميم عبر تطبيق قبس"
+                            val fullText = "$label\n\nحكم المحدث: ${hadithStatus.ifBlank { "-" }}\nالمصدر: ${hadithSource.ifBlank { "-" }}\nتصميم عبر تطبيق مساعد المسلم"
                             cm.setPrimaryClip(ClipData.newPlainText("hadith", fullText))
                             Toast.makeText(context, "تم نسخ نص الحديث والمصدر", Toast.LENGTH_SHORT).show()
                         }
@@ -1277,7 +1277,7 @@ private fun saveHadithCardBitmapToStorage(
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
-        canvas.drawText("✦ قَبَس | بَطَاقَة حَدِيث شَرِيف ✦", width / 2f, 130f * scale, headerPaint)
+        canvas.drawText("✦ مساعد المسلم | بَطَاقَة حَدِيث شَرِيف ✦", width / 2f, 130f * scale, headerPaint)
 
         val titlePaint = android.graphics.Paint().apply {
             isAntiAlias = true

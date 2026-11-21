@@ -143,7 +143,7 @@ fun ProAudioPlayerBar(
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = track.artist.ifBlank { "قبس" },
+                                    text = track.artist.ifBlank { "مساعد المسلم" },
                                     color = theme.textSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp,

@@ -30,7 +30,7 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * مدير التفضيلات والإعدادات المركزية لتطبيق قبس (مشكاة الهدى).
+ * مدير التفضيلات والإعدادات المركزية لتطبيق مساعد المسلم (مشكاة الهدى).
  * يتحكم في تخصيص القراءة، الأذان والمواقيت، علامة المونتاج المائية، وتوفير البيانات والنسخ الاحتياطي.
  */
 object UserPreferencesManager {
@@ -660,7 +660,7 @@ object UserPreferencesManager {
             val audioDao = db.audioTrackDao()
 
             val root = JSONObject()
-            root.put("app", "Qabas Islamic Studio")
+            root.put("app", "Muslim Assistant Islamic Studio")
             root.put("version", "1.2.1")
             root.put("timestamp", System.currentTimeMillis())
             root.put("date_formatted", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))

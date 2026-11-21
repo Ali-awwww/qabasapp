@@ -44,6 +44,17 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.CardSurface
+import com.qabas.app.ui.theme.DeepSlate
+import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.GoldSecondary
+import com.qabas.app.ui.theme.TextPrimary as ThemeTextPrimary
+import com.qabas.app.ui.theme.TextSecondary as ThemeTextSecondary
+import com.qabas.app.ui.theme.ThemeDestructive
+import com.qabas.app.ui.theme.ThemeSecondarySurface
+import com.qabas.app.ui.theme.ThemeSeparator
+import com.qabas.app.ui.theme.ThemeSuccess
+import com.qabas.app.ui.theme.ThemeWarning
 
 /**
  * AgentDesign — نظام التصميم الهندسي النيوني الموحد لقسم الوكيل الذكي.
@@ -52,24 +63,24 @@ import com.qabas.app.ui.theme.CairoFont
  */
 object AgentDesign {
     // ▬▬▬▬▬ الأسطح ▬▬▬▬▬
-    val Backdrop = Color(0xFF05070F)
-    val BackdropAlt = Color(0xFF070B16)
-    val SurfaceBase = Color(0xFF0B1220)
-    val SurfaceRaised = Color(0xFF0F1626)
-    val Hairline = Color(0xFF1E2D4A)
+    val Backdrop: Color get() = DeepSlate
+    val BackdropAlt: Color get() = ThemeSecondarySurface
+    val SurfaceBase: Color get() = CardSurface
+    val SurfaceRaised: Color get() = ThemeSecondarySurface
+    val Hairline: Color get() = ThemeSeparator
 
     // ▬▬▬▬▬ النيون الدلالي ▬▬▬▬▬
-    val Primary = Color(0xFF22D3EE)       // سماوي — عمل وجاري
-    val Secondary = Color(0xFF8B5CF6)     // بنفسجي — أدوات وهوية
-    val Success = Color(0xFF10B981)       // أخضر — نجاح وجاهز
-    val Warning = Color(0xFFF59E0B)       // كهرماني — تنبيه ويحتاج إجراء
-    val Danger = Color(0xFFF87171)        // أحمر — فشل
-    val Info = Color(0xFF3B82F6)          // أزرق — معلومات
+    val Primary: Color get() = GoldPrimary       // سماوي — عمل وجاري
+    val Secondary: Color get() = GoldSecondary   // بنفسجي — أدوات وهوية
+    val Success: Color get() = ThemeSuccess      // أخضر — نجاح وجاهز
+    val Warning: Color get() = ThemeWarning      // كهرماني — تنبيه ويحتاج إجراء
+    val Danger: Color get() = ThemeDestructive   // أحمر — فشل
+    val Info: Color get() = GoldPrimary          // أزرق/سماوي — معلومات
 
     // ▬▬▬▬▬ النصوص ▬▬▬▬▬
-    val TextPrimary = Color(0xFFE6EDF7)
-    val TextSecondary = Color(0xFF8A94A6)
-    val TextTertiary = Color(0xFF64748B)
+    val TextPrimary: Color get() = ThemeTextPrimary
+    val TextSecondary: Color get() = ThemeTextSecondary
+    val TextTertiary: Color get() = ThemeTextSecondary.copy(alpha = 0.72f)
 
     // ▬▬▬▬▬ المسافات (شبكة 4) ▬▬▬▬▬
     val SpaceXs = 4.dp

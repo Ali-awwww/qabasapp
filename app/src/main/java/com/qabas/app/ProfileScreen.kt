@@ -95,11 +95,11 @@ fun ProfileScreen(
             ?: prefs.getString("user_name", "")?.takeIf {
                 prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()
             }
-            ?: "مستخدم قبس"
+            ?: "مستخدم مساعد المسلم"
         mutableStateOf(savedName)
     }
     var userBio by remember {
-        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر قبس")
+        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر مساعد المسلم")
     }
     var userCustomTag by remember {
         val cid = UserIdentifierManager.getCustomId(context, userEmail)
@@ -191,8 +191,8 @@ fun ProfileScreen(
 
             displayName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
                 ?: sbName?.takeIf { expectedUid != null }
-                ?: "مستخدم قبس"
-            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر قبس"
+                ?: "مستخدم مساعد المسلم"
+            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر مساعد المسلم"
             userCustomTag = UserIdentifierManager.getCustomId(context, activeEmail)
                 .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
             avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
@@ -228,7 +228,7 @@ fun ProfileScreen(
                 cloudDisplayName.trim()
             } else {
                 val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
-                baseName ?: sbName ?: "مستخدم قبس"
+                baseName ?: sbName ?: "مستخدم مساعد المسلم"
             }
             displayName = effectiveName
             activeProfilePrefs.edit().putString("user_name", effectiveName).apply()
@@ -241,7 +241,7 @@ fun ProfileScreen(
                 userBio = cloudBio
                 activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()
             } else {
-                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر قبس"
+                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر مساعد المسلم"
             }
 
             if (!cloudUser?.customId.isNullOrBlank()) {
@@ -406,7 +406,7 @@ fun ProfileScreen(
             userLeaguePoints < 3500 -> "صانع ذهبي"
             userLeaguePoints < 7000 -> "صانع ماسي"
             userLeaguePoints < 12000 -> "سفير الدعوة"
-            else -> "أسطورة قبس"
+            else -> "أسطورة مساعد المسلم"
         }
     }
     val currentTierEmoji = remember(userLeaguePoints) {
@@ -495,7 +495,7 @@ fun ProfileScreen(
                 pointsRequired = 0,
                 isUnlocked = true,
                 isCurrentTier = userLeaguePoints < 500,
-                description = "يُمنح لكل صانع محتوى يبدأ رحلته في دوري قبس الدعوي بنشر أولى بصماته المباركة.",
+                description = "يُمنح لكل صانع محتوى يبدأ رحلته في دوري مساعد المسلم الدعوي بنشر أولى بصماته المباركة.",
                 perk = "مضاعف نقاط 1.0x والدخول في السجل الأسبوعي."
             ),
             TournamentTierBadge(
@@ -546,8 +546,8 @@ fun ProfileScreen(
                 tierTitle = "رتبة السفير",
                 emoji = "👑",
                 icon = Icons.Default.Stars,
-                primaryColor = AppleLightIndigo,
-                accentColor = AppleDarkIndigo,
+                primaryColor = GoldSecondary,
+                accentColor = GoldSecondary,
                 pointsRequired = 7000,
                 isUnlocked = userLeaguePoints >= 7000,
                 isCurrentTier = userLeaguePoints in 7000..11999,
@@ -556,7 +556,7 @@ fun ProfileScreen(
             ),
             TournamentTierBadge(
                 id = "tier_legend",
-                title = "وسام أسطورة قبس",
+                title = "وسام أسطورة مساعد المسلم",
                 tierTitle = "الرتبة الأسطورية",
                 emoji = "🌟",
                 icon = Icons.Default.AutoAwesome,
@@ -581,7 +581,7 @@ fun ProfileScreen(
                 isUnlocked = userLeagueRank in 1..10,
                 isCurrentTier = userLeagueRank in 4..10,
                 description = "يُمنح لمن يدخل قائمة أفضل 10 صناع محتوى في الدوري الأسبوعي المباشر.",
-                perk = "شارة تميز تظهر في مجتمع قبس العام."
+                perk = "شارة تميز تظهر في مجتمع مساعد المسلم العام."
             ),
             TournamentTierBadge(
                 id = "rank_top3",
@@ -918,7 +918,7 @@ fun ProfileScreen(
                     title = "تغيير كلمة المرور",
                     subtitle = "تحديث كلمة المرور عبر Supabase",
                     icon = Icons.Default.LockReset,
-                    iconBackground = AppleLightIndigo,
+                    iconBackground = GoldSecondary,
                     onClick = { showChangePasswordDialog = true },
                     modifier = Modifier.testTag("profile_row_password")
                 )
@@ -1084,7 +1084,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "ريلز قبس",
+                                text = "ريلز مساعد المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -1108,7 +1108,7 @@ fun ProfileScreen(
                         MiniMetricCell("المحفوظات", reelSavedCount, theme.primary, Modifier.weight(1f))
                         MiniMetricCell("المشاهدات", reelWatchedCount, theme.accent, Modifier.weight(1f))
                         MiniMetricCell("الإعجابات", reelLikedCount, theme.destructive, Modifier.weight(1f))
-                        MiniMetricCell("المنشورات", reelPublishedCount, AppleLightIndigo, Modifier.weight(1f))
+                        MiniMetricCell("المنشورات", reelPublishedCount, GoldSecondary, Modifier.weight(1f))
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -1423,7 +1423,7 @@ fun ProfileScreen(
                             userLeaguePoints < 3500 -> Triple(1500, 3500, "صانع ذهبي")
                             userLeaguePoints < 7000 -> Triple(3500, 7000, "صانع ماسي")
                             userLeaguePoints < 12000 -> Triple(7000, 12000, "سفير الدعوة")
-                            else -> Triple(12000, userLeaguePoints + 2000, "أسطورة قبس")
+                            else -> Triple(12000, userLeaguePoints + 2000, "أسطورة مساعد المسلم")
                         }
                     }
                     val minPoints = nextMilestone.first
@@ -1575,7 +1575,7 @@ fun ProfileScreen(
             val planTitle = when {
                 accountService.isDeveloperOrAdmin -> "باقة المطور"
                 accountService.hasCustomKeys -> "المفاتيح الخاصة (BYOK)"
-                accountService.isPremium -> "قبس برو"
+                accountService.isPremium -> "مساعد المسلم برو"
                 else -> "باقة مجانية"
             }
             val isUnlimited = accountService.isDeveloperOrAdmin || accountService.hasCustomKeys || accountService.isPremium

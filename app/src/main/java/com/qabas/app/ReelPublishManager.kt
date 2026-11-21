@@ -19,7 +19,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * مدير قيود وضوابط النشر والرقابة الشرعية وإمكانيات المطور الحصرية لقسم الريلز في تطبيق قبس
+ * مدير قيود وضوابط النشر والرقابة الشرعية وإمكانيات المطور الحصرية لقسم الريلز في تطبيق مساعد المسلم
  */
 object ReelPublishManager {
 
@@ -301,7 +301,7 @@ object ReelPublishManager {
 
             // رفع الفيديو لسحابة Supabase Storage إن كانت متاحة (متدفق + عدّاد)
             if (SupabaseServices.isSupabaseAvailable) {
-                onProgressUpdate("جاري رفع الفيديو إلى سحابة قبس الموثوقة...")
+                onProgressUpdate("جاري رفع الفيديو إلى سحابة مساعد المسلم الموثوقة...")
                 val totalBytes = localVideoFile.length()
                 onBytesProgress(0, totalBytes, UploadPhase.VIDEO)
                 val uploadedVideoUrl = SupabaseServices.Storage.uploadFileWithProgress(
@@ -390,7 +390,7 @@ object ReelPublishManager {
             return@withContext PublishResult.Failed(PublishStage.SAVE_ROW, err)
         }
 
-        onProgressUpdate("جاري توثيق المقطع في مجتمع قبس الإيماني...")
+        onProgressUpdate("جاري توثيق المقطع في مجتمع مساعد المسلم الإيماني...")
 
         val finalTags = mutableListOf(category, "مفحوص_شرعياً")
         if (isDev) {

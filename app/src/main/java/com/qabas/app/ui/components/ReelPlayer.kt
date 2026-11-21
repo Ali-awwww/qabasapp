@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package com.qabas.app.ui.components
 
 import android.view.ViewGroup
@@ -38,6 +40,7 @@ import com.qabas.app.VideoCacheService
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
+import com.qabas.app.ui.theme.ThemeDestructive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -373,7 +376,7 @@ fun ReelPlayer(
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(
                             text = "تعذر تحميل المقطع حالياً",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -381,7 +384,7 @@ fun ReelPlayer(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "تحقق من اتصالك بالإنترنت ثم أعد المحاولة",
-                            color = Color.White.copy(alpha = 0.68f),
+                            color = theme.textSecondary,
                             fontFamily = NotoSansFont,
                             fontSize = 13.sp
                         )
@@ -452,7 +455,7 @@ fun ReelPlayer(
             Icon(
                 imageVector = Icons.Default.Favorite,
                 contentDescription = null,
-                tint = Color(0xFFEF4444),
+                tint = ThemeDestructive,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(110.dp)
@@ -460,7 +463,7 @@ fun ReelPlayer(
             )
         }
 
-        // Apple HUD overlay (brightness / volume)
+        // Cyberpunk HUD overlay (brightness / volume)
         AnimatedVisibility(
             visible = showGestureHud,
             enter = fadeIn(),
@@ -469,8 +472,8 @@ fun ReelPlayer(
         ) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color(0xD91C1C1E),
-                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.16f)),
+                color = theme.cardSurface.copy(alpha = 0.94f),
+                border = BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.7f)),
                 modifier = Modifier.size(width = 92.dp, height = 152.dp)
             ) {
                 Column(
@@ -481,7 +484,7 @@ fun ReelPlayer(
                     Icon(
                         imageVector = if (gestureKind == GestureKind.BRIGHTNESS) Icons.Default.BrightnessHigh else Icons.Default.VolumeUp,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = theme.textPrimary,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(10.dp))

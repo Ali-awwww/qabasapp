@@ -30,7 +30,7 @@ class SettingsNavigationTest {
     @Test
     fun contactSearchLabelStillOpensContactAfterTextChanges() {
         val action = settingsItemAction(
-            item("التواصل والمراسلة مع فريق قبس", SettingsSubScreen.MAIN)
+            item("التواصل والمراسلة مع فريق مساعد المسلم", SettingsSubScreen.MAIN)
         )
 
         assertTrue(action is SettingsItemAction.OpenContact)

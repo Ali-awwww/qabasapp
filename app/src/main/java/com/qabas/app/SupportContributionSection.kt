@@ -38,11 +38,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * نموذج بيانات التكوين لدعم واستدامة منصة قبس.
+ * نموذج بيانات التكوين لدعم واستدامة منصة مساعد المسلم.
  */
 data class SupportConfig(
     val whatsappGroupUrl: String = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
-    val whatsappGroupName: String = "مجتمع قبس الرسمي",
+    val whatsappGroupName: String = "مجتمع مساعد المسلم الرسمي",
     val paypalUrl: String = "https://paypal.me/qabas_studio",
     val usdtTronAddress: String = "TYQabasStudioSupportOfficialTRC20Address99X",
     val bankName: String = "مصرف الراجحي / حساب المبادرات التقنية",
@@ -55,8 +55,8 @@ data class SupportConfig(
     val serverTierPrice: String = "$25 / 95 ر.س",
     val serverTierDesc: String = "كفالة تشغيل خوادم قواعد البيانات وتخزين الصوتيات للمستخدمين.",
     val waqfTierPrice: String = "$100+ / 375 ر.س",
-    val waqfTierDesc: String = "دعم استراتيجي مستدام يخلد اسمك في لوحة شرف رعاة منصة قبس.",
-    val shareMessage: String = "✨ أنصحكم بالانضمام لتطبيق ومجتمع «قبس» الإسلامي الشامل بدون إعلانات:\n📲 https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
+    val waqfTierDesc: String = "دعم استراتيجي مستدام يخلد اسمك في لوحة شرف رعاة منصة مساعد المسلم.",
+    val shareMessage: String = "✨ أنصحكم بالانضمام لتطبيق ومجتمع «مساعد المسلم» الإسلامي الشامل بدون إعلانات:\n📲 https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
     val lastUpdated: Long = 0L,
     val updatedBy: String = "admin"
 )
@@ -241,7 +241,7 @@ private val DEFAULT_COMMUNITY_MESSAGES = listOf(
 )
 
 /**
- * قسم الدعم والمساهمة في استدامة وتطوير منصة قبس — بتصميم Apple HIG للوضعين الفاتح والداكن
+ * قسم الدعم والمساهمة في استدامة وتطوير منصة مساعد المسلم — بتصميم Apple HIG للوضعين الفاتح والداكن
  */
 @Composable
 fun SupportContributionSection() {
@@ -279,7 +279,7 @@ fun SupportContributionSection() {
         )
     }
 
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
     val greenAccent = theme.success
     val blueAccent = theme.primary
 
@@ -291,7 +291,7 @@ fun SupportContributionSection() {
                 priceText = supportConfig.coffeeTierPrice,
                 impactText = supportConfig.coffeeTierDesc,
                 icon = Icons.Default.Coffee,
-                accentColor = if (theme.isDark) AppleDarkOrange else AppleLightOrange
+                accentColor = GoldSecondary
             ),
             SponsorshipTier(
                 id = "tier_ai_tokens",
@@ -553,7 +553,7 @@ fun SupportContributionSection() {
             },
             text = {
                 Text(
-                    "«مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ»\nنشكركم على مساهمتكم في استدامة خوادم منصة قبس. تم تفعيل وسام (شريك استدامة قبس) في حسابكم.",
+                    "«مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ»\nنشكركم على مساهمتكم في استدامة خوادم منصة مساعد المسلم. تم تفعيل وسام (شريك استدامة مساعد المسلم) في حسابكم.",
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.sp,
@@ -696,7 +696,7 @@ fun SupportContributionSection() {
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "دعم واستدامة منصة قبس",
+                            text = "دعم واستدامة منصة مساعد المسلم",
                             color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -1064,7 +1064,7 @@ fun SupportContributionSection() {
                                 onValueChange = { userFeedbackText = it },
                                 placeholder = {
                                     Text(
-                                        "اكتب كلمة شكر، دعاءً، أو مقترحاً تطويرياً لمنصة قبس...",
+                                        "اكتب كلمة شكر، دعاءً، أو مقترحاً تطويرياً لمنصة مساعد المسلم...",
                                         color = theme.textSecondary,
                                         fontSize = 12.sp,
                                         fontFamily = NotoSansFont
@@ -1102,13 +1102,13 @@ fun SupportContributionSection() {
                                                 SupabaseServices.Feedback.submitFeedback(
                                                     type = "support_message_rating_$userRating",
                                                     message = trimmed,
-                                                    userName = prefs.getString("user_display_name", "مستخدم قبس") ?: "مستخدم قبس"
+                                                    userName = prefs.getString("user_display_name", "مستخدم مساعد المسلم") ?: "مستخدم مساعد المسلم"
                                                 ).isSuccess
                                             }
                                         } else false
                                         isSendingFeedback = false
                                         val toastText = if (sentToCloud) {
-                                            "تم حفظ رسالتك وإرسالها لفريق قبس بنجاح"
+                                            "تم حفظ رسالتك وإرسالها لفريق مساعد المسلم بنجاح"
                                         } else {
                                             "تم حفظ رسالتك الكريمة محلياً بنجاح"
                                         }
@@ -1118,7 +1118,7 @@ fun SupportContributionSection() {
                             )
 
                             Text(
-                                text = "كلمات مجتمع قبس:",
+                                text = "كلمات مجتمع مساعد المسلم:",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -1224,7 +1224,7 @@ fun SupportContributionSection() {
                                                     putExtra(Intent.EXTRA_TEXT, supportConfig.shareMessage)
                                                     type = "text/plain"
                                                 }
-                                                context.startActivity(Intent.createChooser(sendIntent, "مشاركة تطبيق قبس"))
+                                                context.startActivity(Intent.createChooser(sendIntent, "مشاركة تطبيق مساعد المسلم"))
                                             }
                                         )
                                         AppleSecondaryButton(

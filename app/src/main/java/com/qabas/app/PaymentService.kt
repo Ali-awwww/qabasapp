@@ -63,7 +63,7 @@ class RealPaymentService(private val context: Context) : PaymentService {
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
         val invoiceText = """
             ===============================
-               فاتورة استوديو قبس
+               فاتورة استوديو مساعد المسلم
             ===============================
             رقم المشروع: $projectId
             التاريخ: $date

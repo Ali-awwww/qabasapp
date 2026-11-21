@@ -514,7 +514,7 @@ fun NotificationCard(
                             type = "text/plain"
                             putExtra(
                                 Intent.EXTRA_TEXT,
-                                "${notif.title}\n${notif.message}\nعبر استوديو قبس"
+                                "${notif.title}\n${notif.message}\nعبر استوديو مساعد المسلم"
                             )
                         }
                         context.startActivity(
@@ -598,7 +598,7 @@ private fun categoryColor(notif: AppNotificationService.AppNotification, theme: 
     notif.isTrendAlert -> theme.destructive
     notif.category == AppNotificationService.CATEGORY_PRAYER -> theme.success
     notif.category == AppNotificationService.CATEGORY_HADITH -> theme.accent
-    notif.category == AppNotificationService.CATEGORY_SPIRITUAL -> AppleDarkIndigo
+    notif.category == AppNotificationService.CATEGORY_SPIRITUAL -> GoldSecondary
     else -> theme.primary
 }
 

@@ -104,7 +104,7 @@ fun AppPermissionsEntryLauncher(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("صلاحيات استوديو قبس", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("صلاحيات استوديو مساعد المسلم", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("SPATIAL PERMISSION HUD", color = theme.primary, fontFamily = NotoSansFont, fontSize = 9.sp, letterSpacing = 0.5.sp)
                     }
                 }

@@ -98,7 +98,7 @@ fun LoginScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "شعار قبس ستوديو",
+                        contentDescription = "شعار مساعد المسلم",
                         tint = theme.primary,
                         modifier = Modifier.size(34.dp)
                     )
@@ -108,7 +108,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "قَبَسْ سْتُودْيُو",
+                text = "مساعد المسلمْ سْتُودْيُو",
                 color = theme.textPrimary,
                 fontSize = 30.sp,
                 fontFamily = CairoFont,
@@ -730,7 +730,7 @@ fun LoginScreen(
                         remove("user_account_number")
                         remove("user_name_with_account")
                         putString("user_email", "guest@qabas.studio")
-                        putString("user_name", "ضيف قبس")
+                        putString("user_name", "ضيف مساعد المسلم")
                         putString("user_display_name", "زائر مؤقت")
                         putString("user_custom_id", "guest")
                         putString("user_tag", "@guest")
@@ -739,7 +739,7 @@ fun LoginScreen(
                         remove("user_api_key")
                         apply()
                     }
-                    SupabaseRepository.getInstance().emitGuestMode("ضيف قبس")
+                    SupabaseRepository.getInstance().emitGuestMode("ضيف مساعد المسلم")
                     Toast.makeText(
                         context,
                         "تم الدخول كضيف. هذا الوضع للمعاينة فقط؛ لا يتم حفظ البيانات أو مزامنتها مع السحابة بدون تسجيل دخول رسمي.",
@@ -753,7 +753,7 @@ fun LoginScreen(
 
             TextButton(onClick = onNavigateToRules) {
                 Text(
-                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
+                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام مساعد المسلم",
                     color = theme.primary,
                     fontSize = 11.5.sp,
                     fontFamily = CairoFont,

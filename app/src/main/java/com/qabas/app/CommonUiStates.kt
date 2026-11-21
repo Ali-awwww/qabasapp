@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
+import com.qabas.app.ui.components.QabasDesignCard
+import com.qabas.app.ui.components.QabasPrimaryButton
 
 /**
  * Subtle Apple-like spring press interaction
@@ -266,12 +268,9 @@ fun QabasEmptyState(
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
+        QabasDesignCard(
             modifier = Modifier.fillMaxWidth(),
-            color = theme.cardSurface,
-            shape = RoundedCornerShape(20.dp),
-            shadowElevation = if (theme.isDark) 0.dp else 2.dp,
-            border = BorderStroke(0.5.dp, theme.separator.copy(alpha = if (theme.isDark) 0.7f else 0.4f))
+            containerColor = theme.cardSurface
         ) {
             Column(
                 modifier = Modifier
@@ -319,30 +318,12 @@ fun QabasEmptyState(
 
                 if (actionButtonText != null && onActionClick != null) {
                     Spacer(modifier = Modifier.height(20.dp))
-                    Button(
+                    QabasPrimaryButton(
+                        text = actionButtonText,
                         onClick = onActionClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = theme.primary,
-                            contentColor = theme.onPrimary
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.heightIn(min = 46.dp)
-                    ) {
-                        if (actionButtonIcon != null) {
-                            Icon(
-                                imageVector = actionButtonIcon,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(
-                            text = actionButtonText,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
+                        modifier = Modifier.fillMaxWidth(0.78f),
+                        icon = actionButtonIcon
+                    )
                 }
             }
         }
@@ -366,12 +347,11 @@ fun QabasLoadingState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(40.dp),
-                color = theme.primary,
-                trackColor = theme.secondarySurface,
+            QabasGlowingSpinner(
+                modifier = Modifier,
+                size = 40.dp,
                 strokeWidth = 3.dp,
-                strokeCap = StrokeCap.Round
+                color = theme.primary
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -412,12 +392,9 @@ fun QabasErrorState(
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
+        QabasDesignCard(
             modifier = Modifier.fillMaxWidth(),
-            color = theme.cardSurface,
-            shape = RoundedCornerShape(20.dp),
-            shadowElevation = if (theme.isDark) 0.dp else 2.dp,
-            border = BorderStroke(0.5.dp, theme.destructive.copy(alpha = 0.35f))
+            containerColor = theme.cardSurface
         ) {
             Column(
                 modifier = Modifier
@@ -464,24 +441,12 @@ fun QabasErrorState(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                Button(
+                QabasPrimaryButton(
+                    text = "إعادة المحاولة",
                     onClick = onRetry,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = theme.primary,
-                        contentColor = theme.onPrimary
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.heightIn(min = 46.dp)
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "إعادة المحاولة",
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                }
+                    modifier = Modifier.fillMaxWidth(0.78f),
+                    icon = Icons.Default.Refresh
+                )
             }
         }
     }

@@ -53,7 +53,21 @@ import com.qabas.app.ui.theme.AppleLightRed
 import com.qabas.app.ui.theme.AppleLightSecondarySurface
 import com.qabas.app.ui.theme.AppleLightSeparator
 import com.qabas.app.ui.theme.AppleLightSurface
+import com.qabas.app.ui.theme.AppThemePreset
 import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.CyberDarkAccent
+import com.qabas.app.ui.theme.CyberDarkBackground
+import com.qabas.app.ui.theme.CyberDarkBlue
+import com.qabas.app.ui.theme.CyberDarkGreen
+import com.qabas.app.ui.theme.CyberDarkOrange
+import com.qabas.app.ui.theme.CyberDarkRed
+import com.qabas.app.ui.theme.CyberDarkSecondarySurface
+import com.qabas.app.ui.theme.CyberDarkSeparator
+import com.qabas.app.ui.theme.CyberDarkSurface
+import com.qabas.app.ui.theme.CyberLightBackground
+import com.qabas.app.ui.theme.CyberLightSecondarySurface
+import com.qabas.app.ui.theme.CyberLightSeparator
+import com.qabas.app.ui.theme.CyberLightSurface
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.GoldSecondary
 import com.qabas.app.ui.theme.NotoSansFont
@@ -102,15 +116,24 @@ object Geo {
 // ═══════════════════════════════════════════════
 object GeoColor {
     private val isDark: Boolean get() = ThemeManager.isDarkState
+    private val isCyber: Boolean get() = ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE
 
     /** خلفيات الأسطح */
-    fun surface(): Color = if (isDark) AppleDarkSurface else AppleLightSurface
-    fun surfaceRaised(): Color = if (isDark) AppleDarkSurface else AppleLightSurface
-    fun surfaceSunken(): Color = if (isDark) AppleDarkSecondarySurface else AppleLightSecondarySurface.copy(alpha = 0.65f)
-    fun screen(): Color = if (isDark) AppleDarkBackground else AppleLightBackground
+    fun surface(): Color = if (isCyber) {
+        if (isDark) CyberDarkSurface else CyberLightSurface
+    } else if (isDark) AppleDarkSurface else AppleLightSurface
+    fun surfaceRaised(): Color = surface()
+    fun surfaceSunken(): Color = if (isCyber) {
+        if (isDark) CyberDarkSecondarySurface else CyberLightSecondarySurface.copy(alpha = 0.65f)
+    } else if (isDark) AppleDarkSecondarySurface else AppleLightSecondarySurface.copy(alpha = 0.65f)
+    fun screen(): Color = if (isCyber) {
+        if (isDark) CyberDarkBackground else CyberLightBackground
+    } else if (isDark) AppleDarkBackground else AppleLightBackground
 
     /** الحدود */
-    fun hairline(): Color = if (isDark) AppleDarkSeparator else AppleLightSeparator.copy(alpha = 0.55f)
+    fun hairline(): Color = if (isCyber) {
+        if (isDark) CyberDarkSeparator else CyberLightSeparator.copy(alpha = 0.55f)
+    } else if (isDark) AppleDarkSeparator else AppleLightSeparator.copy(alpha = 0.55f)
     fun outline(): Color = if (isDark) GoldPrimary.copy(alpha = 0.35f) else GoldPrimary.copy(alpha = 0.38f)
     fun outlineStrong(): Color = GoldPrimary.copy(alpha = 0.65f)
 
@@ -122,24 +145,28 @@ object GeoColor {
     fun textPrimary(): Color = TextPrimary
     fun textSecondary(): Color = TextSecondary
     fun textMuted(): Color = TextSecondary.copy(alpha = 0.78f)
-    fun onGold(): Color = Color.White
+    fun onGold(): Color = if (isCyber && isDark) Color(0xFF001A18) else Color.White
 
     /** ألوان الأقسام متكيّفة مع الوضع الفاتح والداكن */
-    val Prayer: Color get() = if (isDark) AppleDarkBlue else AppleLightBlue
-    val Quran: Color get() = if (isDark) AppleDarkGreen else AppleLightGreen
-    val Dhikr: Color get() = if (isDark) AppleDarkOrange else AppleLightOrange
-    val Hadith: Color get() = if (isDark) AppleDarkIndigo else AppleLightIndigo
-    val Dua: Color get() = if (isDark) Color(0xFFFF375F) else Color(0xFFD81B60)
-    val Learn: Color get() = if (isDark) Color(0xFF64D2FF) else Color(0xFF0071A4)
-    val Rawatib: Color get() = if (isDark) Color(0xFF40CBE0) else Color(0xFF0A8499)
-    val Warning: Color get() = if (isDark) AppleDarkRed else AppleLightRed
-    val Reward: Color get() = if (isDark) Color(0xFFFFD60A) else Color(0xFFA66F00)
-    val Qibla: Color get() = if (isDark) AppleDarkIndigo else AppleLightIndigo
+    val Prayer: Color get() = if (isCyber) CyberDarkBlue else if (isDark) AppleDarkBlue else AppleLightBlue
+    val Quran: Color get() = if (isCyber) CyberDarkGreen else if (isDark) AppleDarkGreen else AppleLightGreen
+    val Dhikr: Color get() = if (isCyber) CyberDarkOrange else if (isDark) AppleDarkOrange else AppleLightOrange
+    val Hadith: Color get() = if (isCyber) CyberDarkAccent else if (isDark) AppleDarkIndigo else AppleLightIndigo
+    val Dua: Color get() = if (isCyber) CyberDarkRed else if (isDark) Color(0xFFFF375F) else Color(0xFFD81B60)
+    val Learn: Color get() = if (isCyber) CyberDarkBlue else if (isDark) Color(0xFF64D2FF) else Color(0xFF0071A4)
+    val Rawatib: Color get() = if (isCyber) com.qabas.app.ui.theme.CyberDarkPrimary else if (isDark) Color(0xFF40CBE0) else Color(0xFF0A8499)
+    val Warning: Color get() = if (isCyber) CyberDarkRed else if (isDark) AppleDarkRed else AppleLightRed
+    val Reward: Color get() = if (isCyber) CyberDarkOrange else if (isDark) Color(0xFFFFD60A) else Color(0xFFA66F00)
+    val Qibla: Color get() = if (isCyber) CyberDarkAccent else if (isDark) AppleDarkIndigo else AppleLightIndigo
 
     /** تدرجات هندسية هادئة */
     val heroGradient: Brush
-        get() = if (isDark) {
+        get() = if (isCyber && isDark) {
+            Brush.verticalGradient(colors = listOf(CyberDarkSecondarySurface, CyberDarkBackground))
+        } else if (isDark) {
             Brush.verticalGradient(colors = listOf(Color(0xFF1C1C1E), Color(0xFF141416)))
+        } else if (isCyber) {
+            Brush.verticalGradient(colors = listOf(CyberLightSurface, CyberLightBackground))
         } else {
             Brush.verticalGradient(colors = listOf(Color(0xFFFFFFFF), Color(0xFFF6F7FB)))
         }

@@ -28,7 +28,7 @@ object ProceduralBackdropEngine {
         bottomHex: String = "#0B0F19",
         accentHex: String = "#22D3EE",
         caption: String? = null,
-        brandLine: String = "قبس  |  Qabas",
+        brandLine: String = "مساعد المسلم  |  Muslim Assistant",
         footerText: String = "Offline Cinematic Frame"
     ): Boolean {
         val w = width.coerceIn(360, 2160)

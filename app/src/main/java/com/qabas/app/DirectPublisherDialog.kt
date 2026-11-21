@@ -46,9 +46,9 @@ fun DirectPublisherDialog(
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
 
-    var postTitle by remember { mutableStateOf(scriptText.take(50).ifBlank { "فيديو دعوي جديد عبر تطبيق قبس" }) }
-    var postDescription by remember { mutableStateOf("شاهد هذا المقطع الدعوي التدبري من إنتاج استوديو قبس") }
-    var hashtagsText by remember { mutableStateOf("#قبس #ريلز_إسلامي #تدبر #حديث_شريف #دعوة_إلكترونية") }
+    var postTitle by remember { mutableStateOf(scriptText.take(50).ifBlank { "فيديو دعوي جديد عبر تطبيق مساعد المسلم" }) }
+    var postDescription by remember { mutableStateOf("شاهد هذا المقطع الدعوي التدبري من إنتاج استوديو مساعد المسلم") }
+    var hashtagsText by remember { mutableStateOf("#مساعد_المسلم #ريلز_إسلامي #تدبر #حديث_شريف #دعوة_إلكترونية") }
 
     val accounts = remember { SocialAccountManager.getAccounts(context) }
     var selectedPlatformIds by remember {

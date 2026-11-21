@@ -67,7 +67,7 @@ internal fun SpatialStudiosSector(
             Box {
                 AsyncImage(
                     model = R.drawable.spatial_hud_gateway_refined_1790877953352,
-                    contentDescription = "استوديو قبس الموحد",
+                    contentDescription = "استوديو مساعد المسلم الموحّد",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                     alpha = 0.55f
@@ -127,7 +127,7 @@ internal fun SpatialStudiosSector(
         }
 
         SpatialHubCard(
-            title = "ريلز ومجتمع قبس الإيماني",
+            title = "ريلز ومجتمع مساعد المسلم الإيماني",
             subtitle = "مشاهدة ونشر مقاطع الريلز القصيرة والتفاعل مع صناع الأثر",
             icon = Icons.Default.SlowMotionVideo,
             badge = "ريلز 9:16",
@@ -185,7 +185,7 @@ internal fun SpatialStudiosSector(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             SpatialHubCard(
-                title = "استوديو قبس الشامل",
+                title = "مركز الإنتاج المتكامل",
                 subtitle = "البوابة المركزية ومسارات الإنتاج الذكية",
                 icon = Icons.Default.AutoAwesome,
                 badge = "الرئيسي",
@@ -475,7 +475,7 @@ internal fun SpatialAiEnginesSector(
         }
 
         SpatialHubCard(
-            title = "بوابة قبس والمستودع الرسمي",
+            title = "بوابة مساعد المسلم والمستودع الرسمي",
             subtitle = "الموقع الرسمي: تحميل التحديثات والدروس العلمية",
             icon = Icons.Default.Language,
             badge = "الموقع",

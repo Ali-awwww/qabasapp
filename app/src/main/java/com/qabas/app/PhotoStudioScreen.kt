@@ -132,11 +132,11 @@ fun PhotoStudioScreen(
         PhotoTemplate("قرآن", "آية هادئة", "وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ", "تلاوة هادئة", Icons.Default.Star, GoldPrimary),
         PhotoTemplate("أذكار", "راحة وطمأنينة", "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "مؤثرات طبيعية", Icons.Default.Favorite, Color(0xFF6366F1)),
         PhotoTemplate("حديث", "بصمة نبوية", "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", "بدون صوت", Icons.Default.HistoryEdu, Color(0xFFF5AC37)),
-        PhotoTemplate("حكم", "مواعظ مؤثرة", "مَن عَرَفَ نَفْسَهُ اشْتَغَلَ بِإِصْلَاحِهَا", "بدون صوت", Icons.Default.FormatQuote, Color(0xFF10B981)),
+        PhotoTemplate("حكم", "مواعظ مؤثرة", "مَن عَرَفَ نَفْسَهُ اشْتَغَلَ بِإِصْلَاحِهَا", "بدون صوت", Icons.Default.FormatQuote, ThemeSuccess),
         PhotoTemplate("قصة", "سرد متسلسل", "فِي كُلِّ تَأْخِيرَةٍ خِيرَةٌ مِنَ اللَّهِ", "تلاوة هادئة", Icons.Default.List, Color(0xFF0EA5E9)),
-        PhotoTemplate("رمضان", "شهر الخير", "اللَّهُمَّ بَلِّغْنَا رَمَضَانَ", "أنشودة تأملية", Icons.Default.StarBorder, Color(0xFFF59E0B)),
+        PhotoTemplate("رمضان", "شهر الخير", "اللَّهُمَّ بَلِّغْنَا رَمَضَانَ", "أنشودة تأملية", Icons.Default.StarBorder, ThemeWarning),
         PhotoTemplate("عِيد", "فرحة العيد", "تَقَبَّلَ اللهُ مِنَّا وَمِنْكُمْ", "بدون صوت", Icons.Default.Celebration, Color(0xFF22C55E)),
-        PhotoTemplate("تسبيح", "ذِكر دائم", "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "مؤثرات طبيعية", Icons.Default.FavoriteBorder, Color(0xFF10B981)),
+        PhotoTemplate("تسبيح", "ذِكر دائم", "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "مؤثرات طبيعية", Icons.Default.FavoriteBorder, ThemeSuccess),
         PhotoTemplate("حر", "إبداع خاص", "", "بدون صوت", Icons.Default.Edit, Color(0xFF8B5CF6))
     ) }
 
@@ -535,12 +535,12 @@ fun Step1ImageSelection(
 
         Spacer(modifier = Modifier.height(12.dp))
         Row(
-            modifier = Modifier.background(Color(0xFF042F2E), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.background(ThemeSuccess.copy(alpha = 0.18f), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = ThemeSuccess, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("استوديو عالي الدقة: خطوط عربية، خلفيات، فلاتر، زخارف", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 12.sp)
+            Text("استوديو عالي الدقة: خطوط عربية، خلفيات، فلاتر، زخارف", color = ThemeSuccess, fontFamily = CairoFont, fontSize = 12.sp)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -614,12 +614,12 @@ fun Step1ImageSelection(
             onClick = onNextNoPhoto,
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, Color(0xFF22D3EE)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF22D3EE))
+            border = BorderStroke(1.dp, GoldPrimary),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary)
         ) {
-            Icon(Icons.Default.Palette, contentDescription = null, tint = Color(0xFF22D3EE))
+            Icon(Icons.Default.Palette, contentDescription = null, tint = GoldPrimary)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("تصميم فوري بخلفية مولّدة — بدون صور 🎨", color = Color(0xFF22D3EE), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("تصميم فوري بخلفية مولّدة — بدون صور 🎨", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -716,7 +716,7 @@ fun Step2Editor(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1.1f)
-                .background(Color(0xFF030712)),
+                .background(DeepSlate),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -745,7 +745,7 @@ fun Step2Editor(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0B0F19), Color(0xFF3B2A10), Color(0xFF0B0F19)))))
+                            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(DeepSlate, Color(0xFF3B2A10), DeepSlate))))
                         }
                     }
                     "BLUR" -> {
@@ -758,7 +758,7 @@ fun Step2Editor(
                                 modifier = Modifier.fillMaxSize().blur(14.dp)
                             )
                         } else {
-                            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0B0F19), Color(0xFF1F2937)))))
+                            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(DeepSlate, ThemeSecondarySurface))))
                         }
                     }
                     else -> {
@@ -771,7 +771,7 @@ fun Step2Editor(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0B0F19), Color(0xFF3B2A10), Color(0xFF0B0F19)))))
+                            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(DeepSlate, Color(0xFF3B2A10), DeepSlate))))
                         }
                     }
                 }
@@ -825,7 +825,7 @@ fun Step2Editor(
                 // watermark معاينة
                 if (showWatermark) {
                     Text(
-                        "✦ قَبَس | QABAS STUDIO ✦",
+                        "✦ مساعد المسلم | QABAS STUDIO ✦",
                         color = GoldPrimary.copy(alpha = 0.8f),
                         fontFamily = CairoFont,
                         fontSize = 10.sp,
@@ -849,7 +849,7 @@ fun Step2Editor(
         // شريط التبويبات
         ScrollableTabRow(
             selectedTabIndex = tabs.indexOf(activeTab).coerceAtLeast(0),
-            containerColor = Color(0xFF0B0F19),
+            containerColor = DeepSlate,
             edgePadding = 8.dp,
             divider = {}
         ) {
@@ -892,7 +892,7 @@ fun Step2Editor(
                                 onClick = { onBackgroundModeChange(mode.id) },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     "${mode.icon} ${mode.label}",
@@ -977,7 +977,7 @@ fun Step2Editor(
                                 onClick = onGenerateAi,
                                 enabled = !isGeneratingAi,
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C1E12)),
+                                colors = ButtonDefaults.buttonColors(containerColor = ThemeSecondarySurface),
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, GoldPrimary)
                             ) {
@@ -1016,7 +1016,7 @@ fun Step2Editor(
                                 onClick = { onOrnamentChange(orn.id) },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     "${orn.icon} ${orn.label}",
@@ -1035,7 +1035,7 @@ fun Step2Editor(
                             onCheckedChange = onWatermarkChange,
                             colors = CheckboxDefaults.colors(checkedColor = GoldPrimary)
                         )
-                        Text("علامة قبس المائية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text("علامة مساعد المسلم المائية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                 }
                 "قص وضبط" -> {
@@ -1046,7 +1046,7 @@ fun Step2Editor(
                             OutlinedButton(
                                 onClick = { onCropRatioChange(ratio) },
                                 modifier = Modifier.height(38.dp),
-                                border = BorderStroke(1.5.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                                border = BorderStroke(1.5.dp, if (isSelected) GoldPrimary else ThemeSeparator),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = if (isSelected) GoldPrimary else CardSurface,
                                     contentColor = if (isSelected) DeepSlate else TextPrimary
@@ -1059,7 +1059,7 @@ fun Step2Editor(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E293B))
+                    HorizontalDivider(color = ThemeSeparator)
 
                     Text("فلتر لوني:", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1069,7 +1069,7 @@ fun Step2Editor(
                                 onClick = { onFilterChange(f.id) },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     f.label,
@@ -1113,7 +1113,7 @@ fun Step2Editor(
                         colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
                     )
 
-                    HorizontalDivider(color = Color(0xFF1E293B))
+                    HorizontalDivider(color = ThemeSeparator)
 
                     Text("دقة التصدير:", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1123,7 +1123,7 @@ fun Step2Editor(
                                 onClick = { onOutputQualityChange(q) },
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     q,
@@ -1144,7 +1144,7 @@ fun Step2Editor(
                                 onClick = { onOutputFormatChange(fmt) },
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     fmt,
@@ -1243,16 +1243,16 @@ fun Step2Editor(
                 onClick = onAnimateWithHiggsfield,
                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("higgsfield_animate_button"),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF0F1E38)
+                    containerColor = ThemeSecondarySurface
                 ),
-                border = BorderStroke(1.2.dp, Color(0xFF00F2FE)),
+                border = BorderStroke(1.2.dp, GoldPrimary),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = Color(0xFF00F2FE))
+                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = GoldPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "تحريك بالذكاء الاصطناعي (Higgsfield Video AI 🛸)",
-                    color = Color(0xFF00F2FE),
+                    color = GoldPrimary,
                     fontFamily = CairoFont,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -1353,7 +1353,7 @@ private fun SelectedBlockTextTab(
                 onClick = { onSelectBlock(block.id) },
                 shape = RoundedCornerShape(8.dp),
                 color = if (isSelected) GoldPrimary else CardSurface,
-                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
             ) {
                 Text(
                     "نص ${block.id}",
@@ -1370,12 +1370,12 @@ private fun SelectedBlockTextTab(
                 onClick = onAddBlock,
                 enabled = textBlocks.size < 3,
                 modifier = Modifier.height(34.dp),
-                border = BorderStroke(1.dp, Color(0xFF22D3EE)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF22D3EE)),
+                border = BorderStroke(1.dp, GoldPrimary),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
                 contentPadding = PaddingValues(horizontal = 10.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF22D3EE), modifier = Modifier.size(14.dp))
-                Text("إضافة (حتى 3)", color = Color(0xFF22D3EE), fontFamily = NotoSansFont, fontSize = 11.sp)
+                Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                Text("إضافة (حتى 3)", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
             }
         }
     }
@@ -1389,7 +1389,7 @@ private fun SelectedBlockTextTab(
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = GoldPrimary,
-                unfocusedBorderColor = Color(0xFF1E293B),
+                unfocusedBorderColor = ThemeSeparator,
                 focusedTextColor = TextPrimary,
                 unfocusedTextColor = TextPrimary
             ),
@@ -1405,7 +1405,7 @@ private fun SelectedBlockTextTab(
                     onClick = { onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(font = font)) } },
                     shape = RoundedCornerShape(8.dp),
                     color = if (isSelected) GoldPrimary else CardSurface,
-                    border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                    border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
                 ) {
                     Text(
                         font.displayName,
@@ -1426,7 +1426,7 @@ private fun SelectedBlockTextTab(
                     onClick = { onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(themeId = theme.id)) } },
                     shape = RoundedCornerShape(8.dp),
                     color = if (isSelected) theme.color.copy(alpha = 0.2f) else CardSurface,
-                    border = BorderStroke(1.5.dp, if (isSelected) theme.color else Color(0xFF1E293B))
+                    border = BorderStroke(1.5.dp, if (isSelected) theme.color else ThemeSeparator)
                 ) {
                     Text(
                         theme.label,
@@ -1476,7 +1476,7 @@ private fun SelectedBlockTextTab(
                 OutlinedButton(
                     onClick = { onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(align = align)) } },
                     modifier = Modifier.height(34.dp),
-                    border = BorderStroke(1.5.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                    border = BorderStroke(1.5.dp, if (isSelected) GoldPrimary else ThemeSeparator),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (isSelected) GoldPrimary else CardSurface,
                         contentColor = if (isSelected) DeepSlate else TextPrimary
@@ -1532,7 +1532,7 @@ fun Step3Export(
             Spacer(modifier = Modifier.height(16.dp))
             Text("يتم تجهيز المخرج وفق أعلى معايير الجودة", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
         } else if (resultPath != null) {
-            Icon(Icons.Default.CheckCircle, contentDescription = "نجاح", tint = Color(0xFF10B981), modifier = Modifier.size(72.dp))
+            Icon(Icons.Default.CheckCircle, contentDescription = "نجاح", tint = ThemeSuccess, modifier = Modifier.size(72.dp))
             Spacer(modifier = Modifier.height(14.dp))
             Text(
                 if (exportType == "PHOTO") "تم تصدير وحفظ الصورة بنجاح! 🖼️" else "تم تجهيز الفيديو بنجاح! 🎬",

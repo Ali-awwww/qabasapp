@@ -753,7 +753,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                         KpiStatChip(
                             label = "السرعة",
                             value = if (avgLatency > 0) "$avgLatency ms" else "--",
-                            color = if (theme.isDark) AppleDarkGold else AppleLightGold,
+                            color = if (theme.isDark) GoldPrimary else GoldPrimary,
                             icon = Icons.Default.Speed,
                             modifier = Modifier.weight(1f)
                         )

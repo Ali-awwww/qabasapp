@@ -646,7 +646,7 @@ class ChangelogRepository(private val changelogDao: ChangelogDao) {
                     id = "v1_0_0",
                     versionName = "1.0.0",
                     versionCode = 100,
-                    title = "الإطلاق الرسمي لمنظومة قبس لصناعة المحتوى الإسلامي 🌟",
+                    title = "الإطلاق الرسمي لمنظومة مساعد المسلم لصناعة المحتوى الإسلامي 🌟",
                     releaseDate = "1 أغسطس 2026",
                     categoryBadge = "الإطلاق الأولي 🕋",
                     isLatest = false,

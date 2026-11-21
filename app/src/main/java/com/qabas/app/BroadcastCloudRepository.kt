@@ -35,6 +35,8 @@ data class BroadcastRow(
 object BroadcastCloudRepository {
     private const val TAG = "BroadcastCloud"
     private const val TABLE = "broadcasts"
+    private const val PREFS = "qabas_broadcasts"
+    private const val SEEN_IDS = "seen_ids"
 
     private val _pendingBroadcast = MutableStateFlow<BroadcastRow?>(null)
     val pendingBroadcast: StateFlow<BroadcastRow?> = _pendingBroadcast.asStateFlow()
@@ -62,13 +64,18 @@ object BroadcastCloudRepository {
     suspend fun checkPendingBroadcasts(context: Context) = withContext(Dispatchers.IO) {
         try {
             val client = SupabaseServices.client ?: return@withContext
+            val seenIds = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getStringSet(SEEN_IDS, emptySet())
+                .orEmpty()
             val pending = client.postgrest.from(TABLE).select {
                 filter { eq("status", "pending") }
-            }.decodeList<BroadcastRow>()
+            }.decodeList<BroadcastRow>().filterNot { it.id in seenIds }
 
             for (row in pending) {
                 _pendingBroadcast.value = row
-                deliverLocalNotification(context, row)
+                if (deliverLocalNotification(context, row)) {
+                    rememberSeen(context, row.id)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "checkPendingBroadcasts failed", e)
@@ -85,7 +92,7 @@ object BroadcastCloudRepository {
         _pendingBroadcast.value = null
     }
 
-    private fun deliverLocalNotification(context: Context, row: BroadcastRow) {
+    private fun deliverLocalNotification(context: Context, row: BroadcastRow): Boolean {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
         val isDev = SupabaseServices.Auth.isDeveloperRole(cloudRole) || AdminGuard.isCloudUserOwner()
@@ -96,22 +103,26 @@ object BroadcastCloudRepository {
             "premium" -> isPremium || isDev
             else -> true
         }
-        if (!matches) return
+        if (!matches) return false
         AppNotificationService.sendNotification(context, row.title, row.message)
-        CoroutineScope(Dispatchers.IO).launch {
-            markAsSent(row.id)
-        }
+        return true
     }
 
+    private fun rememberSeen(context: Context, broadcastId: String) {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val current = preferences.getStringSet(SEEN_IDS, emptySet()).orEmpty().toMutableSet()
+        current.add(broadcastId)
+        // Bound local history so long-lived installations do not grow indefinitely.
+        val bounded = current.toList().takeLast(200).toSet()
+        preferences.edit().putStringSet(SEEN_IDS, bounded).apply()
+    }
+
+    /**
+     * Intentionally no longer calls mark_broadcast_sent: that RPC changes a global
+     * row and would allow one recipient to suppress delivery for every other user.
+     */
+    @Deprecated("Global broadcast acknowledgement is unsafe from the mobile client")
     suspend fun markAsSent(broadcastId: String) = withContext(Dispatchers.IO) {
-        try {
-            val client = SupabaseServices.client ?: return@withContext
-            val params = buildJsonObject {
-                put("p_broadcast_id", broadcastId)
-            }
-            client.postgrest.rpc("mark_broadcast_sent", params)
-        } catch (e: Exception) {
-            Log.e(TAG, "markAsSent failed", e)
-        }
+        Log.w(TAG, "Ignoring global broadcast acknowledgement for $broadcastId")
     }
 }

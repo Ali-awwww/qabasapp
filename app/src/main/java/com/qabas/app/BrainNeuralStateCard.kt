@@ -135,7 +135,7 @@ fun BrainNeuralStateCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                text = "عقل قبس الإخراجي (StyleBrain)",
+                                text = "عقل مساعد المسلم الإخراجي (StyleBrain)",
                                 color = TextPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

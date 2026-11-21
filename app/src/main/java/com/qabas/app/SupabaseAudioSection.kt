@@ -711,7 +711,7 @@ fun SupabaseAudioSection(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "رفع وإدارة التسجيلات الصوتية السحابية مخصص للمطور وإدارة تطبيق قبس فقط لضمان الجودة ونقاء المحتوى الصوتي.",
+                        "رفع وإدارة التسجيلات الصوتية السحابية مخصص للمطور وإدارة تطبيق مساعد المسلم فقط لضمان الجودة ونقاء المحتوى الصوتي.",
                         fontFamily = NotoSansFont,
                         color = TextSecondary,
                         fontSize = 13.sp
@@ -994,19 +994,27 @@ fun AddAudioTrackDialog(
                                     uploadStageText = "جاري رفع الحزم إلى Supabase Storage ☁️..."
                                     uploadSpeedBytes = 1_850_000L
 
+                                    val currentUserId = SupabaseServices.Auth.getCurrentUserId()
                                     val safeName = "${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.mp3"
-                                    val uploadedUrl = withContext(Dispatchers.IO) {
-                                        SupabaseServices.Storage.uploadAudioFile("audio-tracks", safeName, bytes)
+                                    val storagePath = currentUserId?.let { "$it/$safeName" }
+                                    val uploadedUrl = storagePath?.let { path ->
+                                        withContext(Dispatchers.IO) {
+                                            SupabaseServices.Storage.uploadAudioFile("audio-tracks", path, bytes)
+                                        }
                                     }
 
-                                    uploadedBytesCount = totalBytesCount
-                                    uploadProgressPercent = 0.85f
-                                    uploadStageText = "اكتمل الرفع السحابي، جاري حفظ البيانات..."
+                                    uploadProgressPercent = 0.75f
+                                    uploadStageText = "جاري التحقق من نتيجة الرفع السحابي..."
 
                                     if (uploadedUrl != null) {
                                         finalAudioUrl = uploadedUrl
+                                        uploadedBytesCount = totalBytesCount
+                                        uploadProgressPercent = 0.85f
+                                        uploadStageText = "اكتمل الرفع السحابي، جاري حفظ البيانات..."
                                     } else if (finalAudioUrl.isBlank()) {
-                                        finalAudioUrl = "https://${SupabaseConfig.url.substringAfter("https://").substringBefore("/")}/storage/v1/object/public/audio-tracks/$safeName"
+                                        Toast.makeText(context, "تعذر رفع الملف الصوتي إلى التخزين السحابي", Toast.LENGTH_SHORT).show()
+                                        isUploading = false
+                                        return@launch
                                     }
                                 }
                             }
@@ -1027,7 +1035,7 @@ fun AddAudioTrackDialog(
                                 audioUrl = finalAudioUrl,
                                 duration = duration,
                                 badge = "سحابي",
-                                author = artist.ifBlank { "مستخدم قبس" },
+                                author = artist.ifBlank { "مستخدم مساعد المسلم" },
                                 isActive = true
                             )
 
@@ -1142,8 +1150,8 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "1. ادخل إلى لوحة تحكم مشروعك في supabase.com.\n" +
-                            "2. اذهب إلى Storage وأنشئ Bucket باسم 'audio-tracks' واجعله Public.\n" +
-                            "3. ارفع الملف الصوتي وانسخ الرابط العام (Public URL).\n" +
+                            "2. اذهب إلى Storage وأنشئ Bucket باسم 'audio-tracks' واجعله Public للقراءة فقط.\n" +
+                            "3. ارفع الملف الصوتي بصلاحية مطور/مدير فقط، ثم انسخ الرابط العام (Public URL).\n" +
                             "4. اذهب إلى Table Editor -> جدول 'audio_tracks' وأضف سطراً جديداً بـ (title, audio_url, category, artist).",
                             color = TextPrimary,
                             fontFamily = NotoSansFont,
@@ -1172,7 +1180,12 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
                             );
                             alter table public.audio_tracks enable row level security;
                             create policy "Public Read" on public.audio_tracks for select using (true);
-                            create policy "Public Insert" on public.audio_tracks for insert with check (true);
+                            create policy "Developer Insert" on public.audio_tracks for insert
+                                with check (
+                                    auth.uid() is not null
+                                    and lower(coalesce(auth.jwt() -> 'app_metadata' ->> 'role', ''))
+                                        in ('developer', 'admin', 'owner')
+                                );
                         """.trimIndent()
                         clipboardManager.setText(AnnotatedString(sql))
                         Toast.makeText(context, "تم نسخ استعلام SQL لإنشاء الجدول في Supabase 📋", Toast.LENGTH_SHORT).show()

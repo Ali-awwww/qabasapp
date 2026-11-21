@@ -206,7 +206,7 @@ data class StyleObject(
                 userId = userId,
                 sourceVideoPathOrUrl = absorbed.sourceVideoPathOrUrl,
                 visualStyle = VisualStylePattern(
-                    dominantColors = if (absorbed.visualTraits.isNotEmpty()) absorbed.visualTraits.joinToString("، ") else "ألوان سينمائية داكنة وذهب قبس",
+                    dominantColors = if (absorbed.visualTraits.isNotEmpty()) absorbed.visualTraits.joinToString("، ") else "ألوان سينمائية داكنة ولمسات مساعد المسلم",
                     primaryColorHex = absorbed.resolvePrimaryColorHex(),
                     backgroundColorHex = absorbed.resolveBackgroundColorHex(),
                     lightingAndContrast = "إضاءة سينمائية دافئة مع تباين عالي",
@@ -247,7 +247,7 @@ data class QabasCoreStyle(
     fun toAbsorbedStyle(): AbsorbedStyle {
         return AbsorbedStyle(
             id = "qabas_core_identity",
-            name = if (strengthScore == 0) "عقل فارغ (محايد)" else "هوية قبس السينمائية التراكمية (Qabas Core Style)",
+            name = if (strengthScore == 0) "عقل فارغ (محايد)" else "هوية مساعد المسلم السينمائية التراكمية (Muslim Assistant Core Style)",
             sourceVideoPathOrUrl = "CoreBrain",
             analysis = analysis,
             visualTraits = visualTraits,
@@ -320,7 +320,7 @@ data class AbsorbedStyle(
         val captionAnim = d?.captionAnimation ?: resolveTextAnimation()
         val captionPos = d?.captionPosition ?: resolveCaptionPosition()
         return VideoStyleAnalysis(
-            detectedStyle = name.ifBlank { "أسلوب قبس السينمائي" },
+            detectedStyle = name.ifBlank { "أسلوب مساعد المسلم السينمائي" },
             dominantColors = if (visualTraits.isNotEmpty()) {
                 visualTraits.joinToString("، ") + " | primary:$primary bg:$bg accent:$accent filter:$filter"
             } else {
@@ -788,7 +788,7 @@ object StyleBrain {
                     visualTraits = vList,
                     motionTraits = mList,
                     textTraits = tList,
-                    analysis = obj.optString("analysis", if (vList.isEmpty()) DEFAULT_CORE_STYLE.analysis else "عقل قبس التراكمي"),
+                    analysis = obj.optString("analysis", if (vList.isEmpty()) DEFAULT_CORE_STYLE.analysis else "عقل مساعد المسلم التراكمي"),
                     strengthScore = finalStrength,
                     lastUpdated = obj.optLong("lastUpdated", System.currentTimeMillis())
                 )
@@ -894,7 +894,7 @@ object StyleBrain {
                 if (core.strengthScore > 0) {
                     AbsorbedStyle(
                         id = "core_active",
-                        name = "هوية قبس الأساسية",
+                        name = "هوية مساعد المسلم الأساسية",
                         sourceVideoPathOrUrl = "",
                         analysis = core.analysis,
                         visualTraits = core.visualTraits,
@@ -1130,10 +1130,10 @@ object StyleBrain {
 
     /**
      * خوارزمية الدمج المرجح والتطوير التراكمي (Weighted Style Merging & Accumulative Evolution Algorithm):
-     * 1. وزن QabasCoreStyle مهيمن (80%) كقاعدة لحماية هوية قبس الإخراجية الراسخة.
+     * 1. وزن QabasCoreStyle مهيمن (80%) كقاعدة لحماية هوية مساعد المسلم الإخراجية الراسخة.
      * 2. مطابقة دلالية موسعة للسمات (الذهبي، DeepSlate، الأخضر الداكن، الكوفي، الزووم، التلاشي، إلخ).
      * 3. خفض تأثير الأسلوب الجديد إذا كان overallScore < 85 ومنع حقن سمات غريبة.
-     * 4. الحفاظ على هوية قبس الأساسية مع تطور تصاعدي في دقة الألوان والحركة والكابشن.
+     * 4. الحفاظ على هوية مساعد المسلم الأساسية مع تطور تصاعدي في دقة الألوان والحركة والكابشن.
      */
     private fun evolveCoreStyleWithNewAbsorption(context: Context, newStyle: AbsorbedStyle) {
         val currentCore = _coreStyle.value
@@ -1290,7 +1290,7 @@ object StyleBrain {
         val dominantMotion = mergedMotions.firstOrNull() ?: "زووم بطيء متصاعد (Slow Cinematic ZoomIn)"
         val totalAbsorbed = _absorbedStyles.value.size
 
-        val updatedAnalysis = "عقل قبس التراكمي (القوة: $updatedStrength% | $totalAbsorbed أساليب ممتصة): هوية إخراجية هادفة متطورة ترتكز على $dominantVisual مع $dominantMotion."
+        val updatedAnalysis = "عقل مساعد المسلم التراكمي (القوة: $updatedStrength% | $totalAbsorbed أساليب ممتصة): هوية إخراجية هادفة متطورة ترتكز على $dominantVisual مع $dominantMotion."
 
         val evolvedCore = QabasCoreStyle(
             visualTraits = mergedVisuals,
@@ -1505,7 +1505,7 @@ object StyleBrain {
         if (!visualAnalysisSuccess) {
             report(0.50f, "تحليل أسلوب المصدر دلالياً واستخراج البنية الإخراجية...")
             val prompt = """
-                أنت خبير إخراج سينمائي ومحلل فني أول للفيديوهات الدعوية والقصيرة لمنصة "قبس".
+                أنت خبير إخراج سينمائي ومحلل فني أول للفيديوهات الدعوية والقصيرة لمنصة "مساعد المسلم".
                 قم بتحليل واستنساخ أسلوب الفيديو المرجعي التالي بدقة مع توليد توجيهات إخراجية حقيقية قابلة للتنفيذ:
                 المدخل/الرابط/الوصف: "$trimmedSource"
                 ${if (styleName.isNotBlank()) "اسم الأسلوب المقترح: $styleName" else ""}
@@ -1602,7 +1602,7 @@ object StyleBrain {
             }
         }
         
-        // إذا فشل التحليل البصري نعود لهوية قبس الأساسية مع إعلان صريح في النص
+        // إذا فشل التحليل البصري نعود لهوية مساعد المسلم الأساسية مع إعلان صريح في النص
         var usedFallbackOnly = false
         if (visualTraits.isEmpty() || visualTraits == DEFAULT_CORE_STYLE.visualTraits) {
             usedFallbackOnly = true
@@ -1624,7 +1624,7 @@ object StyleBrain {
             else -> "أسلوب: ${trimmedSource.take(20)}"
         }
         
-        report(0.96f, "الحفظ وتطوير العقل: تخزين كائن النمط وتحديث عقل قبس...")
+        report(0.96f, "الحفظ وتطوير العقل: تخزين كائن النمط وتحديث عقل مساعد المسلم...")
         val newStyle = AbsorbedStyle(
             id = UUID.randomUUID().toString(),
             name = effectiveName,
@@ -1806,7 +1806,7 @@ object StyleBrain {
      * 1. أولوية مطلقة: الأسلوب الأساسي المعتمد للاستوديو (primaryStyleId) إن وُجد.
      * 2. ثم مطابقة سياقية متقدمة تجمع بين الدلالات الموضوعية (فكرة + نبرة + جمهور + مدة) وذكاء Gemini.
      * 3. ثم العقل التراكمي (QabasCoreStyle) كـ Fallback محصّن.
-     * 4. دمج مرجح ذكي (70% هوية قبس + 30% أسلوب مختار) مع ضمان استبقاء كامل الوسوم الإخراجية (الألوان، الانتقال، الحركة، الكابشن).
+     * 4. دمج مرجح ذكي (70% هوية مساعد المسلم + 30% أسلوب مختار) مع ضمان استبقاء كامل الوسوم الإخراجية (الألوان، الانتقال، الحركة، الكابشن).
      */
     suspend fun chooseBestStyleForIdea(idea: String, duration: Int, tone: String, audience: String): AbsorbedStyle? {
         val core = _coreStyle.value
@@ -1873,7 +1873,7 @@ object StyleBrain {
             val aiMatched = try {
                 if (styles.size >= 2 && CloudServices.isFirebaseInitialized) { // استخدام الهجين فقط إذا توفرت الإمكانيات
                     val prompt = """
-                        أنت "العقل الاستباقي" (Proactive Brain) لاستوديو قبس.
+                        أنت "العقل الاستباقي" (Proactive Brain) لاستوديو مساعد المسلم.
                         لدي فكرة لفيديو إسلامي: "$idea".
                         المدة: $duration ثانية. النبرة: $tone. الجمهور: $audience.
                         
@@ -1952,7 +1952,7 @@ object StyleBrain {
             add("bg:$bgHex")
             add("accent:$accentHex")
             add("filter=$filterHint")
-            // إضافة سمات هوية قبس الأساسية أولاً
+            // إضافة سمات هوية مساعد المسلم الأساسية أولاً
             core.visualTraits.filter { !it.startsWith("primary:") && !it.startsWith("bg:") && !it.startsWith("filter=") }.take(2).forEach { add(it) }
             // إضافة سمات من الأسلوب المختار
             matchedStyle.visualTraits.filter { !it.startsWith("primary:") && !it.startsWith("bg:") && !it.startsWith("filter=") }.take(2).forEach { add(it) }
@@ -1980,7 +1980,7 @@ object StyleBrain {
             id = "blended_${matchedStyle.id}",
             name = "${core.toAbsorbedStyle().name} × ${matchedStyle.name}",
             sourceVideoPathOrUrl = matchedStyle.sourceVideoPathOrUrl,
-            analysis = "دمج عقل قبس التراكمي (هوية أساسية 70%) مع ${matchedStyle.name} (30% لمسات إخراجية مخصصة للرسالة: $tone / $audience).",
+            analysis = "دمج عقل مساعد المسلم التراكمي (هوية أساسية 70%) مع ${matchedStyle.name} (30% لمسات إخراجية مخصصة للرسالة: $tone / $audience).",
             visualTraits = blendedVisuals,
             motionTraits = blendedMotions,
             textTraits = blendedTexts,
@@ -1995,7 +1995,7 @@ object StyleBrain {
 
     /**
      * دمج أسلوبين أو أكثر لصناعة أسلوب تصميم جديد (فكرة العقل الأصلية).
-     * - يحافظ على هوية قبس كأساس
+     * - يحافظ على هوية مساعد المسلم كأساس
      * - يخلط السمات البصرية/الحركية/النصية من الأساليب المختارة
      * - يحفظ النتيجة ضمن الأساليب الممتصة إن مُرر Context
      */
@@ -2016,7 +2016,7 @@ object StyleBrain {
         ).toInt().coerceIn(0, 100)
 
         val name = newName.ifBlank {
-            if (source.size == 1) "دمج قبس × ${source.first().name}"
+            if (source.size == 1) "دمج مساعد المسلم × ${source.first().name}"
             else "أسلوب مدمج (${source.size})"
         }
 
@@ -2024,7 +2024,7 @@ object StyleBrain {
             id = "fused_${System.currentTimeMillis()}",
             name = name,
             sourceVideoPathOrUrl = source.firstOrNull()?.sourceVideoPathOrUrl ?: "",
-            analysis = "أسلوب جديد من دمج: ${source.joinToString(" + ") { it.name }} مع هوية قبس الأساسية.",
+            analysis = "أسلوب جديد من دمج: ${source.joinToString(" + ") { it.name }} مع هوية مساعد المسلم الأساسية.",
             visualTraits = visuals,
             motionTraits = motions,
             textTraits = texts,
@@ -2202,7 +2202,7 @@ object StyleBrain {
     /**
      * تحليل الإطارات المستخرجة بصرياً باستخدام Gemini Multimodal Vision API.
      * يستخرج الألوان، التباين، أسلوب النصوص، الحركة، والإيقاع ويعيد JSONObject منظم بدقة.
-     * في حال الفشل أو انعدام المفتاح/الشبكة يتم إرجاع نتيجة وقورة تحافظ على هوية قبس الأساسية.
+     * في حال الفشل أو انعدام المفتاح/الشبكة يتم إرجاع نتيجة وقورة تحافظ على هوية مساعد المسلم الأساسية.
      */
     suspend fun analyzeFramesWithVision(
         frames: List<File>,
@@ -2210,7 +2210,7 @@ object StyleBrain {
         extraContext: String = ""
     ): JSONObject = withContext(Dispatchers.IO) {
         val defaultFallback = JSONObject().apply {
-            put("analysis", "هوية إخراجية وقورة مستوحاة من قبس مع خلفيات داكنة فخمة (Deep Slate) ولمسات ذهبية متوهجة ونصوص مركزية واضحة.")
+            put("analysis", "هوية إخراجية وقورة مستوحاة من مساعد المسلم مع خلفيات داكنة فخمة (Deep Slate) ولمسات ذهبية متوهجة ونصوص مركزية واضحة.")
             put("primaryColorHex", "#E8C547")
             put("backgroundColorHex", "#0B0F19")
             put("accentColorHex", "#F8FAFC")
@@ -2256,7 +2256,7 @@ object StyleBrain {
             }
 
             val promptText = """
-                أنت خبير إخراج ومحلل بصري سينمائي لمنصة "قبس" لصناعة المحتوى الإسلامي والدعوي عالي الجودة.
+                أنت خبير إخراج ومحلل بصري سينمائي لمنصة "مساعد المسلم" لصناعة المحتوى الإسلامي والدعوي عالي الجودة.
                 أمامك عدة إطارات زمنية متتابعة مأخوذة من فيديو مرجعي.
                 
                 ${if (extraContext.isNotBlank()) "سياق إضافي: $extraContext\n" else ""}
@@ -2378,7 +2378,7 @@ object StyleBrain {
         saveToCloud: Boolean = true,
         onProgress: ((Float, String) -> Unit)? = null
     ): StyleObject = withContext(Dispatchers.IO) {
-        // 1. استخراج وتحليل الأنماط الفنية وهضمها في عقل قبس التراكمي
+        // 1. استخراج وتحليل الأنماط الفنية وهضمها في عقل مساعد المسلم التراكمي
         val absorbed = absorbStyleFromVideo(context, videoPathOrUrl, styleName, onProgress)
         val currentUserId = CloudServices.Auth.getCurrentUserId() ?: "creator_local"
 

@@ -70,7 +70,7 @@ class VideoEngineManager(private val context: Context) {
                 listOf(
                     Scene(
                         title = "المشهد الرئيسي",
-                        description = "قبس - إخراج سينمائي ذكي",
+                        description = "مساعد المسلم - إخراج سينمائي ذكي",
                         durationInSeconds = 5,
                         transitionType = "Dissolve"
                     )
@@ -367,7 +367,7 @@ class VideoEngineManager(private val context: Context) {
 
             onProgress(
                 currentStep.toFloat() / totalSteps,
-                "تطبيق انتقال وخلطة أسلوب قبس (${resolvedStyleAnalysis.transitionSpeed})..."
+                "تطبيق انتقال وخلطة أسلوب مساعد المسلم (${resolvedStyleAnalysis.transitionSpeed})..."
             )
 
             // 3. Concatenate all scenes with Cinematic Transitions (or stream copy on low-end)

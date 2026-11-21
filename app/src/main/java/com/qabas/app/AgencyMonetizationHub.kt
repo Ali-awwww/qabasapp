@@ -125,7 +125,7 @@ fun AgencyMonetizationHub(context: Context) {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "حوّل تطبيق قبس إلى وكالة ربحية فائقة لإنتاج المحتوى وبناء تطبيقات العملاء بضغطات زر.",
+                                "حوّل تطبيق مساعد المسلم إلى وكالة ربحية فائقة لإنتاج المحتوى وبناء تطبيقات العملاء بضغطات زر.",
                                 color = TextSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp
@@ -217,7 +217,7 @@ fun AgencyMonetizationHub(context: Context) {
                         StrategyRequirementRow(
                             icon = Icons.Default.VideoLibrary,
                             title = "باقات إنتاج الفيديوهات القصيرة شهرياً (600$/شهرياً):",
-                            subtitle = "تحتاج فقط إلى $videoPackagesNeeded عملاء/جمعيات (ينتجون 30 فيديو شهرياً بضغطات زر من قبس)."
+                            subtitle = "تحتاج فقط إلى $videoPackagesNeeded عملاء/جمعيات (ينتجون 30 فيديو شهرياً بضغطات زر من مساعد المسلم)."
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         StrategyRequirementRow(

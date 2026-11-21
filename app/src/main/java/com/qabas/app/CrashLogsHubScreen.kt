@@ -671,7 +671,7 @@ fun CrashLogsHubScreen(
             onShare = {
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, "تقرير عطل قبس: ${crash.fileName}")
+                    putExtra(Intent.EXTRA_SUBJECT, "تقرير عطل مساعد المسلم: ${crash.fileName}")
                     putExtra(Intent.EXTRA_TEXT, crash.fullStack)
                 }
                 context.startActivity(Intent.createChooser(intent, "مشاركة تقرير الانهيار"))

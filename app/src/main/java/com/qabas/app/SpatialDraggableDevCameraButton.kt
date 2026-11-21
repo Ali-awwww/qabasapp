@@ -499,7 +499,7 @@ fun SpatialDraggableDevCameraButton(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "كاميرا وتوثيق قبس",
+                                contentDescription = "كاميرا وتوثيق مساعد المسلم",
                                 tint = GoldPrimary,
                                 modifier = Modifier.size(if (isCompactMode) 20.dp else 22.dp)
                             )
@@ -1039,7 +1039,7 @@ private fun SpatialSnapshotPreviewDialog(
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "image/*"
                     putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_TEXT, "تم توثيق الشاشة عبر عدسة قبس الفضائية 📸 - شاشة: ${BugReportManager.currentScreen}")
+                    putExtra(Intent.EXTRA_TEXT, "تم توثيق الشاشة عبر عدسة مساعد المسلم الفضائية 📸 - شاشة: ${BugReportManager.currentScreen}")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(Intent.createChooser(intent, "مشاركة لقطة الشاشة 🚀"))
@@ -1290,7 +1290,7 @@ private fun SpatialDpMetricsInspectorDialog(
     fun copyDiagnostics() {
         val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val report = """
-            📱 **تقرير مقاييس واجهة قبس التقنية (Qabas DP & UI Diagnostics)**
+            📱 **تقرير مقاييس واجهة مساعد المسلم التقنية (Qabas DP & UI Diagnostics)**
             -------------------------------------------------------------
             • الشاشة الحالية: ${BugReportManager.currentScreen}
             • عرض الشاشة: ${containerWidthDp.roundToInt()} dp (${(containerWidthDp * densityFactor).roundToInt()} px)

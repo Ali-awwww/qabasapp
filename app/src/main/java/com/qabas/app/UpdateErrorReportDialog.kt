@@ -291,7 +291,7 @@ fun UpdateErrorReportDialog(
                 // Copy Diagnostic Report Button
                 OutlinedButton(
                     onClick = {
-                        val clip = ClipData.newPlainText("Qabas Update Diagnostic", UpdateTelemetryManager.formatMarkdownReport(report))
+                        val clip = ClipData.newPlainText("Muslim Assistant Update Diagnostic", UpdateTelemetryManager.formatMarkdownReport(report))
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                         cm?.setPrimaryClip(clip)
                         Toast.makeText(context, "تم نسخ تقرير التشخيص بالكامل 📋", Toast.LENGTH_SHORT).show()

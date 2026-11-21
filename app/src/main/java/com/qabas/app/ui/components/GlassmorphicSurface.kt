@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -13,8 +12,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.qabas.app.ui.theme.CardSurface
 import com.qabas.app.ui.theme.GoldPrimary
 import com.qabas.app.ui.theme.QabasTheme
+import com.qabas.app.ui.theme.QabasShapeTokens
 import com.qabas.app.ui.theme.ThemeManager
 
 /**
@@ -22,17 +23,9 @@ import com.qabas.app.ui.theme.ThemeManager
  * Automatically adapts cleanly to Light and Dark Mode while preserving legacy helper signatures.
  */
 fun Modifier.glassmorphicBackground(
-    shape: Shape = RoundedCornerShape(16.dp),
-    backgroundColor: Color = if (ThemeManager.isDarkState) {
-        Color(0xFF1C1C1E).copy(alpha = 0.88f)
-    } else {
-        Color.White.copy(alpha = 0.92f)
-    },
-    borderColor: Color = if (ThemeManager.isDarkState) {
-        Color(0xFF38383A).copy(alpha = 0.85f)
-    } else {
-        Color(0xFFC6C6C8).copy(alpha = 0.45f)
-    },
+    shape: Shape = QabasShapeTokens.card,
+    backgroundColor: Color = CardSurface.copy(alpha = if (ThemeManager.isDarkState) 0.88f else 0.92f),
+    borderColor: Color = GoldPrimary.copy(alpha = if (ThemeManager.isDarkState) 0.6f else 0.35f),
     borderWidth: Dp = 0.5.dp,
     blurRadius: Dp = 0.dp
 ): Modifier = this
@@ -43,7 +36,7 @@ fun Modifier.glassmorphicBackground(
 @Composable
 fun GlassmorphicSurface(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
+    shape: Shape = QabasShapeTokens.card,
     backgroundColor: Color = QabasTheme.current.cardSurface.copy(alpha = if (QabasTheme.current.isDark) 0.92f else 0.96f),
     borderColor: Color = QabasTheme.current.separator.copy(alpha = if (QabasTheme.current.isDark) 0.7f else 0.4f),
     borderWidth: Dp = 0.5.dp,
@@ -63,7 +56,7 @@ fun GlassmorphicSurface(
 @Composable
 fun GoldGlassSurface(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
+    shape: Shape = QabasShapeTokens.card,
     backgroundColor: Color = QabasTheme.current.cardSurface,
     accentColor: Color = GoldPrimary,
     content: @Composable BoxScope.() -> Unit

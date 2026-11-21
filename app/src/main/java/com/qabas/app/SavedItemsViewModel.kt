@@ -65,7 +65,7 @@ class SavedItemsViewModel(
                                     activeFilter = filter,
                                     userProfile = UserProfile(
                                         userId = userId,
-                                        displayName = row.name?.takeIf { it.isNotBlank() } ?: "مستخدم قبس",
+                                        displayName = row.name?.takeIf { it.isNotBlank() } ?: "مستخدم مساعد المسلم",
                                         email = row.email.orEmpty(),
                                         photoUrl = SupabaseServices.Auth.getCurrentUserMeta("avatar_url")
                                     ),
@@ -121,7 +121,7 @@ class SavedItemsViewModel(
             val uid = SupabaseServices.Auth.getCurrentUserId() ?: return@launch
             try {
                 repository.deleteItem(uid, itemId)
-                _syncMessage.value = "تم الحذف من سحابة قبس"
+                _syncMessage.value = "تم الحذف من سحابة مساعد المسلم"
             } catch (e: Exception) {
                 _syncMessage.value = "تعذر الحذف: ${e.localizedMessage}"
             }
@@ -142,7 +142,7 @@ class SavedItemsViewModel(
             )
             try {
                 repository.saveItem(item)
-                _syncMessage.value = "تم حفظ الآية في سحابة قبس ✦"
+                _syncMessage.value = "تم حفظ الآية في سحابة مساعد المسلم ✦"
             } catch (e: Exception) {
                 _syncMessage.value = "تعذر الحفظ: ${e.localizedMessage}"
             }
@@ -163,7 +163,7 @@ class SavedItemsViewModel(
             )
             try {
                 repository.saveItem(item)
-                _syncMessage.value = "تم حفظ الخاطرة في سحابة قبس ✦"
+                _syncMessage.value = "تم حفظ الخاطرة في سحابة مساعد المسلم ✦"
             } catch (e: Exception) {
                 _syncMessage.value = "تعذر الحفظ: ${e.localizedMessage}"
             }

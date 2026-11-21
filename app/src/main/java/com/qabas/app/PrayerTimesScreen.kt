@@ -507,7 +507,7 @@ fun PrayerTimesScreen(
 
                                 ⏱️ الصلاة القادمة: صلاة ${prayerTimes.nextPrayerName} بعد ${PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer)}
                                 ﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَّوْقُوتًا﴾
-                                تطبيق قبس — مشكاة الهدى
+                                تطبيق مساعد المسلم — مشكاة الهدى
                             """.trimIndent()
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(Intent.EXTRA_TEXT, timetableText)
@@ -566,7 +566,7 @@ fun PrayerTimesScreen(
                                 💡 الخطوة العملية:
                                 ${topic.practicalStep}
                                 
-                                ✨ تطبيق قبس — مشكاة الهدى
+                                ✨ تطبيق مساعد المسلم — مشكاة الهدى
                             """.trimIndent()
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(Intent.EXTRA_TEXT, text)
@@ -593,7 +593,7 @@ fun PrayerTimesScreen(
                                 💡 الخطوة العملية:
                                 ${topic.practicalStep}
                                 
-                                ✨ تطبيق قبس — مشكاة الهدى
+                                ✨ تطبيق مساعد المسلم — مشكاة الهدى
                             """.trimIndent()
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(Intent.EXTRA_TEXT, text)
@@ -614,7 +614,7 @@ fun PrayerTimesScreen(
                                 
                                 💡 ${topic.practicalStep}
                                 
-                                ✨ تطبيق قبس — مشكاة الهدى
+                                ✨ تطبيق مساعد المسلم — مشكاة الهدى
                             """.trimIndent()
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(Intent.EXTRA_TEXT, text)

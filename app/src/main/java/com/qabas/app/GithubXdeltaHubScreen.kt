@@ -286,7 +286,7 @@ fun GithubXdeltaHubScreen(
                     owner = ownerInput.trim(),
                     repo = repoInput.trim(),
                     token = "",
-                    customName = "مستودع قبس الرسمي (${ownerInput.trim()}/${repoInput.trim()})",
+                    customName = "مستودع مساعد المسلم الرسمي (${ownerInput.trim()}/${repoInput.trim()})",
                     description = "مستودع GitHub المباشر لتحديثات xdelta وبناء الـ APK"
                 ),
                 setAsActive = true

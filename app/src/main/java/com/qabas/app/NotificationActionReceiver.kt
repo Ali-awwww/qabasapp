@@ -7,7 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 
 /**
- * 🛰️ NotificationActionReceiver — مستقبل أحداث وأدوات الإشعارات التفاعلية في تطبيق قبس
+ * 🛰️ NotificationActionReceiver — مستقبل أحداث وأدوات الإشعارات التفاعلية في تطبيق مساعد المسلم
  * يقوم بتنفيذ أدوات الإشعار مباشرة (الاستماع الفوري، المشاركة، تأكيد القراءة، والتأجيل).
  */
 class NotificationActionReceiver : BroadcastReceiver() {
@@ -50,7 +50,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 val track = PlayableAudioTrack(
                     id = "notif_track_${System.currentTimeMillis()}",
                     title = title,
-                    artist = "استوديو قبس",
+                    artist = "استوديو مساعد المسلم",
                     audioUrl = url,
                     category = "تلاوة تفاعلية"
                 )

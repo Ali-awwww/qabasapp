@@ -2615,7 +2615,7 @@ fun diagnoseCrash(crash: CrashLogFile): CrashDiagnosis {
     val exc = crash.exceptionLine.lowercase()
     val topFrame = firstAppFrame(raw)
 
-    // ─── قاعدة روابط قبس الشائعة ───
+    // ─── قاعدة روابط مساعد المسلم الشائعة ───
     fun codeHint(): String = when {
         "qurandataprovider" in full -> "في QuranDataProvider.kt — قسم تحميل القرآن/التفسير"
         "qabasbrainviewmodel" in full -> "في QabasBrainViewModel.kt — منطق الذكاء المركزي"
@@ -2776,7 +2776,7 @@ fun diagnoseCrash(crash: CrashLogFile): CrashDiagnosis {
             diag(
                 why = "رفض إذن من نظام Android. $locationHint",
                 how = "${codeHint()} طلب إذن (كاميرا/تخزين/مايك) قبل منحه فعلياً.",
-                fix = "منح الإذن من إعدادات الجهاز → التطبيقات → قبس → الأذونات."
+                fix = "منح الإذن من إعدادات الجهاز → التطبيقات → مساعد المسلم → الأذونات."
             )
 
         // ─── ClassCast ───
@@ -2866,7 +2866,7 @@ fun PromoCodesSection(context: Context) {
                 fontSize = 20.sp
             )
             Text(
-                "قم بتوليد أكواد هدايا (للنقاط) أو أكواد ترقية (لقبس برو) لتوزيعها على المستخدمين.",
+                "قم بتوليد أكواد هدايا (للنقاط) أو أكواد ترقية (لمساعد المسلم برو) لتوزيعها على المستخدمين.",
                 color = TextSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 14.sp
@@ -2882,7 +2882,7 @@ fun PromoCodesSection(context: Context) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("توليد كود ترقية (قبس برو)", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("توليد كود ترقية (مساعد المسلم برو)", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     OutlinedTextField(
@@ -3052,7 +3052,7 @@ fun ActiveCodeItem(code: String, type: String, icon: ImageVector) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("Qabas Code", code)
+                    val clip = android.content.ClipData.newPlainText("Muslim Assistant Code", code)
                     clipboard?.setPrimaryClip(clip)
                     Toast.makeText(context, "تم نسخ الكود: $code", Toast.LENGTH_SHORT).show()
                 }) {

@@ -745,7 +745,7 @@ private fun ProcessingScreenUI(
             BreatheIn(0) { ProcessingDetailsText(statusText, progress, elapsedSeconds, currentStage) }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // شريط تقدم فاخر — هوية قبس
+            // شريط تقدم فاخر — هوية مساعد المسلم
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
@@ -774,7 +774,7 @@ private fun ProcessingScreenUI(
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    // شريط تقدم خطي فاخر — LinearProgressIndicator بهوية قبس
+                    // شريط تقدم خطي فاخر — LinearProgressIndicator بهوية مساعد المسلم
                     val animatedLinearProgress by animateFloatAsState(
                         targetValue = progress.coerceIn(0f, 1f),
                         animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
@@ -1290,7 +1290,7 @@ private fun StoryboardPreviewUI(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = Translator.tr("لوحة قصة قبس (Storyboard)"),
+                    text = Translator.tr("لوحة قصة مساعد المسلم (Storyboard)"),
                     color = GoldPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,

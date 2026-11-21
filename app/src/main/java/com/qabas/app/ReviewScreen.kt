@@ -323,7 +323,7 @@ fun ReviewScreen(
                             styleVariantOrName = activeStyleName,
                             isPositive = true
                         )
-                        snackbarHostState.showSnackbar(Translator.tr("شكراً لتقييمك! تم تعزيز وتطوير عقل قبس الإخراجي."))
+                        snackbarHostState.showSnackbar(Translator.tr("شكراً لتقييمك! تم تعزيز وتطوير عقل مساعد المسلم الإخراجي."))
                     }
                 },
                 onDislike = {

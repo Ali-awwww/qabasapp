@@ -414,7 +414,7 @@ private fun ProjectAppleCard(
             ) {
                 Text(
                     text = project.idea.ifBlank {
-                        Translator.tr("مشروع فيديو تم إنشاؤه عبر استوديو قبس.")
+                        Translator.tr("مشروع فيديو تم إنشاؤه عبر استوديو مساعد المسلم.")
                     },
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
@@ -450,5 +450,5 @@ private fun String.cleanTitle(): String {
     if (parts.size >= 2 && parts[0].trim().equals(parts[1].trim(), ignoreCase = true)) {
         result = parts.drop(1).joinToString(":").trim()
     }
-    return result.ifBlank { "مشروع قبس السينمائي" }
+    return result.ifBlank { "مشروع مساعد المسلم السينمائي" }
 }

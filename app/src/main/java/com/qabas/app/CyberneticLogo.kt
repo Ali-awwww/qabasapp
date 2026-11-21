@@ -35,7 +35,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * 🌌 أنميشن لوجو قبس الفضائي الخارق المطور (Cybernetic Spatial HUD Quantum Logo)
+ * 🌌 أنميشن لوجو مساعد المسلم الفضائي الخارق المطور (Cybernetic Spatial HUD Quantum Logo)
  *
  * يتكون نظام الحركة الهندسية الفاخرة للوجو من 9 طبقات تفاعلية متزامنة فائقة السلاسة:
  * 1. Zero-G Levitation (الطفو الفضائي بالجاذبية الصفرية): ارتقاء ناعم يعطي وزناً هولوغرافياً حقيقياً.
@@ -453,10 +453,10 @@ fun CyberneticAnimatedLogo(
                 .padding(10.dp),
             contentAlignment = Alignment.Center
         ) {
-            // صورة الشعار الأصلية الرسمية لقَبَس
+            // صورة الشعار الأصلية الرسمية لمساعد المسلم
             Image(
                 painter = painterResource(id = R.drawable.img_qabas_logo),
-                contentDescription = "شعار قبس ستوديو",
+                contentDescription = "شعار مساعد المسلم",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()

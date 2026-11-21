@@ -110,7 +110,7 @@ fun StudioMaintenanceView(
             AppleCard {
                 AppleListRow(
                     title = Translator.tr("الوحدة"),
-                    trailingText = Translator.tr("استوديو قبس الموحّد"),
+                    trailingText = Translator.tr("استوديو مساعد المسلم الموحّد"),
                     showChevron = false
                 )
                 HorizontalDivider(

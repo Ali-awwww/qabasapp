@@ -182,7 +182,7 @@ fun QabasExitConfirmationDialog(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    "إيقاف تشغيل مصفوفة قبس",
+                                    "إيقاف تشغيل مصفوفة مساعد المسلم",
                                     color = Color.White,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Black,
@@ -391,7 +391,7 @@ fun QabasExitConfirmationDialog(
 
                     // تنبيه لطيف عن الإغلاق
                     Text(
-                        text = "هل ترغب بمغادرة مركز قيادة قبس ستوديو؟ نسأل الله أن يبارك في وقتك وعملك.",
+                        text = "هل ترغب بمغادرة مركز قيادة مساعد المسلم؟ نسأل الله أن يبارك في وقتك وعملك.",
                         color = TextSecondary,
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
@@ -426,7 +426,7 @@ fun QabasExitConfirmationDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "المتابعة في قبس ستوديو ⚡",
+                                "المتابعة في مساعد المسلم ⚡",
                                 color = DeepSlate,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Black,

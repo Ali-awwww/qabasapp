@@ -63,7 +63,7 @@ object CodingPlatformDirectory {
             steps = listOf(
                 "ادخل إلى صفحة Groq Console وسجل بحساب Google أو GitHub.",
                 "توجه إلى قسم «API Keys» من القائمة الجانبية.",
-                "اضغط على «Create API Key» وسمِّ المفتاح (مثلاً: Qabas-Agent).",
+                "اضغط على «Create API Key» وسمِّ المفتاح (مثلاً: Muslim-Assistant-Agent).",
                 "انسخ المفتاح الذي يبدأ بـ «gsk_...» والصقه في التطبيق لتفعيل السرعة القصوى."
             )
         ),

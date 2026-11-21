@@ -19,7 +19,7 @@ private const val TAG = "FirebaseAiService"
 private const val TIMEOUT_MS = 60_000L
 
 /**
- * Official Firebase AI Logic & Gemini API Client for Qabas Studio.
+ * Official Firebase AI Logic & Gemini API Client for Muslim Assistant.
  * Routes all generation and multimodal inference through Firebase.ai
  * secured by Firebase App Check attestation without requiring client-side API keys.
  */
@@ -51,18 +51,18 @@ object FirebaseAiService {
         description: String? = null
     ): VisualAuditResult = withContext(Dispatchers.IO) {
         val prompt = """
-            أنت "رقيب مِشكاة قبس" (Sharia AI Auditor). مهمتك هي فحص هذا المحتوى البصري (صورة/فريم فيديو) 
+            أنت "رقيب مِشكاة مساعد المسلم" (Sharia AI Auditor). مهمتك هي فحص هذا المحتوى البصري (صورة/فريم فيديو)
             مع العنوان والوصف التاليين، والتأكد من ملاءمتها للنشر في منصة إسلامية دعوية نقية.
-            
+
             العنوان: $title
             الوصف: ${description ?: "لا يوجد"}
-            
+
             المعايير (Criteria):
             1. يمنع وجود أي آلات موسيقية أو معازف (بيانو، جيتار، عود، إلخ).
             2. يمنع التبرج أو العري أو المشاهد غير المحتشمة.
             3. يمنع وجود رموز لديانات أخرى أو أفكار مخالفة للعقيدة الصحيحة.
             4. يمنع وجود أي مظاهر ترف أو لهو لا تليق بالوقار الإيماني.
-            
+
             أخرج النتيجة بصيغة JSON حصراً:
             {
               "status": "PASSED" أو "REJECTED",
@@ -83,7 +83,7 @@ object FirebaseAiService {
             val text = response.text ?: throw IllegalStateException("Empty response")
             val cleanJson = text.replace("```json", "").replace("```", "").trim()
             val obj = JSONObject(cleanJson)
-            
+
             VisualAuditResult(
                 isAllowed = obj.optString("status") == "PASSED",
                 reason = obj.optString("reason", ""),
@@ -183,9 +183,9 @@ object FirebaseAiService {
             يجب عليك استخراج النبرة والمحاور والمشاهد والخطاف من نص المستخدم.
             هام جداً في المشاهد (Visual Metaphors & Pacing): لا تستخدم ترجمة حرفية للمشاهد. استخدم استعارات بصرية طبيعية (رمال الصحراء، قطرة ماء، غيوم، نور).
             اجعل مدد المشاهد (durationHintSeconds) متغيرة: 2-3 ثوانٍ للمقدمة السريعة والخطاف، 5-7 ثوانٍ للتأمل والرسائل العميقة.
-            
+
             الفكرة: $idea
-            
+
             أخرج النتيجة بصيغة JSON حصراً بهذا الشكل:
             {
                 "hook": "جملة افتتاحية قوية وجذابة",
@@ -252,12 +252,12 @@ object FirebaseAiService {
         contentTone: String = ""
     ): List<Scene> = withContext(Dispatchers.IO) {
         val prompt = """
-            أنت المخرج الفني وكبير مونتيري منصة «قَبَس» (QABAS AI Studio) - المتخصص في صناعة المحتوى الإسلامي والقرآني القصير (Reels/Shorts/TikTok) بهوية بصرية وروحية فاخرة.
+            أنت المخرج الفني وكبير مونتيري منصة «مساعد المسلم» (QABAS AI Studio) - المتخصص في صناعة المحتوى الإسلامي والقرآني القصير (Reels/Shorts/TikTok) بهوية بصرية وروحية فاخرة.
             الموضوع: $idea
             نوع المحتوى: $contentType
             النبرة: $contentTone
             التوجيهات الأسلوبية: $styleDescription
-            
+
             أخرج النتيجة حصرياً كـ JSON Array لمشاهد سينمائية [ { ... } ] بدون أي نص إضافي:
             [
               {
@@ -302,11 +302,11 @@ object FirebaseAiService {
         val prompt = """
             أنت خبير في تحسين محركات البحث (SEO) وعناوين الفيديوهات الفيروسية (Viral Titles Specialist).
             الموضوع: $topic
-            
+
             مهمتك: اقترح 5 عناوين يوتيوب/ريلز جذابة جداً تثير الفضول وتدفع للنقر، مع الحفاظ على الوقار الدعوي.
             أخرج النتائج كقائمة مرقمة فقط بدون مقدمات.
         """.trimIndent()
-        
+
         generateText(prompt)
     }
 
@@ -316,13 +316,13 @@ object FirebaseAiService {
     suspend fun analyzeVideoStyle(input: String): VideoStyleAnalysis = withContext(Dispatchers.IO) {
         val prompt = """
             أنت خبير مونتاج سينمائي ومحلل فني للفيديوهات (Art Director & Video Editor).
-            المستخدم قدم هذا المدخل (قد يكون رابط فيديو تيك توك/يوتيوب، أو وصفاً كتابياً للأسلوب): 
+            المستخدم قدم هذا المدخل (قد يكون رابط فيديو تيك توك/يوتيوب، أو وصفاً كتابياً للأسلوب):
             "$input"
-            
+
             مهمتك:
             1. إذا كان رابطاً: حاول استنتاج الأسلوب الفني والمونتاج المتوقع لهذا الرابط، أو تخيل أسلوباً احترافياً عالي الجودة (Premium Cinematic).
             2. إذا كان وصفاً نصياً: قم بتحليل الوصف وتحويله إلى عناصر فنية دقيقة للإنتاج.
-            
+
             أخرج النتيجة بصيغة JSON حصراً بهذا الشكل:
             {
                 "dominantColors": "مثال: تباين عالي مع ذهبي دافئ وأسود عميق",
@@ -342,7 +342,7 @@ object FirebaseAiService {
         val text = response.text ?: throw IllegalStateException("Empty response")
         val cleanJson = text.replace("```json", "").replace("```", "").trim()
         val obj = JSONObject(cleanJson)
-        
+
         VideoStyleAnalysis(
             dominantColors = obj.optString("dominantColors", ""),
             transitionSpeed = obj.optString("transitionSpeed", ""),
@@ -363,16 +363,16 @@ object FirebaseAiService {
         val prompt = """
             أنت خبير في هندسة البرمجيات وتطوير تطبيقات Android باستخدام Kotlin و Jetpack Compose.
             المهمة المطلوبة: $requestSummary
-            
+
             قم بإنشاء خطة تنفيذ تفصيلية (Implementation Plan) تتضمن:
             1. المكونات البرمجية المطلوبة.
             2. التغييرات في واجهة المستخدم.
             3. منطق العمل (Business Logic).
             4. التعديلات في قاعدة البيانات أو الخدمات.
-            
+
             أخرج الخطة بصيغة Markdown منظمة جداً.
         """.trimIndent()
-        
+
         generateText(prompt)
     }
 }

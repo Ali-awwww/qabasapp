@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
@@ -28,9 +29,13 @@ object PlayInAppUpdate {
 
     /** هل التطبيق قادم من Google Play؟ (الطريق السلس متاح) */
     fun isPlayInstalled(context: Context): Boolean = runCatching {
-        context.packageManager
-            .getInstallSourceInfo(context.packageName)
-            .installingPackageName == "com.android.vending"
+        val packageManager = context.packageManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            packageManager.getInstallSourceInfo(context.packageName).installingPackageName == "com.android.vending"
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getInstallerPackageName(context.packageName) == "com.android.vending"
+        }
     }.getOrDefault(false)
 
     /**

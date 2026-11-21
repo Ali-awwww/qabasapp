@@ -55,18 +55,18 @@ fun ImagesImportSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF151B2B), RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFFFBBF24).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                .background(CardSurface, RoundedCornerShape(12.dp))
+                .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     Translator.tr("المدخل المختار: ألبوم صور 🖼️"),
-                    color = Color(0xFFFBBF24),
+                    color = GoldPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -91,8 +91,8 @@ fun ImagesImportSection(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-            border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.4f))
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -100,11 +100,11 @@ fun ImagesImportSection(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFFFBBF24).copy(alpha = 0.15f),
+                    color = GoldPrimary.copy(alpha = 0.15f),
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(26.dp))
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(26.dp))
                     }
                 }
                 Spacer(modifier = Modifier.width(14.dp))
@@ -137,8 +137,8 @@ fun ImagesImportSection(
                         )
                     },
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-                border = BorderStroke(1.5.dp, Color(0xFFFBBF24).copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(containerColor = DeepSlate),
+                border = BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.5f))
             ) {
                 Column(
                     modifier = Modifier
@@ -149,11 +149,11 @@ fun ImagesImportSection(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFFBBF24).copy(alpha = 0.18f),
+                        color = GoldPrimary.copy(alpha = 0.18f),
                         modifier = Modifier.size(68.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(34.dp))
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(34.dp))
                         }
                     }
                     Text(
@@ -178,7 +178,7 @@ fun ImagesImportSection(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFBBF24)),
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -192,8 +192,8 @@ fun ImagesImportSection(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.4f))
+                colors = CardDefaults.cardColors(containerColor = CardSurface),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -208,11 +208,11 @@ fun ImagesImportSection(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = CircleShape,
-                                color = Color(0xFFFBBF24).copy(alpha = 0.2f),
+                                color = GoldPrimary.copy(alpha = 0.2f),
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Collections, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Collections, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
                                 }
                             }
                             Spacer(modifier = Modifier.width(10.dp))
@@ -240,10 +240,10 @@ fun ImagesImportSection(
                                 )
                             },
                             modifier = Modifier
-                                .background(Color(0xFF1E293B), CircleShape)
+                                .background(ThemeSeparator, CircleShape)
                                 .size(36.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = Translator.tr("إضافة صور"), tint = Color(0xFFFBBF24), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Add, contentDescription = Translator.tr("إضافة صور"), tint = GoldPrimary, modifier = Modifier.size(20.dp))
                         }
                     }
 
@@ -310,8 +310,8 @@ fun ImagesImportSection(
                                 modifier = Modifier
                                     .size(88.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .border(1.dp, Color(0xFFFBBF24).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF0B0F19))
+                                    .border(1.dp, GoldPrimary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                    .background(DeepSlate)
                                     .clickable {
                                         onPickImages(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -320,7 +320,7 @@ fun ImagesImportSection(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(24.dp))
+                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(Translator.tr("إضافة"), color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont)
                                 }
@@ -343,10 +343,10 @@ fun ImagesImportSection(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFFBBF24),
+                            focusedBorderColor = GoldPrimary,
                             unfocusedBorderColor = Color(0xFF334155),
-                            focusedContainerColor = Color(0xFF0B0F19),
-                            unfocusedContainerColor = Color(0xFF0B0F19),
+                            focusedContainerColor = DeepSlate,
+                            unfocusedContainerColor = DeepSlate,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         ),

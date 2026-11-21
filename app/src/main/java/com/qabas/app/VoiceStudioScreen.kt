@@ -95,7 +95,7 @@ fun VoiceStudioScreen(
 
     // حالة الدبلجة
     var dubbingVideoUri by remember { mutableStateOf<Uri?>(null) }
-    var dubbingScript by remember { mutableStateOf("مرحباً بكم في قبس، المنصة الرائدة في إنتاج الفيديوهات السينمائية.") }
+    var dubbingScript by remember { mutableStateOf("مرحباً بكم في مساعد المسلم، المنصة الرائدة في إنتاج الفيديوهات السينمائية.") }
     var isDubbing by remember { mutableStateOf(false) }
     var dubbedVideoPath by remember { mutableStateOf<String?>(null) }
 
@@ -111,11 +111,12 @@ fun VoiceStudioScreen(
         label = "glow"
     )
 
-    val hudPurple = Color(0xFFA855F7)
-    val hudCyan = Color(0xFF00F2FE)
-    val hudGold = Color(0xFFE8C547)
-    val hudObsidian = Color(0xFF060913)
-    val hudGlassBg = Color(0x800B132B)
+    // لوحة الاستوديو الصوتي تتبع الهوية المركزية بدل ألوان HUD مستقلة.
+    val hudPurple = GoldSecondary
+    val hudCyan = GoldPrimary
+    val hudGold = ThemeWarning
+    val hudObsidian = DeepSlate
+    val hudGlassBg = CardSurface.copy(alpha = 0.78f)
     val hudBorder = hudPurple.copy(alpha = glowIntensity * 0.6f)
 
     // فحص الاتصال بالخادم عند فتح الشاشة
@@ -639,7 +640,7 @@ fun VoiceStudioScreen(
                                             Spacer(Modifier.width(6.dp))
                                             Column {
                                                 Text("تم التوليد بنجاح ✓", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                                Text("جاهز للاستخدام في مشاريع قبس", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
+                                                Text("جاهز للاستخدام في مشاريع مساعد المسلم", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
                                             }
                                         }
 

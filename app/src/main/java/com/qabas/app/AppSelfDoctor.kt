@@ -393,7 +393,7 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
                         title = "مساحة التخزين شبه منتهية (${String.format("%.1f", freeGB)} GB)",
                         message = "إنتاج الفيديو يستهلك مساحة مؤقتة كبيرة قبل التصدير — المساحة الحالية قد تفشل التصدير في منتصف الطريق.",
                         category = "أداء",
-                        suggestedAction = "احذف ملفات لا تحتاجها من مجلد أفلام قبس أو حرر مساحة من الجهاز.",
+                        suggestedAction = "احذف ملفات لا تحتاجها من مجلد أفلام مساعد المسلم أو حرر مساحة من الجهاز.",
                         suggestedFixCode = null
                     )
                     freeGB < 2.0 -> DoctorReport(

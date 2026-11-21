@@ -114,7 +114,7 @@ fun ReelCreatorProfileSheet(
     val totalLikes = remember(creatorReels) { creatorReels.sumOf { it.likesCount } }
     val totalViews = remember(creatorReels) { creatorReels.sumOf { it.viewsCount } }
     val isDevCreator = remember(creatorId, displayName) {
-        creatorId.contains("dev") || creatorId.contains("admin") || displayName.contains("قبس")
+        creatorId.contains("dev") || creatorId.contains("admin") || displayName.contains("مساعد المسلم")
     }
 
     ModalBottomSheet(
@@ -141,8 +141,8 @@ fun ReelCreatorProfileSheet(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText(
-                            "Qabas Creator",
-                            "حساب $displayName على استوديو قبس: https://qabas.studio/u/$creatorId"
+                            "Muslim Assistant Creator",
+                            "حساب $displayName على استوديو مساعد المسلم: https://qabas.studio/u/$creatorId"
                         )
                         clipboard.setPrimaryClip(clip)
                         ReelPreferencesManager.triggerHaptic(context)
@@ -274,7 +274,7 @@ fun ReelCreatorProfileSheet(
                 text = if (isOwnProfile) {
                     "$profileHandle • $ownBio"
                 } else {
-                    "$profileHandle • منشئ محتوى إيماني في منصة قبس"
+                    "$profileHandle • منشئ محتوى إيماني في منصة مساعد المسلم"
                 },
                 fontFamily = NotoSansFont,
                 fontSize = 12.5.sp,

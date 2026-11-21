@@ -560,7 +560,7 @@ private fun CameraPermissionDeniedView(
                 fontFamily = CairoFont
             )
             Text(
-                "استوديو قبس يحتاج للوصول إلى الكاميرا لتسجيل الريلز الإيمانية والتقاط الصور للمصغرات.",
+                "استوديو مساعد المسلم يحتاج للوصول إلى الكاميرا لتسجيل الريلز الإيمانية والتقاط الصور للمصغرات.",
                 color = Color.White.copy(alpha = 0.7f),
                 fontSize = 14.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,

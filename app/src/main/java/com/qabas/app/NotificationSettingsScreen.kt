@@ -258,7 +258,7 @@ fun NotificationSettingsScreen(
                 AppleGroupedSection(header = "التحكم العام") {
                     NotificationSwitchRow(
                         title = "تفعيل جميع التنبيهات",
-                        subtitle = "تشغيل أو إيقاف كافة تنبيهات قبس بضغطة واحدة",
+                        subtitle = "تشغيل أو إيقاف كافة تنبيهات مساعد المسلم بضغطة واحدة",
                         icon = Icons.Default.Notifications,
                         iconTint = theme.success,
                         checked = masterEnabled,
@@ -291,7 +291,7 @@ fun NotificationSettingsScreen(
                         title = "تنبيه وقت السحر والاستغفار",
                         subtitle = "تذكير بآيات الاستغفار والقيام مع زر استماع لتلاوة هادئة",
                         icon = Icons.Default.NightlightRound,
-                        iconTint = AppleLightIndigo,
+                        iconTint = GoldSecondary,
                         checked = suhurReminderEnabled && masterEnabled,
                         enabled = masterEnabled,
                         onCheckedChange = {
@@ -407,7 +407,7 @@ fun NotificationSettingsScreen(
                         title = "أذكار المساء",
                         subtitle = "تذكير يومي بأذكار المساء قبل الغروب",
                         icon = Icons.Default.Brightness4,
-                        iconTint = AppleLightIndigo,
+                        iconTint = GoldSecondary,
                         checked = eveningAthkarEnabled && masterEnabled,
                         enabled = masterEnabled,
                         onCheckedChange = {

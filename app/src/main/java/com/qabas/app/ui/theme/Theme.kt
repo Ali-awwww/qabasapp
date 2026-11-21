@@ -5,16 +5,13 @@ import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.qabas.app.AppSoundManager
 import com.qabas.app.AppSoundPreset
@@ -63,13 +60,14 @@ enum class AppThemePreset(
 ) {
     CYBER_HUD_BLUE(
         id = "cyber_hud_blue",
-        title = "أزرق Apple النقي",
-        subtitle = "اللون الافتراضي النظيف وفق معايير Apple HIG",
-        darkPrimaryColor = AppleDarkBlue,
-        darkAccentColor = Color(0xFF5AC8FA),
-        lightPrimaryColor = AppleLightBlue,
-        lightAccentColor = Color(0xFF0A84FF),
-        soundPreset = AppSoundPreset.SOFT_MINIMAL
+        title = "Cyberpunk Neon",
+        subtitle = "كحلي عميق مع سماوي كهربائي وأرجواني نيون",
+        darkPrimaryColor = CyberDarkPrimary,
+        darkAccentColor = CyberDarkAccent,
+        lightPrimaryColor = CyberLightPrimary,
+        lightAccentColor = CyberLightAccent,
+        soundPreset = AppSoundPreset.SOFT_MINIMAL,
+        isNeon = true
     ),
     GOLD_ISLAMIC(
         id = "gold_islamic",
@@ -109,10 +107,14 @@ enum class AppThemePreset(
         get() = if (ThemeManager.isDarkState) darkAccentColor else lightAccentColor
 
     val backgroundColor: Color
-        get() = if (ThemeManager.isDarkState) AppleDarkBackground else AppleLightBackground
+        get() = if (this == AppThemePreset.CYBER_HUD_BLUE) {
+            if (ThemeManager.isDarkState) CyberDarkBackground else CyberLightBackground
+        } else if (ThemeManager.isDarkState) AppleDarkBackground else AppleLightBackground
 
     val cardSurfaceColor: Color
-        get() = if (ThemeManager.isDarkState) AppleDarkSurface else AppleLightSurface
+        get() = if (this == AppThemePreset.CYBER_HUD_BLUE) {
+            if (ThemeManager.isDarkState) CyberDarkSurface else CyberLightSurface
+        } else if (ThemeManager.isDarkState) AppleDarkSurface else AppleLightSurface
 
     val isDark: Boolean
         get() = ThemeManager.isDarkState
@@ -223,14 +225,6 @@ object ThemeManager {
     }
 }
 
-private val QabasShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(18.dp),
-    extraLarge = RoundedCornerShape(24.dp)
-)
-
 @Composable
 fun animateColorScheme(targetColorScheme: ColorScheme): ColorScheme {
     val animationSpec = tween<Color>(durationMillis = 280)
@@ -294,15 +288,15 @@ val LocalQabasTheme = staticCompositionLocalOf<QabasDesignTheme> {
     val defaultPreset = AppThemePreset.CYBER_HUD_BLUE
     QabasDesignTheme(
         preset = defaultPreset,
-        primary = AppleLightBlue,
-        accent = Color(0xFF0A84FF),
-        background = AppleLightBackground,
-        cardSurface = AppleLightSurface,
-        textPrimary = AppleLightLabel,
-        textSecondary = AppleLightSecondaryLabel,
+        primary = CyberLightPrimary,
+        accent = CyberLightAccent,
+        background = CyberLightBackground,
+        cardSurface = CyberLightSurface,
+        textPrimary = CyberLightLabel,
+        textSecondary = CyberLightSecondaryLabel,
         isDark = false,
-        isCyberHud = false,
-        isNeon = false
+        isCyberHud = true,
+        isNeon = true
     )
 }
 
@@ -357,6 +351,8 @@ fun MyApplicationTheme(
         val bg = when {
             highContrastMode && darkTheme -> Color.Black
             highContrastMode && !darkTheme -> Color.White
+            darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkBackground
+            !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightBackground
             darkTheme -> AppleDarkBackground
             else -> AppleLightBackground
         }
@@ -364,12 +360,24 @@ fun MyApplicationTheme(
         val cardBg = when {
             highContrastMode && darkTheme -> Color(0xFF141416)
             highContrastMode && !darkTheme -> Color(0xFFF5F5F7)
+            darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkSurface
+            !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightSurface
             darkTheme -> AppleDarkSurface
             else -> AppleLightSurface
         }
 
-        val secBg = if (darkTheme) AppleDarkSecondarySurface else AppleLightSecondarySurface
-        val sep = if (darkTheme) AppleDarkSeparator else AppleLightSeparator
+        val secBg = when {
+            darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkSecondarySurface
+            !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightSecondarySurface
+            darkTheme -> AppleDarkSecondarySurface
+            else -> AppleLightSecondarySurface
+        }
+        val sep = when {
+            darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkSeparator
+            !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightSeparator
+            darkTheme -> AppleDarkSeparator
+            else -> AppleLightSeparator
+        }
 
         QabasDesignTheme(
             preset = preset,
@@ -377,15 +385,24 @@ fun MyApplicationTheme(
             accent = accent,
             background = bg,
             cardSurface = cardBg,
-            textPrimary = if (darkTheme) AppleDarkLabel else AppleLightLabel,
+            textPrimary = when {
+                darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkLabel
+                !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightLabel
+                darkTheme -> AppleDarkLabel
+                else -> AppleLightLabel
+            },
             textSecondary = if (darkTheme) {
-                if (highContrastMode) Color.White.copy(alpha = 0.88f) else AppleDarkSecondaryLabel
+                if (highContrastMode) Color.White.copy(alpha = 0.88f)
+                else if (preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkSecondaryLabel
+                else AppleDarkSecondaryLabel
             } else {
-                if (highContrastMode) Color.Black.copy(alpha = 0.85f) else AppleLightSecondaryLabel
+                if (highContrastMode) Color.Black.copy(alpha = 0.85f)
+                else if (preset == AppThemePreset.CYBER_HUD_BLUE) CyberLightSecondaryLabel
+                else AppleLightSecondaryLabel
             },
             isDark = darkTheme,
-            isCyberHud = false,
-            isNeon = false,
+            isCyberHud = preset.isNeon,
+            isNeon = preset.isNeon,
             secondarySurface = secBg,
             separator = sep,
             cardBorder = sep,
@@ -394,10 +411,11 @@ fun MyApplicationTheme(
             } else {
                 if (highContrastMode) Color.Black.copy(alpha = 0.68f) else AppleLightTertiaryLabel
             },
-            onPrimary = if (highContrastMode && darkTheme) Color.Black else Color.White,
-            success = if (darkTheme) AppleDarkGreen else AppleLightGreen,
-            warning = if (darkTheme) AppleDarkOrange else AppleLightOrange,
-            destructive = if (darkTheme) AppleDarkRed else AppleLightRed
+            onPrimary = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) Color(0xFF001512)
+            else if (highContrastMode && darkTheme) Color.Black else Color.White,
+            success = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkGreen else if (darkTheme) AppleDarkGreen else AppleLightGreen,
+            warning = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkOrange else if (darkTheme) AppleDarkOrange else AppleLightOrange,
+            destructive = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkRed else if (darkTheme) AppleDarkRed else AppleLightRed
         )
     }
 
@@ -462,7 +480,7 @@ fun MyApplicationTheme(
         MaterialTheme(
             colorScheme = animatedColorScheme,
             typography = Typography,
-            shapes = QabasShapes,
+            shapes = QabasMaterialShapes,
             content = content
         )
     }

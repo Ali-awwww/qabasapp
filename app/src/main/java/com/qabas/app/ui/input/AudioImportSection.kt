@@ -56,18 +56,18 @@ fun AudioImportSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF151B2B), RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                .background(CardSurface, RoundedCornerShape(12.dp))
+                .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     Translator.tr("المدخل المختار: ملف صوتي 🎙️"),
-                    color = Color(0xFF38BDF8),
+                    color = GoldPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -92,8 +92,8 @@ fun AudioImportSection(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+            colors = CardDefaults.cardColors(containerColor = CardSurface),
+            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -101,11 +101,11 @@ fun AudioImportSection(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFF38BDF8).copy(alpha = 0.15f),
+                    color = GoldPrimary.copy(alpha = 0.15f),
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(26.dp))
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(26.dp))
                     }
                 }
                 Spacer(modifier = Modifier.width(14.dp))
@@ -136,8 +136,8 @@ fun AudioImportSection(
                         onPickAudio("audio/*")
                     },
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-                border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(containerColor = DeepSlate),
+                border = BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.5f))
             ) {
                 Column(
                     modifier = Modifier
@@ -148,11 +148,11 @@ fun AudioImportSection(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFF38BDF8).copy(alpha = 0.18f),
+                        color = GoldPrimary.copy(alpha = 0.18f),
                         modifier = Modifier.size(68.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(34.dp))
+                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(34.dp))
                         }
                     }
                     Text(
@@ -179,7 +179,7 @@ fun AudioImportSection(
                             onClick = {
                                 onPickAudio("audio/*")
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                             modifier = Modifier.weight(1f)
@@ -205,7 +205,7 @@ fun AudioImportSection(
                             Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                Translator.tr("مكتبة قبس 🎙️"),
+                                Translator.tr("مكتبة مساعد المسلم 🎙️"),
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -220,8 +220,8 @@ fun AudioImportSection(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                colors = CardDefaults.cardColors(containerColor = CardSurface),
+                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -234,11 +234,11 @@ fun AudioImportSection(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF38BDF8).copy(alpha = 0.15f),
+                            color = GoldPrimary.copy(alpha = 0.15f),
                             modifier = Modifier.size(52.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(28.dp))
+                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(28.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(14.dp))
@@ -254,11 +254,11 @@ fun AudioImportSection(
                             Spacer(modifier = Modifier.height(4.dp))
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF38BDF8).copy(alpha = 0.2f)
+                                color = GoldPrimary.copy(alpha = 0.2f)
                             ) {
                                 Text(
                                     text = Translator.tr("ملف صوتي مستورد ✓"),
-                                    color = Color(0xFF38BDF8),
+                                    color = GoldPrimary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
@@ -268,7 +268,7 @@ fun AudioImportSection(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E293B))
+                    HorizontalDivider(color = ThemeSeparator)
 
                     // Usage Mode Choice
                     Text(
@@ -286,11 +286,11 @@ fun AudioImportSection(
                             .clickable { onAudioUsageModeChange("voiceover") },
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (audioUsageMode == "voiceover") Color(0xFF1A2742) else Color(0xFF0F172A)
+                            containerColor = if (audioUsageMode == "voiceover") ThemeSecondarySurface else DeepSlate
                         ),
                         border = BorderStroke(
                             1.5.dp,
-                            if (audioUsageMode == "voiceover") Color(0xFF38BDF8) else Color(0xFF1E293B)
+                            if (audioUsageMode == "voiceover") GoldPrimary else ThemeSeparator
                         )
                     ) {
                         Row(
@@ -301,7 +301,7 @@ fun AudioImportSection(
                                 selected = audioUsageMode == "voiceover",
                                 onClick = { onAudioUsageModeChange("voiceover") },
                                 colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color(0xFF38BDF8),
+                                    selectedColor = GoldPrimary,
                                     unselectedColor = TextSecondary
                                 )
                             )
@@ -333,11 +333,11 @@ fun AudioImportSection(
                             .clickable { onAudioUsageModeChange("primary") },
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (audioUsageMode == "primary") Color(0xFF1A2742) else Color(0xFF0F172A)
+                            containerColor = if (audioUsageMode == "primary") ThemeSecondarySurface else DeepSlate
                         ),
                         border = BorderStroke(
                             1.5.dp,
-                            if (audioUsageMode == "primary") Color(0xFF38BDF8) else Color(0xFF1E293B)
+                            if (audioUsageMode == "primary") GoldPrimary else ThemeSeparator
                         )
                     ) {
                         Row(
@@ -348,7 +348,7 @@ fun AudioImportSection(
                                 selected = audioUsageMode == "primary",
                                 onClick = { onAudioUsageModeChange("primary") },
                                 colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color(0xFF38BDF8),
+                                    selectedColor = GoldPrimary,
                                     unselectedColor = TextSecondary
                                 )
                             )
@@ -385,7 +385,7 @@ fun AudioImportSection(
                                 onPickAudio("audio/*")
                             },
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            border = BorderStroke(1.dp, ThemeSeparator),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))

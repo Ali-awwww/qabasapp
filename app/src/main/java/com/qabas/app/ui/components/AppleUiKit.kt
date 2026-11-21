@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Key
@@ -26,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,105 +47,14 @@ fun AppleTopBar(
     largeTitle: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    val theme = QabasTheme.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(theme.background.copy(alpha = 0.96f))
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (onBack != null) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .testTag(backTestTag)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "رجوع",
-                        tint = theme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            } else {
-                Spacer(modifier = Modifier.width(6.dp))
-            }
-
-            if (!largeTitle) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        color = theme.textPrimary,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!subtitle.isNullOrBlank()) {
-                        Text(
-                            text = subtitle,
-                            color = theme.textSecondary,
-                            fontFamily = NotoSansFont,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                content = actions
-            )
-        }
-
-        if (largeTitle) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 12.dp)
-            ) {
-                Text(
-                    text = title,
-                    color = theme.textPrimary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 30.sp,
-                    lineHeight = 40.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        color = theme.textSecondary,
-                        fontFamily = NotoSansFont,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-        }
-
-        HorizontalDivider(
-            thickness = 0.5.dp,
-            color = theme.separator.copy(alpha = 0.45f)
-        )
-    }
+    QabasTopBar(
+        title = title,
+        subtitle = subtitle,
+        onBack = onBack,
+        backTestTag = backTestTag,
+        largeTitle = largeTitle,
+        actions = actions
+    )
 }
 
 /**
@@ -161,36 +68,13 @@ fun AppleCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val theme = QabasTheme.current
-    val shape = RoundedCornerShape(cornerRadius)
-    val border = if (theme.isDark) {
-        BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.7f))
-    } else {
-        BorderStroke(0.5.dp, theme.separator.copy(alpha = 0.35f))
-    }
-
-    if (onClick != null) {
-        Surface(
-            onClick = onClick,
-            modifier = modifier.fillMaxWidth(),
-            shape = shape,
-            color = containerColor,
-            shadowElevation = if (theme.isDark) 0.dp else 1.5.dp,
-            border = border
-        ) {
-            Column(content = content)
-        }
-    } else {
-        Surface(
-            modifier = modifier.fillMaxWidth(),
-            shape = shape,
-            color = containerColor,
-            shadowElevation = if (theme.isDark) 0.dp else 1.5.dp,
-            border = border
-        ) {
-            Column(content = content)
-        }
-    }
+    QabasDesignCard(
+        modifier = modifier,
+        onClick = onClick,
+        containerColor = containerColor,
+        shape = RoundedCornerShape(cornerRadius),
+        content = content
+    )
 }
 
 /**
@@ -203,30 +87,12 @@ fun AppleGroupedSection(
     footer: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val theme = QabasTheme.current
-    Column(modifier = modifier.fillMaxWidth()) {
-        if (!header.isNullOrBlank()) {
-            Text(
-                text = header,
-                color = theme.textSecondary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
-        AppleCard(content = content)
-        if (!footer.isNullOrBlank()) {
-            Text(
-                text = footer,
-                color = theme.textSecondary,
-                fontFamily = NotoSansFont,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
-    }
+    QabasGroupedSection(
+        modifier = modifier,
+        header = header,
+        footer = footer,
+        content = content
+    )
 }
 
 @Composable
@@ -475,41 +341,14 @@ fun ApplePrimaryButton(
     icon: ImageVector? = null,
     isLoading: Boolean = false
 ) {
-    val theme = QabasTheme.current
-    Button(
+    QabasPrimaryButton(
+        text = text,
         onClick = onClick,
-        enabled = enabled && !isLoading,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 50.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = theme.primary,
-            contentColor = theme.onPrimary,
-            disabledContainerColor = theme.secondarySurface,
-            disabledContentColor = theme.textSecondary
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                color = theme.onPrimary,
-                strokeWidth = 2.dp
-            )
-        } else {
-            if (icon != null) {
-                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            Text(
-                text = text,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
-        }
-    }
+        modifier = modifier,
+        enabled = enabled,
+        loading = isLoading,
+        icon = icon
+    )
 }
 
 @Composable
@@ -521,36 +360,14 @@ fun AppleSecondaryButton(
     icon: ImageVector? = null,
     tint: Color = QabasTheme.current.primary
 ) {
-    val theme = QabasTheme.current
-    Surface(
+    QabasSecondaryButton(
+        text = text,
         onClick = onClick,
+        modifier = modifier,
         enabled = enabled,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = tint.copy(alpha = if (theme.isDark) 0.16f else 0.10f)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (icon != null) {
-                Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            Text(
-                text = text,
-                color = if (enabled) tint else theme.textSecondary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
-            )
-        }
-    }
+        icon = icon,
+        accentColor = tint
+    )
 }
 
 /**

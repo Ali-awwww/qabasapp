@@ -1,0 +1,1304 @@
+{
+  "tables": {
+    "app_reviews": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CommunityReviewsSection.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "app_reviews_public": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "app_secrets": {
+      "file_count": 5,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/UpdateManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/XdeltaGitHubTokenCard.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-admin-dispatch/index.ts",
+          "occurrences": 2
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-request/index.ts",
+          "occurrences": 1
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-token-admin/index.ts",
+          "occurrences": 1
+        }
+      ]
+    },
+    "app_update_audit": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "app_update_delta_cache": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "supabase/functions/qabas-xdelta-callback/index.ts",
+          "occurrences": 1
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-request/index.ts",
+          "occurrences": 5
+        }
+      ]
+    },
+    "app_update_delta_jobs": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "supabase/functions/qabas-xdelta-callback/index.ts",
+          "occurrences": 1
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-request/index.ts",
+          "occurrences": 10
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-status/index.ts",
+          "occurrences": 1
+        }
+      ]
+    },
+    "app_updates": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-callback/index.ts",
+          "occurrences": 4
+        },
+        {
+          "file": "supabase/functions/qabas-xdelta-request/index.ts",
+          "occurrences": 2
+        }
+      ]
+    },
+    "audio_tracks": {
+      "file_count": 4,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/Database.kt",
+          "occurrences": 6
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseAudioSection.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/UserPreferencesManager.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "azan_voices": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AzanCloudRepository.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MuezzinVoiceManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/PrayerTimesScreen.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "broadcasts": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/BroadcastCloudRepository.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseRepository.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "bug_reports": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/BugReportRepository.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "chat_messages": {
+      "file_count": 0,
+      "files": []
+    },
+    "community_profiles_public": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "content_guard_logs": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "creator_follows": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CreatorFollowManager.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 19
+        }
+      ]
+    },
+    "dev_bug_reports": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CrashTelemetry.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 7
+        }
+      ]
+    },
+    "dev_chat_messages": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/DevChatRealtimeManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 4
+        }
+      ]
+    },
+    "hadith_presets": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "league_leaderboard": {
+      "file_count": 0,
+      "files": []
+    },
+    "master_styles": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "mishkat_reminder_content": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "platform_api_keys": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "supabase/functions/qabas-gateway/index.ts",
+          "occurrences": 5
+        }
+      ]
+    },
+    "profiles": {
+      "file_count": 14,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AccountIdentityManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/CreatorFollowManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DeveloperContactScreen.kt",
+          "occurrences": 8
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProfileDialogsAndCards.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProfileScreen.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelHistorySheet.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPublishManager.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelsScreen.kt",
+          "occurrences": 17
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SettingsScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SilentReelPrefetcher.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseRepository.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/UserPreferencesManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 6
+        }
+      ]
+    },
+    "projects": {
+      "file_count": 17,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AiEditorSection.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AppNavigation.kt",
+          "occurrences": 13
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AutoSeriesGeneratorEngine.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/Database.kt",
+          "occurrences": 18
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/HasanatHubScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MainActivity.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProjectsScreen.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/QabasSmartTipsBar.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/QabasSolarSystemNavigation.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/RewardsScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleBrain.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleBrainSection.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/TeleprompterScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/Translator.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "supabase/functions/send-developer-reply-push/index.ts",
+          "occurrences": 1
+        }
+      ]
+    },
+    "promo_code_redemptions": {
+      "file_count": 0,
+      "files": []
+    },
+    "promo_codes": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/GiftManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "reel_bookmarks": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelsScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "reel_comments": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "reel_history": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "reel_likes": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 16
+        }
+      ]
+    },
+    "reels": {
+      "file_count": 31,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AdvancedEditScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AppNavigation.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AppSoundManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AutoSeriesGeneratorEngine.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AutoThumbnailGeneratorEngine.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/CinematicExportScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/CloudServices.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DownloadsHubManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DownloadsHubScreen.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/FirebaseAiService.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MainActivity.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MoneyPrinterTurboScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MontageDirector.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProcessingScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProfileScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/RealServices.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPreferencesManager.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPublishManager.kt",
+          "occurrences": 6
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelSafetyGuardrails.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelsScreen.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SilentReelStorageManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SmartPublishScheduleDialog.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SocialAccountManager.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 22
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/Translator.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/VideoProcessor.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/components/SilentSyncDevFloatingHud.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 7
+        }
+      ]
+    },
+    "reels_feed": {
+      "file_count": 0,
+      "files": []
+    },
+    "saved_items": {
+      "file_count": 4,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AppNavigation.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MainActivity.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProfileScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SavedItemsRepository.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "scholar_lectures": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt",
+          "occurrences": 11
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "scholar_proposals": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ScholarLecturesSheet.kt",
+          "occurrences": 11
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 4
+        }
+      ]
+    },
+    "styles": {
+      "file_count": 11,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AppAnimationManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/BrainNeuralStateCard.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/QabasBrainViewModel.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SmartFeaturesEngine.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleBrain.kt",
+          "occurrences": 29
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleBrainCrashGuard.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleBrainLoadFix.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleBrainSection.kt",
+          "occurrences": 13
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/StyleSelectionScreen.kt",
+          "occurrences": 6
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 5
+        }
+      ]
+    },
+    "transactions": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/MainActivity.kt",
+          "occurrences": 6
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "user_api_keys": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseRepository.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "supabase/functions/qabas-key-vault/index.ts",
+          "occurrences": 3
+        }
+      ]
+    },
+    "user_azan_voices": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/UserAzanCloudRepository.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "user_feedbacks": {
+      "file_count": 0,
+      "files": []
+    },
+    "user_push_tokens": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "supabase/functions/send-developer-reply-push/index.ts",
+          "occurrences": 2
+        }
+      ]
+    },
+    "user_settings": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/DevRepoSync.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "users": {
+      "file_count": 8,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AdminGuard.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 8
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DashboardBackup.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DeveloperDashboardScreen.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/EnhancedUsersSection.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 17
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "supabase/functions/qabas-auth-identifier-login/index.ts",
+          "occurrences": 2
+        }
+      ]
+    },
+    "verified_creators": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 8
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/VerificationManager.kt",
+          "occurrences": 1
+        }
+      ]
+    }
+  },
+  "functions": {
+    "check_account_availability": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "claim_active_session": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "confirm_promo_code": {
+      "file_count": 0,
+      "files": []
+    },
+    "create_broadcast": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/BroadcastCloudRepository.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "get_creator_follower_count": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CreatorFollowManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "get_current_profile_snapshot": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "mark_broadcast_sent": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/BroadcastCloudRepository.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "publish_qabas_app_update": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "qabas_delete_dev_chat_message": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "qabas_delete_dev_chat_thread": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "qabas_edit_dev_chat_message": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "qabas_is_support_admin": {
+      "file_count": 0,
+      "files": []
+    },
+    "record_reel_view": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "release_active_session": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "release_promo_code": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "replace_github_token": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "supabase/functions/qabas-xdelta-token-admin/index.ts",
+          "occurrences": 1
+        }
+      ]
+    },
+    "reserve_promo_code": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "set_qabas_app_update_active": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "set_user_suspension": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "sync_reel_likes_count": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 2
+        }
+      ]
+    }
+  },
+  "buckets": {
+    "ai-generated": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CentralMediaManager.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "audio_tracks": {
+      "file_count": 4,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/Database.kt",
+          "occurrences": 6
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseAudioSection.kt",
+          "occurrences": 5
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/UserPreferencesManager.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "audio-tracks": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CentralMediaManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseAudioSection.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 2
+        }
+      ]
+    },
+    "avatars": {
+      "file_count": 5,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ProfileScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelCreatorProfileSheet.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelHistorySheet.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelsScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/UserPreferencesManager.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "azan-voices": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AzanCloudRepository.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/PrayerTimesScreen.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "bug_reports": {
+      "file_count": 3,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/BugReportRepository.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "media-assets": {
+      "file_count": 6,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CentralMediaManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MishkatReminderSection.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPublishManager.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelsScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseRepository.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "project-recordings": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/ProjectService.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 3
+        }
+      ]
+    },
+    "reels": {
+      "file_count": 31,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/AdvancedEditScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AppNavigation.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AppSoundManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AutoSeriesGeneratorEngine.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/AutoThumbnailGeneratorEngine.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/CinematicExportScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/CloudServices.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ConnectorsSection.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DownloadsHubManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/DownloadsHubScreen.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/FirebaseAiService.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MainActivity.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MoneyPrinterTurboScreen.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MoneyPrinterTurboService.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/MontageDirector.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProcessingScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ProfileScreen.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/RealServices.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPreferencesManager.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPublishManager.kt",
+          "occurrences": 6
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelSafetyGuardrails.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelsScreen.kt",
+          "occurrences": 7
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SilentReelStorageManager.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SmartPublishScheduleDialog.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SocialAccountManager.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/SupabaseServices.kt",
+          "occurrences": 22
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/Translator.kt",
+          "occurrences": 3
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/VideoProcessor.kt",
+          "occurrences": 2
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/VideoStyleClonerScreen.kt",
+          "occurrences": 4
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/components/SilentSyncDevFloatingHud.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ui/dialogs/SupabaseCloudConfigDialog.kt",
+          "occurrences": 7
+        }
+      ]
+    },
+    "user-azan-private": {
+      "file_count": 1,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/UserAzanCloudRepository.kt",
+          "occurrences": 1
+        }
+      ]
+    },
+    "user-uploads": {
+      "file_count": 2,
+      "files": [
+        {
+          "file": "app/src/main/java/com/qabas/app/CentralMediaManager.kt",
+          "occurrences": 1
+        },
+        {
+          "file": "app/src/main/java/com/qabas/app/ReelPublishManager.kt",
+          "occurrences": 2
+        }
+      ]
+    }
+  }
+}

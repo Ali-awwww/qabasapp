@@ -70,7 +70,7 @@ object CodeTools {
                 withContext(Dispatchers.IO) {
                     val path = args.optString("path")
                     val content = args.optString("content")
-                    val msg = args.optString("message").ifBlank { "وكيل قبس: $path" }
+                    val msg = args.optString("message").ifBlank { "وكيل مساعد المسلم: $path" }
                     if (path.isBlank() || content.isBlank()) return@withContext "مسار أو محتوى فارغ."
                     if (".." in path || path.length > 200) return@withContext "مسار مرفوض."
                     val ok = rc.createFile(path, ctx.branch, msg, content)
@@ -151,7 +151,7 @@ object CodeTools {
                 withContext(Dispatchers.IO) {
                     val path = args.optString("path")
                     val content = args.optString("content")
-                    val msg = args.optString("message").ifBlank { "وكيل قبس: تحديث $path" }
+                    val msg = args.optString("message").ifBlank { "وكيل مساعد المسلم: تحديث $path" }
                     if (path.isBlank() || content.isBlank()) return@withContext "مسار أو محتوى فارغ."
                     if (".." in path || path.length > 200) return@withContext "مسار مرفوض."
                     val sha = rc.getFileContent(path, ctx.branch)?.sha
@@ -173,7 +173,7 @@ object CodeTools {
                     if (path.isBlank() || ".." in path) return@withContext "مسار مرفوض."
                     val sha = rc.getFileContent(path, ctx.branch)?.sha
                         ?: return@withContext "الملف غير موجود أصلاً."
-                    val ok = rc.deleteFile(path, ctx.branch, args.optString("message").ifBlank { "وكيل قبس: حذف $path" }, sha)
+                    val ok = rc.deleteFile(path, ctx.branch, args.optString("message").ifBlank { "وكيل مساعد المسلم: حذف $path" }, sha)
                     if (ok) "حُذف $path ✅" else "فشل حذف $path."
                 }
             },

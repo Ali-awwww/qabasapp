@@ -49,7 +49,7 @@ class AppReviewsTest {
     fun testRatingCoercionAndDefaults() {
         val defaultReview = SupabaseServices.AppReviewDto()
         assertEquals(5, defaultReview.rating)
-        assertEquals("مستخدم قبس", defaultReview.authorName)
+        assertEquals("مستخدم مساعد المسلم", defaultReview.authorName)
         assertTrue(defaultReview.verifiedUser)
         assertNotNull(defaultReview.id)
     }

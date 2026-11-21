@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -295,6 +296,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun GlobalFeedbackOverlay(content: @Composable () -> Unit) {
         val context = LocalContext.current
+        val configuration = LocalConfiguration.current
         val view = LocalView.current
         val scope = rememberCoroutineScope()
         
@@ -562,8 +564,8 @@ class MainActivity : ComponentActivity() {
                                                 val telemetry = PrecisionDiagnosticEngine.harvestTelemetry(
                                                     context = context,
                                                     screenName = BugReportManager.currentScreen,
-                                                    widthDp = context.resources.configuration.screenWidthDp.toFloat(),
-                                                    heightDp = context.resources.configuration.screenHeightDp.toFloat()
+                                                    widthDp = configuration.screenWidthDp.toFloat(),
+                                                    heightDp = configuration.screenHeightDp.toFloat()
                                                 )
                                                 attachedTelemetry = telemetry
                                                 reportType = telemetry.detectedProbableIssue.code
@@ -875,7 +877,7 @@ class MainActivity : ComponentActivity() {
         val uri = intent.data
         if (uri != null && uri.host == QabasWebConfig.OFFICIAL_WEB_HOST) {
             val path = uri.path.orEmpty()
-            android.widget.Toast.makeText(this, "مرحباً بك في تطبيق قبس عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, "مرحباً بك في تطبيق مساعد المسلم عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
         }
 
         if (uri != null && uri.scheme == "qabas" && uri.host == "github-callback") {

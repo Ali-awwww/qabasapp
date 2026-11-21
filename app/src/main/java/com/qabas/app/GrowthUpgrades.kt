@@ -95,7 +95,7 @@ object HookEngine {
 }
 
 object SharePack {
-    const val HASHTAGS_3 = "#قبس #ريلز_إسلامي #تدبر"
+    const val HASHTAGS_3 = "#مساعد_المسلم #ريلز_إسلامي #تدبر"
     const val COMMENT_CTA = "اكتب كلمة واحدة وصفت شعورك 👇"
     const val NO_WATERMARK_NOTE = "صدّر بلا علامة مائية قبل الرفع — المنصات تخفض انتشار الفيديوهات الموسومة."
 

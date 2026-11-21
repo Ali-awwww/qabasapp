@@ -144,7 +144,7 @@ private fun buildHealthReport(
     errorLogCount: Int,
     devLogs: List<SystemLogEntry>
 ): String = buildString {
-    append("🩺 التقرير الصحي الموحد — قبس\n")
+    append("🩺 التقرير الصحي الموحد — مساعد المسلم\n")
     append("━━━━━━━━━━━━━━\n")
     append("الجهاز: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})\n")
     append("حرج: ${doctorReports.count { it.severity == "حرج" }} • تحسينات: ${doctorReports.count { it.severity == "تحسين" }} • انهيارات: $crashCount • أخطاء سجل: $errorLogCount\n\n")

@@ -102,7 +102,7 @@ fun QabasNavigationDrawerContent(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "شعار قبس",
+                            contentDescription = "شعار مساعد المسلم",
                             tint = theme.primary,
                             modifier = Modifier.size(26.dp)
                         )
@@ -111,7 +111,7 @@ fun QabasNavigationDrawerContent(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "قَبَس",
+                        text = "مساعد المسلم",
                         color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -260,7 +260,7 @@ fun QabasNavigationDrawerContent(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "قبس • استوديو الإنتاج الإسلامي",
+                        text = "مساعد المسلم • استوديو الإنتاج الإسلامي",
                         color = theme.textSecondary,
                         fontSize = 11.sp,
                         fontFamily = NotoSansFont
@@ -302,7 +302,7 @@ fun QabasNavigationDrawerContent(
                     when (selectedCategory) {
                         0 -> {
                             QabasDrawerItem(
-                                title = "استوديو قبس الشامل",
+                                title = "مركز الإنتاج المتكامل",
                                 subtitle = "البوابة المركزية ومسارات الإنتاج الذكية",
                                 icon = Icons.Default.AutoAwesome,
                                 iconTint = theme.primary,
@@ -342,7 +342,7 @@ fun QabasNavigationDrawerContent(
                             )
                             AppleInsetDivider()
                             QabasDrawerItem(
-                                title = "ريلز قبس",
+                                title = "ريلز مساعد المسلم",
                                 subtitle = "مجتمع الإلهام ومقاطع الفيديو القصيرة",
                                 icon = Icons.Default.SlowMotionVideo,
                                 iconTint = theme.primary,

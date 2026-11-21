@@ -188,7 +188,7 @@ fun HasanatHubScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        Translator.tr("مِشكاة الهُدى هو ركنك الإيماني المتكامل ضمن تطبيق قبس، يهدف إلى تيسير الوصول إلى كنوز الوحيين الشريفين وعلوم سلف الأمة."),
+                        Translator.tr("مِشكاة الهُدى هو ركنك الإيماني المتكامل ضمن تطبيق مساعد المسلم، يهدف إلى تيسير الوصول إلى كنوز الوحيين الشريفين وعلوم سلف الأمة."),
                         color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontSize = 13.5.sp,
@@ -728,7 +728,7 @@ fun HasanatHubScreen(
                                     IconButton(
                                         onClick = {
                                             AppSoundManager.playClick()
-                                            val fullText = "«${currentAyah.text}»\nسورة ${currentAyah.surahName} • آية ${currentAyah.ayahNumber}\n\nالتفسير الميسر:\n${currentAyah.tafsir}\n\nتطبيق قبس"
+                                            val fullText = "«${currentAyah.text}»\nسورة ${currentAyah.surahName} • آية ${currentAyah.ayahNumber}\n\nالتفسير الميسر:\n${currentAyah.tafsir}\n\nتطبيق مساعد المسلم"
                                             clipboardManager.setText(AnnotatedString(fullText))
                                             Toast.makeText(context, Translator.tr("تم نسخ الآية وتفسيرها إلى الحافظة"), Toast.LENGTH_SHORT).show()
                                         },

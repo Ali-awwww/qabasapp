@@ -165,7 +165,7 @@ fun LeaderboardScreen(
                         id = p.id.ifBlank { "local_$idx" },
                         title = p.title.ifBlank { "مشروع دعوي مبارك" },
                         creatorName = currentUserName,
-                        scriptPreview = p.script.ifBlank { p.idea.ifBlank { "سيناريو دعوي تم إنتاجه عبر قبس" } },
+                        scriptPreview = p.script.ifBlank { p.idea.ifBlank { "سيناريو دعوي تم إنتاجه عبر مساعد المسلم" } },
                         category = "مشاريعي المحفوظة",
                         likesCount = 0,
                         viewsCount = "محفوظ محلياً",
@@ -196,7 +196,7 @@ fun LeaderboardScreen(
         topBar = {
             Column(modifier = Modifier.background(theme.background)) {
                 AppleTopBar(
-                    title = Translator.tr("مجتمع قبس ولوحة الشرف"),
+                    title = Translator.tr("مجتمع مساعد المسلم ولوحة الشرف"),
                     onBack = onBack,
                     actions = {
                         CloudSyncIndicator(isSyncing = isRefreshing || isLoading)
@@ -322,7 +322,7 @@ private fun LeaderboardTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = Translator.tr("دوري قبس الأسبوعي"),
+                                    text = Translator.tr("دوري مساعد المسلم الأسبوعي"),
                                     color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
@@ -836,7 +836,7 @@ private fun InspirationFeedTab(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "أنشئ مشروعك الدعوي الأول واحفظه ليظهر في مجتمع قبس وتكسب نقاط الأثر.",
+                            text = "أنشئ مشروعك الدعوي الأول واحفظه ليظهر في مجتمع مساعد المسلم وتكسب نقاط الأثر.",
                             color = theme.textSecondary,
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp,

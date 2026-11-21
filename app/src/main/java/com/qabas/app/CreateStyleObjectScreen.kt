@@ -38,7 +38,7 @@ import java.util.UUID
 
 /**
  * شاشة إنشاء وتخصيص كائنات الأنماط الفنية (Create Custom Style Object)
- * تتيح للمستخدم ضبط النبرة، الهوية البصرية، والأسلوب الصوتي، وحفظ النمط في Supabase وسحابة قبس.
+ * تتيح للمستخدم ضبط النبرة، الهوية البصرية، والأسلوب الصوتي، وحفظ النمط في Supabase وسحابة مساعد المسلم.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +200,7 @@ fun CreateStyleObjectScreen(
                         movementPatterns = preset.cameraMovement
                         selectedVisualTraits = preset.visualTraits.toSet()
                         selectedMotionTraits = preset.motionTraits.toSet()
-                        tagsList = (preset.tags + listOf("مخصص", "قبس")).distinct()
+                        tagsList = (preset.tags + listOf("مخصص", "مساعد المسلم")).distinct()
                         Toast.makeText(context, "تم تطبيق قالب: ${preset.name}", Toast.LENGTH_SHORT).show()
                     }
                 )
@@ -409,7 +409,7 @@ fun CreateStyleObjectScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     val primaryColors = listOf(
-                        "#E8C547" to "ذهب قبس",
+                        "#E8C547" to "لمسات مساعد المسلم",
                         "#F5D76E" to "ذهب فاتح",
                         "#10B981" to "زمردي إسلامي",
                         "#38BDF8" to "أزرق سماوي",
@@ -433,7 +433,7 @@ fun CreateStyleObjectScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     val bgColors = listOf(
-                        "#0B0F19" to "سليت قبس الداكن",
+                        "#0B0F19" to "سليت مساعد المسلم الداكن",
                         "#06090E" to "أسود أوبسيديان",
                         "#0F291E" to "ليل زمردي",
                         "#0B1120" to "غسق ملكي",
@@ -537,7 +537,7 @@ fun CreateStyleObjectScreen(
                     val engines = listOf(
                         "ElevenLabs Neural HD",
                         "Azure Speech Islamic",
-                        "محرك قبس الصوتي المدمج"
+                        "محرك مساعد المسلم الصوتي المدمج"
                     )
                     ChipSelector(
                         options = engines,
@@ -754,7 +754,7 @@ fun CreateStyleObjectScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         onClick = {
-                            val nameToSave = styleName.ifBlank { "نمط قبس [${selectedTone.take(10)}]" }
+                            val nameToSave = styleName.ifBlank { "نمط مساعد المسلم [${selectedTone.take(10)}]" }
                             isSaving = true
                             coroutineScope.launch {
                                 val newStyleObject = StyleObject(
@@ -853,7 +853,7 @@ fun CreateStyleObjectScreen(
                 movementPatterns = generated.cameraMovement
                 selectedVisualTraits = generated.visualTraits.toSet()
                 selectedMotionTraits = generated.motionTraits.toSet()
-                tagsList = (generated.tags + listOf("ذكاء_اصطناعي", "قبس")).distinct()
+                tagsList = (generated.tags + listOf("ذكاء_اصطناعي", "مساعد المسلم")).distinct()
                 showAiAssistDialog = false
                 Toast.makeText(context, "تم توليد وتطبيق الأسلوب بالذكاء الاصطناعي بنجاح!", Toast.LENGTH_SHORT).show()
             }
@@ -1395,7 +1395,7 @@ private fun AiStyleAssistantDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "صف أسلوبك الدعوي أو الفكرة في سطر واحد، وسيقوم ذكاء قبس بضبط جميع الخصائص البصرية والصوتية والحركية فوراً:",
+                    text = "صف أسلوبك الدعوي أو الفكرة في سطر واحد، وسيقوم ذكاء مساعد المسلم بضبط جميع الخصائص البصرية والصوتية والحركية فوراً:",
                     fontSize = 12.sp,
                     color = TextSecondary
                 )

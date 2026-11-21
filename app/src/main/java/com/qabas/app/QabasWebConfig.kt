@@ -6,7 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 
 /**
- * 🌐 إعدادات وبوابة الربط بالموقع الرسمي لمنظومة قبس (Qabas Official Web Hub)
+ * 🌐 إعدادات وبوابة الربط بالموقع الرسمي لمنظومة مساعد المسلم (Qabas Official Web Hub)
  */
 object QabasWebConfig {
 
@@ -21,7 +21,7 @@ object QabasWebConfig {
     const val URL_REVIEWS = "$OFFICIAL_WEBSITE_URL/reviews"
     const val URL_ADMIN_PORTAL = "$OFFICIAL_WEBSITE_URL/admin"
 
-    /** رابط مجموعة ومجتمع قبس الرسمي (WhatsApp / Telegram) */
+    /** رابط مجموعة ومجتمع مساعد المسلم الرسمي (WhatsApp / Telegram) */
     const val DEFAULT_COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=sh&p=a&mlu=4&ilr=4&iam=2"
 
     private const val PREFS_NAME = "qabas_prefs"
@@ -44,17 +44,17 @@ object QabasWebConfig {
     }
 
     /**
-     * فتح رابط مجموعة قبس الرسمية
+     * فتح رابط مجموعة مساعد المسلم الرسمية
      */
     fun openCommunityGroup(context: Context) {
         val groupUrl = getOfficialGroupUrl(context)
-        QabasLinkOpener.openUrl(context, groupUrl, "مجموعة قبس على واتساب")
+        QabasLinkOpener.openUrl(context, groupUrl, "مجموعة مساعد المسلم على واتساب")
     }
 
     /**
      * فتح رابط الموقع أو أي مسار فرعي عبر متصفح الهاتف
      */
     fun openWebsite(context: Context, customUrl: String = OFFICIAL_WEBSITE_URL) {
-        QabasLinkOpener.openUrl(context, customUrl, "موقع قبس")
+        QabasLinkOpener.openUrl(context, customUrl, "موقع مساعد المسلم")
     }
 }

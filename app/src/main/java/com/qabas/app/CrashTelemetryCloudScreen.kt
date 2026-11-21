@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -201,34 +200,31 @@ fun CrashTelemetryCloudScreen() {
 
         when {
             isLoading && reports.isEmpty() -> {
-                Column(
+                QabasLoadingState(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) { CircularProgressIndicator() }
+                    message = "جاري تحميل تقارير الأعطال...",
+                    subMessage = "يتم جلب البيانات من Supabase"
+                )
             }
             loadError != null && reports.isEmpty() -> {
-                Column(
+                QabasErrorState(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(loadError.orEmpty(), color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = { refresh() }) { Text("إعادة المحاولة") }
-                }
+                    title = "تعذر تحميل التقارير",
+                    message = loadError.orEmpty(),
+                    onRetry = { refresh() }
+                )
             }
             filteredReports.isEmpty() -> {
-                Column(
+                QabasEmptyState(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(Icons.Default.BugReport, contentDescription = null)
-                    Text(
-                        if (reports.isEmpty()) "لا توجد تقارير أعطال تلقائية مستلمة حتى الآن"
-                        else "لا توجد تقارير تطابق البحث"
-                    )
-                }
+                    icon = Icons.Default.BugReport,
+                    title = if (reports.isEmpty()) "لا توجد تقارير أعطال" else "لا توجد نتائج مطابقة",
+                    description = if (reports.isEmpty()) {
+                        "لم تصل تقارير أعطال تلقائية من الأجهزة حتى الآن"
+                    } else {
+                        "جرّب تعديل كلمات البحث أو مسحها لعرض جميع التقارير"
+                    }
+                )
             }
             else -> {
                 LazyColumn(
@@ -282,7 +278,7 @@ fun CrashTelemetryCloudScreen() {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("وقت الاستلام: ${report.createdAt ?: "غير متاح"}")
                     Text("الجهاز: ${report.deviceInfo}")
-                    Text("إصدار قبس: ${report.appVersion}")
+                    Text("إصدار مساعد المسلم: ${report.appVersion}")
                     Text("الشاشة: ${report.screenName}")
                     Text("المصدر: ${crashReportValue(report.description, "source") ?: "غير محدد"}")
                     Text(

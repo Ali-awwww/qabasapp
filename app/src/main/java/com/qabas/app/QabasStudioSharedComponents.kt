@@ -33,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.components.AppleSecondaryButton
+import com.qabas.app.ui.components.QabasDesignCard
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,7 +85,8 @@ fun TabButton(title: String, isSelected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * بطاقة قبس الموحدة بنمط Apple Inset Grouped Card.
+ * بطاقة مساعد المسلم الموحدة. يحتفظ هذا الغلاف بالتوقيع القديم
+ * حتى تنتقل الشاشات الحالية تدريجيًا إلى نظام Compose المركزي.
  */
 @Composable
 fun QabasCard(
@@ -94,9 +96,9 @@ fun QabasCard(
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AppleCard(
+    QabasDesignCard(
         modifier = modifier,
-        cornerRadius = shapeRadius,
+        shape = RoundedCornerShape(shapeRadius),
         containerColor = containerColor
     ) {
         Column(Modifier.padding(contentPadding), content = content)
@@ -104,7 +106,7 @@ fun QabasCard(
 }
 
 /**
- * ترويسة أقسام قبس بنمط Apple HIG.
+ * ترويسة أقسام مساعد المسلم بنمط Apple HIG.
  */
 @Composable
 fun QabasSectionHeader(
@@ -264,7 +266,7 @@ fun TajweedCertificateDialog(
                 )
 
                 Text(
-                    text = "صادرة عن استوديو قبس للقرآن والتجويد",
+                    text = "صادرة عن استوديو مساعد المسلم للقرآن والتجويد",
                     color = theme.textSecondary,
                     fontFamily = CairoFont,
                     fontSize = 12.sp,
@@ -416,7 +418,7 @@ private fun saveTajweedCertificateBitmap(context: Context, surahName: String, sc
             textSize = 32f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("صادرة عن استوديو قبس للقرآن الكريم", w / 2f, 1140f, footerPaint)
+        canvas.drawText("صادرة عن استوديو مساعد المسلم للقرآن الكريم", w / 2f, 1140f, footerPaint)
 
         val fileName = "QABAS_CERT_${System.currentTimeMillis()}.png"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

@@ -119,7 +119,7 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
         userAvatar = "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&q=80",
         title = "﴿الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ﴾ 🌿 تلاوة خاشعة وسكينة",
         description = "تلاوة قرآنية مباركة تأخذ القلب إلى آفاق الطمأنينة والسكينة في رحاب كلام الله تبارك وتعالى.",
-        // مستضاف في سحابة قبس نفسها — لا اعتماد على مزودي خارجيين يحجبون الروابط
+        // مستضاف في سحابة مساعد المسلم نفسها — لا اعتماد على مزودي خارجيين يحجبون الروابط
         videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/quran_recitation.mp4",
         thumbnailUrl = "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80",
         tags = listOf("قرآن", "تلاوة", "خشوع", "سكينة", "ذكر"),
@@ -135,7 +135,7 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
         userAvatar = "https://images.unsplash.com/photo-1548013146-72479768bada?w=200&q=80",
         title = "هادم اللذات 📜 وقفة صادقة مع الآخرة وزوال الدنيا",
         description = "موعظة مؤثرة تدق أبواب القلوب: تذكير بزوال الدنيا وسرعة الرحيل إلى الله سبحانه وتعالى.",
-        // مستضاف في سحابة قبس نفسها — لا اعتماد على مزودي خارجيين يحجبون الروابط
+        // مستضاف في سحابة مساعد المسلم نفسها — لا اعتماد على مزودي خارجيين يحجبون الروابط
         videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/faith_lecture.mp4",
         thumbnailUrl = "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80",
         tags = listOf("مواعظ", "تذكير", "آخرة", "زهد", "قلب"),
@@ -147,7 +147,7 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
 )
 
 /**
- * 🛰️ ReelsScreen — مشغل ومجتمع ريلز قبس الفضائي
+ * 🛰️ ReelsScreen — مشغل ومجتمع ريلز مساعد المسلم الفضائي
  * النمط المعتمد: Cybernetic Glassmorphism + Linear Minimalist (Spatial HUD Tech)
  * تصميم متجاوب بدون فراغات علوية وبدون تكدس أو تداخل للعناصر
  */
@@ -355,7 +355,7 @@ fun ReelsScreen(
 
     // User details for comments & cloud syncing
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    val currentUserName = prefs.getString("user_name", "صانع محتوى قبس") ?: "صانع محتوى قبس"
+    val currentUserName = prefs.getString("user_name", "صانع محتوى مساعد المسلم") ?: "صانع محتوى مساعد المسلم"
     val currentUserEmail = prefs.getString("user_email", "guest@qabas.studio") ?: "guest@qabas.studio"
     // All screens consume the repository's authenticated snapshot. This reads no session,
     // performs no profile request, and cannot turn a temporary error into a login redirect.
@@ -1174,7 +1174,7 @@ fun ReelsScreen(
                                                 action = Intent.ACTION_SEND
                                                 putExtra(
                                                     Intent.EXTRA_TEXT,
-                                                    "شاهد مقطع «${reel.title}» المميز عبر استوديو قبس: ${reel.videoUrl}"
+                                                    "شاهد مقطع «${reel.title}» المميز عبر استوديو مساعد المسلم: ${reel.videoUrl}"
                                                 )
                                                 type = "text/plain"
                                             }
@@ -1196,7 +1196,7 @@ fun ReelsScreen(
                     }
                 }
 
-                // «مرصد قبس الهندسي» — collapsible geometric dock with all screen tools
+                // «مرصد مساعد المسلم الهندسي» — collapsible geometric dock with all screen tools
                 if (!isKhushuMode) {
                     GeometricToolsDock(
                         expanded = dockExpanded,
@@ -2347,7 +2347,7 @@ private fun QabasPulseIcon(
 fun ReelCommentsBottomSheet(
     reel: SupabaseServices.ReelRow,
     currentUserId: String,
-    currentUserName: String = "مستخدم قبس",
+    currentUserName: String = "مستخدم مساعد المسلم",
     onCommentPosted: () -> Unit = {},
     onCommentDeleted: () -> Unit = {},
     onDismiss: () -> Unit
@@ -2512,7 +2512,7 @@ fun ReelCommentsBottomSheet(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = c.userName.ifBlank {
-                                            if (c.userId == currentUserId) currentUserName else "مستخدم قبس"
+                                            if (c.userId == currentUserId) currentUserName else "مستخدم مساعد المسلم"
                                         },
                                         color = theme.textPrimary,
                                         fontFamily = CairoFont,
@@ -3313,7 +3313,7 @@ fun ReelDetailsBottomSheet(
                             .clip(CircleShape)
                             .border(1.5.dp, theme.primary.copy(alpha = 0.55f), CircleShape)
                             .clickable {
-                                onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى قبس", reel.userAvatar)
+                                onOpenCreatorProfile(reel.userId, reel.userName ?: "صانع محتوى مساعد المسلم", reel.userAvatar)
                             }
                     ) {
                         AsyncImage(
@@ -3327,7 +3327,7 @@ fun ReelDetailsBottomSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = reel.userName ?: "صانع محتوى قبس",
+                                text = reel.userName ?: "صانع محتوى مساعد المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

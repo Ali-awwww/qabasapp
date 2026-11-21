@@ -136,7 +136,7 @@ object KeyDeepLinkHandler {
 
     fun generateShareText(keys: Map<String, String>): String {
         val sb = StringBuilder()
-        sb.appendLine("🔑 مفاتيح قبس — افتح هذا الرابط في التطبيق:")
+        sb.appendLine("🔑 مفاتيح مساعد المسلم — افتح هذا الرابط في التطبيق:")
         sb.appendLine()
         sb.appendLine(generateShareLink(keys))
         sb.appendLine()

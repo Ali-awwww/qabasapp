@@ -409,7 +409,7 @@ fun AiStudioAgentScreen(
                 val isPlanning = AgentPrefs.isPlanningMode(context)
                 if (isPlanning) {
                     val planSteps = listOf(
-                        AgentPlanStep(1, "التحليل والفحص المعماري 🔍", "تحليل ملفات كود مشروع قَبَس المستهدفة وتحديد التغييرات المطلوبة للطلب: \"$clean\"."),
+                        AgentPlanStep(1, "التحليل والفحص المعماري 🔍", "تحليل ملفات كود مشروع مساعد المسلم المستهدفة وتحديد التغييرات المطلوبة للطلب: \"$clean\"."),
                         AgentPlanStep(2, "صياغة وتعديل المكونات ✍️", "كتابة واختبار واجهات Jetpack Compose والمنطق البرمجي الخاص بالخاصية المطلوبة."),
                         AgentPlanStep(3, "التكامل والتحقق من البناء 🚀", "تشغيل أداة التجميع compile_applet والترقيع الذاتي للأخطاء قبل التسليم النهائي.")
                     )

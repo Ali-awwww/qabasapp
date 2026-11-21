@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.VideoView
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -74,6 +75,12 @@ class AdhanFullScreenActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         configureLockScreenWindow()
         readIntent(intent)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // الخروج من شاشة الأذان يعني إيقافه، مثل زر الإيقاف والسحب للأعلى.
+                stopAndClose()
+            }
+        })
         render()
     }
 
@@ -131,11 +138,6 @@ class AdhanFullScreenActivity : ComponentActivity() {
         finishAndRemoveTask()
     }
 
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        // الخروج من شاشة الأذان يعني إيقافه، مثل زر الإيقاف والسحب للأعلى.
-        stopAndClose()
-    }
 }
 
 @androidx.compose.runtime.Composable
@@ -247,7 +249,7 @@ private fun AdhanScreen(
             )
             Spacer(Modifier.height(22.dp))
             Text(
-                text = "قبس",
+                text = "مساعد المسلم",
                 color = Color(0xFFFFD166),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold

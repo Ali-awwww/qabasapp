@@ -14,7 +14,7 @@ class AuthNavigationObserverTest {
         var guestEvents = 0
 
         dispatchAuthNavigationState(
-            state = AuthState.Guest("ضيف قبس"),
+            state = AuthState.Guest("ضيف مساعد المسلم"),
             onAuthenticated = {},
             onUnauthenticated = { loginRedirects++ },
             onGuest = { guestEvents++ }

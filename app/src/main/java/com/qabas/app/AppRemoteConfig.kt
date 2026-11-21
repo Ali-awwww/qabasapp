@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.os.Build
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -155,7 +156,12 @@ object AppRemoteConfig {
 
     private fun currentVersionCode(context: Context): Int {
         return runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode.toInt()
+            } else {
+                packageInfo.versionCode
+            }
         }.getOrDefault(0)
     }
 

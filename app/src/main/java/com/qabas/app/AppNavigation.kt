@@ -751,7 +751,7 @@ fun AppNavigation(
                     viewModel.createProject(script)
                     viewModel.updateState {
                         copy(
-                            projectTitle = topic.ifBlank { "مشروع إلهام - قبس" },
+                            projectTitle = topic.ifBlank { "مشروع إلهام - مساعد المسلم" },
                             inputText = script,
                             selectedRatio = "9:16",
                             contentType = "ريلز / شورتس",
@@ -979,7 +979,7 @@ fun AppNavigation(
                 onCreateProject = { script, topic ->
                     viewModel.createProject(script)
                     viewModel.updateState {
-                        copy(projectTitle = topic.ifBlank { "قصة - قبس" }, inputText = script,
+                        copy(projectTitle = topic.ifBlank { "قصة - مساعد المسلم" }, inputText = script,
                             selectedRatio = "9:16", contentType = "قصة", videoDuration = "30 ثانية",
                             appState = AppState.UNDERSTANDING)
                     }
@@ -993,7 +993,7 @@ fun AppNavigation(
                 onCreateProject = { script, topic ->
                     viewModel.createProject(script)
                     viewModel.updateState {
-                        copy(projectTitle = topic.ifBlank { "مقطع - قبس" }, inputText = script,
+                        copy(projectTitle = topic.ifBlank { "مقطع - مساعد المسلم" }, inputText = script,
                             selectedRatio = "9:16", contentType = "موعظة", videoDuration = "30 ثانية",
                             appState = AppState.UNDERSTANDING)
                     }

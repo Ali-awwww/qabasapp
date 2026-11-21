@@ -59,7 +59,7 @@ fun DashboardBackupSection() {
         scope.launch {
             val (json, counts) = readBackupForRestore(context, uri)
             if (json == null || counts == null) {
-                Toast.makeText(context, "الملف غير صالح أو ليس نسخة احتياطية قبس", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "الملف غير صالح أو ليس نسخة احتياطية مساعد المسلم", Toast.LENGTH_LONG).show()
                 return@launch
             }
             pendingRestore = uri to counts

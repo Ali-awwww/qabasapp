@@ -108,7 +108,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     Icon(Icons.Default.Verified, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "ميثاق قبس الأخلاقي",
+                        text = "ميثاق مساعد المسلم الأخلاقي",
                         color = theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,

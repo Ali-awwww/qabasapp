@@ -84,7 +84,7 @@ fun ScholarDetailScreen(
     }
 
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     Scaffold(
         containerColor = theme.background,
@@ -508,7 +508,7 @@ fun ScholarShareModal(
     }
 
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -806,7 +806,7 @@ fun ScholarLecturesDetailSection(
     val userProposals = remember(scholar.id) { prefs.getUserProposals(scholar.id) }
 
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1106,7 +1106,7 @@ fun CharacterFacetsOverviewSection(
     onSelectFacet: (Int) -> Unit
 ) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1244,7 +1244,7 @@ fun CharacterFacetDetailSection(
     onNextFacet: (() -> Unit)?
 ) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     AppleCard(cornerRadius = 18.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1281,9 +1281,9 @@ fun CharacterFacetDetailSection(
 
                 IconButton(
                     onClick = {
-                        val shareText = "🌟 من سيرة $scholarName:\n\n【${facet.title}】\n\n${facet.narrative}\n\n${facet.keyQuote ?: ""}\n\n💡 الأثر والتطبيق: ${facet.practicalInsight ?: ""}\n\n— عبر تطبيق قبس"
+                        val shareText = "🌟 من سيرة $scholarName:\n\n【${facet.title}】\n\n${facet.narrative}\n\n${facet.keyQuote ?: ""}\n\n💡 الأثر والتطبيق: ${facet.practicalInsight ?: ""}\n\n— عبر تطبيق مساعد المسلم"
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("قبس", shareText))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("مساعد المسلم", shareText))
                         Toast.makeText(context, "تم نسخ هذا المحور للمشاركة 📋", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.size(48.dp)
@@ -1459,7 +1459,7 @@ fun CharacterFacetDetailSection(
 @Composable
 fun ManuscriptIntroSection(scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1504,7 +1504,7 @@ fun ManuscriptIntroSection(scholar: ScholarBiography) {
 @Composable
 fun SpatialJourneySection(scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1679,7 +1679,7 @@ fun HarmedAndPersecutionSection(context: Context, scholar: ScholarBiography) {
 @Composable
 fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // How he endured
@@ -1783,8 +1783,8 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
 @Composable
 fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
-    val indigoAccent = if (theme.isDark) AppleDarkIndigo else AppleLightIndigo
+    val goldAccent = GoldPrimary
+    val indigoAccent = GoldSecondary
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // The Death Scene
@@ -1898,7 +1898,7 @@ fun LegacyAndMessageSection(
     onToggleChallenge: () -> Unit = {}
 ) {
     val theme = QabasTheme.current
-    val goldAccent = if (theme.isDark) AppleDarkGold else AppleLightGold
+    val goldAccent = GoldPrimary
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Global Impact

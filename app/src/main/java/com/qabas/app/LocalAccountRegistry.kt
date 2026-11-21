@@ -37,7 +37,7 @@ object LocalAccountRegistry {
         fun toDevUser(): DevUser {
             return DevUser(
                 id = id,
-                name = name.ifBlank { "مستخدم قبس" },
+                name = name.ifBlank { "مستخدم مساعد المسلم" },
                 email = email,
                 type = when (type.lowercase(java.util.Locale.ROOT)) {
                     "developer", "مطور" -> "مطور"
@@ -71,7 +71,7 @@ object LocalAccountRegistry {
         companion object {
             fun fromJson(json: JSONObject): AccountRecord {
                 val email = json.optString("email", "")
-                val name = json.optString("name", "").ifBlank { "مستخدم قبس" }
+                val name = json.optString("name", "").ifBlank { "مستخدم مساعد المسلم" }
                 val customId = json.optString("custom_id", "").ifBlank { "qbs_user" }
                 val accountNumber = json.optString("account_number", "")
                 return AccountRecord(
@@ -165,7 +165,7 @@ object LocalAccountRegistry {
                 val role = accountType
                 val currentRec = AccountRecord(
                     id = currentEmail,
-                    name = currentName.ifBlank { "مستخدم قبس" },
+                    name = currentName.ifBlank { "مستخدم مساعد المسلم" },
                     email = currentEmail,
                     customId = currentCustomId.ifBlank { UserIdentifierManager.normalize(currentName.ifBlank { "user" }) },
                     accountNumber = accNum,
@@ -279,7 +279,7 @@ object LocalAccountRegistry {
                 context = context,
                 account = AccountRecord(
                     id = email,
-                    name = name.ifBlank { "مستخدم قبس" },
+                    name = name.ifBlank { "مستخدم مساعد المسلم" },
                     email = email,
                     customId = customId.ifBlank { UserIdentifierManager.normalize(name.ifBlank { "user" }) },
                     accountNumber = accNum,

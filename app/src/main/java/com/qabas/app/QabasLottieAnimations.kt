@@ -1498,7 +1498,7 @@ fun LottieBrainVisualizer(
 }
 
 /**
- * حركة دخول استوديو قبس الإبداعي (Lottie Studio Entry Portal)
+ * حركة دخول استوديو مساعد المسلم الإبداعي (Lottie Studio Entry Portal)
  * تظهر ببراعة سينمائية وهندسة إسلامية ذهبية ترحيباً بصانع المحتوى.
  */
 @Composable

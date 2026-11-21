@@ -379,7 +379,7 @@ fun CommunityReviewsListDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "مراجعات مجتمع قبس",
+                                "مراجعات مجتمع مساعد المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -425,7 +425,7 @@ fun CommunityReviewsListDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = theme.primary)
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("جاري الاتصال بسحابة قبس...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text("جاري الاتصال بسحابة مساعد المسلم...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 } else if (filteredReviews.isEmpty()) {
@@ -488,7 +488,7 @@ private fun ReviewItemCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = review.authorName.ifBlank { "مستخدم قبس" },
+                                text = review.authorName.ifBlank { "مستخدم مساعد المسلم" },
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -597,7 +597,7 @@ fun SubmitAppReviewDialog(
     val savedName = remember {
         prefs.getString("user_display_name", null)
             ?: CloudServices.Auth.currentUser.value?.displayName
-            ?: "مستخدم قبس"
+            ?: "مستخدم مساعد المسلم"
     }
 
     var authorName by remember { mutableStateOf(savedName) }
@@ -638,7 +638,7 @@ fun SubmitAppReviewDialog(
                         Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "تقييم تطبيق قبس",
+                            "تقييم تطبيق مساعد المسلم",
                             color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,

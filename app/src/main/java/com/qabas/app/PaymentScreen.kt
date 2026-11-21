@@ -163,7 +163,7 @@ fun PaymentScreen(
                         )
                     }
                     Text(
-                        text = if (isProOrDev) Translator.tr("ميزة مجانية لمشتركي قبس برو") else Translator.tr("عملات قبس"),
+                        text = if (isProOrDev) Translator.tr("ميزة مجانية لمشتركي مساعد المسلم برو") else Translator.tr("عملات مساعد المسلم"),
                         color = if (isProOrDev) theme.success else theme.primary,
                         fontSize = 13.sp,
                         fontFamily = CairoFont,
@@ -280,7 +280,7 @@ fun PaymentScreen(
             containerColor = theme.cardSurface,
             title = {
                 Text(
-                    Translator.tr("شحن رصيد قبس"),
+                    Translator.tr("شحن رصيد مساعد المسلم"),
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     color = theme.textPrimary

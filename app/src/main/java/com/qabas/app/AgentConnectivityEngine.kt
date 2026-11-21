@@ -50,7 +50,7 @@ object AgentConnectivityEngine {
         val normalized = value.lowercase()
         if (value.isBlank()) return ""
         if (normalized.startsWith("your_")) return ""
-        if (normalized in setOf("ci-placeholder", "placeholder", "changeme", "your-key", "your_key")) {
+        if (normalized in setOf("ci-placeholder", "placeholder", "changeme", "your-key", "your_key", "__missing__")) {
             return ""
         }
         return value

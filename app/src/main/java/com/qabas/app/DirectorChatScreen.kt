@@ -203,7 +203,7 @@ fun DirectorChatScreen(
             if (nb.idea.length >= 10) {
                 buildingTreatment = true
                 val tPrompt = """
-                    أنت مخرج قبس. من هذا الحوار: $history
+                    أنت مخرج مساعد المسلم. من هذا الحوار: $history
                     الفكرة: "${nb.idea.take(400)}" النوع:${nb.contentType} النبرة:${nb.contentTone}
                     اكتب علاجاً سينمائياً حياً بالعربية، 6 أسطر كحد أقصى، بالشكل:
                     الخطاف: جملة أول ثانيتين.
