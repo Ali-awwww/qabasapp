@@ -156,7 +156,12 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
 fun ReelsScreen(
     onBack: () -> Unit,
     bottomBar: @Composable () -> Unit = {},
-    onOpenProfile: () -> Unit = {}
+    onOpenProfile: () -> Unit = {},
+    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C): مقطع محدد أو صانع محدد.
+    initialReelId: String? = null,
+    initialCreatorId: String? = null,
+    initialCreatorName: String? = null,
+    initialCreatorAvatar: String? = null
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
@@ -702,6 +707,59 @@ fun ReelsScreen(
     val pagerState = rememberPagerState(pageCount = { displayReels.size })
     LaunchedEffect(selectedTab, displayReels.size) {
         if (displayReels.isNotEmpty() && pagerState.currentPage != 0) pagerState.scrollToPage(0)
+    }
+
+    // قفزة موحّدة إلى مقطع محدد (الدفعة 5 — الجزء C؛ مكافئ jumpToReel()
+    // من الدفعة 3 التي فُقدت مع فروعها): إعادة ضبط الفلاتر إلى تبويب «لك»،
+    // إحضار المقطع من السحابة إن لم يكن محمّلاً، ثم تمرير المتصفح إلى
+    // موضعه عبر pendingJumpReelId. مقطع غير موجود أو غير نشط يُبلَّغ
+    // عنه برسالة ولا يُفتح مكان خاطئ.
+    var pendingJumpReelId by remember { mutableStateOf<String?>(null) }
+
+    fun jumpToReel(targetReelId: String) {
+        scope.launch {
+            selectedTab = 0
+            isAlAtharMode = false
+            selectedCategory = "ALL"
+            isSearchActive = false
+            searchQuery = ""
+            hiddenReelIds = hiddenReelIds - targetReelId
+            val reel = allReels.firstOrNull { it.id == targetReelId }
+                ?: withTimeoutOrNull(10_000L) {
+                    SupabaseServices.Profiles.getReelById(targetReelId)
+                }
+            if (reel == null || !reel.isActive) {
+                Toast.makeText(context, "هذا المقطع لم يعد متاحاً للتشغيل.", Toast.LENGTH_LONG).show()
+            } else {
+                if (allReels.none { it.id == reel.id }) {
+                    allReels = allReels + reel
+                }
+                pendingJumpReelId = targetReelId
+            }
+        }
+    }
+
+    LaunchedEffect(pendingJumpReelId, displayReels) {
+        val targetId = pendingJumpReelId ?: return@LaunchedEffect
+        val index = displayReels.indexOfFirst { it.id == targetId }
+        if (index >= 0) {
+            pagerState.scrollToPage(index)
+            pendingJumpReelId = null
+        }
+    }
+
+    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C).
+    LaunchedEffect(initialReelId) {
+        if (initialReelId != null) jumpToReel(initialReelId)
+    }
+    LaunchedEffect(initialCreatorId) {
+        if (initialCreatorId != null) {
+            activeCreatorProfile = Triple(
+                initialCreatorId,
+                initialCreatorName ?: "صانع محتوى",
+                initialCreatorAvatar
+            )
+        }
     }
 
     // حالة التشغيل الفعلية للصفحة الحالية (مستمدة من خريطة الصفحات — لا تسرب حالة)

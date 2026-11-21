@@ -367,6 +367,71 @@ fun AppNavigation(
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
                 onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
+                // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C): كل نتيجة
+                // تفتح موضعها لا قسمها فقط — الآية في القارئ، والحديث في
+                // قارئ الصحيحين داخل المكتبة، والكتاب في قارئه، والمقطع
+                // بقفزة jumpToReel، والصانع في بطاقة ملفه داخل الريلز.
+                // (على أساس main الحالي لا واجهة بحث تستدعيها بعد — واجهة
+                // البحث العام من الدفعة 3 فُقدت مع فروعها؛ عند استعادتها
+                // تُمرَّر هذه الدوال نفسها إلى HomeGlobalSearch.)
+                onOpenQuranVerse = { surah, ayah ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                onOpenHadith = { hadithId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialHadithId = hadithId,
+                            libraryInitialBookId = null
+                        )
+                    }
+                },
+                onOpenLibraryBook = { bookId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialBookId = bookId,
+                            libraryInitialHadithId = null
+                        )
+                    }
+                },
+                onOpenReel = { reelId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkReelId = reelId,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                },
+                onOpenCreator = { creatorId, creatorName ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkCreatorId = creatorId,
+                            deepLinkCreatorName = creatorName,
+                            deepLinkReelId = null
+                        )
+                    }
+                },
+                onOpenMushaf = { surah, ayah, page ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = page
+                        )
+                    }
+                },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
                     rulesReturnToSettings = false
@@ -439,6 +504,26 @@ fun AppNavigation(
         AppState.QURAN_HUB -> {
             // Legacy state compatibility: the standalone Quran section has been removed.
             viewModel.updateState { copy(appState = AppState.HASANAT_HUB) }
+        }
+        AppState.MUSHAF_READER -> {
+            // قارئ المصحف (الدفعة 5 — الجزء C): يفتح عند السورة/الآية/الصفحة
+            // المطلوبة من البحث أو من «أكمل»، أو عند آخر قراءة محفوظة.
+            MushafReaderScreen(
+                initialSurah = state.mushafInitialSurah,
+                initialAyah = state.mushafInitialAyah,
+                initialPage = state.mushafInitialPage,
+                onBack = {
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.HOME,
+                            mushafInitialSurah = null,
+                            mushafInitialAyah = null,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                bottomBar = bottomNav
+            )
         }
         AppState.HASANAT_HUB -> {
             HasanatHubScreen(
@@ -796,8 +881,27 @@ fun AppNavigation(
             ReelsScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 bottomBar = bottomNav,
-                onOpenProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } }
+                onOpenProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } },
+                // روابط البحث العميقة (الدفعة 5 — الجزء C): مقطع محدد بقفزة
+                // jumpToReel، أو صانع محدد ببطاقة ملفه.
+                initialReelId = state.deepLinkReelId,
+                initialCreatorId = state.deepLinkCreatorId,
+                initialCreatorName = state.deepLinkCreatorName
             )
+            // لقطة واحدة: تُمسح بعد أول تركيب حتى لا تتكرر القفزة عند
+            // دخول الريلز لاحقاً من الشريط السفلي. تأثيرات ReelsScreen
+            // نفسها تُسجَّل أولاً في التركيب فتقرأ الهدف قبل مسحه.
+            if (state.deepLinkReelId != null || state.deepLinkCreatorId != null) {
+                LaunchedEffect(state.deepLinkReelId, state.deepLinkCreatorId) {
+                    viewModel.updateState {
+                        copy(
+                            deepLinkReelId = null,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                }
+            }
         }
         AppState.DOWNLOAD_MANAGER -> {
             DownloadsHubScreen(
@@ -1401,8 +1505,20 @@ fun AppNavigation(
                             inputText = quote
                         )
                     }
-                }
+                },
+                // روابط البحث العميقة (الدفعة 5 — الجزء C): كتاب أو حديث محدد.
+                initialBookId = state.libraryInitialBookId,
+                initialHadithId = state.libraryInitialHadithId
             )
+            // لقطة واحدة: تُمسح بعد أول تركيب حتى لا يُعاد فتح الكتاب/
+            // الحديث عند دخول المكتبة لاحقاً.
+            if (state.libraryInitialBookId != null || state.libraryInitialHadithId != null) {
+                LaunchedEffect(state.libraryInitialBookId, state.libraryInitialHadithId) {
+                    viewModel.updateState {
+                        copy(libraryInitialBookId = null, libraryInitialHadithId = null)
+                    }
+                }
+            }
         }
         AppState.MONEY_PRINTER_TURBO -> {
             MoneyPrinterTurboScreen(
@@ -1571,6 +1687,66 @@ fun AppNavigation(
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
                 onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
+                // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C) — كما في
+                // فرع HOME أعلاه؛ فرع الاحتياط هذا يعرض الرئيسية أيضاً.
+                onOpenQuranVerse = { surah, ayah ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                onOpenHadith = { hadithId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialHadithId = hadithId,
+                            libraryInitialBookId = null
+                        )
+                    }
+                },
+                onOpenLibraryBook = { bookId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialBookId = bookId,
+                            libraryInitialHadithId = null
+                        )
+                    }
+                },
+                onOpenReel = { reelId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkReelId = reelId,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                },
+                onOpenCreator = { creatorId, creatorName ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkCreatorId = creatorId,
+                            deepLinkCreatorName = creatorName,
+                            deepLinkReelId = null
+                        )
+                    }
+                },
+                onOpenMushaf = { surah, ayah, page ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = page
+                        )
+                    }
+                },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
                     rulesReturnToSettings = false

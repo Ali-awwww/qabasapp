@@ -51,6 +51,9 @@ object UserPreferencesManager {
         "selected_reciter",
         "selected_riwaya",
         "last_read_surah",
+        "last_read_ayah",
+        "last_read_page",
+        "last_read_at",
         "sakina_mode",
         "offline_ai_mode",
         "selected_local_model_id",
@@ -592,6 +595,51 @@ object UserPreferencesManager {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("app_language", lang).apply()
         Translator.setLanguage(lang)
         triggerAutoSync(context)
+    }
+
+    // ── آخر صفحة قرآن مقروءة (الدفعة 5 — الجزء C) ──
+    /**
+     * آخر موضع قراءة في المصحف، يُحفظ في `qabas_prefs` (المخزن نفسه الذي
+     * تستخدمه المشكاة والأذكار) وتُزامَن مفاتيحه سحابياً عبر
+     * [CLOUD_SYNCED_QABAS_KEYS] — فالمفتاح `last_read_surah` كان في مجموعة
+     * المزامنة منذ الدفعة 3 دون أن يُكتب أو يُقرأ أبداً؛ الآن يُكتب فعلياً.
+     * الصفحة رقم حقيقي من خريطة المصحف المدني [MushafPageData] (1–604)،
+     * أو null إن تعذّر تحميل الخريطة — لا يُخترع رقم صفحة أبداً.
+     */
+    @Immutable
+    data class LastReadQuran(
+        val surah: Int,
+        val ayah: Int,
+        val page: Int?,
+        val atMillis: Long
+    )
+
+    fun getLastReadQuran(context: Context): LastReadQuran? {
+        val prefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+        val surah = prefs.getInt("last_read_surah", 0)
+        if (surah !in 1..114) return null
+        val ayah = prefs.getInt("last_read_ayah", 1).coerceAtLeast(1)
+        val page = prefs.getInt("last_read_page", -1)
+            .takeIf { it in 1..MushafPageData.PAGE_COUNT }
+        return LastReadQuran(
+            surah = surah,
+            ayah = ayah,
+            page = page,
+            atMillis = prefs.getLong("last_read_at", 0L)
+        )
+    }
+
+    fun saveLastReadQuran(context: Context, surah: Int, ayah: Int, page: Int?) {
+        if (surah !in 1..114 || ayah < 1) return
+        val validPage = page?.takeIf { it in 1..MushafPageData.PAGE_COUNT }
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putInt("last_read_surah", surah)
+            .putInt("last_read_ayah", ayah)
+            .apply { if (validPage != null) putInt("last_read_page", validPage) else remove("last_read_page") }
+            .putLong("last_read_at", System.currentTimeMillis())
+            .apply()
+        // الكتابة على مفتاح مُزامَن تطلق المزامنة السحابية تلقائياً عبر
+        // المستمع المسجّل في init() — لا استدعاء صريح هنا.
     }
 
     // Helper to resolve font family
