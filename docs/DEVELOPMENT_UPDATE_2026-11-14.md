@@ -81,6 +81,13 @@ git diff --check
 - فحص Mintlify Deployment ما زال فاشلاً من تكامل خارجي، وليس من Workflow موجود في المستودع.
 - لم يُشغّل Gradle محلياً التزاماً بتعليمات المشروع؛ التحقق التجميعي يظل عبر GitHub Actions.
 
+## إعادة تأسيس PR — 2026-11-22
+
+- جُلب `main` الأحدث (`80b47699`) بعد ظهور تعارض في PR #89.
+- حُل تعارض `StudioGatewayScreen.kt` بالحفاظ على نسخة البوابة التي تتوافق مع استدعاء `AppNavigation` لمسار `onNavigateToHiggsfield`.
+- أُعيد دفع الفرع بأمان باستخدام `--force-with-lease` إلى commit `1eb76bf43cf24833076f19988adca0272efe5636`.
+- بعد الدفع أصبحت حالة PR `MERGEABLE`، وبدأت فحوص Build وCodeQL وSecret Scan الجديدة؛ لا تُعد نتائجها ناجحة قبل اكتمالها.
+
 ## جولة تحسين التشغيل — 2026-11-15
 
 - أضيف `Job` مملوك للشاشة لمسار توليد Higgsfield.
