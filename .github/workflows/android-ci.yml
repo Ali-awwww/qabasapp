@@ -188,7 +188,6 @@ jobs:
       - name: Inject secrets (optional)
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -203,7 +202,6 @@ jobs:
           {
             echo "SUPABASE_URL=\"${SUPABASE_URL:-https://YOUR_PROJECT_REF.supabase.co}\""
             echo "SUPABASE_ANON_KEY=\"${SUPABASE_ANON_KEY:-your_publishable_or_anon_key}\""
-            echo "GEMINI_API_KEY=\"${GEMINI_API_KEY:-your_key}\""
             echo "AZURE_SPEECH_KEY=\"your_key\""
             echo "AZURE_SPEECH_REGION=\"your_region\""
             echo "COVERR_API_KEY=\"your_key\""
