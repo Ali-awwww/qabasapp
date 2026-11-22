@@ -161,7 +161,7 @@ internal fun SpatialStudiosSector(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             SpatialHubCard(
-                title = "MoneyPrinter Turbo",
+                title = "أدوات دخل المبدعين",
                 subtitle = "أتمتة إنتاج ريلز وشورتس 9:16 بضغطة زر",
                 icon = Icons.Default.Bolt,
                 badge = "سريع",

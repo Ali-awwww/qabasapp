@@ -147,6 +147,86 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "saveMishkatReminderContent failed: ${it.message}") }.getOrDefault(false)
 
+        /**
+         * تذكير مشكاة يوم محدد (1–30) من جدول mishkat_daily.
+         * يفشل بلطف إلى null عند غياب الجدول (لم يُطبَّق الترحيل بعد) أو انقطاع
+         * الشبكة — والمستدعي يرجع حينها للسجل العام الواحد.
+         */
+        suspend fun getMishkatDaily(dayNumber: Int): MishkatDailyRow? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("mishkat_daily").select {
+                filter {
+                    eq("day_number", dayNumber)
+                    eq("is_active", true)
+                }
+                limit(1)
+            }.decodeSingleOrNull<MishkatDailyRow>()
+        }.onFailure { Log.e(TAG, "getMishkatDaily failed: ${it.message}") }.getOrNull()
+
+        /** كل تذكيرات مشكاة اليومية النشطة مرتبة برقم اليوم؛ فارغة عند غياب الجدول. */
+        suspend fun getAllActiveMishkatDaily(): List<MishkatDailyRow> = runCatching {
+            val client = client ?: return emptyList()
+            client.postgrest.from("mishkat_daily").select {
+                filter { eq("is_active", true) }
+                order("day_number", Order.ASCENDING)
+            }.decodeList<MishkatDailyRow>()
+        }.onFailure { Log.e(TAG, "getAllActiveMishkatDaily failed: ${it.message}") }.getOrDefault(emptyList())
+
+        /**
+         * مهام فيديو الاستوديو للمستخدم الحالي (جدول studio_jobs، الدفعة 4).
+         * تفشل بلطف إلى فارغة عند غياب الجدول (لم يُطبَّق الترحيل بعد).
+         */
+        suspend fun getStudioJobs(): List<StudioJobRow> = runCatching {
+            val client = client ?: return emptyList()
+            val userId = Auth.getCurrentUserId() ?: return emptyList()
+            client.postgrest.from("studio_jobs").select {
+                filter { eq("user_id", userId) }
+                order("created_at", Order.DESCENDING)
+                limit(50)
+            }.decodeList<StudioJobRow>()
+        }.onFailure { Log.e(TAG, "getStudioJobs failed: ${it.message}") }.getOrDefault(emptyList())
+
+        /** تسجيل مهمة فيديو منتهية (التنفيذ متزامن في الأداة؛ الطابور يسجّل النتيجة فقط). */
+        suspend fun insertStudioJob(job: StudioJobRow): Boolean = runCatching {
+            val client = client ?: return false
+            val userId = Auth.getCurrentUserId() ?: return false
+            val row = job.copy(
+                userId = job.userId.ifBlank { userId },
+                createdAt = job.createdAt ?: java.time.Instant.now().toString()
+            )
+            client.postgrest.from("studio_jobs").insert(row)
+            true
+        }.onFailure { Log.e(TAG, "insertStudioJob failed: ${it.message}") }.getOrDefault(false)
+
+        /**
+         * سجل توليدات الاستوديو للمستخدم الحالي (جدول ai_generations، الدفعة 4).
+         * فارغ عند غياب الجدول.
+         */
+        suspend fun getAiGenerations(): List<AiGenerationRow> = runCatching {
+            val client = client ?: return emptyList()
+            val userId = Auth.getCurrentUserId() ?: return emptyList()
+            client.postgrest.from("ai_generations").select {
+                filter { eq("user_id", userId) }
+                order("created_at", Order.DESCENDING)
+                limit(100)
+            }.decodeList<AiGenerationRow>()
+        }.onFailure { Log.e(TAG, "getAiGenerations failed: ${it.message}") }.getOrDefault(emptyList())
+
+        /**
+         * تسجيل توليد واحد. التكلفة الفعلية تُسجَّل 0 حتى تُقاس من المزود
+         * (خارج نطاق الدفعة 4 — انظر ApiUsageTracker).
+         */
+        suspend fun insertAiGeneration(generation: AiGenerationRow): Boolean = runCatching {
+            val client = client ?: return false
+            val userId = Auth.getCurrentUserId() ?: return false
+            val row = generation.copy(
+                userId = generation.userId.ifBlank { userId },
+                createdAt = generation.createdAt ?: java.time.Instant.now().toString()
+            )
+            client.postgrest.from("ai_generations").insert(row)
+            true
+        }.onFailure { Log.e(TAG, "insertAiGeneration failed: ${it.message}") }.getOrDefault(false)
+
         suspend fun getLatestActiveUpdateOrThrow(): ActiveUpdate? {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
             return client.postgrest.from("app_updates")
@@ -2322,9 +2402,18 @@ object SupabaseServices {
             Log.d("ReelPublish", "saveReel: Inserting reel row")
 
             return try {
-                client.postgrest.from("reels").insert(payload) {
+                val saved = client.postgrest.from("reels").insert(payload) {
                     select()
                 }.decodeSingle<ReelRow>()
+                // Normal user publishes enter the moderation queue; dev-published
+                // featured / silent-seed reels skip it (dev-published by definition).
+                // Best-effort: a queue failure must never fail the publish itself.
+                if (publishType == "normal") {
+                    runCatching {
+                        DevWorkQueuesRepository.enqueueReelForModeration(saved.id, effectiveUserId)
+                    }
+                }
+                saved
             } catch (e: Exception) {
                 Log.e("ReelPublish", "Supabase reels insert error: ${e.message}", e)
                 throw e
@@ -3448,6 +3537,46 @@ object SupabaseServices {
     )
 
     @Serializable
+    data class MishkatDailyRow(
+        val id: String = "",
+        @SerialName("day_number") val dayNumber: Int = 0,
+        val date: String? = null,
+        val type: String = "",
+        val title: String = "",
+        val text: String = "",
+        val source: String = "",
+        @SerialName("lesson_url") val lessonUrl: String? = null,
+        @SerialName("is_active") val isActive: Boolean = true
+    )
+
+    /** مهمة فيديو في طابور الاستوديو (الدفعة 4). status: running/completed/failed/cancelled. */
+    @Serializable
+    data class StudioJobRow(
+        val id: String = "",
+        @SerialName("user_id") val userId: String = "",
+        val type: String = "video",
+        val status: String = "running",
+        val progress: Float = 0f,
+        val prompt: String = "",
+        @SerialName("file_path") val filePath: String? = null,
+        val error: String? = null,
+        @SerialName("created_at") val createdAt: String? = null
+    )
+
+    /** توليد واحد في سجل الاستوديو (الدفعة 4). cost_usd = 0 حتى تُقاس من المزود. */
+    @Serializable
+    data class AiGenerationRow(
+        val id: String = "",
+        @SerialName("user_id") val userId: String = "",
+        val type: String = "",
+        val provider: String = "",
+        val prompt: String? = null,
+        @SerialName("file_path") val filePath: String? = null,
+        @SerialName("cost_usd") val costUsd: Double = 0.0,
+        @SerialName("created_at") val createdAt: String? = null
+    )
+
+    @Serializable
     data class HadithRow(
         val id: String = "",
         val title: String = "",
@@ -3782,7 +3911,10 @@ object SupabaseServices {
         val sender: String = "user",
         val message: String = "",
         @SerialName("created_at") val createdAt: String? = null,
-        @SerialName("updated_at") val updatedAt: String? = null
+        @SerialName("updated_at") val updatedAt: String? = null,
+        // حالة سير عمل الدعم في قاعدة البيانات (new/in_progress/done) — تُقرأ من dev_chat_messages
+        val status: String = "new",
+        val priority: String = "normal"
     )
 
     @Serializable

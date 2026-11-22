@@ -51,6 +51,9 @@ object UserPreferencesManager {
         "selected_reciter",
         "selected_riwaya",
         "last_read_surah",
+        "last_read_ayah",
+        "last_read_page",
+        "last_read_at",
         "sakina_mode",
         "offline_ai_mode",
         "selected_local_model_id",
@@ -615,6 +618,46 @@ object UserPreferencesManager {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("app_language", lang).apply()
         Translator.setLanguage(lang)
         triggerAutoSync(context)
+    }
+
+    /**
+     * آخر موضع قراءة في المصحف (الدفعة 5 — الجزء C، مُنقَل هنا لتكملة صف
+     * «أكمل من حيث توقفت» في الدفعة 3). لا رقم صفحة مختلق أبداً: الصفحة
+     * null عند جهلها، ويكتبها قارئ المصحف فقط عند القراءة الفعلية.
+     */
+    data class LastReadQuran(
+        val surah: Int,
+        val ayah: Int,
+        val page: Int?,
+        val atMillis: Long
+    )
+
+    fun getLastReadQuran(context: Context): LastReadQuran? {
+        val prefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+        val surah = prefs.getInt("last_read_surah", 0)
+        if (surah !in 1..114) return null
+        val ayah = prefs.getInt("last_read_ayah", 1).coerceAtLeast(1)
+        val page = prefs.getInt("last_read_page", -1)
+            .takeIf { it in 1..MushafPageData.PAGE_COUNT }
+        return LastReadQuran(
+            surah = surah,
+            ayah = ayah,
+            page = page,
+            atMillis = prefs.getLong("last_read_at", 0L)
+        )
+    }
+
+    fun saveLastReadQuran(context: Context, surah: Int, ayah: Int, page: Int?) {
+        if (surah !in 1..114 || ayah < 1) return
+        val validPage = page?.takeIf { it in 1..MushafPageData.PAGE_COUNT }
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putInt("last_read_surah", surah)
+            .putInt("last_read_ayah", ayah)
+            .apply { if (validPage != null) putInt("last_read_page", validPage) else remove("last_read_page") }
+            .putLong("last_read_at", System.currentTimeMillis())
+            .apply()
+        // الكتابة على مفتاح مُزامَن تطلق المزامنة السحابية تلقائياً عبر
+        // المستمع المسجّل في init() — لا استدعاء صريح هنا.
     }
 
     // Helper to resolve font family
