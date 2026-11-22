@@ -20,7 +20,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -37,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.AppleCard
@@ -47,6 +56,7 @@ import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 // ============================================================================
 // MushafReaderScreen.kt — قارئ المصحف (الدفعة 5 — الجزء C)
@@ -81,6 +91,49 @@ fun MushafReaderScreen(
     var targetAyah by remember { mutableStateOf<Int?>(null) }
     var targetConsumed by remember { mutableStateOf(false) }
     var currentPage by remember { mutableStateOf<Int?>(null) }
+
+    // --- التلاوة الصوتية (QuranAudioService — الدفعة: ربط صوت القرآن) ---
+    // تشغيل تلاوة الصفحة الحالية فقط؛ الخدمة لا توفّر توقيت كلمات، فلا تزامن
+    // كلمة بكلمة ولا تمييز آية أثناء التشغيل — زر تشغيل/إيقاف واختيار قارئ فقط.
+    var selectedReciter by remember { mutableStateOf("alafasy") }
+    var isPlayingAudio by remember { mutableStateOf(false) }
+    var isLoadingAudio by remember { mutableStateOf(false) }
+    var playingPage by remember { mutableStateOf<Int?>(null) }
+    var audioMessage by remember { mutableStateOf<String?>(null) }
+    var reciterMenuOpen by remember { mutableStateOf(false) }
+    val audioScope = rememberCoroutineScope()
+
+    fun stopAudio() {
+        QuranAudioPlayer.stop()
+        isPlayingAudio = false
+        playingPage = null
+    }
+
+    fun togglePageAudio() {
+        if (isLoadingAudio) return
+        if (playingPage != null) {
+            // استئناف/إيقاف التلاوة الجارية لصفحتها دون إعادة تحميل.
+            isPlayingAudio = QuranAudioPlayer.toggle()
+            return
+        }
+        val page = currentPage ?: return
+        audioMessage = null
+        isLoadingAudio = true
+        audioScope.launch {
+            val urls = QuranAudioService.getPageAudioUrls(context, page, selectedReciter)
+            isLoadingAudio = false
+            if (urls.isEmpty()) {
+                audioMessage = "تعذّر تحميل تلاوة هذه الصفحة. تحقق من الاتصال وحاول مجدداً."
+                return@launch
+            }
+            QuranAudioPlayer.playUrls(context, urls) {
+                isPlayingAudio = false
+                playingPage = null
+            }
+            playingPage = page
+            isPlayingAudio = true
+        }
+    }
 
     // آخر موضع معروف — يُقرأ في onDispose حتى لو غادر المستخدم قبل المهلة.
     val latestPosition = remember { mutableStateOf<UserPreferencesManager.LastReadQuran?>(null) }
@@ -171,9 +224,10 @@ fun MushafReaderScreen(
             }
     }
 
-    // حفظ آخر موضع عند مغادرة الشاشة (رجوع أو تنقّل).
+    // حفظ آخر موضع عند مغادرة الشاشة (رجوع أو تنقّل) + إيقاف التلاوة.
     DisposableEffect(Unit) {
         onDispose {
+            QuranAudioPlayer.stop()
             latestPosition.value?.let { position ->
                 UserPreferencesManager.saveLastReadQuran(
                     context,
@@ -222,6 +276,8 @@ fun MushafReaderScreen(
                             )
                             .clickable {
                                 if (surah.id != selectedSurah) {
+                                    stopAudio()
+                                    audioMessage = null
                                     selectedSurah = surah.id
                                     targetAyah = 1
                                     targetConsumed = false
@@ -237,6 +293,127 @@ fun MushafReaderScreen(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 12.5.sp
                         )
+                    }
+                }
+            }
+
+            // شريط التلاوة: تشغيل/إيقاف تلاوة الصفحة الحالية + اختيار القارئ.
+            // الصوت حقيقي من QuranAudioService (EveryAyah CDN، وQF API للعفاسي
+            // عند توفر المفاتيح) — بلا توقيت كلمات، فلا تزامن ولا تمييز آية.
+            if (currentPage != null || playingPage != null) {
+                val reciterName = QuranAudioService.getReciterInfo(selectedReciter).nameAr
+                val audioLabel = when {
+                    audioMessage != null -> audioMessage!!
+                    isLoadingAudio -> "جارٍ تحميل التلاوة…"
+                    isPlayingAudio && playingPage != null -> "تشغيل تلاوة صفحة $playingPage"
+                    playingPage != null -> "تلاوة صفحة $playingPage متوقفة مؤقتاً"
+                    else -> "تلاوة صفحة $currentPage"
+                }
+                AppleCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(theme.primary)
+                                .clickable(enabled = !isLoadingAudio) { togglePageAudio() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isLoadingAudio) {
+                                CircularProgressIndicator(
+                                    color = theme.background,
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isPlayingAudio) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlayingAudio) "إيقاف التلاوة مؤقتاً" else "تشغيل التلاوة",
+                                    tint = theme.background,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = audioLabel,
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "القارئ: $reciterName",
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(theme.cardSurface)
+                                    .clickable { reciterMenuOpen = true }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "تغيير القارئ",
+                                        color = theme.textPrimary,
+                                        fontFamily = CairoFont,
+                                        fontSize = 12.sp
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = theme.textSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = reciterMenuOpen,
+                                onDismissRequest = { reciterMenuOpen = false },
+                                modifier = Modifier.background(theme.cardSurface)
+                            ) {
+                                QuranAudioService.availableReciters.forEach { reciter ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                reciter.nameAr,
+                                                fontFamily = CairoFont,
+                                                color = theme.textPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            reciterMenuOpen = false
+                                            if (reciter.id != selectedReciter) {
+                                                stopAudio()
+                                                audioMessage = null
+                                                selectedReciter = reciter.id
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
