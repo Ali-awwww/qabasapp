@@ -234,7 +234,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
         var queueCounts by remember { mutableStateOf(DevQueuePendingCounts()) }
         val localAccounts by LocalAccountRegistry.accountsFlow.collectAsState()
 
-        fun mergeUsers(localList: List<LocalAccountRegistry.AccountRecord>, cloudList: List<DevUser> = emptyList()) {
+        suspend fun mergeUsers(localList: List<LocalAccountRegistry.AccountRecord>, cloudList: List<DevUser> = emptyList()) {
             val seenIds = mutableSetOf<String>()
             val seenEmails = mutableSetOf<String>()
             val merged = mutableListOf<DevUser>()
