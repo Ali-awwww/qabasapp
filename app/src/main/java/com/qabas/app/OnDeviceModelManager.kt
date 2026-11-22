@@ -63,6 +63,8 @@ object OnDeviceModelManager {
     private const val KEY_RESUME_URL_PREFIX = "model_resume_url_"
     private const val KEY_RESUME_ETAG_PREFIX = "model_resume_etag_"
     private const val KEY_RESUME_LASTMOD_PREFIX = "model_resume_lastmod_"
+    private const val KEY_SELECTED_MODEL = "selected_model"
+    private const val KEY_OFFLINE_MODE_ACTIVE = "offline_mode_active"
     private const val MODEL_SUBDIR = "models/local"
 
     private val httpClient: OkHttpClient by lazy {

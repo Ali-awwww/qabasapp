@@ -982,8 +982,9 @@ object SupabaseServices {
             start: String,
             end: String
         ): Map<String, Long> {
-            val rows = client.postgrest.from("points_ledger").select {
+            val rows = client.postgrest.from("points_ledger").select(
                 columns = io.github.jan.supabase.postgrest.query.Columns.list("user_id, points_delta")
+            ) {
                 filter {
                     gte("created_at", start)
                     lt("created_at", end)
@@ -1001,8 +1002,9 @@ object SupabaseServices {
             userIds: List<String>
         ): Map<String, String> {
             if (userIds.isEmpty()) return emptyMap()
-            val rows = client.postgrest.from("users").select {
+            val rows = client.postgrest.from("users").select(
                 columns = io.github.jan.supabase.postgrest.query.Columns.list("id, name")
+            ) {
                 filter { isIn("id", userIds) }
                 limit(userIds.size.toLong())
             }.decodeList<UserNameRow>()
@@ -1775,13 +1777,13 @@ object SupabaseServices {
             val results = linkedMapOf<String, Boolean>()
             for (table in byUserId) {
                 results[table] = runCatching {
-                    client.postgrest.from(table).delete { eq("user_id", userId) }
+                    client.postgrest.from(table).delete { filter { eq("user_id", userId) } }
                     true
                 }.onFailure { Log.w(TAG, "deleteOwnAccountRows: $table failed: ${it.message}") }
                     .getOrDefault(false)
             }
             results["users"] = runCatching {
-                client.postgrest.from("users").delete { eq("id", userId) }
+                client.postgrest.from("users").delete { filter { eq("id", userId) } }
                 true
             }.onFailure { Log.w(TAG, "deleteOwnAccountRows: users failed: ${it.message}") }
                 .getOrDefault(false)
@@ -2783,8 +2785,9 @@ object SupabaseServices {
          */
         private suspend fun realHelpfulCounts(): Map<String, Int> = runCatching {
             val client = client ?: return emptyMap()
-            client.postgrest.from("review_helpful_votes").select {
+            client.postgrest.from("review_helpful_votes").select(
                 columns = io.github.jan.supabase.postgrest.query.Columns.list("review_id")
+            ) {
                 limit(10_000)
             }.decodeList<HelpfulVoteRow>()
                 .groupingBy { it.reviewId }.eachCount()
@@ -2974,8 +2977,9 @@ object SupabaseServices {
         suspend fun getMyHelpfulVoteReviewIds(): Set<String> = runCatching {
             val client = client ?: return emptySet()
             val uid = Auth.getCurrentUserId() ?: return emptySet()
-            client.postgrest.from("review_helpful_votes").select {
+            client.postgrest.from("review_helpful_votes").select(
                 columns = io.github.jan.supabase.postgrest.query.Columns.list("review_id")
+            ) {
                 filter { eq("user_id", uid) }
                 limit(10_000)
             }.decodeList<HelpfulVoteRow>().map { it.reviewId }.toSet()
