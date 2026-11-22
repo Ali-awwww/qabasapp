@@ -90,25 +90,6 @@ fun IslamicLibraryScreen(
         }
     }
 
-    // رابط عميق لمرة واحدة: كتاب → قارئه، حديث → قارئ الصحيحين عنده.
-    LaunchedEffect(initialBookId, initialHadithId) {
-        if (initialHadithId != null) {
-            SahihHadithsRepository.getHadithById(initialHadithId)?.let { item ->
-                activeSahihBookType = item.bookType
-            }
-        } else if (initialBookId != null) {
-            IslamicLibraryRepository.books.firstOrNull { it.id == initialBookId }?.let { book ->
-                if (book.id == "sahih_al_bukhari") {
-                    activeSahihBookType = SahihBookType.BUKHARI
-                } else if (book.id == "sahih_muslim") {
-                    activeSahihBookType = SahihBookType.MUSLIM
-                } else {
-                    activeBookForReading = book
-                }
-            }
-        }
-    }
-
     BackHandler(enabled = activeSahihBookType != null || activeBookForReading != null) {
         if (activeSahihBookType != null) {
             activeSahihBookType = null

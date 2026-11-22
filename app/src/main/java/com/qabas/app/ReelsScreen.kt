@@ -831,59 +831,6 @@ fun ReelsScreen(
         }
     }
 
-    // قفزة موحّدة إلى مقطع محدد (الدفعة 3): إعادة ضبط الفلاتر إلى تبويب
-    // «لك»، إحضار المقطع من السحابة إن لم يكن محمّلاً، ثم تمرير المتصفح
-    // إلى موضعه عبر pendingJumpReelId. مقطع غير موجود أو غير نشط يُبلَّغ
-    // عنه برسالة ولا يُفتح مكان خاطئ. تُستخدم من صفحة استكشف ومن سجل
-    // المشاهدة ومن روابط البحث العميقة.
-    var pendingJumpReelId by remember { mutableStateOf<String?>(null) }
-
-    fun jumpToReel(targetReelId: String) {
-        scope.launch {
-            selectedTab = 0
-            isAlAtharMode = false
-            selectedCategory = "ALL"
-            isSearchActive = false
-            searchQuery = ""
-            hiddenReelIds = hiddenReelIds - targetReelId
-            val reel = allReels.firstOrNull { it.id == targetReelId }
-                ?: withTimeoutOrNull(10_000L) {
-                    SupabaseServices.Profiles.getReelById(targetReelId)
-                }
-            if (reel == null || !reel.isActive) {
-                Toast.makeText(context, "هذا المقطع لم يعد متاحاً للتشغيل.", Toast.LENGTH_LONG).show()
-            } else {
-                if (allReels.none { it.id == reel.id }) {
-                    allReels = allReels + reel
-                }
-                pendingJumpReelId = targetReelId
-            }
-        }
-    }
-
-    LaunchedEffect(pendingJumpReelId, displayReels) {
-        val targetId = pendingJumpReelId ?: return@LaunchedEffect
-        val index = displayReels.indexOfFirst { it.id == targetId }
-        if (index >= 0) {
-            pagerState.scrollToPage(index)
-            pendingJumpReelId = null
-        }
-    }
-
-    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C).
-    LaunchedEffect(initialReelId) {
-        if (initialReelId != null) jumpToReel(initialReelId)
-    }
-    LaunchedEffect(initialCreatorId) {
-        if (initialCreatorId != null) {
-            activeCreatorProfile = Triple(
-                initialCreatorId,
-                initialCreatorName ?: "صانع محتوى",
-                initialCreatorAvatar
-            )
-        }
-    }
-
     ReelCrashBoundary(onSafeExit = onBack) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0), // Full bleed without empty top gap
