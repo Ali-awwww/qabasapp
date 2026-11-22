@@ -66,6 +66,8 @@ import java.util.zip.ZipOutputStream
 
 enum class DashboardSection {
     MAIN,
+    QUEUES,
+    ALERTS,
     CLOUD_API_HUB,
     RELEASES_HUB,
     HEALTH_DIAGNOSTICS_HUB,
@@ -228,9 +230,11 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
 
         // قائمة المستخدمين الحقيقية — تشمل المسجلين محلياً وسحابياً وتتزامن حياً
         val devUsers = remember { mutableStateListOf<DevUser>() }
+        // عدد العناصر المعلقة في قوائم العمل (إشراف/دعم/أعطال) — صفر حتى يُطبَّق الترحيل، لا رقم مخترع
+        var queueCounts by remember { mutableStateOf(DevQueuePendingCounts()) }
         val localAccounts by LocalAccountRegistry.accountsFlow.collectAsState()
 
-        fun mergeUsers(localList: List<LocalAccountRegistry.AccountRecord>, cloudList: List<DevUser> = emptyList()) {
+        suspend fun mergeUsers(localList: List<LocalAccountRegistry.AccountRecord>, cloudList: List<DevUser> = emptyList()) {
             val seenIds = mutableSetOf<String>()
             val seenEmails = mutableSetOf<String>()
             val merged = mutableListOf<DevUser>()
@@ -255,6 +259,8 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
 
             devUsers.clear()
             devUsers.addAll(merged)
+            // تحميل عدد المعلّق في قوائم العمل (أفضل جهد — يبقى صفراً عند الفشل)
+            queueCounts = DevWorkQueuesRepository.loadPendingCounts()
         }
 
         // تحديث حي فوري عند تغير الحسابات المسجلة محلياً في الهاتف
@@ -333,8 +339,19 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         onUsersCommunityHub = { currentSection = DashboardSection.USERS_COMMUNITY_HUB },
                         onReleaseHub = { currentSection = DashboardSection.RELEASES_HUB },
                         onSystemIdentityHub = { currentSection = DashboardSection.SYSTEM_IDENTITY_HUB },
-                        userCount = devUsers.size
+                        onWorkQueues = { currentSection = DashboardSection.QUEUES },
+                        onAlerts = { currentSection = DashboardSection.ALERTS },
+                        userCount = devUsers.size,
+                        queueCounts = queueCounts
                     )
+                }
+
+                DashboardSection.QUEUES -> {
+                    DevWorkQueuesScreen(onBack = { currentSection = DashboardSection.MAIN })
+                }
+
+                DashboardSection.ALERTS -> {
+                    DevAlertsScreen(onBack = { currentSection = DashboardSection.MAIN })
                 }
 
 
@@ -779,7 +796,10 @@ fun DashboardMainGrid(
     onUsersCommunityHub: () -> Unit = {},
     onReleaseHub: () -> Unit = {},
     onSystemIdentityHub: () -> Unit = {},
-    userCount: Int = 0
+    onWorkQueues: () -> Unit = {},
+    onAlerts: () -> Unit = {},
+    userCount: Int = 0,
+    queueCounts: DevQueuePendingCounts = DevQueuePendingCounts()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -828,6 +848,8 @@ fun DashboardMainGrid(
         val onClick: () -> Unit
     )
     val hubs = listOf(
+        MainHub("قوائم العمل", "إشراف المحتوى، الدعم، والأعطال — بحالات", "${queueCounts.totalPending} معلّق", Icons.Default.Assignment, Color(0xFFF59E0B), onWorkQueues),
+        MainHub("التنبيهات", "قفزة أعطال، فشل مفتاح، خطأ بوابة، موجة تسجيلات", "داخل التطبيق", Icons.Default.NotificationsActive, Color(0xFFEF4444), onAlerts),
         MainHub("التشغيل والصحة", "حالة الخدمات، الأعطال، السجلات، والتدقيق في مكان واحد", "صحة النظام", Icons.Default.MedicalServices, cyan, onHealthDiagnosticsHub),
         MainHub("المستخدمون والدعم", "الحسابات، الرتب، الرسائل، البلاغات، والإشعارات", "$userCount مستخدم", Icons.Default.Group, green, onUsersCommunityHub),
         MainHub("الإصدارات والتحديثات", "البناء، خط الإنتاج، اعتماد التحديثات، وDelta", "Release Center", Icons.Default.SystemUpdate, violet, onReleaseHub),

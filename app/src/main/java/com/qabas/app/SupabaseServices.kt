@@ -2034,9 +2034,18 @@ object SupabaseServices {
             Log.d("ReelPublish", "saveReel: Inserting reel row")
 
             return try {
-                client.postgrest.from("reels").insert(payload) {
+                val saved = client.postgrest.from("reels").insert(payload) {
                     select()
                 }.decodeSingle<ReelRow>()
+                // Normal user publishes enter the moderation queue; dev-published
+                // featured / silent-seed reels skip it (dev-published by definition).
+                // Best-effort: a queue failure must never fail the publish itself.
+                if (publishType == "normal") {
+                    runCatching {
+                        DevWorkQueuesRepository.enqueueReelForModeration(saved.id, effectiveUserId)
+                    }
+                }
+                saved
             } catch (e: Exception) {
                 Log.e("ReelPublish", "Supabase reels insert error: ${e.message}", e)
                 throw e
@@ -3350,7 +3359,10 @@ object SupabaseServices {
         val sender: String = "user",
         val message: String = "",
         @SerialName("created_at") val createdAt: String? = null,
-        @SerialName("updated_at") val updatedAt: String? = null
+        @SerialName("updated_at") val updatedAt: String? = null,
+        // حالة سير عمل الدعم في قاعدة البيانات (new/in_progress/done) — تُقرأ من dev_chat_messages
+        val status: String = "new",
+        val priority: String = "normal"
     )
 
     @Serializable
