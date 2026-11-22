@@ -211,7 +211,7 @@ fun StyleBrainSection(
                     size = 54.dp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("قوة عقل مساعد المسلم التراكمي (QabasCoreStyle)", color = TextSecondary, fontFamily = CairoFont, fontSize = 14.sp)
+                Text("قوة عقل خادم المسلم التراكمي (QabasCoreStyle)", color = TextSecondary, fontFamily = CairoFont, fontSize = 14.sp)
                 // عرض صريح LTR لتجنب قلب الأرقام في RTL
                 Text(
                     text = "$strength / 100",
@@ -1711,7 +1711,7 @@ fun ContinuousLearningTab(
                         }
                     }
                     Text(
-                        activePrimaryStyle?.name ?: "هوية مساعد المسلم الأساسية",
+                        activePrimaryStyle?.name ?: "هوية خادم المسلم الأساسية",
                         color = TextPrimary,
                         fontFamily = CairoFont,
                         fontSize = 15.sp,

@@ -579,7 +579,7 @@ fun SahihReaderView(
                         val quranPart = hadith.quranEvidence?.let { qe ->
                             "\n\n📖 الدليل القرآني [${qe.surahName} - آية ${qe.ayahNumber}]:\n«${qe.verseText}»\n• وجه التكامل: ${qe.relationType}\n• البيان: ${qe.commentary}"
                         } ?: ""
-                        val text = "حديث شريف من ${hadith.bookType.titleAr}:\n\n${hadith.narrator}:\n«${hadith.matn}»\n\n📌 التخريج: ${hadith.reference}\n💡 الفائدة: ${hadith.wisdomCapsule}$quranPart\n\n✨ تطبيق مساعد المسلم — مشكاة الهدى"
+                        val text = "حديث شريف من ${hadith.bookType.titleAr}:\n\n${hadith.narrator}:\n«${hadith.matn}»\n\n📌 التخريج: ${hadith.reference}\n💡 الفائدة: ${hadith.wisdomCapsule}$quranPart\n\n✨ تطبيق خادم المسلم — مشكاة الهدى"
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, text)
@@ -1626,7 +1626,7 @@ fun QuranicHarmonyDialog(
                                 ) {
                                     IconButton(
                                         onClick = {
-                                            val text = "قال تعالى: «${qe.verseText}» [${qe.surahName}: ${qe.ayahNumber}]\n\nوقال النبي ﷺ في ${hadith.bookType.titleAr}:\n«${hadith.matn}» [${hadith.reference}]\n\n🔗 وجه التكامل: ${qe.relationType}\n\n✨ تطبيق مساعد المسلم"
+                                            val text = "قال تعالى: «${qe.verseText}» [${qe.surahName}: ${qe.ayahNumber}]\n\nوقال النبي ﷺ في ${hadith.bookType.titleAr}:\n«${hadith.matn}» [${hadith.reference}]\n\n🔗 وجه التكامل: ${qe.relationType}\n\n✨ تطبيق خادم المسلم"
                                             clipboardManager.setText(AnnotatedString(text))
                                             Toast.makeText(context, "تم نسخ الآية والحديث بنجاح ✅", Toast.LENGTH_SHORT).show()
                                         },
@@ -1637,7 +1637,7 @@ fun QuranicHarmonyDialog(
 
                                     IconButton(
                                         onClick = {
-                                            val text = "📖 تكامل الوحيين (القرآن والسنة):\n\nقال الله تعالى:\n«${qe.verseText}» [${qe.surahName}: ${qe.ayahNumber}]\n\nوقال رسول الله ﷺ:\n«${hadith.matn}» [${hadith.reference}]\n\n🔗 وجه الدلالة والتكامل:\n${qe.relationType}\n\n💡 البيان: ${qe.commentary}\n\n✨ استوديو مساعد المسلم — مشكاة الهدى"
+                                            val text = "📖 تكامل الوحيين (القرآن والسنة):\n\nقال الله تعالى:\n«${qe.verseText}» [${qe.surahName}: ${qe.ayahNumber}]\n\nوقال رسول الله ﷺ:\n«${hadith.matn}» [${hadith.reference}]\n\n🔗 وجه الدلالة والتكامل:\n${qe.relationType}\n\n💡 البيان: ${qe.commentary}\n\n✨ استوديو خادم المسلم — مشكاة الهدى"
                                             val intent = Intent(Intent.ACTION_SEND).apply {
                                                 type = "text/plain"
                                                 putExtra(Intent.EXTRA_TEXT, text)

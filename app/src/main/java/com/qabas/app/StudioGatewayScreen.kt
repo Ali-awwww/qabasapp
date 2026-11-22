@@ -45,7 +45,7 @@ import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 
 /**
- * 🛸 استوديو مساعد المسلم الموحّد لصناعة المحتوى (Unified Creative Production Studio)
+ * 🛸 استوديو خادم المسلم الموحّد لصناعة المحتوى (Unified Creative Production Studio)
  * تم تنظيم الاستوديو في 3 فئات رئيسية: فيديوهات، صور، صوت.
  * مع دعم نظام Bring-Your-Own-Key (BYOK) للمنصات الخارجية.
  */
@@ -106,7 +106,7 @@ fun StudioGatewayScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                "استوديو مساعد المسلم الموحّد",
+                                "استوديو خادم المسلم الموحّد",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
@@ -855,7 +855,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 Toast.makeText(context, "تم حفظ إعدادات Leonardo ومفتاح Higgsfield على الخادم الآمن ✓", Toast.LENGTH_LONG).show()
                                 onDismiss()
                             } else {
-                                Toast.makeText(context, "تعذر حفظ مفتاح Higgsfield. تحقق من صلاحية حساب المطور واتصال بوابة مساعد المسلم.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "تعذر حفظ مفتاح Higgsfield. تحقق من صلاحية حساب المطور واتصال بوابة خادم المسلم.", Toast.LENGTH_LONG).show()
                             }
                             isSavingHiggsfield = false
                         }

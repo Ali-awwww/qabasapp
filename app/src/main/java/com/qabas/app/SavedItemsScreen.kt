@@ -337,7 +337,7 @@ private fun SuccessSavedItemsContent(
                     onCopy = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText(
-                            "Muslim Assistant Saved Item",
+                            "Muslim AI Assistant Saved Item",
                             "${item.title}\n\n${item.content}\n${item.reference}"
                         )
                         clipboard.setPrimaryClip(clip)
@@ -385,7 +385,7 @@ private fun UserProfileAppleCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = profile?.displayName ?: "مستخدم مساعد المسلم",
+                    text = profile?.displayName ?: "مستخدم خادم المسلم",
                     color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,

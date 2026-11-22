@@ -1281,9 +1281,9 @@ fun CharacterFacetDetailSection(
 
                 IconButton(
                     onClick = {
-                        val shareText = "🌟 من سيرة $scholarName:\n\n【${facet.title}】\n\n${facet.narrative}\n\n${facet.keyQuote ?: ""}\n\n💡 الأثر والتطبيق: ${facet.practicalInsight ?: ""}\n\n— عبر تطبيق مساعد المسلم"
+                        val shareText = "🌟 من سيرة $scholarName:\n\n【${facet.title}】\n\n${facet.narrative}\n\n${facet.keyQuote ?: ""}\n\n💡 الأثر والتطبيق: ${facet.practicalInsight ?: ""}\n\n— عبر تطبيق خادم المسلم"
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("مساعد المسلم", shareText))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("خادم المسلم", shareText))
                         Toast.makeText(context, "تم نسخ هذا المحور للمشاركة 📋", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.size(48.dp)

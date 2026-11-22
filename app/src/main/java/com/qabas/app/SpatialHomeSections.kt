@@ -67,7 +67,7 @@ internal fun SpatialStudiosSector(
             Box {
                 AsyncImage(
                     model = R.drawable.spatial_hud_gateway_refined_1790877953352,
-                    contentDescription = "استوديو مساعد المسلم الموحّد",
+                    contentDescription = "استوديو خادم المسلم الموحّد",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                     alpha = 0.55f
@@ -127,7 +127,7 @@ internal fun SpatialStudiosSector(
         }
 
         SpatialHubCard(
-            title = "ريلز ومجتمع مساعد المسلم الإيماني",
+            title = "ريلز ومجتمع خادم المسلم الإيماني",
             subtitle = "مشاهدة ونشر مقاطع الريلز القصيرة والتفاعل مع صناع الأثر",
             icon = Icons.Default.SlowMotionVideo,
             badge = "ريلز 9:16",
@@ -475,7 +475,7 @@ internal fun SpatialAiEnginesSector(
         }
 
         SpatialHubCard(
-            title = "بوابة مساعد المسلم والمستودع الرسمي",
+            title = "بوابة خادم المسلم والمستودع الرسمي",
             subtitle = "الموقع الرسمي: تحميل التحديثات والدروس العلمية",
             icon = Icons.Default.Language,
             badge = "الموقع",

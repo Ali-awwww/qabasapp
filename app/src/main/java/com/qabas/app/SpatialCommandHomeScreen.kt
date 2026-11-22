@@ -707,7 +707,7 @@ private fun SpatialHudTopBar(
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "مساعد المسلم",
+                        text = "خادم المسلم",
                         color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -1144,7 +1144,7 @@ private fun SpatialHudStatsHeader(
     val savedDisplayName = (
         prefs.getString("user_display_name", null)
             ?: CloudServices.Auth.currentUser.value?.displayName
-    )?.trim()?.takeIf { it.isNotBlank() } ?: "مستخدم مساعد المسلم"
+    )?.trim()?.takeIf { it.isNotBlank() } ?: "مستخدم خادم المسلم"
 
     val calendar = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
     val hourFormat = remember { java.text.SimpleDateFormat("HH", Locale.getDefault()) }

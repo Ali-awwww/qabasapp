@@ -232,7 +232,7 @@ fun SettingsScreen(
             SearchableSetting("إعدادات كاميرا البلاغات", "التحكم بزر الكاميرا العائم المستخدم لإرسال البلاغات", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "البلاغات", accentColor = theme.primary, group = "التواصل والمساندة")
         ).let { base ->
             val withDeveloperSettings = if (isDeveloperAccount) {
-                base + SearchableSetting("أدوات المطور وتحديثات xdelta", "فحص الإصدارات والتشخيص المتقدم لمستودع مساعد المسلم", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta", "مطور"), badge = "للمطور", accentColor = theme.destructive, group = "أدوات المطور")
+                base + SearchableSetting("أدوات المطور وتحديثات xdelta", "فحص الإصدارات والتشخيص المتقدم لمستودع خادم المسلم", Icons.Default.CloudSync, SettingsSubScreen.GITHUB_XDELTA_HUB, listOf("تحديث", "جيتهاب", "xdelta", "مطور"), badge = "للمطور", accentColor = theme.destructive, group = "أدوات المطور")
             } else base
             if (isLoggedInAccount) withDeveloperSettings + SearchableSetting(
                 "مركز التواصل مع المطور", "متابعة بلاغاتك والتواصل مع المطور داخل محادثة موحدة", Icons.Default.SupportAgent, SettingsSubScreen.MAIN, listOf("دعم", "دردشة", "مساعدة"), badge = if (unreadReportsCount > 0) "$unreadReportsCount ردود جديدة" else "التواصل", accentColor = if (unreadReportsCount > 0) theme.warning else theme.primary, badgeColor = if (unreadReportsCount > 0) theme.warning else null, group = "التواصل والمساندة")
@@ -801,7 +801,7 @@ fun SettingsScreen(
 
                     SettingsGroupHeader(Translator.tr("المجتمع والتواصل"))
                     SettingsActionCard(
-                        title = "ملتقى مساعد المسلم والمجتمعات الرسمية",
+                        title = "ملتقى خادم المسلم والمجتمعات الرسمية",
                         subtitle = "القنوات الرسمية ومجتمع المبدعين",
                         icon = Icons.Default.Hub,
                         accentColor = theme.primary,
@@ -811,7 +811,7 @@ fun SettingsScreen(
 
                     SettingsGroupHeader(Translator.tr("المنظومة والسياسات"))
                     SettingsActionCard(
-                        title = "منظومة مساعد المسلم والضوابط الشرعية",
+                        title = "منظومة خادم المسلم والضوابط الشرعية",
                         subtitle = "الرؤية، الإصدار، والاعتماد الشرعي",
                         icon = Icons.Default.VerifiedUser,
                         accentColor = theme.primary,
@@ -819,7 +819,7 @@ fun SettingsScreen(
                     )
                     SettingsActionCard(
                         title = "سجل التحديثات التفصيلي",
-                        subtitle = "تاريخ تطور منظومة مساعد المسلم والمزايا الجديدة",
+                        subtitle = "تاريخ تطور منظومة خادم المسلم والمزايا الجديدة",
                         icon = Icons.Default.History,
                         accentColor = theme.warning,
                         onClick = onNavigateToHistory
@@ -971,7 +971,7 @@ fun SettingsScreen(
     if (showAvatarPicker) {
         val avatarOptions = listOf(
             0 to (Icons.Default.Person to "الشخصية الافتراضية"),
-            1 to (Icons.Default.AutoAwesome to "إبداع مساعد المسلم"),
+            1 to (Icons.Default.AutoAwesome to "إبداع خادم المسلم"),
             2 to (Icons.Default.MovieFilter to "صانع المحتوى"),
             3 to (Icons.Default.MenuBook to "القارئ"),
             4 to (Icons.Default.Psychology to "الذكاء")
