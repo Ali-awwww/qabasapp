@@ -79,13 +79,41 @@ data class MishkatReminderContent(
 fun MishkatReminderCard() {
     var content by remember { mutableStateOf<MishkatReminderContent?>(null) }
 
+    // تذكير اليوم الدائر (الدفعة 3): رقم يوم السنة (1–366) يُطوى على دورة
+    // 1–30، فتذكير اليوم نفسه يصل كل المستخدمين في اليوم نفسه.
+    val todayDayNumber = remember {
+        ((java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR) - 1) % 30) + 1
+    }
+    var daily by remember { mutableStateOf<SupabaseServices.MishkatDailyRow?>(null) }
+    var archiveDays by remember { mutableStateOf<List<SupabaseServices.MishkatDailyRow>>(emptyList()) }
+
     LaunchedEffect(Unit) {
         content = withContext(Dispatchers.IO) {
             SupabaseServices.Database.getMishkatReminderContent()
         }
+        daily = withContext(Dispatchers.IO) {
+            SupabaseServices.Database.getMishkatDaily(todayDayNumber)
+        }
+        archiveDays = withContext(Dispatchers.IO) {
+            SupabaseServices.Database.getAllActiveMishkatDaily()
+        }
     }
 
     var expanded by remember { mutableStateOf(false) }
+
+    // عند توفر تذكير اليوم من جدول mishkat_daily يُعرض هو مع أرشيف الأيام
+    // السابقة؛ وعند غيابه (الترحيل غير مطبَّق بعد، أو لا صف لذلك اليوم)
+    // يُعرض السجل العام الواحد كما كان — بلا محتوى بديل مختلق.
+    val todayReminder = daily
+    if (todayReminder != null) {
+        MishkatDailyReminderCard(
+            daily = todayReminder,
+            archiveDays = archiveDays,
+            todayDayNumber = todayDayNumber
+        )
+        return
+    }
+
     val published = content?.takeIf { it.isEnabled } ?: return
 
     Column(
@@ -214,6 +242,251 @@ fun MishkatReminderCard() {
                         Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
                         Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
                         Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * بطاقة تذكير اليوم من جدول mishkat_daily (الدفعة 3) مع أرشيف «الأيام السابقة».
+ * لا تُعرض إلا عند توفر صف لذلك اليوم؛ وإلا يرجع المستدعي للسجل العام.
+ * أرقام الأيام السابقة تُحسب بالتدوير نفسه 1–30، فلا يوم خارج الدورة.
+ */
+@Composable
+private fun MishkatDailyReminderCard(
+    daily: SupabaseServices.MishkatDailyRow,
+    archiveDays: List<SupabaseServices.MishkatDailyRow>,
+    todayDayNumber: Int
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var archiveExpanded by remember { mutableStateOf(false) }
+    // المحتوى المعروض: تذكير اليوم افتراضاً، أو يوم سابق اختاره المستخدم.
+    var shown by remember(daily) { mutableStateOf(daily) }
+    val isShowingToday = shown.dayNumber == todayDayNumber
+
+    // الأيام السبعة السابقة بالترتيب من الأحدث، من الصفوف النشطة المحمّلة فقط.
+    val previousDayNumbers = remember(todayDayNumber) {
+        (1..7).map { offset -> ((todayDayNumber - 1 - offset) % 30 + 30) % 30 + 1 }
+    }
+    val previousDays = remember(archiveDays, previousDayNumbers) {
+        val byDay = archiveDays.associateBy { it.dayNumber }
+        previousDayNumbers.mapNotNull { byDay[it] }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .heightIn(min = 36.dp)
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
+                tint = Color(0xFFE8D8B5),
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = "تذكّر اليوم • اليوم ${shown.dayNumber} من 30",
+                color = Color(0xFFE8D8B5),
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            )
+            Icon(
+                Icons.Default.Lightbulb,
+                contentDescription = "عرض التذكير",
+                tint = Color(0xFFD6BC83),
+                modifier = Modifier.size(17.dp)
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val reminderShape = RoundedCornerShape(18.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFF041715),
+                                    Color(0xFF0A2927),
+                                    Color(0xFF071B25)
+                                )
+                            ),
+                            shape = reminderShape
+                        )
+                        .border(
+                            BorderStroke(1.dp, Color(0xFF36CFC0).copy(alpha = 0.48f)),
+                            shape = reminderShape
+                        )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
+                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
+                            Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
+                        }
+                        Text(
+                            text = when (shown.type) {
+                                "ayah" -> "آية اليوم"
+                                "hadith" -> "حديث اليوم"
+                                else -> "حكمة اليوم"
+                            },
+                            color = Color(0xFF79D9CB),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = shown.title,
+                            color = Color(0xFFE8D8B5),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = shown.text,
+                            color = Color(0xFFF2E8D4),
+                            fontFamily = AmiriFont,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 23.sp,
+                            lineHeight = 36.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        )
+                        Text(
+                            text = shown.source,
+                            color = Color(0xFF79D9CB),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        )
+                        shown.lessonUrl?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) }?.let { lessonUrl ->
+                            val context = LocalContext.current
+                            TextButton(
+                                onClick = {
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(lessonUrl)))
+                                    }.onFailure {
+                                        Toast.makeText(context, "تعذّر فتح رابط الدرس.", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            ) {
+                                Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF79D9CB))
+                                Spacer(Modifier.width(8.dp))
+                                Text("مشاهدة الدرس الكامل", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        if (!isShowingToday) {
+                            TextButton(
+                                onClick = { shown = daily },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            ) {
+                                Text("عودة إلى تذكير اليوم", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
+                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
+                            Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
+                        }
+                    }
+                }
+
+                if (previousDays.isNotEmpty()) {
+                    TextButton(
+                        onClick = { archiveExpanded = !archiveExpanded },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    ) {
+                        Icon(
+                            if (archiveExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = Color(0xFF79D9CB),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "الأيام السابقة (${previousDays.size})",
+                            color = Color(0xFF79D9CB),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = archiveExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            previousDays.forEach { day ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { shown = day }
+                                        .background(
+                                            color = Color(0xFF0A2927),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "اليوم ${day.dayNumber}",
+                                        color = Color(0xFFD6BC83),
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = day.title,
+                                        color = Color(0xFFE8D8B5),
+                                        fontFamily = CairoFont,
+                                        fontSize = 13.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

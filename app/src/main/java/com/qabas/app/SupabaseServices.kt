@@ -104,6 +104,31 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "saveMishkatReminderContent failed: ${it.message}") }.getOrDefault(false)
 
+        /**
+         * تذكير مشكاة يوم محدد (1–30) من جدول mishkat_daily.
+         * يفشل بلطف إلى null عند غياب الجدول (لم يُطبَّق الترحيل بعد) أو انقطاع
+         * الشبكة — والمستدعي يرجع حينها للسجل العام الواحد.
+         */
+        suspend fun getMishkatDaily(dayNumber: Int): MishkatDailyRow? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("mishkat_daily").select {
+                filter {
+                    eq("day_number", dayNumber)
+                    eq("is_active", true)
+                }
+                limit(1)
+            }.decodeSingleOrNull<MishkatDailyRow>()
+        }.onFailure { Log.e(TAG, "getMishkatDaily failed: ${it.message}") }.getOrNull()
+
+        /** كل تذكيرات مشكاة اليومية النشطة مرتبة برقم اليوم؛ فارغة عند غياب الجدول. */
+        suspend fun getAllActiveMishkatDaily(): List<MishkatDailyRow> = runCatching {
+            val client = client ?: return emptyList()
+            client.postgrest.from("mishkat_daily").select {
+                filter { eq("is_active", true) }
+                order("day_number", Order.ASCENDING)
+            }.decodeList<MishkatDailyRow>()
+        }.onFailure { Log.e(TAG, "getAllActiveMishkatDaily failed: ${it.message}") }.getOrDefault(emptyList())
+
         suspend fun getLatestActiveUpdateOrThrow(): ActiveUpdate? {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
             return client.postgrest.from("app_updates")
@@ -2904,6 +2929,19 @@ object SupabaseServices {
         val metadata: Map<String, String> = emptyMap(),
         @SerialName("created_at") val createdAt: String? = null,
         @SerialName("updated_at") val updatedAt: String? = null
+    )
+
+    @Serializable
+    data class MishkatDailyRow(
+        val id: String = "",
+        @SerialName("day_number") val dayNumber: Int = 0,
+        val date: String? = null,
+        val type: String = "",
+        val title: String = "",
+        val text: String = "",
+        val source: String = "",
+        @SerialName("lesson_url") val lessonUrl: String? = null,
+        @SerialName("is_active") val isActive: Boolean = true
     )
 
     @Serializable

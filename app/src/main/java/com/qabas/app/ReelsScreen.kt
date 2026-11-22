@@ -161,7 +161,12 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
 fun ReelsScreen(
     onBack: () -> Unit,
     bottomBar: @Composable () -> Unit = {},
-    onOpenProfile: () -> Unit = {}
+    onOpenProfile: () -> Unit = {},
+    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C؛ تُمرَّر من AppNavigation).
+    initialReelId: String? = null,
+    initialCreatorId: String? = null,
+    initialCreatorName: String? = null,
+    initialCreatorAvatar: String? = null
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
@@ -228,8 +233,9 @@ fun ReelsScreen(
     val likeInFlight = remember { mutableStateMapOf<String, Boolean>() }
 
     // Top Navigation & Filter State
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: الأثر (Al-Athar)
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: الأثر (Al-Athar), 3: الأحدث (Newest)
     var selectedCategory by remember { mutableStateOf("ALL") }
+    var showExplore by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -575,6 +581,9 @@ fun ReelsScreen(
 
             loadingProgress = 0.88f
             allReels = effectiveReels
+            // إصلاح (الدفعة 3): الإزاحة الفعلية بعد أول جلب؛ كانت تبقى 0 فكان
+            // تحميل المزيد يعيد جلب الصفحة 0 نفسها.
+            remoteOffset = remoteReels?.size ?: 0
             canLoadMore = (remoteReels?.size ?: 0) >= REELS_PAGE_SIZE
             loadingProgress = 0.98f
             lastWatchedReelId = null
@@ -665,8 +674,10 @@ fun ReelsScreen(
 
     // Filter reels based on Tab, Category, Search Query and Hidden status
     val sourceReels = if (selectedTab == 2) atharReels else allReels
-    val displayReels = remember(sourceReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion) {
-        sourceReels.filterNot { hiddenReelIds.contains(it.id) }
+    // مفاتيح إعادة الترتيب: تتغير بتغيّر البيانات أو إشارات المشاهد، لا مع
+    // كل ثانية مشاهدة (watchSeconds.size يتغير فقط عند بدء مقطع جديد).
+    val displayReels = remember(sourceReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion, likedReelIds, cloudBookmarks, commentBumps, watchSeconds.size) {
+        val filtered = sourceReels.filterNot { hiddenReelIds.contains(it.id) }
             .filter { reel ->
                 when (selectedCategory) {
                     "QURAN" -> reel.tags.contains("قرآن") || reel.title.contains("قرآن") || reel.title.contains("تلاوة")
@@ -702,6 +713,23 @@ fun ReelsScreen(
                     else -> true // For You tab
                 }
             }
+        // الترتيب (الدفعة 3): «لك» بالنقاط عند وصول البيانات، و«الأحدث»
+        // زمني بحت؛ «متابعون» و«الأثر» كما هما.
+        when (selectedTab) {
+            0 -> {
+                val signals = filtered.associate { reel ->
+                    reel.id to ReelFeedScoring.ViewerSignals(
+                        liked = likedReelIds[reel.id] == true,
+                        saved = cloudBookmarks.contains(reel.id),
+                        watchSeconds = watchSeconds[reel.id] ?: 0,
+                        commentsAdded = commentBumps[reel.id] ?: 0
+                    )
+                }
+                ReelFeedScoring.sortForYou(filtered, signals)
+            }
+            3 -> filtered.sortedByDescending { it.createdAt.orEmpty() }
+            else -> filtered
+        }
     }
 
     val pagerState = rememberPagerState(pageCount = { displayReels.size })
@@ -747,6 +775,59 @@ fun ReelsScreen(
         if (isLoading || displayReels.isEmpty()) return@LaunchedEffect
         if (pagerState.currentPage >= displayReels.size - 3) {
             loadMoreReels()
+        }
+    }
+
+    // قفزة موحّدة إلى مقطع محدد (الدفعة 3): إعادة ضبط الفلاتر إلى تبويب
+    // «لك»، إحضار المقطع من السحابة إن لم يكن محمّلاً، ثم تمرير المتصفح
+    // إلى موضعه عبر pendingJumpReelId. مقطع غير موجود أو غير نشط يُبلَّغ
+    // عنه برسالة ولا يُفتح مكان خاطئ. تُستخدم من صفحة استكشف ومن سجل
+    // المشاهدة ومن روابط البحث العميقة.
+    var pendingJumpReelId by remember { mutableStateOf<String?>(null) }
+
+    fun jumpToReel(targetReelId: String) {
+        scope.launch {
+            selectedTab = 0
+            isAlAtharMode = false
+            selectedCategory = "ALL"
+            isSearchActive = false
+            searchQuery = ""
+            hiddenReelIds = hiddenReelIds - targetReelId
+            val reel = allReels.firstOrNull { it.id == targetReelId }
+                ?: withTimeoutOrNull(10_000L) {
+                    SupabaseServices.Profiles.getReelById(targetReelId)
+                }
+            if (reel == null || !reel.isActive) {
+                Toast.makeText(context, "هذا المقطع لم يعد متاحاً للتشغيل.", Toast.LENGTH_LONG).show()
+            } else {
+                if (allReels.none { it.id == reel.id }) {
+                    allReels = allReels + reel
+                }
+                pendingJumpReelId = targetReelId
+            }
+        }
+    }
+
+    LaunchedEffect(pendingJumpReelId, displayReels) {
+        val targetId = pendingJumpReelId ?: return@LaunchedEffect
+        val index = displayReels.indexOfFirst { it.id == targetId }
+        if (index >= 0) {
+            pagerState.scrollToPage(index)
+            pendingJumpReelId = null
+        }
+    }
+
+    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C).
+    LaunchedEffect(initialReelId) {
+        if (initialReelId != null) jumpToReel(initialReelId)
+    }
+    LaunchedEffect(initialCreatorId) {
+        if (initialCreatorId != null) {
+            activeCreatorProfile = Triple(
+                initialCreatorId,
+                initialCreatorName ?: "صانع محتوى",
+                initialCreatorAvatar
+            )
         }
     }
 
@@ -1368,6 +1449,36 @@ fun ReelsScreen(
                                             if (!isOnline) {
                                                 Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) — يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
                                             } else {
+                                                selectedTab = 3
+                                                isAlAtharMode = false
+                                            }
+                                            ReelPreferencesManager.triggerHaptic(context)
+                                        },
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = if (selectedTab == 3) theme.primary else Color.Transparent,
+                                        modifier = Modifier.heightIn(min = 36.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "الأحدث",
+                                                fontFamily = CairoFont,
+                                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 12.sp,
+                                                softWrap = false,
+                                                maxLines = 1,
+                                                color = if (selectedTab == 3) theme.onPrimary else Color.White.copy(alpha = if (!isOnline) 0.45f else 0.85f)
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        onClick = {
+                                            if (!isOnline) {
+                                                Toast.makeText(context, "أنت في وضع الأثر (دون اتصال) — يتطلب اتصالاً بالإنترنت", Toast.LENGTH_SHORT).show()
+                                            } else {
                                                 checkGuestInteraction {
                                                     selectedTab = 1
                                                     isAlAtharMode = false
@@ -1427,7 +1538,22 @@ fun ReelsScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.size(48.dp))
+                            // زر صفحة «استكشف» (الدفعة 3): شبكة المصغّرات والوسوم والأصوات.
+                            IconButton(
+                                onClick = { showExplore = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xA61C1C1E))
+                                    .border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.22f)), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GridView,
+                                    contentDescription = "استكشف الريلز",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
 
                         // Quiet Al-Athar / Offline indicator pill
@@ -1771,43 +1897,8 @@ fun ReelsScreen(
     if (showHistorySheet) {
         ReelHistorySheet(
             onDismiss = { showHistorySheet = false },
-            onSelectReel = { targetReelId ->
-                scope.launch {
-                    selectedTab = 0
-                    isAlAtharMode = false
-                    selectedCategory = "ALL"
-                    isSearchActive = false
-                    searchQuery = ""
-                    hiddenReelIds = hiddenReelIds - targetReelId
-
-                    val reel = allReels.firstOrNull { it.id == targetReelId }
-                        ?: withTimeoutOrNull(10_000L) {
-                            SupabaseServices.Profiles.getReelById(targetReelId)
-                        }
-
-                    if (reel == null || !reel.isActive) {
-                        Toast.makeText(
-                            context,
-                            "هذا المقطع لم يعد متاحاً للتشغيل.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        val updatedReels = if (allReels.any { it.id == reel.id }) {
-                            allReels
-                        } else {
-                            allReels + reel
-                        }
-                        allReels = updatedReels
-
-                        // Allow the pager to receive its new page count before navigating.
-                        delay(120)
-                        val targetIndex = updatedReels.indexOfFirst { it.id == targetReelId }
-                        if (targetIndex >= 0) {
-                            pagerState.scrollToPage(targetIndex)
-                        }
-                    }
-                }
-            }
+            // القفزة الموحّدة نفسها (الدفعة 3) بدل منطق مكرر هنا.
+            onSelectReel = { targetReelId -> jumpToReel(targetReelId) }
         )
     }
 
@@ -1886,6 +1977,23 @@ fun ReelsScreen(
                     ReelPreferencesManager.setAlAtharEnabled(context, true)
                 }
                 showAlAtharExplanation = false
+            }
+        )
+    }
+
+    // صفحة «استكشف» (الدفعة 3) فوق الخلاصة؛ إغلاقها يعود للخلاصة نفسها،
+    // والنقر على مقطع يقفز إليه فيها عبر jumpToReel.
+    if (showExplore) {
+        ReelsExploreScreen(
+            reels = allReels,
+            onBack = { showExplore = false },
+            onJumpToReel = { reelId ->
+                showExplore = false
+                jumpToReel(reelId)
+            },
+            onOpenCreator = { creatorId, creatorName, creatorAvatar ->
+                showExplore = false
+                activeCreatorProfile = Triple(creatorId, creatorName, creatorAvatar)
             }
         )
     }
