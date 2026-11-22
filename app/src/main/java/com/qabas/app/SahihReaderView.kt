@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -47,7 +48,10 @@ fun SahihReaderView(
     initialBookType: SahihBookType = SahihBookType.BUKHARI,
     onBack: () -> Unit,
     onNavigateToVideoCreation: (quoteText: String) -> Unit = {},
-    onOpenFullBook: (SahihBookType) -> Unit = {}
+    onOpenFullBook: (SahihBookType) -> Unit = {},
+    // فتح حديث محدد من رابط بحث عميق (الدفعة 5 — الجزء C): يُختار كتابه
+    // وبابه ثم يُمرَّر إليه. معرّف غير معروف يُتجاهل ويُعرض الكتاب كما هو.
+    initialHadithId: String? = null
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -64,6 +68,23 @@ fun SahihReaderView(
     var showQuranicHarmonyDialog by remember { mutableStateOf(false) }
     val userSavedFontSize by UserPreferencesManager.quranFontSize.collectAsState()
     var fontSizeSp by remember(userSavedFontSize) { mutableFloatStateOf(userSavedFontSize) }
+
+    // رابط عميق لحديث محدد (الدفعة 5 — الجزء C): الكتاب والباب من الحديث
+    // نفسه، ثم تمرير لموضعه. الإزاحة 3 = عناصر القائمة قبله عند اختيار
+    // باب (مبدّل الكتاب + شريط البحث + ترويسة النتائج؛ بطاقة «حديث اليوم»
+    // مخفية عند اختيار باب).
+    LaunchedEffect(initialHadithId) {
+        val item = initialHadithId?.let { SahihHadithsRepository.getHadithById(it) }
+            ?: return@LaunchedEffect
+        activeBook = item.bookType
+        selectedChapterId = item.chapterId
+        delay(150L)
+        val chapterHadiths = SahihHadithsRepository.searchHadiths(item.bookType, item.chapterId, "")
+        val index = chapterHadiths.indexOfFirst { it.id == item.id }
+        if (index >= 0) {
+            runCatching { listState.scrollToItem(3 + index) }
+        }
+    }
 
     // TTS Narrator
     var speakingHadithId by remember { mutableStateOf<String?>(null) }

@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import io.ktor.client.call.body
@@ -38,9 +39,6 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
-import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
-import io.github.jan.supabase.postgrest.query.Order
 
 /**
  * Reactive Authentication State representing the user's current session status.
@@ -825,20 +823,65 @@ class SupabaseRepository(
     }
 
     /**
-     * Registers or updates a user-specific API key for a service (e.g., 'gemini', 'qabas_api').
-     * The key is stored in the 'user_api_keys' table in Supabase.
+     * خدمات الخزنة المسموحة في دالة `qabas-key-vault` (تشفير AES-GCM من جهة الخادم).
+     * يجب أن تبقى هذه القائمة مطابقة لقائمة `allowedServices` في
+     * `supabase/functions/qabas-key-vault/index.ts` — أي خدمة خارجها تُرفَض
+     * ولا تُخزَّن أبداً كنص صريح في جدول `user_api_keys`.
+     */
+    private val VAULT_ALLOWED_SERVICES = setOf(
+        "gemini_key", "groq_key", "openai_key", "openrouter_key", "huggingface_key",
+        "azure_speech_key", "azure_speech_region", "elevenlabs_key", "pexels_key", "pixabay_key"
+    )
+
+    /** يطبّع اسم الخدمة إلى اسم الخزنة المسموح، أو null إن كانت الخدمة غير معروفة. */
+    private fun normalizeVaultService(service: String): String? {
+        val normalized = when (service.trim().lowercase()) {
+            "gemini" -> "gemini_key"
+            "groq" -> "groq_key"
+            "openai" -> "openai_key"
+            "openrouter" -> "openrouter_key"
+            "huggingface" -> "huggingface_key"
+            "azure_speech" -> "azure_speech_key"
+            "elevenlabs" -> "elevenlabs_key"
+            "pexels" -> "pexels_key"
+            "pixabay" -> "pixabay_key"
+            else -> service.trim().lowercase()
+        }
+        return normalized.takeIf { it in VAULT_ALLOWED_SERVICES }
+    }
+
+    /**
+     * Registers or updates a user-specific API key for a service (e.g., 'gemini', 'groq').
+     * The key is never written to the database as-is: it goes through the
+     * `qabas-key-vault` Edge Function (action `put`), which encrypts it with
+     * AES-GCM server-side before storing it in `user_api_keys`. Unknown
+     * services are rejected. The key value is never written to the logs.
      */
     suspend fun registerApiKey(service: String, key: String): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
-            val userId = getCurrentUserId() ?: return@withContext false
-            val row = mapOf(
-                "user_id" to userId,
-                "service" to service,
-                "encrypted_value" to key,
-                "updated_at" to java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", java.util.Locale.ROOT).format(java.util.Date())
+            val vaultService = normalizeVaultService(service)
+            if (vaultService == null) {
+                Log.w(TAG, "Refusing to store API key for unknown service: $service")
+                return@withContext false
+            }
+            if (key.isBlank()) return@withContext false
+            getCurrentUserId() ?: return@withContext false
+            val response = client.functions.invoke(
+                function = "qabas-key-vault",
+                body = buildJsonObject {
+                    put("action", "put")
+                    put("keys", buildJsonArray {
+                        add(buildJsonObject {
+                            put("service", vaultService)
+                            put("value", key.trim())
+                        })
+                    })
+                }
             )
-            client.postgrest.from("user_api_keys").upsert(row) {
-                onConflict = "user_id,service"
+            val result = response.body<KeySyncService.VaultResponse>()
+            if (!result.ok) {
+                Log.e(TAG, "Key vault put failed: ${result.error ?: "unknown error"}")
+                return@withContext false
             }
             true
         } catch (e: Exception) {
@@ -848,20 +891,66 @@ class SupabaseRepository(
     }
 
     /**
-     * Fetches the user's API keys from the cloud.
+     * Fetches the user's API keys from the cloud through the `qabas-key-vault`
+     * Edge Function (action `get`), which decrypts server-side. Returns one
+     * map per key with `service`, `value` and `updated_at`.
      */
     suspend fun fetchApiKeys(): List<Map<String, String>> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val userId = getCurrentUserId() ?: return@withContext emptyList()
-            client.postgrest.from("user_api_keys").select {
-                filter {
-                    eq("user_id", userId)
-                }
+            getCurrentUserId() ?: return@withContext emptyList()
+            val response = client.functions.invoke(
+                function = "qabas-key-vault",
+                body = buildJsonObject { put("action", "get") }
+            )
+            val result = response.body<KeySyncService.VaultResponse>()
+            if (!result.ok) {
+                Log.e(TAG, "Key vault get failed: ${result.error ?: "unknown error"}")
+                return@withContext emptyList()
             }
-            emptyList()
+            result.keys.map { entry ->
+                mapOf(
+                    "service" to entry.service,
+                    "value" to entry.value,
+                    "updated_at" to entry.updated_at
+                )
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch API keys: ${e.message}")
             emptyList()
+        }
+    }
+
+    /**
+     * Deletes one user API key from the cloud vault (action `delete` in
+     * `qabas-key-vault` — موجود في الخادم أصلاً). Without this call deletion
+     * was local-only and the key was re-pulled from the cloud on next sync.
+     * Local-only services (Anthropic/Leonardo/…) return false — they have
+     * no cloud copy to delete. The key value is never logged.
+     */
+    suspend fun deleteApiKey(service: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val vaultService = normalizeVaultService(service)
+            if (vaultService == null) {
+                Log.w(TAG, "Refusing to delete API key for unknown service: $service")
+                return@withContext false
+            }
+            getCurrentUserId() ?: return@withContext false
+            val response = client.functions.invoke(
+                function = "qabas-key-vault",
+                body = buildJsonObject {
+                    put("action", "delete")
+                    put("services", buildJsonArray { add(JsonPrimitive(vaultService)) })
+                }
+            )
+            val result = response.body<KeySyncService.VaultResponse>()
+            if (!result.ok) {
+                Log.e(TAG, "Key vault delete failed: ${result.error ?: "unknown error"}")
+                return@withContext false
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete API key: ${e.message}")
+            false
         }
     }
 

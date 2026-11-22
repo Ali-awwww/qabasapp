@@ -22,8 +22,10 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * موحّد مفاتيح الخدمات: أسبقية المفتاح المُدخل من شاشة "مفاتيح API" (qabas_prefs)
- * ثم المفتاح المحقون وقت البناء من .env / GitHub Secrets عبر BuildConfig.
+ * موحّد مفاتيح الخدمات: المصدر الوحيد هو ما أدخله المستخدم —
+ * مسبح البدائل أولاً (التبديل اليدوي/التلقائي)، ثم المفرد من التفضيلات المشفرة.
+ * لا تُقرأ مفاتيح المزودين من BuildConfig أبداً (أمان الدفعة 1:
+ * مفاتيح .env أُضيفت إلى ignoreList في ملحق secrets فلا تُولَّد في BuildConfig).
  * القيم الوهمية (your_key / YOUR_...) تُعامل كمفقودة — لا تشغيل وهمي أبداً.
  */
 object KeyVault {
@@ -34,35 +36,32 @@ object KeyVault {
         return t.isNotEmpty() && !t.lowercase().startsWith("your_")
     }
 
-    private fun resolve(prefsKey: String, fromBuildConfig: String?): String {
-        // مسبح البدائل أولاً (التبديل اليدوي/التلقائي)، ثم المفرد، ثم BuildConfig
+    private fun resolve(prefsKey: String): String {
+        // مسبح البدائل أولاً (التبديل اليدوي/التلقائي)، ثم المفرد من التفضيلات المشفرة
         // sanitize في كل قراءة: أي مفتاح مخزن ملوث بمحارف خفية يُنظف قبل الإرسال
         val poolActive = runCatching { KeyPoolManager.sanitizeApiKey(KeyPoolManager.getActiveKey(prefsKey)) }.getOrDefault("")
         if (isReal(poolActive)) return poolActive
         val fromPrefs = KeyPoolManager.sanitizeApiKey(prefs().getString(prefsKey, "") ?: "")
         if (isReal(fromPrefs)) return fromPrefs
-        val cleanBuild = KeyPoolManager.sanitizeApiKey(fromBuildConfig ?: "")
-        if (isReal(cleanBuild)) return cleanBuild
         return ""
     }
 
-    val gemini: String get() = resolve("gemini_key", runCatching {
-        BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String
-    }.getOrNull())
-    val groq: String get() = resolve("groq_key", BuildConfig.GROQ_API_KEY)
-    val openai: String get() = resolve("openai_key", BuildConfig.OPENAI_API_KEY)
-    val huggingface: String get() = resolve("huggingface_key", BuildConfig.HUGGINGFACE_API_KEY)
-    val azureSpeechKey: String get() = resolve("azure_speech_key", BuildConfig.AZURE_SPEECH_KEY)
-    val azureSpeechRegion: String get() = resolve("azure_speech_region", BuildConfig.AZURE_SPEECH_REGION)
-    val elevenlabs: String get() = resolve("elevenlabs_key", BuildConfig.ELEVENLABS_API_KEY)
-    val openrouter: String get() = resolve("openrouter_key", BuildConfig.OPENROUTER_API_KEY)
-    val anthropic: String get() = resolve("anthropic_key", null)
-    val opencode: String get() = resolve("opencode_key", null)
-    val pexels: String get() = resolve("pexels_key", BuildConfig.PEXELS_API_KEY)
-    val pixabay: String get() = resolve("pixabay_key", BuildConfig.PIXABAY_API_KEY)
+    val gemini: String get() = resolve("gemini_key")
+    val groq: String get() = resolve("groq_key")
+    val openai: String get() = resolve("openai_key")
+    val huggingface: String get() = resolve("huggingface_key")
+    val azureSpeechKey: String get() = resolve("azure_speech_key")
+    val azureSpeechRegion: String get() = resolve("azure_speech_region")
+    val elevenlabs: String get() = resolve("elevenlabs_key")
+    val openrouter: String get() = resolve("openrouter_key")
+    val anthropic: String get() = resolve("anthropic_key")
+    val opencode: String get() = resolve("opencode_key")
+    val pexels: String get() = resolve("pexels_key")
+    val pixabay: String get() = resolve("pixabay_key")
     val coverr: String get() = (prefs().getString("coverr_key", "") ?: "").trim()
-    val supabaseUrl: String get() = resolve("supabase_url", BuildConfig.SUPABASE_URL).ifBlank { SupabaseConfig.DEFAULT_SUPABASE_URL }
-    val supabaseAnonKey: String get() = resolve("supabase_anon_key", BuildConfig.SUPABASE_ANON_KEY).ifBlank { SupabaseConfig.DEFAULT_SUPABASE_KEY }
+    // قيم Supabase العلنية بطبيعتها (URL والمفتاح العلني anon) — تبقى عبر SupabaseConfig.
+    val supabaseUrl: String get() = resolve("supabase_url").ifBlank { SupabaseConfig.DEFAULT_SUPABASE_URL }
+    val supabaseAnonKey: String get() = resolve("supabase_anon_key").ifBlank { SupabaseConfig.DEFAULT_SUPABASE_KEY }
 
     /** المفتاح الفعّال لأي اسم مفتاح معروف — يستخدمه الطبيب ولوحة الجاهزية لتقرير الحقيقة كاملة */
     fun effective(prefsKey: String): String = when (prefsKey) {
@@ -167,7 +166,8 @@ object RealGeminiService {
             
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+                .header("x-goog-api-key", apiKey)
                 .post(requestBody)
                 .build()
                 
@@ -266,7 +266,8 @@ object RealGeminiService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+                .header("x-goog-api-key", apiKey)
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -359,7 +360,8 @@ object RealGeminiService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+                .header("x-goog-api-key", apiKey)
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -537,7 +539,8 @@ object RealGeminiService {
                     put("generationConfig", JSONObject().apply { put("responseMimeType", "application/json") })
                 }
                 val request = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+                    .header("x-goog-api-key", apiKey)
                     .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                     .build()
                 val response = ApiUsageTracker.track(AppServices.appContext, "Gemini") { client.newCall(request).execute() }
@@ -812,7 +815,8 @@ object RealGeminiService {
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             
             val httpRequest = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+                .header("x-goog-api-key", apiKey)
                 .post(requestBody)
                 .build()
                 
@@ -1044,7 +1048,8 @@ object RealMediaLibraryService {
             
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+                .header("x-goog-api-key", apiKey)
                 .post(requestBody)
                 .build()
                 

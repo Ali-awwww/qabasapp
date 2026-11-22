@@ -87,6 +87,17 @@ fun SpatialCommandHomeScreen(
     onRules: () -> Unit = {},
     onAiStudioAgent: () -> Unit = {},
     onViewDownloads: () -> Unit = {},
+    // وجهات نتائج البحث العام — الافتراضي يفتح قسم كل نتيجة (تُمرَّر من
+    // AppNavigation عند توفر تنقّل عميق إلى الآية/الحديث/الكتاب/المقطع).
+    // واجهة البحث العام وشريط «أكمل» من الدفعة 3؛ تُمرَّران إلى
+    // HomeGlobalSearch وHomeContinueRow.
+    onOpenQuranVerse: (Int, Int) -> Unit = { _, _ -> onMishkatHub() },
+    onOpenHadith: (String) -> Unit = { onHadithStudio() },
+    onOpenLibraryBook: (String) -> Unit = { onIslamicLibrary() },
+    onOpenReel: (String) -> Unit = { onReels() },
+    onOpenCreator: (String, String) -> Unit = { _, _ -> onReels() },
+    // فتح قارئ المصحف عند موضع محدد (سورة، آية، صفحة) — الدفعة 5 الجزء C.
+    onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() },
     bottomBar: @Composable () -> Unit = {}
 ) {
     val theme = QabasTheme.current
@@ -509,6 +520,37 @@ fun SpatialCommandHomeScreen(
                         onHadithStudio = onHadithStudio,
                         onAzkar = onAzkar,
                         isDeveloper = isDeveloper
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // بطاقة اليوم + أكمل من حيث توقفت + بحث عام (الدفعة 3).
+                    val todayState = rememberHomeTodayState()
+                    HomeTodayCard(
+                        state = todayState,
+                        onOpenPrayerTimes = onPrayerTimes,
+                        onOpenAzkar = onAzkar,
+                        onOpenMishkatHub = onMishkatHub,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HomeContinueRow(
+                        state = todayState,
+                        recentProjects = recentProjects,
+                        onOpenProject = onOpenProject,
+                        onOpenMishkatHub = onMishkatHub,
+                        onOpenAzkar = onAzkar,
+                        onOpenMushaf = onOpenMushaf,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HomeGlobalSearch(
+                        onOpenQuranVerse = onOpenQuranVerse,
+                        onOpenHadith = onOpenHadith,
+                        onOpenLibraryBook = onOpenLibraryBook,
+                        onOpenReel = onOpenReel,
+                        onOpenCreator = onOpenCreator,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
