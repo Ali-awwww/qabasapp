@@ -123,7 +123,7 @@ object AnalyticsOverviewRepository {
 
         // عمود DAU لآخر 7 أيام (اليوم أولاً من اليسار): كل يوم مستخدمون مميزون.
         val dailyDau = (6 downTo 0).map { back ->
-            val dayStart = todayStart.minusSeconds(back * 24 * 3600)
+            val dayStart = todayStart.minusSeconds(back.toLong() * 24 * 3600)
             val dayEnd = dayStart.plusSeconds(24 * 3600)
             val count = parsedEvents
                 .filter { (_, at) -> !at.isBefore(dayStart) && at.isBefore(dayEnd) }
