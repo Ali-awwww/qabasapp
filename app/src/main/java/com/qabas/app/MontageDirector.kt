@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * المخرج السينمائي لمساعد المسلم — يحول الفكرة إلى خطة مونتاج قابلة للتنفيذ.
+ * المخرج السينمائي لخادم المسلم — يحول الفكرة إلى خطة مونتاج قابلة للتنفيذ.
  * يقرأ توجيه StyleDirective (بما فيه motionType من Optical Flow / Farneback)
  * ويحقنه في كل مشهد ليصل إلى VideoEngineManager → VideoProcessor.
  */
@@ -212,7 +212,7 @@ object MontageDirector {
         if (scenes.isEmpty()) {
             return listOf(
                 Scene(
-                    title = idea.take(40).ifBlank { "مساعد المسلم" },
+                    title = idea.take(40).ifBlank { "خادم المسلم" },
                     description = "mosque peaceful prayer soft light cinematic | motion=$ofMotion | filter=$filter",
                     durationInSeconds = 5,
                     transitionType = "Dissolve",
@@ -371,7 +371,7 @@ object MontageDirector {
             Topic.GENERAL -> listOf(
                 scene("hook", d1, shortIdea.take(32).ifBlank { "رسالة تلامس القلوب" }, "islamic architecture violet dusk cinematic wide", "عمارة إسلامية شفق بنفسجي", transition),
                 scene("core", d2, shortIdea.ifBlank { "محتوى هادف بنور الإيمان" }, "mosque courtyard soft daylight peaceful people silhouette", "صحن مسجد ضوء نهاري", "Dissolve"),
-                scene("close", d3, "مساعد المسلم… نورٌ يُنشر", "cyan light through islamic arch window cinematic", "ضوء سيان من قوس إسلامي", "Fade")
+                scene("close", d3, "خادم المسلم… نورٌ يُنشر", "cyan light through islamic arch window cinematic", "ضوء سيان من قوس إسلامي", "Fade")
             )
         }
 

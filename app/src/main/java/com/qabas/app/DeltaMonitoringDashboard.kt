@@ -539,7 +539,7 @@ private fun LiveFailureCard(item: UpdateTelemetryManager.UpdateErrorReport) {
 
                 IconButton(
                     onClick = {
-                        val clip = ClipData.newPlainText("Muslim Assistant Error", UpdateTelemetryManager.formatMarkdownReport(item))
+                        val clip = ClipData.newPlainText("Muslim AI Assistant Error", UpdateTelemetryManager.formatMarkdownReport(item))
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                         cm?.setPrimaryClip(clip)
                         Toast.makeText(context, "تم نسخ التقرير 📋", Toast.LENGTH_SHORT).show()

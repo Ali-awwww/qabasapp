@@ -6,15 +6,15 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 
 /**
- * 🛰️ QabasNotificationHelper — المساعد الشامل لبناء وإدارة إشعارات مساعد المسلم التفاعلية
+ * 🛰️ QabasNotificationHelper — المساعد الشامل لبناء وإدارة إشعارات خادم المسلم التفاعلية
  * يضمن ظهور أيقونة التطبيق بجانب كل إشعار، ويدمج أدوات تفاعلية عاملة بالكامل
  * (استماع فوري، مشاركة، تأكيد القراءة، والتأجيل).
  */
@@ -84,7 +84,7 @@ object QabasNotificationHelper {
     }
 
     /**
-     * يربط الإشعار بمجموعة "تنبيهات مساعد المسلم" ويحدّث الملخّص عند تجاوز تنبيه واحد،
+     * يربط الإشعار بمجموعة "تنبيهات خادم المسلم" ويحدّث الملخّص عند تجاوز تنبيه واحد،
      * فلا يتكدّس شريط الإشعارات في خمسة صفوف مبعثر تحت اسم التطبيق.
      */
     fun attachAlertGroup(
@@ -146,7 +146,7 @@ object QabasNotificationHelper {
             .setSmallIcon(R.drawable.ic_stat_qabas)
             .setLargeIcon(getAppIconBitmap(context))
             .setColor(BRAND_COLOR)
-            .setContentTitle("تنبيهات مساعد المسلم")
+            .setContentTitle("تنبيهات خادم المسلم")
             .setContentText("$count تنبيهات: الصلاة والأذكار")
             .setStyle(inbox)
             .setNumber(count)
@@ -239,18 +239,18 @@ object QabasNotificationHelper {
                 description = "تنبيهات فورية عند وصول رد من فريق التطوير والإشراف"
             }
             CHANNEL_SYSTEM -> NotificationChannel(
-                CHANNEL_SYSTEM, "استوديو مساعد المسلم والتحديثات", NotificationManager.IMPORTANCE_DEFAULT
+                CHANNEL_SYSTEM, "استوديو خادم المسلم والتحديثات", NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "تنبيهات تقدم المعالجة، تنزيل المقاطع، وتريندات المجتمع"
             }
             CHANNEL_GENERAL -> NotificationChannel(
-                CHANNEL_GENERAL, "إشعارات مساعد المسلم العامة", NotificationManager.IMPORTANCE_HIGH
+                CHANNEL_GENERAL, "إشعارات خادم المسلم العامة", NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "تنبيهات العمليات والتحديثات والنشاط العام"
                 enableVibration(true)
             }
             CHANNEL_UPDATES -> NotificationChannel(
-                CHANNEL_UPDATES, "تحديثات مساعد المسلم", NotificationManager.IMPORTANCE_LOW
+                CHANNEL_UPDATES, "تحديثات خادم المسلم", NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "تقدّم تنزيل تحديثات التطبيق"
             }
@@ -298,7 +298,7 @@ object QabasNotificationHelper {
                 description = "إشعار ثابت يعرض الوقت المتبقي على الأذان القادم"
             }
             CHANNEL_AUDIO_PLAYBACK -> NotificationChannel(
-                CHANNEL_AUDIO_PLAYBACK, "تشغيل الصوت في الخلفية - مساعد المسلم", NotificationManager.IMPORTANCE_LOW
+                CHANNEL_AUDIO_PLAYBACK, "تشغيل الصوت في الخلفية - خادم المسلم", NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "إشعارات وأزرار التحكم في الصوت والتلاوات في الخلفية"
                 setShowBadge(false)
@@ -334,8 +334,20 @@ object QabasNotificationHelper {
             }
         } catch (e: Exception) {
             try {
-                BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
-                    ?: BitmapFactory.decodeResource(context.resources, R.drawable.img_qabas_logo)
+                // Fallback: render the vector emblem to a bitmap
+                // (BitmapFactory cannot decode vector drawables).
+                val drawable = ContextCompat.getDrawable(context, R.drawable.ic_khadim_logo)
+                if (drawable != null) {
+                    val width = drawable.intrinsicWidth.coerceAtLeast(96)
+                    val height = drawable.intrinsicHeight.coerceAtLeast(96)
+                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    drawable.setBounds(0, 0, width, height)
+                    drawable.draw(canvas)
+                    bitmap
+                } else {
+                    Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+                }
             } catch (e2: Exception) {
                 Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
             }
@@ -388,7 +400,7 @@ object QabasNotificationHelper {
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_stat_qabas) // جذوة مساعد المسلم — أيقونة الحالة الموحّدة
+            .setSmallIcon(R.drawable.ic_stat_qabas) // جذوة خادم المسلم — أيقونة الحالة الموحّدة
             .setLargeIcon(appIcon) // أيقونة التطبيق تظهر بجانب عنوان ونص الإشعار
             .setColor(BRAND_COLOR)
             .setContentTitle(title)
@@ -504,7 +516,7 @@ object QabasNotificationHelper {
     }
 
     /**
-     * بنّاء إشعارات التقدّم الموحّد (تنزيلات وعمليات) — جذوة مساعد المسلم + لون ذهبي
+     * بنّاء إشعارات التقدّم الموحّد (تنزيلات وعمليات) — جذوة خادم المسلم + لون ذهبي
      * + تحديث صامت (لا يرن عند كل نسبة تقدّم) + إمكانية إضافة زر إلغاء.
      */
     fun createProgressBuilder(
@@ -544,7 +556,7 @@ object QabasNotificationHelper {
         val builder = createBaseBuilder(
             appContext,
             CHANNEL_GENERAL,
-            "تحديث جديد متاح في مساعد المسلم — v$versionName",
+            "تحديث جديد متاح في خادم المسلم — v$versionName",
             message
         ) ?: return
         val notificationId = 880_000 + (versionCode % 10_000)
@@ -566,11 +578,11 @@ object QabasNotificationHelper {
         val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
         val notifId = nextNotificationId(context) ?: return
-        val title = "مساعد المسلم • تجربة الإشعارات التفاعلية 🔔"
+        val title = "خادم المسلم • تجربة الإشعارات التفاعلية 🔔"
         val ayahText = QuranDataProvider.getVerseText(13, 28)
         val verseText = listOfNotNull(
             ayahText?.let { "﴿$it﴾" },
-            "تم تفعيل ظهور أيقونة مساعد المسلم بجانب الإشعار بنجاح! جرب أدوات الإشعار التفاعلية بالأسفل الآن:"
+            "تم تفعيل ظهور أيقونة خادم المسلم بجانب الإشعار بنجاح! جرب أدوات الإشعار التفاعلية بالأسفل الآن:"
         ).joinToString("\n")
 
         val builder = createBaseBuilder(context, CHANNEL_SPIRITUAL, title, verseText) ?: return
@@ -589,7 +601,7 @@ object QabasNotificationHelper {
             builder = builder,
             context = context,
             notifId = notifId,
-            shareText = ayahText?.let { "﴿$it﴾ 🌿 من تطبيق مساعد المسلم" } ?: "من تطبيق مساعد المسلم 🌿"
+            shareText = ayahText?.let { "﴿$it﴾ 🌿 من تطبيق خادم المسلم" } ?: "من تطبيق خادم المسلم 🌿"
         )
 
         // أداة 3: تأكيد القراءة وتسجيل الورد
@@ -597,7 +609,7 @@ object QabasNotificationHelper {
             builder = builder,
             context = context,
             notifId = notifId,
-            confirmationMessage = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد في تطبيق مساعد المسلم بنجاح!"
+            confirmationMessage = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد في تطبيق خادم المسلم بنجاح!"
         )
 
         notifManager.notify(notifId, builder.build())

@@ -85,7 +85,7 @@ fun TabButton(title: String, isSelected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * بطاقة مساعد المسلم الموحدة. يحتفظ هذا الغلاف بالتوقيع القديم
+ * بطاقة خادم المسلم الموحدة. يحتفظ هذا الغلاف بالتوقيع القديم
  * حتى تنتقل الشاشات الحالية تدريجيًا إلى نظام Compose المركزي.
  */
 @Composable
@@ -106,7 +106,7 @@ fun QabasCard(
 }
 
 /**
- * ترويسة أقسام مساعد المسلم بنمط Apple HIG.
+ * ترويسة أقسام خادم المسلم بنمط Apple HIG.
  */
 @Composable
 fun QabasSectionHeader(
@@ -266,7 +266,7 @@ fun TajweedCertificateDialog(
                 )
 
                 Text(
-                    text = "صادرة عن استوديو مساعد المسلم للقرآن والتجويد",
+                    text = "صادرة عن استوديو خادم المسلم للقرآن والتجويد",
                     color = theme.textSecondary,
                     fontFamily = CairoFont,
                     fontSize = 12.sp,
@@ -418,7 +418,7 @@ private fun saveTajweedCertificateBitmap(context: Context, surahName: String, sc
             textSize = 32f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("صادرة عن استوديو مساعد المسلم للقرآن الكريم", w / 2f, 1140f, footerPaint)
+        canvas.drawText("صادرة عن استوديو خادم المسلم للقرآن الكريم", w / 2f, 1140f, footerPaint)
 
         val fileName = "QABAS_CERT_${System.currentTimeMillis()}.png"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

@@ -1088,7 +1088,7 @@ fun DeveloperContactScreen(
                     publicProfile == null -> Text("لا تتوفر بيانات ملف عام إضافية لهذا الحساب حاليًا.", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 12.sp, textAlign = TextAlign.Center)
                     else -> Surface(color = contactBackground, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("ملف المستخدم في مساعد المسلم", color = contactAccent, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("ملف المستخدم في خادم المسلم", color = contactAccent, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             Text("المقاطع المنشورة: ${publicProfileReelCount ?: 0}", color = contactPrimaryText, fontFamily = CairoFont, fontSize = 12.sp)
                             Text("تُعرض هنا المعلومات العامة المتاحة فقط.", color = contactSecondaryText, fontFamily = CairoFont, fontSize = 10.sp)
                         }

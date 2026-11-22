@@ -102,7 +102,7 @@ fun QabasNavigationDrawerContent(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "شعار مساعد المسلم",
+                            contentDescription = "شعار خادم المسلم",
                             tint = theme.primary,
                             modifier = Modifier.size(26.dp)
                         )
@@ -111,7 +111,7 @@ fun QabasNavigationDrawerContent(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "مساعد المسلم",
+                        text = "خادم المسلم",
                         color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -260,7 +260,7 @@ fun QabasNavigationDrawerContent(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "مساعد المسلم • استوديو الإنتاج الإسلامي",
+                        text = "خادم المسلم • استوديو الإنتاج الإسلامي",
                         color = theme.textSecondary,
                         fontSize = 11.sp,
                         fontFamily = NotoSansFont
@@ -342,7 +342,7 @@ fun QabasNavigationDrawerContent(
                             )
                             AppleInsetDivider()
                             QabasDrawerItem(
-                                title = "ريلز مساعد المسلم",
+                                title = "ريلز خادم المسلم",
                                 subtitle = "مجتمع الإلهام ومقاطع الفيديو القصيرة",
                                 icon = Icons.Default.SlowMotionVideo,
                                 iconTint = theme.primary,

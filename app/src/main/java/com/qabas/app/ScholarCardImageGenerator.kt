@@ -112,7 +112,7 @@ object ScholarCardImageGenerator {
         }
 
         sb.append("\n────────────────────\n")
-        sb.append("📱 تطبيق مساعد المسلم • نورٌ وسيرةٌ وثبات\n")
+        sb.append("📱 تطبيق خادم المسلم • نورٌ وسيرةٌ وثبات\n")
         sb.append("🤲 انشر هذه السيرة المباركة لتكون صدقة جارية لك ولأهلك")
 
         return sb.toString()
@@ -571,7 +571,7 @@ object ScholarCardImageGenerator {
         canvas.drawCircle(width / 2f, currentY + 10f, 6f, dividerPaint)
 
         currentY += 45f
-        canvas.drawText("تطبيق مساعد المسلم • مَنَارَةُ النُّورِ وَسِيَرُ الثَّبَاتِ", width / 2f, currentY, footerPaint)
+        canvas.drawText("تطبيق خادم المسلم • مَنَارَةُ النُّورِ وَسِيَرُ الثَّبَاتِ", width / 2f, currentY, footerPaint)
         currentY += 32f
         canvas.drawText("انشر هذه السيرة تؤجر • صدقة جارية للأمة والمؤمنين", width / 2f, currentY, subFooterPaint)
 
@@ -743,10 +743,10 @@ object ScholarCardImageGenerator {
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "سيرة الإمام ${scholar.name} - تطبيق مساعد المسلم")
+            putExtra(Intent.EXTRA_SUBJECT, "سيرة الإمام ${scholar.name} - تطبيق خادم المسلم")
             putExtra(
                 Intent.EXTRA_TEXT,
-                "✨ سيرة الإمام ${scholar.name}\n${scholar.brief}\n\n« ${scholar.enduranceQuote ?: ""} »\n\n📱 تطبيق مساعد المسلم للإنتاج والسير الإسلامية"
+                "✨ سيرة الإمام ${scholar.name}\n${scholar.brief}\n\n« ${scholar.enduranceQuote ?: ""} »\n\n📱 تطبيق خادم المسلم للإنتاج والسير الإسلامية"
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

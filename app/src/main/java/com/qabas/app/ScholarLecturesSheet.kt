@@ -1096,7 +1096,7 @@ fun openLectureUrl(context: Context, url: String) {
 fun shareLecture(context: Context, lecture: ScholarLecture) {
     try {
         val shareBody = buildString {
-            appendLine("🌟 درس ومحاضرة موثقة من «تطبيق مساعد المسلم»:")
+            appendLine("🌟 درس ومحاضرة موثقة من «تطبيق خادم المسلم»:")
             appendLine("«${lecture.title}»")
             if (lecture.speaker.isNotBlank()) {
                 appendLine("🎙️ إلقاء: ${lecture.speaker}")
@@ -1115,7 +1115,7 @@ fun shareLecture(context: Context, lecture: ScholarLecture) {
             appendLine("🔗 رابط الاستماع والمشاهدة المباشر:")
             appendLine(lecture.url)
             appendLine()
-            appendLine("✨ تم المشاركة عبر تطبيق مساعد المسلم (Muslim Assistant) - الاستوديو الإسلامي الذكي")
+            appendLine("✨ تم المشاركة عبر تطبيق خادم المسلم (Muslim AI Assistant) - الاستوديو الإسلامي الذكي")
         }
 
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
@@ -1133,7 +1133,7 @@ fun shareLecture(context: Context, lecture: ScholarLecture) {
 fun shareProposal(context: Context, proposal: LectureProposal) {
     try {
         val shareBody = buildString {
-            appendLine("💡 مقترح درس علمي من مجتمع «مساعد المسلم»:")
+            appendLine("💡 مقترح درس علمي من مجتمع «خادم المسلم»:")
             appendLine("«${proposal.suggestedTitle}»")
             if (proposal.suggestedSpeaker.isNotBlank()) {
                 appendLine("🎙️ الشيخ المقترح: ${proposal.suggestedSpeaker}")
@@ -1150,7 +1150,7 @@ fun shareProposal(context: Context, proposal: LectureProposal) {
                 appendLine("🔗 الرابط المقترح: ${proposal.suggestedUrl}")
             }
             appendLine()
-            appendLine("✨ شارك برأيك وتأييدك للمقترح عبر تطبيق مساعد المسلم!")
+            appendLine("✨ شارك برأيك وتأييدك للمقترح عبر تطبيق خادم المسلم!")
         }
 
         val sendIntent = Intent(Intent.ACTION_SEND).apply {

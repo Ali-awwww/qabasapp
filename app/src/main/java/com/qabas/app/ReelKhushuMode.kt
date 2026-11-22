@@ -83,7 +83,7 @@ object ReelKhushuModeHelper {
             }
             canvas.drawRoundRect(RectF(60f, 60f, width - 60f, height - 60f), 40f, 40f, goldPaint)
 
-            // 3. Header Text (Muslim Assistant)
+            // 3. Header Text (Muslim AI Assistant)
             val headerPaint = Paint().apply {
                 isAntiAlias = true
                 color = android.graphics.Color.rgb(212, 175, 55)
@@ -91,7 +91,7 @@ object ReelKhushuModeHelper {
                 textAlign = Paint.Align.CENTER
                 isFakeBoldText = true
             }
-            canvas.drawText("✨ مساعد المسلم من النور والهدى ✨", width / 2f, 220f, headerPaint)
+            canvas.drawText("✨ خادم المسلم من النور والهدى ✨", width / 2f, 220f, headerPaint)
 
             // 4. Main Ayah / Quote Text
             val textPaint = Paint().apply {
@@ -127,7 +127,7 @@ object ReelKhushuModeHelper {
                 textSize = 42f
                 textAlign = Paint.Align.CENTER
             }
-            val authorStr = "🎙️ ${reciterName ?: "تطبيق مساعد المسلم القرآني"}"
+            val authorStr = "🎙️ ${reciterName ?: "تطبيق خادم المسلم القرآني"}"
             canvas.drawText(authorStr, width / 2f, lineY + 180f, authorPaint)
 
             // 6. Footer Call-to-action
@@ -152,7 +152,7 @@ object ReelKhushuModeHelper {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "🌿 تدبر وآية مباركة من تطبيق مساعد المسلم:\n«$title»")
+                putExtra(Intent.EXTRA_TEXT, "🌿 تدبر وآية مباركة من تطبيق خادم المسلم:\n«$title»")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             val chooser = Intent.createChooser(shareIntent, "مشاركة بطاقة الستوري الإيمانية")

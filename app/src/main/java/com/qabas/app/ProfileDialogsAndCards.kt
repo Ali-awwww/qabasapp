@@ -404,7 +404,7 @@ internal fun ProfileEditDialog(
                                 val sessionEmail = SupabaseServices.Auth.getCurrentUserEmail()?.trim()?.lowercase(Locale.ROOT)
                                 val activeEmail = sessionEmail ?: userEmail
                                 val normalizedCleanId = UserIdentifierManager.normalize(cleanId)
-                                val nextDisplayName = tempName.ifBlank { "مستخدم مساعد المسلم" }
+                                val nextDisplayName = tempName.ifBlank { "مستخدم خادم المسلم" }
                                 val profileSaveResult = SupabaseServices.Database.saveOwnProfile(
                                     id = authUid,
                                     name = nextDisplayName,
@@ -648,7 +648,7 @@ fun TournamentInfoBottomSheet(
             PointRuleItem("إنشاء مشروع دعوي جديد", "50 نقطة")
             PointRuleItem("نشر فيديو على منصات التواصل", "20 نقطة")
             PointRuleItem("تحقيق 1000 مشاهدة", "100 نقطة")
-            PointRuleItem("التفاعل مع مجتمع مساعد المسلم", "10 نقاط")
+            PointRuleItem("التفاعل مع مجتمع خادم المسلم", "10 نقاط")
 
             Spacer(modifier = Modifier.height(20.dp))
 

@@ -85,7 +85,7 @@ enum class StyleAbsorptionStage(val displayName: String, val baseStartPercent: I
 }
 
 /**
- * حالة واجهة استخراج وامتصاص الأنماط في عقل مساعد المسلم
+ * حالة واجهة استخراج وامتصاص الأنماط في عقل خادم المسلم
  */
 @Immutable
 data class StyleAbsorptionUiState(
@@ -493,10 +493,10 @@ class QabasBrainViewModel(
             - الخط والكابشن: ${it.contentTone.typographyStyle}، تحريك: ${it.contentTone.captionAnimation}
             - السمات البصرية: ${it.visualStyle.visualTraits.joinToString(", ")}
             """.trimIndent()
-        } ?: "الالتزام بهوية مساعد المسلم الملكية الداكنة (Deep Slate #0B0F19 مع الذهب #E8C547)"
+        } ?: "الالتزام بهوية خادم المسلم الملكية الداكنة (Deep Slate #0B0F19 مع الذهب #E8C547)"
 
         val prompt = """
-            أنت "العقل الإخراجي" لمنصة "مساعد المسلم" (Qabas Director Brain) لإنتاج مقاطع الفيديو الدعوية والإسلامية الفاخرة عالية التأثير.
+            أنت "العقل الإخراجي" لمنصة "خادم المسلم" (Qabas Director Brain) لإنتاج مقاطع الفيديو الدعوية والإسلامية الفاخرة عالية التأثير.
             
             $referenceMemory
             
@@ -519,7 +519,7 @@ class QabasBrainViewModel(
                 "primaryColorHex": "${chosenStyle?.visualStyle?.primaryColorHex ?: "#E8C547"}",
                 "backgroundColorHex": "${chosenStyle?.visualStyle?.backgroundColorHex ?: "#0B0F19"}",
                 "visualDirectives": "توجيهات بصرية محددة للإضاءة والكاميرا وتدرج الألوان",
-                "ffmpegFilterSnippet": "eq=contrast=1.15:brightness=0.02:saturation=1.1,drawtext=fontfile=font.ttf:text='مساعد المسلم':fontcolor=#E8C547",
+                "ffmpegFilterSnippet": "eq=contrast=1.15:brightness=0.02:saturation=1.1,drawtext=fontfile=font.ttf:text='خادم المسلم':fontcolor=#E8C547",
                 "audioSfxSuggestions": ["دوي عميق للبداية", "حفيف رياح هادئ", "مؤثر تصاعدي عند الخاتمة"],
                 "selectedStyleName": "${chosenStyle?.name ?: "النمط الوثائقي الإيماني"}",
                 "compatibilityScore": 96,
@@ -654,7 +654,7 @@ class QabasBrainViewModel(
         val bgHex = chosenStyle?.visualStyle?.backgroundColorHex ?: "#0B0F19"
 
         return BrainDecision(
-            title = "مساعد المسلم: $idea",
+            title = "خادم المسلم: $idea",
             hook = "رسالة تستحق أن تقف عندها وتتأملها في زحام يومك...",
             scriptScenes = buildDefaultScenes(idea),
             voiceOverTone = tone,

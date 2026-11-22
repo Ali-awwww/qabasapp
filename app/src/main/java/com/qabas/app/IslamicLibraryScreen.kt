@@ -1239,7 +1239,7 @@ fun InteractiveBookReaderDialog(
 
                                 IconButton(
                                     onClick = {
-                                        val shareText = "${currentSection.sectionTitle}\n\n${currentSection.content}\n\n${currentSection.keyRuleOrBenefit}\n\nمن كتاب: ${book.title} (المؤلف: ${book.authorName})\nتطبيق مساعد المسلم"
+                                        val shareText = "${currentSection.sectionTitle}\n\n${currentSection.content}\n\n${currentSection.keyRuleOrBenefit}\n\nمن كتاب: ${book.title} (المؤلف: ${book.authorName})\nتطبيق خادم المسلم"
                                         val sendIntent = Intent().apply {
                                             action = Intent.ACTION_SEND
                                             putExtra(Intent.EXTRA_TEXT, shareText)

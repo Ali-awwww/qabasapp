@@ -189,7 +189,7 @@ object QabasLinkOpener {
     /**
      * نسخ النص إلى الحافظة بأمان
      */
-    fun copyToClipboard(context: Context, text: String, label: String = "رابط مساعد المسلم") {
+    fun copyToClipboard(context: Context, text: String, label: String = "رابط خادم المسلم") {
         try {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText(label, text)

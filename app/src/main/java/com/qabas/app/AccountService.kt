@@ -116,8 +116,8 @@ class AccountService(private val context: Context) {
     var devWatermarkText: String
         get() {
             val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            return qabasPrefs.getString("dev_watermark_text", "✦ مساعد المسلم.Official ✦")
-                ?: "✦ مساعد المسلم.Official ✦"
+            return qabasPrefs.getString("dev_watermark_text", "✦ خادم المسلم ✦")
+                ?: "✦ خادم المسلم ✦"
         }
         set(value) {
             val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)

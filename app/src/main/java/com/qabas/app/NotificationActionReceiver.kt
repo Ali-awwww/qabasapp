@@ -7,7 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 
 /**
- * 🛰️ NotificationActionReceiver — مستقبل أحداث وأدوات الإشعارات التفاعلية في تطبيق مساعد المسلم
+ * 🛰️ NotificationActionReceiver — مستقبل أحداث وأدوات الإشعارات التفاعلية في تطبيق خادم المسلم
  * يقوم بتنفيذ أدوات الإشعار مباشرة (الاستماع الفوري، المشاركة، تأكيد القراءة، والتأجيل).
  */
 class NotificationActionReceiver : BroadcastReceiver() {
@@ -50,7 +50,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 val track = PlayableAudioTrack(
                     id = "notif_track_${System.currentTimeMillis()}",
                     title = title,
-                    artist = "استوديو مساعد المسلم",
+                    artist = "استوديو خادم المسلم",
                     audioUrl = url,
                     category = "تلاوة تفاعلية"
                 )

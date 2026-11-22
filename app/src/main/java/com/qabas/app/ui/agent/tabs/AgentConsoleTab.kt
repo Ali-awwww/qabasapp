@@ -319,7 +319,7 @@ internal fun AgentLiveConsoleTab(
             cmd.currentPhase = "الاتصال بسيرفر ${provider.displayName}..."
 
             val sysPrompt = """
-                أنت الوكيل البرمجي المستقل لتطبيق مساعد المسلم (نمط ${selectedSpecialization.title}).
+                أنت الوكيل البرمجي المستقل لتطبيق خادم المسلم (نمط ${selectedSpecialization.title}).
                 قم بتحليل طلب المطور وطبّق التعديل البرمجي أو أجب بدقة هندسية عالية باللغة العربية.
                 إذا كان الطلب يتضمن إنشاء أو تعديل كود، اعرض الكود المستهدف بشكل واضح مع توضيح الفروقات.
             """.trimIndent()
@@ -454,7 +454,7 @@ internal fun AgentLiveConsoleTab(
             val isPlanning = AgentPrefs.isPlanningMode(context)
             if (isPlanning) {
                 val planSteps = listOf(
-                    AgentPlanStep(1, "التحليل والفحص المعماري 🔍", "تحليل ملفات كود مشروع مساعد المسلم المستهدفة وتحديد التغييرات المطلوبة للطلب: \"$clean\"."),
+                    AgentPlanStep(1, "التحليل والفحص المعماري 🔍", "تحليل ملفات كود مشروع خادم المسلم المستهدفة وتحديد التغييرات المطلوبة للطلب: \"$clean\"."),
                     AgentPlanStep(2, "صياغة وتعديل المكونات ✍️", "كتابة وااختبار واجهات Jetpack Compose والمنطق البرمجي الخاص بالخاصية المطلوبة."),
                     AgentPlanStep(3, "التكامل والتحقق من البناء 🚀", "تشغيل أداة التجميع compile_applet والترقيع الذاتي للأخطاء قبل التسليم النهائي.")
                 )
@@ -478,7 +478,7 @@ internal fun AgentLiveConsoleTab(
                     isAgentThinkingInChat = false
                 }
             } else {
-                val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق مساعد المسلم (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
+                val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق خادم المسلم (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
                 val chatResult = runCatching {
                     AppServices.chatWithAssistant(listOf(Pair(true, clean)), sysPrompt)
                 }

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    خادم المسلم / Muslim AI Assistant — master logo lockup (SVG source).
+    Palette: deep emerald #004E37, gold #E3C878, dim gold #C9A24A, cream #F5EFE0.
+    Motif: geometric lantern with radiating light (قبس = a spark of light).
+    No human or animal imagery. The in-app vectors derived from this lockup are:
+      - app/src/main/res/drawable/ic_khadim_logo.xml (108x108 vector emblem)
+      - app/src/main/res/drawable/ic_khadim_splash.xml (360x640 vector splash)
+    Arabic wordmark uses a Naskh-style Arabic font at render time.
+  -->
+  <rect width="1024" height="1024" fill="#004E37"/>
+  <g transform="translate(512,290)" fill="none" stroke="#C9A24A" stroke-width="4" stroke-linecap="round">
+    <line x1="0" y1="-176" x2="0" y2="-226"/>
+    <line x1="88" y1="-152" x2="113" y2="-196"/>
+    <line x1="152" y1="-88" x2="196" y2="-113"/>
+    <line x1="176" y1="0" x2="226" y2="0"/>
+    <line x1="152" y1="88" x2="196" y2="113"/>
+    <line x1="88" y1="152" x2="113" y2="196"/>
+    <line x1="-88" y1="152" x2="-113" y2="196"/>
+    <line x1="-152" y1="88" x2="-196" y2="113"/>
+    <line x1="-176" y1="0" x2="-226" y2="0"/>
+    <line x1="-152" y1="-88" x2="-196" y2="-113"/>
+    <line x1="-88" y1="-152" x2="-113" y2="-196"/>
+  </g>
+  <g transform="translate(512,290)">
+    <circle cx="0" cy="-128" r="12" fill="#E3C878"/>
+    <line x1="0" y1="-116" x2="0" y2="-100" stroke="#E3C878" stroke-width="6"/>
+    <path d="M -78 30 Q 0 -82 78 30 Z" fill="#E3C878"/>
+    <rect x="-72" y="30" width="144" height="150" fill="none" stroke="#E3C878" stroke-width="9"/>
+    <line x1="-24" y1="30" x2="-24" y2="180" stroke="#E3C878" stroke-width="6"/>
+    <line x1="24" y1="30" x2="24" y2="180" stroke="#E3C878" stroke-width="6"/>
+    <path d="M 0 -6 L 34 82 L 0 170 L -34 82 Z" fill="#E3C878"/>
+    <path d="M 0 34 L 18 82 L 0 130 L -18 82 Z" fill="#FFF7D6"/>
+    <path d="M -60 180 L 60 180 L 44 210 L -44 210 Z" fill="#E3C878"/>
+  </g>
+  <line x1="312" y1="600" x2="712" y2="600" stroke="#C9A24A" stroke-width="3"/>
+  <text x="512" y="760" text-anchor="middle" font-family="'Noto Sans Arabic','Segoe UI',sans-serif" font-size="118" font-weight="bold" fill="#E3C878">خادم المسلم</text>
+  <text x="512" y="905" text-anchor="middle" font-family="'DejaVu Sans','Segoe UI',sans-serif" font-size="38" letter-spacing="10" fill="#F5EFE0">MUSLIM AI ASSISTANT</text>
+</svg>

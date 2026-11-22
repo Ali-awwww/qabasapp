@@ -54,7 +54,7 @@ object RolePromotionNotifier {
             else -> normalizedRole
         }
         val title = "🎉 مبارك! تم تفعيل رتبة المطور لحسابك سحابياً"
-        val message = "تهانينا! تم التحقق من هويتك كـ $roleDisplayName في سحابة مساعد المسلم. تم فتح لوحة التحكم السحابية وأدوات التطوير المتقدمة بنجاح."
+        val message = "تهانينا! تم التحقق من هويتك كـ $roleDisplayName في سحابة خادم المسلم. تم فتح لوحة التحكم السحابية وأدوات التطوير المتقدمة بنجاح."
 
         try {
             NotificationHelper.showNotification(context = context, title = title, message = message)

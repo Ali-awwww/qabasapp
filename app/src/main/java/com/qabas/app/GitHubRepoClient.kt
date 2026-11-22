@@ -442,7 +442,7 @@ class GitHubRepoClient(
     ): String? = withContext(Dispatchers.IO) {
         try {
             onProgress("إنشاء المستودع الهدف على GitHub...")
-            val newFullName = createUserRepo(token, targetRepoName, description = "نسخة مستنسخة من $owner/$repo عبر مساعد مساعد المسلم الفضائي", private = isPrivate)
+            val newFullName = createUserRepo(token, targetRepoName, description = "نسخة مستنسخة من $owner/$repo عبر مساعد خادم المسلم الفضائي", private = isPrivate)
                 ?: return@withContext null
 
             val newParts = newFullName.split("/")

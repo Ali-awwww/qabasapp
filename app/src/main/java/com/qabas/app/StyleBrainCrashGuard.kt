@@ -139,7 +139,7 @@ object StyleBrainCrashGuard {
             } else if (finalStrength > 0) {
                 obj.put(
                     "analysis",
-                    "عقل مساعد المسلم التراكمي (القوة: $finalStrength% | $styleCount أساليب ممتصة) — تقدم ضئيل +0…+3 لكل امتصاص."
+                    "عقل خادم المسلم التراكمي (القوة: $finalStrength% | $styleCount أساليب ممتصة) — تقدم ضئيل +0…+3 لكل امتصاص."
                 )
             }
 

@@ -117,7 +117,7 @@ fun VideoImportSection(
                         fontSize = 16.sp
                     )
                     Text(
-                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب مساعد المسلم"),
+                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب خادم المسلم"),
                         color = TextSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp

@@ -394,7 +394,7 @@ fun EnterprisePortalScreen(
                             text = "نسخ عقد الرعاية الرسمي للمؤسسة 📋",
                             icon = Icons.Default.ContentCopy,
                             onClick = {
-                                val quote = "عرض رعاية مؤسسية رسمية - ${selectedSponsorshipTier.title}\nالتكلفة: $${selectedSponsorshipTier.monthlyCostUsd}/شهرياً\nالأثر: ${selectedSponsorshipTier.impactDescription}\nالشارة: ${selectedSponsorshipTier.badgeTitle}\nمنصة مساعد المسلم للدعوة الرقمية QABAS B2B"
+                                val quote = "عرض رعاية مؤسسية رسمية - ${selectedSponsorshipTier.title}\nالتكلفة: $${selectedSponsorshipTier.monthlyCostUsd}/شهرياً\nالأثر: ${selectedSponsorshipTier.impactDescription}\nالشارة: ${selectedSponsorshipTier.badgeTitle}\nمنصة خادم المسلم للدعوة الرقمية QABAS B2B"
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                                 val clip = ClipData.newPlainText("Sponsorship Quote", quote)
                                 clipboard?.setPrimaryClip(clip)
@@ -459,7 +459,7 @@ fun EnterprisePortalScreen(
                                     val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                                     generatedQuoteText = """
                                         ========================================
-                                        📜 عرض سعر رسمي - منصة مساعد المسلم B2B ENTERPRISE
+                                        📜 عرض سعر رسمي - منصة خادم المسلم B2B ENTERPRISE
                                         رقم المرجع: $refNo
                                         التاريخ: $dateStr
                                         ========================================

@@ -45,7 +45,7 @@ object ProductionPowerKit {
         val clean = text.trim().replace(Regex("[^\\p{L}\\s]"), "")
         val words = clean.split(Regex("\\s+")).filter { it.isNotBlank() }.size
         
-        // 2.1 كلمة في الثانية كإيقاع متوسط وقور في مساعد المسلم (سريع=2.7، بطيء=1.6)
+        // 2.1 كلمة في الثانية كإيقاع متوسط وقور في خادم المسلم (سريع=2.7، بطيء=1.6)
         // +0.8 ثانية كفراغ أولي ونبض وقار في نهاية الجملة
         val rawSeconds = (words / 2.1) + 0.8
         

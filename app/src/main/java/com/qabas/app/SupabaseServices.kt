@@ -1951,7 +1951,7 @@ object SupabaseServices {
                         message.contains("Unable to resolve host", ignoreCase = true) ||
                         message.contains("No address associated", ignoreCase = true) ->
                         return SafeAuthError(
-                            "تعذّر الوصول إلى خوادم مساعد المسلم. تحقق من اتصالك بالإنترنت ثم أعد المحاولة.",
+                            "تعذّر الوصول إلى خوادم خادم المسلم. تحقق من اتصالك بالإنترنت ثم أعد المحاولة.",
                             isNetwork = true
                         )
                     current is java.net.SocketTimeoutException ||
@@ -2379,7 +2379,7 @@ object SupabaseServices {
                 id = UUID.randomUUID().toString(),
                 userId = effectiveUserId,
                 userCustomId = creatorCustomId,
-                userName = userName.ifBlank { "مستخدم مساعد المسلم" },
+                userName = userName.ifBlank { "مستخدم خادم المسلم" },
                 userAvatar = userAvatar,
                 title = title.trim(),
                 description = description,
@@ -2601,7 +2601,7 @@ object SupabaseServices {
                 return null
             }
 
-            val safeName = userName.trim().take(60).ifBlank { "مستخدم مساعد المسلم" }
+            val safeName = userName.trim().take(60).ifBlank { "مستخدم خادم المسلم" }
             val authorCustomId = client.postgrest.from("users").select {
                 filter { eq("id", authUid) }
                 limit(1)
@@ -3724,7 +3724,7 @@ object SupabaseServices {
         val id: String,
         @SerialName("user_id") val userId: String,
         @SerialName("user_custom_id") val userCustomId: String? = null,
-        @SerialName("user_name") val userName: String = "مستخدم مساعد المسلم",
+        @SerialName("user_name") val userName: String = "مستخدم خادم المسلم",
         @SerialName("user_avatar") val userAvatar: String? = null,
         val title: String,
         val description: String? = null,
@@ -3752,7 +3752,7 @@ object SupabaseServices {
         val id: String = "",
         @SerialName("reel_id") val reelId: String = "",
         @SerialName("user_id") val userId: String = "",
-        @SerialName("user_name") val userName: String = "مستخدم مساعد المسلم",
+        @SerialName("user_name") val userName: String = "مستخدم خادم المسلم",
         @SerialName("user_custom_id") val userCustomId: String? = null,
         @SerialName("comment_text") val commentText: String = "",
         @SerialName("likes_count") val likesCount: Int = 0,
@@ -3823,8 +3823,8 @@ object SupabaseServices {
             if (reelId.isBlank() || videoUrl.isBlank()) return null
             return ReelHistoryItem(
                 reelId = reelId,
-                title = title.ifBlank { "ريلز مساعد المسلم" },
-                userName = userName.ifBlank { "صانع محتوى مساعد المسلم" },
+                title = title.ifBlank { "ريلز خادم المسلم" },
+                userName = userName.ifBlank { "صانع محتوى خادم المسلم" },
                 userAvatar = userAvatar,
                 videoUrl = videoUrl,
                 timestamp = timestamp.coerceAtLeast(0L),

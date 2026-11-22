@@ -258,7 +258,7 @@ fun NotificationSettingsScreen(
                 AppleGroupedSection(header = "التحكم العام") {
                     NotificationSwitchRow(
                         title = "تفعيل جميع التنبيهات",
-                        subtitle = "تشغيل أو إيقاف كافة تنبيهات مساعد المسلم بضغطة واحدة",
+                        subtitle = "تشغيل أو إيقاف كافة تنبيهات خادم المسلم بضغطة واحدة",
                         icon = Icons.Default.Notifications,
                         iconTint = theme.success,
                         checked = masterEnabled,

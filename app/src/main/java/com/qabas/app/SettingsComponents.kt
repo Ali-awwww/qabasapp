@@ -228,7 +228,7 @@ fun FontSelectionSection() {
                             fontSize = 11.5.sp
                         )
                         Text(
-                            "مساعد المسلم — نموذج لوضوح القراءة العربية",
+                            "خادم المسلم — نموذج لوضوح القراءة العربية",
                             color = theme.textPrimary.copy(alpha = 0.8f),
                             fontFamily = choice.family,
                             fontSize = 13.sp,
@@ -346,7 +346,7 @@ fun CommunityAndLinksSection() {
 
     val communityLinks = listOf(
         CommunityLinkItem(
-            title = "مجتمع مساعد المسلم الرسمي • فيسبوك",
+            title = "مجتمع خادم المسلم الرسمي • فيسبوك",
             subtitle = "الصفحة الرسمية لمتابعة الجديد والمشاركات",
             url = "https://www.facebook.com/share/18p5cMSJ17/",
             icon = Icons.Default.Public,
@@ -362,8 +362,8 @@ fun CommunityAndLinksSection() {
             badge = "واتساب"
         ),
         CommunityLinkItem(
-            title = "الموقع الرسمي • مساعد المسلم",
-            subtitle = "بوابة مساعد المسلم الرسمية للتحميل والأخبار",
+            title = "الموقع الرسمي • خادم المسلم",
+            subtitle = "بوابة خادم المسلم الرسمية للتحميل والأخبار",
             url = "https://alippappa7-maker.github.io/Website-/",
             icon = Icons.Default.Language,
             color = theme.primary,
@@ -922,7 +922,7 @@ fun ProfileSettingsCard(
                                     isAdmin -> Translator.tr("مطور النظام")
                                     isRelative -> Translator.tr("حساب الاكتفاء الذاتي")
                                     isGuest -> Translator.tr("زائر")
-                                    else -> Translator.tr("عضو مساعد المسلم")
+                                    else -> Translator.tr("عضو خادم المسلم")
                                 },
                                 color = if (isAdmin || isRelative) theme.warning else theme.textSecondary,
                                 fontFamily = CairoFont,

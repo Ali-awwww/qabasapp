@@ -50,7 +50,7 @@ fun UnifiedPublishScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val userName = remember {
         val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
-        prefs.getString("user_name", "صانع محتوى مساعد المسلم") ?: "صانع محتوى مساعد المسلم"
+        prefs.getString("user_name", "صانع محتوى خادم المسلم") ?: "صانع محتوى خادم المسلم"
     }
     val userEmail = remember {
         val prefs = context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
@@ -122,7 +122,7 @@ fun UnifiedPublishScreen(
                                 fontSize = 16.sp
                             )
                             Text(
-                                "النشر يتطلب حساباً في مساعد المسلم حتى تُنسب أعمالك إليك",
+                                "النشر يتطلب حساباً في خادم المسلم حتى تُنسب أعمالك إليك",
                                 color = TextSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 13.sp

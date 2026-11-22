@@ -264,7 +264,7 @@ object AppNotificationService {
                     builder = builder,
                     context = context,
                     notifId = notifId,
-                    shareText = "$title\n$message\n📖 من استوديو مساعد المسلم للحديث الشريف"
+                    shareText = "$title\n$message\n📖 من استوديو خادم المسلم للحديث الشريف"
                 )
 
                 // أداة 2: استماع للحديث بصوت قارئ
@@ -446,7 +446,7 @@ object AppNotificationService {
                     builder = builder,
                     context = context,
                     notifId = notifId,
-                    shareText = "$title\n$message\n🛡️ مرصد مساعد المسلم"
+                    shareText = "$title\n$message\n🛡️ مرصد خادم المسلم"
                 )
 
                 QabasNotificationHelper.addActionMarkDone(

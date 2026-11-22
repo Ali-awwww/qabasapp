@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS public.creator_follows (
 CREATE INDEX IF NOT EXISTS creator_follows_creator_idx ON public.creator_follows (creator_id);
 CREATE INDEX IF NOT EXISTS creator_follows_follower_idx ON public.creator_follows (follower_id);
 
--- 7. فتح الصلاحيات (RLS Policies) لتطبيق مساعد المسلم
+-- 7. فتح الصلاحيات (RLS Policies) لتطبيق خادم المسلم
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;

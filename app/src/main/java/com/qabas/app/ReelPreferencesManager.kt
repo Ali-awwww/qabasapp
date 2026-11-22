@@ -60,7 +60,7 @@ data class ReelActivitySnapshot(
 )
 
 /**
- * مدير إعدادات وسجل قسم الريلز لتطبيق مساعد المسلم
+ * مدير إعدادات وسجل قسم الريلز لتطبيق خادم المسلم
  * يوفر تحكماً كاملاً بالتشغيل، التمرير، توفير البيانات، السجل، والمحفوظات.
  */
 object ReelPreferencesManager {
@@ -282,7 +282,7 @@ object ReelPreferencesManager {
         val newItem = ReelHistoryItem(
             reelId = reelId,
             title = title,
-            userName = userName ?: "صانع محتوى مساعد المسلم",
+            userName = userName ?: "صانع محتوى خادم المسلم",
             userAvatar = userAvatar,
             videoUrl = videoUrl,
             timestamp = System.currentTimeMillis(),
@@ -396,7 +396,7 @@ object ReelPreferencesManager {
             val item = ReelHistoryItem(
                 reelId = reelId,
                 title = ReelSafetyGuardrails.cleanText(title, 80),
-                userName = ReelSafetyGuardrails.cleanText(userName ?: "صانع محتوى مساعد المسلم", 40),
+                userName = ReelSafetyGuardrails.cleanText(userName ?: "صانع محتوى خادم المسلم", 40),
                 userAvatar = userAvatar,
                 videoUrl = videoUrl,
                 timestamp = System.currentTimeMillis(),
@@ -456,7 +456,7 @@ object ReelPreferencesManager {
             val item = ReelHistoryItem(
                 reelId = reelId,
                 title = ReelSafetyGuardrails.cleanText(title, 80),
-                userName = ReelSafetyGuardrails.cleanText(userName ?: "صانع محتوى مساعد المسلم", 40),
+                userName = ReelSafetyGuardrails.cleanText(userName ?: "صانع محتوى خادم المسلم", 40),
                 userAvatar = userAvatar,
                 videoUrl = videoUrl,
                 timestamp = System.currentTimeMillis(),
@@ -571,7 +571,7 @@ object ReelPreferencesManager {
                 list.add(
                     ReelHistoryItem(
                         reelId = obj.optString("id", ""),
-                        title = obj.optString("title", "ريلز مساعد المسلم"),
+                        title = obj.optString("title", "ريلز خادم المسلم"),
                         userName = obj.optString("user_name", "صانع محتوى"),
                         userAvatar = obj.optString("user_avatar", "").ifBlank { null },
                         videoUrl = obj.optString("video_url", ""),

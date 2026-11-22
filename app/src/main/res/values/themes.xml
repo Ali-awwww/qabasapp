@@ -2,4 +2,13 @@
 <resources>
 
     <style name="Theme.MyApplication" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- Cold-start splash theme for the خادم المسلم rename. MainActivity uses
+         this theme from the manifest so the lantern splash is visible during
+         cold start; MainActivity switches back to Theme.MyApplication in
+         onCreate() before super.onCreate(). -->
+    <style name="Theme.Khadim.Splash" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

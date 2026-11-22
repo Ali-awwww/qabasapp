@@ -104,14 +104,14 @@ fun ReelAudioDetailsSheet(
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "بصوت: ${reel.userName ?: "صانع محتوى مساعد المسلم"}",
+                            text = "بصوت: ${reel.userName ?: "صانع محتوى خادم المسلم"}",
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp,
                             color = theme.textSecondary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "محتوى إيماني في منصة مساعد المسلم",
+                            text = "محتوى إيماني في منصة خادم المسلم",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Medium,
                             fontSize = 11.sp,
@@ -132,7 +132,7 @@ fun ReelAudioDetailsSheet(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText(
-                            "Muslim Assistant Ayah",
+                            "Muslim AI Assistant Ayah",
                             listOfNotNull(reel.title, reel.description?.takeIf { it.isNotBlank() }).joinToString("\n")
                         )
                         clipboard.setPrimaryClip(clip)
@@ -151,7 +151,7 @@ fun ReelAudioDetailsSheet(
                         val track = PlayableAudioTrack(
                             id = "reel_${reel.id}",
                             title = reel.title,
-                            artist = reel.userName ?: "صانع محتوى مساعد المسلم",
+                            artist = reel.userName ?: "صانع محتوى خادم المسلم",
                             audioUrl = reel.videoUrl,
                             category = "تلاوات ومقاطع الريلز",
                             badge = "ريلز"

@@ -77,7 +77,7 @@ enum class TipCategory(
     ),
     CREATIVE_STUDIO(
         id = "creative_studio",
-        title = "دليل استوديو مساعد المسلم",
+        title = "دليل استوديو خادم المسلم",
         iconEmoji = "🎬",
         icon = Icons.Default.MovieFilter,
         accentColor = Color(0xFFA855F7), // بنفسجي إبداعي
@@ -128,7 +128,7 @@ object QabasTipsRepository {
     val allTips: List<QabasTipItem> = listOf(
         // صحيح البخاري يُحمّل من ملف JSON المستورد محلياً.
 
-        // ── 3. دليل استوديو مساعد المسلم (Muslim Assistant Guide) ──
+        // ── 3. دليل استوديو خادم المسلم (Muslim AI Assistant Guide) ──
         QabasTipItem(
             id = "sg1",
             category = TipCategory.CREATIVE_STUDIO,
@@ -404,7 +404,7 @@ object QabasTipsRepository {
         QabasTipItem(
             id = "d1",
             category = TipCategory.DEVELOPER,
-            text = "تبدأ واجهة مساعد المسلم من الدالة QabasApp. تهيّئ هذه الدالة مديري الحركة والمظهر والصوت، ثم تراقب حالة التطبيق وتعرض الوجهة الحالية عبر AppNavigation.",
+            text = "تبدأ واجهة خادم المسلم من الدالة QabasApp. تهيّئ هذه الدالة مديري الحركة والمظهر والصوت، ثم تراقب حالة التطبيق وتعرض الوجهة الحالية عبر AppNavigation.",
             sourceOrBadge = "دورة حياة التطبيق · QabasApp.kt",
             actionableHint = "عند تتبع مشكلة تظهر بعد تشغيل التطبيق، ابدأ من QabasApp ثم اتبع التهيئة والمراقبين المرتبطين بالحالة. لا تفترض أن كل شاشة تُنشأ من نقطة دخول مستقلة."
         ),
@@ -432,7 +432,7 @@ object QabasTipsRepository {
         QabasTipItem(
             id = "d5",
             category = TipCategory.DEVELOPER,
-            text = "يستخدم مساعد المسلم Room، ويعرّف AppDatabase قاعدة البيانات المحلية. إصدار قاعدة البيانات الظاهر في الكود هو 9.",
+            text = "يستخدم خادم المسلم Room، ويعرّف AppDatabase قاعدة البيانات المحلية. إصدار قاعدة البيانات الظاهر في الكود هو 9.",
             sourceOrBadge = "بنية قاعدة البيانات · Database.kt — AppDatabase",
             actionableHint = "عند تغيير Entity أو جدول، راجع تعريف @Database وإستراتيجية ترحيل الإصدارات قبل رفع رقم version؛ تغيير المخطط دون Migration مناسبة قد يسبب فشل فتح قاعدة البيانات."
         ),
@@ -1217,7 +1217,7 @@ fun QabasSmartTipsBar(
                                     tip.text,
                                     "— " + tip.sourceOrBadge,
                                     tip.actionableHint?.takeIf { it.isNotBlank() },
-                                    "(عبر استوديو مساعد المسلم)"
+                                    "(عبر استوديو خادم المسلم)"
                                 ).joinToString("\n\n")
                                 clipboardManager.setText(AnnotatedString(copyText))
                                 Toast.makeText(context, "تم نسخ النص إلى الحافظة بنجاح", Toast.LENGTH_SHORT).show()

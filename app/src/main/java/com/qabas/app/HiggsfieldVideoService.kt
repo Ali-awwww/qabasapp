@@ -53,7 +53,7 @@ object HiggsfieldVideoService {
         }
 
         try {
-            onProgress(0.12f, "إرسال طلب Kling 4.0 عبر بوابة مساعد المسلم الآمنة...")
+            onProgress(0.12f, "إرسال طلب Kling 4.0 عبر بوابة خادم المسلم الآمنة...")
             SystemLogsManager.addLog("INFO", "جاري إرسال طلب فيديو إلى Kling 4.0 عبر الخادم الآمن...", Color(0xFF38BDF8))
 
             val response = PlatformGatewayClient.proxyHiggsfieldSuspend(payload)

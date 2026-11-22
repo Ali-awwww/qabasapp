@@ -460,7 +460,7 @@ fun HomeScreen(
                                 )
                             }
                             Text(
-                                text = "مساعد المسلم",
+                                text = "خادم المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

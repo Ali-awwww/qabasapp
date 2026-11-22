@@ -125,7 +125,7 @@ object AiModelRegistry {
             name = "OpenRouter Auto Router",
             provider = AiProviderType.OPENROUTER,
             modelIdentifier = "openrouter/auto",
-            systemPrompt = "أنت مهندس ذكاء اصطناعي متخصص في كود Android و Kotlin وتطبيق مساعد المسلم الإسلامي."
+            systemPrompt = "أنت مهندس ذكاء اصطناعي متخصص في كود Android و Kotlin وتطبيق خادم المسلم الإسلامي."
         ),
         AiModelConfig(
             id = "preset_openrouter_claude",
@@ -167,7 +167,7 @@ object AiModelRegistry {
             name = "Google Gemini 2.5 Flash",
             provider = AiProviderType.GEMINI,
             modelIdentifier = "gemini-2.5-flash",
-            systemPrompt = "أنت نواة الذكاء الاصطناعي الرسمية لمشروع مساعد المسلم."
+            systemPrompt = "أنت نواة الذكاء الاصطناعي الرسمية لمشروع خادم المسلم."
         )
     )
 
@@ -319,7 +319,7 @@ object AiModelRegistry {
                     }
                     if (config.provider == AiProviderType.OPENROUTER) {
                         reqBuilder.header("HTTP-Referer", "https://qabas.app")
-                        reqBuilder.header("X-Title", "Muslim Assistant")
+                        reqBuilder.header("X-Title", "Muslim AI Assistant")
                     }
 
                     val response = httpClient.newCall(reqBuilder.build()).execute()

@@ -278,7 +278,7 @@ fun CrashTelemetryCloudScreen() {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("وقت الاستلام: ${report.createdAt ?: "غير متاح"}")
                     Text("الجهاز: ${report.deviceInfo}")
-                    Text("إصدار مساعد المسلم: ${report.appVersion}")
+                    Text("إصدار خادم المسلم: ${report.appVersion}")
                     Text("الشاشة: ${report.screenName}")
                     Text("المصدر: ${crashReportValue(report.description, "source") ?: "غير محدد"}")
                     Text(

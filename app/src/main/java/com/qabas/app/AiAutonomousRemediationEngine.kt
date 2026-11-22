@@ -59,7 +59,7 @@ object AiAutonomousRemediationEngine {
     ): AiRemediationProposal = withContext(Dispatchers.IO) {
         val prompt = """
             أنت مهندس برمجيات ذكي وخبير في تطبيقات Android المكتوبة بـ Kotlin و Jetpack Compose و GitHub API.
-            لديك بلاغ مشكلة أو مقترح من المستخدم في تطبيق «استوديو مساعد المسلم»:
+            لديك بلاغ مشكلة أو مقترح من المستخدم في تطبيق «استوديو خادم المسلم»:
             
             عنوان البلاغ: $title
             تفاصيل البلاغ: $description

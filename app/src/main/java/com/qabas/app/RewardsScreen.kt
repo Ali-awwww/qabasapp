@@ -55,14 +55,14 @@ fun RewardsScreen(onBack: () -> Unit) {
         topBar = {
             Column(modifier = Modifier.background(theme.background)) {
                 AppleTopBar(
-                    title = Translator.tr("مركز مكافآت مساعد المسلم"),
+                    title = Translator.tr("مركز مكافآت خادم المسلم"),
                     subtitle = "$balance نقطة متاحة",
                     onBack = onBack
                 )
                 AppleSegmentedControl(
                     items = listOf(
                         0 to "المحفظة والمهام",
-                        1 to "متجر مساعد المسلم",
+                        1 to "متجر خادم المسلم",
                         2 to "مركز الهدايا"
                     ),
                     selectedItem = selectedTabIndex,
@@ -159,7 +159,7 @@ fun WalletAndTasksTab(
                         fontFamily = CairoFont
                     )
                     Text(
-                        text = "نقطة مكافآت مساعد المسلم",
+                        text = "نقطة مكافآت خادم المسلم",
                         color = theme.primary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -282,7 +282,7 @@ fun WalletAndTasksTab(
                 AppleInsetDivider()
 
                 TaskRow(
-                    title = "دعوة صديق لتطبيق مساعد المسلم",
+                    title = "دعوة صديق لتطبيق خادم المسلم",
                     points = "+20",
                     icon = Icons.Default.PersonAdd,
                     status = "تمت الدعوة ${inviteCount.coerceAtMost(5)}/5",
@@ -292,11 +292,11 @@ fun WalletAndTasksTab(
                             type = "text/plain"
                             putExtra(
                                 Intent.EXTRA_TEXT,
-                                "اكتشف استوديو مساعد المسلم لصناعة المحتوى الإسلامي والمصحف الشريف وتفسير الآيات."
+                                "اكتشف استوديو خادم المسلم لصناعة المحتوى الإسلامي والمصحف الشريف وتفسير الآيات."
                             )
                         }
                         runCatching {
-                            context.startActivity(Intent.createChooser(shareIntent, "دعوة صديق إلى مساعد المسلم"))
+                            context.startActivity(Intent.createChooser(shareIntent, "دعوة صديق إلى خادم المسلم"))
                             if (inviteCount < 5) {
                                 inviteCount += 1
                                 prefs.edit().putInt("reward_task_invite_count", inviteCount).apply()
@@ -314,7 +314,7 @@ fun WalletAndTasksTab(
                     title = "تقييم التطبيق على المتجر",
                     points = "+100",
                     icon = Icons.Default.Star,
-                    status = if (rateRewardClaimed) "شكراً لتقييمك مساعد المسلم ✓" else "قيّم التطبيق في متجر Google Play",
+                    status = if (rateRewardClaimed) "شكراً لتقييمك خادم المسلم ✓" else "قيّم التطبيق في متجر Google Play",
                     actionLabel = if (!rateRewardClaimed) "تقييم" else null,
                     onClick = {
                         val uri = Uri.parse("market://details?id=${context.packageName}")
@@ -410,8 +410,8 @@ fun StoreTab(
         listOf(
             RewardItem("smart_dir", "المخرج الذكي", 100, Icons.Default.AutoAwesome, "توليد فكرة متكاملة بضغطة زر"),
             RewardItem("no_watermark", "إزالة العلامة", 150, Icons.Default.WaterDrop, "إزالة العلامة المائية لفيديو واحد"),
-            RewardItem("pro_day", "مساعد المسلم برو (يوم)", 500, Icons.Default.WorkspacePremium, "فتح جميع الميزات لمدة 24 ساعة"),
-            RewardItem("pro_week", "مساعد المسلم برو (أسبوع)", 3000, Icons.Default.WorkspacePremium, "فتح جميع الميزات لمدة 7 أيام")
+            RewardItem("pro_day", "خادم المسلم برو (يوم)", 500, Icons.Default.WorkspacePremium, "فتح جميع الميزات لمدة 24 ساعة"),
+            RewardItem("pro_week", "خادم المسلم برو (أسبوع)", 3000, Icons.Default.WorkspacePremium, "فتح جميع الميزات لمدة 7 أيام")
         )
     }
 
@@ -725,7 +725,7 @@ fun GiftCenterTab(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "باقة مساعد المسلم برو مفعلة",
+                                text = "باقة خادم المسلم برو مفعلة",
                                 color = theme.success,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

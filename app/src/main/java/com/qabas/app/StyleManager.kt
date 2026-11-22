@@ -24,7 +24,7 @@ data class ProjectStyleRequirements(
     val targetAudience: String = "الجمهور العام",
     val desiredTone: String = "حماسي ووقور",
     val pacingPreference: String = "متوازن",
-    val visualPalettePreference: String = "ألوان داكنة سينمائية ولمسات مساعد المسلم",
+    val visualPalettePreference: String = "ألوان داكنة سينمائية ولمسات خادم المسلم",
     val customDirectives: String = "",
     val priorityFactor: String = "توازن بصري وحركي" // "بصري", "حركي", "نبرة ومحتوى", "توازن بصري وحركي"
 ) {
@@ -49,7 +49,7 @@ data class ProjectStyleRequirements(
                 targetAudience = map["targetAudience"]?.toString() ?: "الجمهور العام",
                 desiredTone = map["desiredTone"]?.toString() ?: "حماسي ووقور",
                 pacingPreference = map["pacingPreference"]?.toString() ?: "متوازن",
-                visualPalettePreference = map["visualPalettePreference"]?.toString() ?: "ألوان داكنة ولمسات مساعد المسلم",
+                visualPalettePreference = map["visualPalettePreference"]?.toString() ?: "ألوان داكنة ولمسات خادم المسلم",
                 customDirectives = map["customDirectives"]?.toString() ?: "",
                 priorityFactor = map["priorityFactor"]?.toString() ?: "توازن بصري وحركي"
             )
@@ -205,7 +205,7 @@ object StyleManager {
                 }
             }
 
-            // إذا كانت القائمة فارغة، ننشئ نمط ماستر مساعد المسلم الافتراضي الفاخر
+            // إذا كانت القائمة فارغة، ننشئ نمط ماستر خادم المسلم الافتراضي الفاخر
             if (list.isEmpty()) {
                 val defaultMaster = createDefaultQabasMasterStyle()
                 list.add(defaultMaster)
@@ -237,7 +237,7 @@ object StyleManager {
 
     /**
      * الدمج والتوليد الذكي لنمط ماستر مركب (Composite Master Style)
-     * بناءً على متطلبات المشروع المحددة والأنماط المخزنة في عقل مساعد المسلم وسحابة Firestore.
+     * بناءً على متطلبات المشروع المحددة والأنماط المخزنة في عقل خادم المسلم وسحابة Firestore.
      */
     suspend fun createCompositeMasterStyle(
         context: Context,
@@ -292,7 +292,7 @@ object StyleManager {
         // 4. صياغة أوامر وفلاتر FFmpeg المخصصة
         val ffmpegFilter = synthesizeFfmpegFilterDirective(mergedVisualStyle, mergedMotionRhythm, requirements)
 
-        // 5. حساب مؤشر التوافق مع المعايير الجمالية الإسلامية لمساعد المسلم (Islamic Aesthetic Compliance Score)
+        // 5. حساب مؤشر التوافق مع المعايير الجمالية الإسلامية لخادم المسلم (Islamic Aesthetic Compliance Score)
         val complianceScore = calculateIslamicComplianceScore(mergedVisualStyle, mergedMotionRhythm, mergedContentTone)
 
         // 6. بناء ملف الماستر المركب
@@ -467,7 +467,7 @@ object StyleManager {
             val core = StyleBrain.getCoreStyle()
             val defaultObj = StyleObject(
                 id = "core_default",
-                name = "هوية مساعد المسلم الأساسية",
+                name = "هوية خادم المسلم الأساسية",
                 visualStyle = VisualStylePattern(visualTraits = core.visualTraits),
                 motionRhythm = MotionRhythmPattern(motionTraits = core.motionTraits),
                 contentTone = ContentTonePattern(textTraits = core.textTraits)
@@ -526,7 +526,7 @@ object StyleManager {
         weighted.forEach { (obj, _) ->
             allVisualTraits.addAll(obj.visualStyle.visualTraits)
         }
-        // إضافة السمات البصرية الأساسية لمساعد المسلم
+        // إضافة السمات البصرية الأساسية لخادم المسلم
         allVisualTraits.addAll(StyleBrain.getCoreStyle().visualTraits.take(3))
 
         val dominantHex = if (reqs.visualPalettePreference.contains("ذهب") || reqs.visualPalettePreference.contains("Gold")) {
@@ -535,7 +535,7 @@ object StyleManager {
             weighted.maxByOrNull { it.second }?.first?.visualStyle?.primaryColorHex ?: "#E8C547"
         }
 
-        val dominantColors = "أسطح داكنة فاخرة (#0B0F19) مع لمسات لمسات مساعد المسلم المشعة ($dominantHex)"
+        val dominantColors = "أسطح داكنة فاخرة (#0B0F19) مع لمسات لمسات خادم المسلم المشعة ($dominantHex)"
 
         return VisualStylePattern(
             dominantColors = dominantColors,
@@ -653,10 +653,10 @@ object StyleManager {
         val core = StyleBrain.getCoreStyle()
         return MasterStyle(
             id = "master_qabas_default",
-            name = "ماستر مساعد المسلم الإخراجي الفاخر (Master Cinematic)",
-            description = "الهوية الإخراجية المرجعية الأساسية لتطبيق مساعد المسلم: ألوان داكنة #0B0F19، تباين ذهبي #E8C547، وزووم سينمائي متزن.",
+            name = "ماستر خادم المسلم الإخراجي الفاخر (Master Cinematic)",
+            description = "الهوية الإخراجية المرجعية الأساسية لتطبيق خادم المسلم: ألوان داكنة #0B0F19، تباين ذهبي #E8C547، وزووم سينمائي متزن.",
             sourceStyleIds = listOf("core_style"),
-            sourceStyleNames = listOf("الهوية المرجعية لمساعد المسلم"),
+            sourceStyleNames = listOf("الهوية المرجعية لخادم المسلم"),
             visualStyle = VisualStylePattern(
                 dominantColors = "DeepSlate (#0B0F19) مع لمسات ذهبية ملكية (#E8C547)",
                 primaryColorHex = "#E8C547",
@@ -876,7 +876,7 @@ object StyleManager {
             for (i in 0 until vtArr.length()) vtList.add(vtArr.getString(i))
         }
         val visual = VisualStylePattern(
-            dominantColors = vObj.optString("dominantColors", "ألوان داكنة ولمسات مساعد المسلم"),
+            dominantColors = vObj.optString("dominantColors", "ألوان داكنة ولمسات خادم المسلم"),
             primaryColorHex = vObj.optString("primaryColorHex", "#E8C547"),
             backgroundColorHex = vObj.optString("backgroundColorHex", "#0B0F19"),
             lightingAndContrast = vObj.optString("lightingAndContrast", "تباين سينمائي عالي"),

@@ -630,7 +630,7 @@ fun ConnectorsSection(
                 states = states,
                 onCopyReport = {
                     val report = buildString {
-                        appendLine("🔌 تقرير مصفوفة موصلات مساعد المسلم (Muslim Assistant Telemetry Matrix)")
+                        appendLine("🔌 تقرير مصفوفة موصلات خادم المسلم (Muslim AI Assistant Telemetry Matrix)")
                         appendLine("═══════════════════════════════════════")
                         appendLine("التاريخ: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
                         appendLine("الكفاءة التشغيلية: $healthPercentage% ($okCount/${scored.size})")
@@ -1367,7 +1367,7 @@ private fun DevOpsTerminalCard(
                     onClick = {
                         val masterSql = buildString {
                             appendLine("-- ==========================================================")
-                            appendLine("-- 🗄️ حزمة استعلامات Supabase الشاملة لكل مراكز تطبيق مساعد المسلم")
+                            appendLine("-- 🗄️ حزمة استعلامات Supabase الشاملة لكل مراكز تطبيق خادم المسلم")
                             appendLine("-- التاريخ: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
                             appendLine("-- ==========================================================")
                             appendLine()

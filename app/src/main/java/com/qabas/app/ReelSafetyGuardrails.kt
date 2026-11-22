@@ -92,7 +92,7 @@ object ReelSafetyGuardrails {
             // 3. تطهير العنوان والنصوص من المحارف الخبيثة وتحديد أطوالها
             val cleanTitle = cleanText(reel.title, MAX_TITLE_LENGTH).ifBlank { "مقطع إيماني مبارك" }
             val cleanDesc = reel.description?.let { cleanText(it, MAX_DESCRIPTION_LENGTH) }
-            val cleanUserName = (reel.userName?.let { cleanText(it, MAX_USER_NAME_LENGTH) } ?: "صانع محتوى مساعد المسلم").ifBlank { "صانع محتوى مساعد المسلم" }
+            val cleanUserName = (reel.userName?.let { cleanText(it, MAX_USER_NAME_LENGTH) } ?: "صانع محتوى خادم المسلم").ifBlank { "صانع محتوى خادم المسلم" }
             val cleanThumbnail = reel.thumbnailUrl?.trim()?.takeIf { isValidImageUrl(it) }
 
             // 4. ضبط العدادات وضمان عدم وجود أرقام سالبة أو مبالغ فيها تسبب overflow
@@ -352,7 +352,7 @@ fun ReelCrashBoundary(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "رصد درع الأمان استثناءً في مشغل الريلز وتم عزله فوراً لمنع تعطل تطبيق مساعد المسلم. التطبيق يعمل بكامل طاقته واستقراره.",
+                    text = "رصد درع الأمان استثناءً في مشغل الريلز وتم عزله فوراً لمنع تعطل تطبيق خادم المسلم. التطبيق يعمل بكامل طاقته واستقراره.",
                     color = Color.White.copy(alpha = 0.7f),
                     fontFamily = CairoFont,
                     fontSize = 12.5.sp,

@@ -19,7 +19,7 @@ private const val TAG = "FirebaseAiService"
 private const val TIMEOUT_MS = 60_000L
 
 /**
- * Official Firebase AI Logic & Gemini API Client for Muslim Assistant.
+ * Official Firebase AI Logic & Gemini API Client for Muslim AI Assistant.
  * Routes all generation and multimodal inference through Firebase.ai
  * secured by Firebase App Check attestation without requiring client-side API keys.
  */
@@ -51,7 +51,7 @@ object FirebaseAiService {
         description: String? = null
     ): VisualAuditResult = withContext(Dispatchers.IO) {
         val prompt = """
-            أنت "رقيب مِشكاة مساعد المسلم" (Sharia AI Auditor). مهمتك هي فحص هذا المحتوى البصري (صورة/فريم فيديو)
+            أنت "رقيب مِشكاة خادم المسلم" (Sharia AI Auditor). مهمتك هي فحص هذا المحتوى البصري (صورة/فريم فيديو)
             مع العنوان والوصف التاليين، والتأكد من ملاءمتها للنشر في منصة إسلامية دعوية نقية.
 
             العنوان: $title
@@ -252,7 +252,7 @@ object FirebaseAiService {
         contentTone: String = ""
     ): List<Scene> = withContext(Dispatchers.IO) {
         val prompt = """
-            أنت المخرج الفني وكبير مونتيري منصة «مساعد المسلم» (QABAS AI Studio) - المتخصص في صناعة المحتوى الإسلامي والقرآني القصير (Reels/Shorts/TikTok) بهوية بصرية وروحية فاخرة.
+            أنت المخرج الفني وكبير مونتيري منصة «خادم المسلم» (QABAS AI Studio) - المتخصص في صناعة المحتوى الإسلامي والقرآني القصير (Reels/Shorts/TikTok) بهوية بصرية وروحية فاخرة.
             الموضوع: $idea
             نوع المحتوى: $contentType
             النبرة: $contentTone

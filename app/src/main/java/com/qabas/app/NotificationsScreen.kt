@@ -514,7 +514,7 @@ fun NotificationCard(
                             type = "text/plain"
                             putExtra(
                                 Intent.EXTRA_TEXT,
-                                "${notif.title}\n${notif.message}\nعبر استوديو مساعد المسلم"
+                                "${notif.title}\n${notif.message}\nعبر استوديو خادم المسلم"
                             )
                         }
                         context.startActivity(

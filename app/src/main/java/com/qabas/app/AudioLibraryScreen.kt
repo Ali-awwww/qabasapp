@@ -79,7 +79,7 @@ fun AudioLibraryScreen(
 
     val coroutineScope = rememberCoroutineScope()
 
-    fun playTrack(audioUrl: String, title: String, youtubeUrl: String? = null, artist: String = "مساعد المسلم") {
+    fun playTrack(audioUrl: String, title: String, youtubeUrl: String? = null, artist: String = "خادم المسلم") {
         if (activePlayingTrack?.audioUrl == audioUrl) {
             AudioPlaybackManager.playPause(context)
             return
@@ -87,9 +87,9 @@ fun AudioLibraryScreen(
         val item = PlayableAudioTrack(
             id = audioUrl,
             title = title,
-            artist = artist.ifBlank { "مساعد المسلم" },
+            artist = artist.ifBlank { "خادم المسلم" },
             audioUrl = audioUrl,
-            category = "صوتيات مساعد المسلم",
+            category = "صوتيات خادم المسلم",
             youtubeUrl = youtubeUrl
         )
         AudioPlaybackManager.playTrack(context, item)
@@ -184,7 +184,7 @@ fun AudioLibraryScreen(
                         onApply = { url, title -> showApplyDialog = Pair(url, title) },
                         heroBanner = {
                             SectionHeroBanner(
-                                title = "سحابة مساعد المسلم (Supabase)",
+                                title = "سحابة خادم المسلم (Supabase)",
                                 description = "مزامنة سحابية فورية لجميع تسجيلاتك المرفوعة والمولدة، متاحة من أي مكان.",
                                 imageRes = R.drawable.hud_cloud_storage_banner_1790878859957,
                                 accentColor = theme.success
@@ -1457,7 +1457,7 @@ data class LiveAudioItem(
     val duration: String,
     val audioUrl: String,
     val isAsset: Boolean = false,
-    val badge: String = "مساعد المسلم",
+    val badge: String = "خادم المسلم",
     val author: String = "",
     val youtubeUrl: String? = null
 )
@@ -1542,7 +1542,7 @@ private fun SectionHeroBanner(
 fun shareAudioTrack(context: Context, track: LiveAudioItem) {
     try {
         val shareBody = buildString {
-            appendLine("🎧 مادة صوتية ومحاضرة من «مكتبة مساعد المسلم»:")
+            appendLine("🎧 مادة صوتية ومحاضرة من «مكتبة خادم المسلم»:")
             appendLine("«${track.title}»")
             if (track.author.isNotBlank()) appendLine("🎙️ الإلقاء: ${track.author}")
             if (track.category.isNotBlank()) appendLine("🏷️ التصنيف: ${track.category}")
@@ -1551,7 +1551,7 @@ fun shareAudioTrack(context: Context, track: LiveAudioItem) {
             appendLine("🔗 رابط الاستماع والتحميل المباشر:")
             appendLine(track.audioUrl)
             appendLine()
-            appendLine("✨ تم المشاركة عبر تطبيق مساعد المسلم (Muslim Assistant)")
+            appendLine("✨ تم المشاركة عبر تطبيق خادم المسلم (Muslim AI Assistant)")
         }
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -1568,7 +1568,7 @@ fun shareAudioTrack(context: Context, track: LiveAudioItem) {
 fun shareAudioTrack(context: Context, track: SupabaseServices.AudioTrackRow) {
     try {
         val shareBody = buildString {
-            appendLine("🎧 مادة صوتية مميزة من «مكتبة مساعد المسلم»:")
+            appendLine("🎧 مادة صوتية مميزة من «مكتبة خادم المسلم»:")
             appendLine("«${track.title}»")
             if (track.author.isNotBlank()) appendLine("🎙️ الإلقاء: ${track.author}")
             if (track.category.isNotBlank()) appendLine("🏷️ التصنيف: ${track.category}")
@@ -1577,7 +1577,7 @@ fun shareAudioTrack(context: Context, track: SupabaseServices.AudioTrackRow) {
             appendLine("🔗 رابط الاستماع والتحميل المباشر:")
             appendLine(track.audioUrl)
             appendLine()
-            appendLine("✨ تم المشاركة عبر تطبيق مساعد المسلم (Muslim Assistant)")
+            appendLine("✨ تم المشاركة عبر تطبيق خادم المسلم (Muslim AI Assistant)")
         }
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"

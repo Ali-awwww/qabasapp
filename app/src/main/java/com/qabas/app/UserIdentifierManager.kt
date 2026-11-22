@@ -106,7 +106,7 @@ object UserIdentifierManager {
     fun copyAccountNumberToClipboard(context: Context, accountNumber: String, showToast: Boolean = true) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         val display = formatAccountNumber(accountNumber)
-        val clip = ClipData.newPlainText("Muslim Assistant Account Number", display)
+        val clip = ClipData.newPlainText("Muslim AI Assistant Account Number", display)
         clipboard?.setPrimaryClip(clip)
         if (showToast) {
             Toast.makeText(context, "تم نسخ رقم الحساب ($display) إلى الحافظة 📋", Toast.LENGTH_SHORT).show()
@@ -370,7 +370,7 @@ object UserIdentifierManager {
     fun copyToClipboard(context: Context, customId: String, showToast: Boolean = true) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         val display = formatDisplay(customId)
-        val clip = ClipData.newPlainText("Muslim Assistant User ID", display)
+        val clip = ClipData.newPlainText("Muslim AI Assistant User ID", display)
         clipboard?.setPrimaryClip(clip)
         if (showToast) {
             Toast.makeText(context, "تم نسخ المعرّف الخاص ($display) إلى الحافظة 📋", Toast.LENGTH_SHORT).show()

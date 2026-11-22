@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * قياسات نظام تصميم مساعد المسلم.
+ * قياسات نظام تصميم خادم المسلم.
  * القيم مركزية حتى لا تنشئ كل شاشة إيقاعًا بصريًا مختلفًا.
  */
 @Immutable

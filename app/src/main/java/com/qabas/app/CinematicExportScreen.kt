@@ -83,7 +83,7 @@ fun SaveShareScreen(
         )
     }
     var renderProgress by remember { mutableFloatStateOf(0f) }
-    var currentLog by remember { mutableStateOf(Translator.tr("تهيئة محرك الريندر Muslim Assistant Engine v2.4...")) }
+    var currentLog by remember { mutableStateOf(Translator.tr("تهيئة محرك الريندر Muslim AI Assistant Engine v2.4...")) }
     val logs = remember { mutableStateListOf<String>() }
     var isRenderComplete by remember { mutableStateOf(false) }
     var exportFailed by remember { mutableStateOf(false) }
@@ -137,7 +137,7 @@ fun SaveShareScreen(
         val engine = VideoEngineManager(analyticsContext)
         VideoProcessor.currentQualityPreset = selectedQualityOption.preset
         
-        logs.add(Translator.tr("[INFO] بدء تشغيل Muslim Assistant Engine (${selectedQualityOption.resolution} @ ${selectedQualityOption.fps})..."))
+        logs.add(Translator.tr("[INFO] بدء تشغيل Muslim AI Assistant Engine (${selectedQualityOption.resolution} @ ${selectedQualityOption.fps})..."))
         if (videoStyleAnalysis != null) {
             logs.add(Translator.tr("[STYLE] تم تفعيل الخلطة المستنسخة: ${videoStyleAnalysis.dominantColors} | ${videoStyleAnalysis.transitionSpeed}"))
         }
@@ -354,7 +354,7 @@ fun SaveShareScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Terminal, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Muslim Assistant FFmpeg Processing Console", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
+                                        Text("Muslim AI Assistant FFmpeg Processing Console", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
                                     }
                                     Text(selectedQualityOption.bitrate, color = Color.Gray, fontSize = 12.sp, fontFamily = NotoSansFont)
                                 }
@@ -622,7 +622,7 @@ fun SaveShareScreen(
                                         SocialAccountManager.shareVideoNatively(
                                             analyticsContext,
                                             exportedFile,
-                                            "$customSeoTitle\n\n$activeHashtags\n#ريلز #شورتس #مساعد_المسلم ✨"
+                                            "$customSeoTitle\n\n$activeHashtags\n#ريلز #شورتس #خادم_المسلم ✨"
                                         )
                                     }
                             ) {
@@ -644,7 +644,7 @@ fun SaveShareScreen(
                                         SocialAccountManager.shareVideoNatively(
                                             analyticsContext,
                                             exportedFile,
-                                            "$customSeoTitle\n\n$activeHashtags\n#تيك_توك #مساعد_المسلم #دعوة"
+                                            "$customSeoTitle\n\n$activeHashtags\n#تيك_توك #خادم_المسلم #دعوة"
                                         )
                                     }
                             ) {
@@ -666,7 +666,7 @@ fun SaveShareScreen(
                                         SocialAccountManager.shareVideoNatively(
                                             analyticsContext,
                                             exportedFile,
-                                            "$customSeoTitle\n\n$activeHashtags\n#Shorts #YouTube #MuslimAssistant"
+                                            "$customSeoTitle\n\n$activeHashtags\n#Shorts #YouTube #MuslimAIAssistant"
                                         )
                                     }
                             ) {
@@ -875,8 +875,8 @@ fun SaveShareScreen(
 
     if (showScheduleDialog) {
         SmartPublishScheduleDialog(
-            initialTitle = if (scriptText.isNotBlank()) scriptText.take(50) else "فيديو دعوي جديد عبر تطبيق مساعد المسلم",
-            initialHashtags = "#مساعد_المسلم #ريلز_إسلامي #تدبر #أثر_لا_ينقطع",
+            initialTitle = if (scriptText.isNotBlank()) scriptText.take(50) else "فيديو دعوي جديد عبر تطبيق خادم المسلم",
+            initialHashtags = "#خادم_المسلم #ريلز_إسلامي #تدبر #أثر_لا_ينقطع",
             onDismiss = { showScheduleDialog = false }
         )
     }

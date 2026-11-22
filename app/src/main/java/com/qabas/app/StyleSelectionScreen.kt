@@ -101,7 +101,7 @@ fun StyleSelectionScreen(
             list.add(
                 StyleObject(
                     id = "qabas_core_default",
-                    name = "هوية مساعد المسلم الأساسية الفاخرة",
+                    name = "هوية خادم المسلم الأساسية الفاخرة",
                     userId = "system",
                     visualStyle = VisualStylePattern(
                         dominantColors = "DeepSlate (#0B0F19) مع لمسات ذهبية (#E8C547)",
@@ -126,7 +126,7 @@ fun StyleSelectionScreen(
                     ),
                     overallScore = core.strengthScore,
                     analysisSummary = core.analysis,
-                    tags = listOf("MuslimAssistantCore", "Cinematic", "Gold", "Islamic")
+                    tags = listOf("MuslimAIAssistantCore", "Cinematic", "Gold", "Islamic")
                 )
             )
         }
@@ -187,7 +187,7 @@ fun StyleSelectionScreen(
             targetAudience = selectedAudience,
             desiredTone = selectedTone,
             pacingPreference = selectedPacing,
-            visualPalettePreference = "ألوان داكنة سينمائية ولمسات مساعد المسلم"
+            visualPalettePreference = "ألوان داكنة سينمائية ولمسات خادم المسلم"
         )
     }
 

@@ -453,7 +453,7 @@ private fun deduceHeuristicStyle(input: String): VideoStyleAnalysis {
         }
         else -> {
             VideoStyleAnalysis(
-                detectedStyle = "أسلوب مساعد المسلم السينمائي الفاخر",
+                detectedStyle = "أسلوب خادم المسلم السينمائي الفاخر",
                 dominantColors = "أسود فحمي DeepSlate مع ذهبي نقي",
                 transitionSpeed = "متوازنة احترافية (2.5 ثانية لكل لقطة)",
                 movementPatterns = "Cinematic Push-In & Smooth Slide",

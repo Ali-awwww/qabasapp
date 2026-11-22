@@ -451,7 +451,7 @@ private fun SpatialCameraQuickLauncherDialog(
                     // Action 2: Open Media Vault
                     QuickActionCard(
                         icon = Icons.Default.VideoLibrary,
-                        title = "معرض وسائط وفيديوهات مساعد المسلم",
+                        title = "معرض وسائط وفيديوهات خادم المسلم",
                         subtitle = "تصفح الفيديوهات المصدّرة واللقطات الجاهزة",
                         accentColor = Color(0xFF38BDF8),
                         onClick = onOpenMediaVault
