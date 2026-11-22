@@ -164,7 +164,7 @@ object DevWorkQueuesRepository {
 
     /** عناوين الريلز للعرض: خريطة reel_id -> عنوان (من الريلز النشطة). */
     suspend fun getReelTitlesById(): Map<String, String> = runCatching {
-        SupabaseServices.Database.getActiveReels(limit = 100).orEmpty()
+        SupabaseServices.Profiles.getActiveReels(limit = 100).orEmpty()
             .associate { it.id to it.title }
     }.getOrDefault(emptyMap())
 
@@ -181,7 +181,7 @@ object DevWorkQueuesRepository {
                 .decodeList<ModerationQueueRow>()
         }.getOrDefault(emptyList())
         val knownIds = existing.map { it.reelId }.toSet()
-        val reels = SupabaseServices.Database.getActiveReels(limit = 100).orEmpty()
+        val reels = SupabaseServices.Profiles.getActiveReels(limit = 100).orEmpty()
         var inserted = 0
         reels.filter { it.id !in knownIds }.forEach { reel ->
             val row = ModerationQueueRow(
@@ -227,7 +227,7 @@ object DevWorkQueuesRepository {
                 }
             ) { filter { eq("id", queueId) } }
             // حالة المقطع نفسها يضبطها إجراء المراجع (لا عمود مراجعة في reels).
-            SupabaseServices.Database.toggleReelActive(reelId, approve)
+            SupabaseServices.Profiles.toggleReelActive(reelId, approve)
         }.onFailure { Log.w(TAG, "reviewModeration failed: ${it.message}") }.getOrDefault(false)
         if (ok) {
             AuditLogger.log(
