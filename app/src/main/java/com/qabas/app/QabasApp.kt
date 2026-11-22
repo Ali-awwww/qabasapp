@@ -197,7 +197,7 @@ fun WelcomeRulesDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = Translator.tr("ضوابط استوديو مساعد المسلم"),
+                    text = Translator.tr("ضوابط استوديو خادم المسلم"),
                     color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
@@ -207,7 +207,7 @@ fun WelcomeRulesDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = Translator.tr("مرحباً بك في استوديو مساعد المسلم. نلتزم معاً بصناعة محتوى راقٍ ونقي، وفق الضوابط التالية:"),
+                    text = Translator.tr("مرحباً بك في استوديو خادم المسلم. نلتزم معاً بصناعة محتوى راقٍ ونقي، وفق الضوابط التالية:"),
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.sp,

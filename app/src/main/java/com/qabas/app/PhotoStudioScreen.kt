@@ -825,7 +825,7 @@ fun Step2Editor(
                 // watermark معاينة
                 if (showWatermark) {
                     Text(
-                        "✦ مساعد المسلم | QABAS STUDIO ✦",
+                        "✦ خادم المسلم | QABAS STUDIO ✦",
                         color = GoldPrimary.copy(alpha = 0.8f),
                         fontFamily = CairoFont,
                         fontSize = 10.sp,
@@ -1035,7 +1035,7 @@ fun Step2Editor(
                             onCheckedChange = onWatermarkChange,
                             colors = CheckboxDefaults.colors(checkedColor = GoldPrimary)
                         )
-                        Text("علامة مساعد المسلم المائية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text("علامة خادم المسلم المائية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                 }
                 "قص وضبط" -> {

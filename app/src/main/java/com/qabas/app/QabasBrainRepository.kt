@@ -88,7 +88,7 @@ class QabasBrainRepository(private val context: Context) {
         val allStyles = getReferenceStyleObjects()
         if (allStyles.isEmpty()) {
             return@withContext """
-                [الذاكرة المرجعية الأساسية لهوية مساعد المسلم]:
+                [الذاكرة المرجعية الأساسية لهوية خادم المسلم]:
                 - النمط الأساسي: أسلوب وثائقي سينمائي وقور
                 - الألوان المسيطرة: خلفية داكنة فاخرة Deep Slate (#0B0F19)، لمسات ذهبية متوهجة Gold Primary (#E8C547)، نصوص ناصعة (#F8FAFC)
                 - إيقاع الحركة: زووم بطيء متصاعد (Slow Cinematic Zoom-in 1.05x)، انتقالات تلاشي ناعمة (Smooth Dissolve)

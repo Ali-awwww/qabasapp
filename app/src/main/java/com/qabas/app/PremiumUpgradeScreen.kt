@@ -64,7 +64,7 @@ fun PremiumUpgradeScreen(
         billingManager.onPurchaseSuccess = { _ ->
             isProcessing = false
             accountService.isPremium = true
-            Toast.makeText(context, Translator.tr("تم تفعيل اشتراك مساعد المسلم برو بنجاح"), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, Translator.tr("تم تفعيل اشتراك خادم المسلم برو بنجاح"), Toast.LENGTH_LONG).show()
             onUpgraded()
         }
         billingManager.onPurchaseCanceled = {
@@ -144,7 +144,7 @@ fun PremiumUpgradeScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = Translator.tr("استوديو مساعد المسلم برو"),
+                text = Translator.tr("استوديو خادم المسلم برو"),
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 24.sp,
@@ -201,7 +201,7 @@ fun PremiumUpgradeScreen(
             AppleCard(cornerRadius = 16.dp) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = Translator.tr("مميزات باقة مساعد المسلم برو"),
+                        text = Translator.tr("مميزات باقة خادم المسلم برو"),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         color = theme.textPrimary,

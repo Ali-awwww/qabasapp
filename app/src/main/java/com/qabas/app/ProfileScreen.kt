@@ -95,11 +95,11 @@ fun ProfileScreen(
             ?: prefs.getString("user_name", "")?.takeIf {
                 prefs.getString("user_email", "")?.equals(userEmail, ignoreCase = true) == true && it.isNotBlank()
             }
-            ?: "مستخدم مساعد المسلم"
+            ?: "مستخدم خادم المسلم"
         mutableStateOf(savedName)
     }
     var userBio by remember {
-        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر مساعد المسلم")
+        mutableStateOf(profilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر خادم المسلم")
     }
     var userCustomTag by remember {
         val cid = UserIdentifierManager.getCustomId(context, userEmail)
@@ -191,8 +191,8 @@ fun ProfileScreen(
 
             displayName = activeProfilePrefs.getString("user_name", null)?.takeIf { it.isNotBlank() }
                 ?: sbName?.takeIf { expectedUid != null }
-                ?: "مستخدم مساعد المسلم"
-            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر مساعد المسلم"
+                ?: "مستخدم خادم المسلم"
+            userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر خادم المسلم"
             userCustomTag = UserIdentifierManager.getCustomId(context, activeEmail)
                 .let { if (it.isNotBlank()) UserIdentifierManager.formatDisplay(it) else "@qabas_user" }
             avatarUriString = activeProfilePrefs.getString("user_avatar_uri", "") ?: ""
@@ -228,7 +228,7 @@ fun ProfileScreen(
                 cloudDisplayName.trim()
             } else {
                 val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
-                baseName ?: sbName ?: "مستخدم مساعد المسلم"
+                baseName ?: sbName ?: "مستخدم خادم المسلم"
             }
             displayName = effectiveName
             activeProfilePrefs.edit().putString("user_name", effectiveName).apply()
@@ -241,7 +241,7 @@ fun ProfileScreen(
                 userBio = cloudBio
                 activeProfilePrefs.edit().putString("user_bio", cloudBio).apply()
             } else {
-                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر مساعد المسلم"
+                userBio = activeProfilePrefs.getString("user_bio", "") ?: "نشر الخير والقرآن الكريم عبر خادم المسلم"
             }
 
             if (!cloudUser?.customId.isNullOrBlank()) {
@@ -406,7 +406,7 @@ fun ProfileScreen(
             userLeaguePoints < 3500 -> "صانع ذهبي"
             userLeaguePoints < 7000 -> "صانع ماسي"
             userLeaguePoints < 12000 -> "سفير الدعوة"
-            else -> "أسطورة مساعد المسلم"
+            else -> "أسطورة خادم المسلم"
         }
     }
     val currentTierEmoji = remember(userLeaguePoints) {
@@ -495,7 +495,7 @@ fun ProfileScreen(
                 pointsRequired = 0,
                 isUnlocked = true,
                 isCurrentTier = userLeaguePoints < 500,
-                description = "يُمنح لكل صانع محتوى يبدأ رحلته في دوري مساعد المسلم الدعوي بنشر أولى بصماته المباركة.",
+                description = "يُمنح لكل صانع محتوى يبدأ رحلته في دوري خادم المسلم الدعوي بنشر أولى بصماته المباركة.",
                 perk = "مضاعف نقاط 1.0x والدخول في السجل الأسبوعي."
             ),
             TournamentTierBadge(
@@ -556,7 +556,7 @@ fun ProfileScreen(
             ),
             TournamentTierBadge(
                 id = "tier_legend",
-                title = "وسام أسطورة مساعد المسلم",
+                title = "وسام أسطورة خادم المسلم",
                 tierTitle = "الرتبة الأسطورية",
                 emoji = "🌟",
                 icon = Icons.Default.AutoAwesome,
@@ -581,7 +581,7 @@ fun ProfileScreen(
                 isUnlocked = userLeagueRank in 1..10,
                 isCurrentTier = userLeagueRank in 4..10,
                 description = "يُمنح لمن يدخل قائمة أفضل 10 صناع محتوى في الدوري الأسبوعي المباشر.",
-                perk = "شارة تميز تظهر في مجتمع مساعد المسلم العام."
+                perk = "شارة تميز تظهر في مجتمع خادم المسلم العام."
             ),
             TournamentTierBadge(
                 id = "rank_top3",
@@ -1084,7 +1084,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "ريلز مساعد المسلم",
+                                text = "ريلز خادم المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -1423,7 +1423,7 @@ fun ProfileScreen(
                             userLeaguePoints < 3500 -> Triple(1500, 3500, "صانع ذهبي")
                             userLeaguePoints < 7000 -> Triple(3500, 7000, "صانع ماسي")
                             userLeaguePoints < 12000 -> Triple(7000, 12000, "سفير الدعوة")
-                            else -> Triple(12000, userLeaguePoints + 2000, "أسطورة مساعد المسلم")
+                            else -> Triple(12000, userLeaguePoints + 2000, "أسطورة خادم المسلم")
                         }
                     }
                     val minPoints = nextMilestone.first
@@ -1575,7 +1575,7 @@ fun ProfileScreen(
             val planTitle = when {
                 accountService.isDeveloperOrAdmin -> "باقة المطور"
                 accountService.hasCustomKeys -> "المفاتيح الخاصة (BYOK)"
-                accountService.isPremium -> "مساعد المسلم برو"
+                accountService.isPremium -> "خادم المسلم برو"
                 else -> "باقة مجانية"
             }
             val isUnlimited = accountService.isDeveloperOrAdmin || accountService.hasCustomKeys || accountService.isPremium

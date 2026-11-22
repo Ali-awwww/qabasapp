@@ -1202,7 +1202,7 @@ fun QasasStorytellerScreen(
                     }
                 },
                 onCopy = {
-                    val fullStory = "🌳 شجرة الأنبياء والرسل المباركة\n📜 ${prophet.name} (${prophet.honorificTitle})\n🌿 في الشجرة: ${prophet.lineageRelation}\n📍 الموطن: ${prophet.location}\n📖 السور والآيات: ${prophet.keySurah}\n${prophet.keyVerse}\n\n✨ المعجزة: ${prophet.miracle}\n\n📖 القصة:\n${prophet.storySummary}\n\n💡 العبر والدروس:\n${prophet.wisdomLessons.joinToString("\n• ", prefix = "• ")}\n\n✨ تطبيق مساعد المسلم — شجرة الأنبياء الحقيقية"
+                    val fullStory = "🌳 شجرة الأنبياء والرسل المباركة\n📜 ${prophet.name} (${prophet.honorificTitle})\n🌿 في الشجرة: ${prophet.lineageRelation}\n📍 الموطن: ${prophet.location}\n📖 السور والآيات: ${prophet.keySurah}\n${prophet.keyVerse}\n\n✨ المعجزة: ${prophet.miracle}\n\n📖 القصة:\n${prophet.storySummary}\n\n💡 العبر والدروس:\n${prophet.wisdomLessons.joinToString("\n• ", prefix = "• ")}\n\n✨ تطبيق خادم المسلم — شجرة الأنبياء الحقيقية"
                     clipboardManager.setText(AnnotatedString(fullStory))
                     Toast.makeText(context, "تم نسخ قصة ${prophet.name} للحافظة 📋", Toast.LENGTH_SHORT).show()
                 },
@@ -1576,7 +1576,7 @@ private fun ProphetRealTreeDetailSheet(
                 }
             }
 
-            // زر تحويل القصة إلى سيناريو فيديو في ستوديو مساعد المسلم
+            // زر تحويل القصة إلى سيناريو فيديو في ستوديو خادم المسلم
             Button(
                 onClick = {
                     onDismiss()
