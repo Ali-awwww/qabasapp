@@ -298,7 +298,7 @@ object DevAlertsRepository {
             val arr = JSONArray(prefs.getString(ALERTS_KEY, "[]") ?: "[]")
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
-                val fired = (0 until o.optJSONArray("fired")?.length() ?: 0).map { j ->
+                val fired = (0 until (o.optJSONArray("fired")?.length() ?: 0)).map { j ->
                     val a = o.getJSONArray("fired").getJSONObject(j)
                     DevAlert(
                         type = runCatching { AlertType.valueOf(a.optString("type")) }.getOrDefault(AlertType.GATEWAY_ERROR),
@@ -309,7 +309,7 @@ object DevAlertsRepository {
                         timeMs = o.optLong("timeMs")
                     )
                 }
-                val unevaluated = (0 until o.optJSONArray("unevaluated")?.length() ?: 0).map { j ->
+                val unevaluated = (0 until (o.optJSONArray("unevaluated")?.length() ?: 0)).map { j ->
                     o.getJSONArray("unevaluated").getString(j)
                 }
                 StoredAlertEvaluation(
