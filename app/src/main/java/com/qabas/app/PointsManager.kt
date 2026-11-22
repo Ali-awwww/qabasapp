@@ -38,14 +38,17 @@ object PointsManager {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val userId = prefs.getString("local_user_id", "") ?: ""
-                val userName = prefs.getString("local_user_name", "صانع محتوى") ?: "صانع محتوى"
+                // السحابة: صف تدقيق في points_ledger + تحديث إجمالي user_points.
+                // أفضل جهد ويفشل بصمت عند غياب الجدولين (قبل تطبيق الترحيل).
+                // لا نكتب النقاط إطلاقاً في عمود `strikes` القديم في جدول
+                // `users` — ذلك العمود إرث متروك ولا يُستخدم للنقاط بعد الآن.
+                val userId = SupabaseServices.Auth.getCurrentUserId()
+                    ?: prefs.getString("local_user_id", "") ?: ""
                 if (userId.isNotBlank() && SupabaseServices.isSupabaseAvailable) {
-                    SupabaseServices.Database.upsertLeaderboardScore(
+                    SupabaseServices.Database.recordPointsAward(
                         userId = userId,
-                        name = userName,
-                        points = newTotal.toLong(),
-                        isEligible = true
+                        pointsDelta = points,
+                        reason = reason
                     )
                 }
             } catch (e: Exception) {

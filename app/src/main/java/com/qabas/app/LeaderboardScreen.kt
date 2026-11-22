@@ -39,7 +39,14 @@ data class CreatorStats(
     val views: String,
     val badge: String,
     val isCurrentUser: Boolean = false,
-    val avatarColor: Color = GoldPrimary
+    val avatarColor: Color = GoldPrimary,
+    val userId: String = "",
+    /**
+     * حراك الترتيب مقابل الأسبوع السابق: موجب = تقدّم، سالب = تراجع،
+     * صفر = بلا تغيير. null تعني "لا بيانات أسبوع سابق" — فلا يظهر
+     * أي سهم أبداً، ولا يُخترع سهم حراك.
+     */
+    val movement: Int? = null
 )
 
 data class FeedItem(
@@ -109,39 +116,52 @@ fun LeaderboardScreen(
                 else -> "صانع أثر"
             }
 
-            val fetchedCreators = CloudServices.Database.getLeaderboard()
+            // لوحة الشرف تُعاد قراءتها من السحابة لكل نافذة زمنية يختارها
+            // المستخدم (الأسبوع / الأسبوع الماضي / الشهر / الكل) — الفلتر
+            // ليس عرضياً: كل اختيار استعلام حقيقي بنافذته.
+            val fetchedCreators = CloudServices.Database.getLeaderboard(timeFilter)
 
             if (fetchedCreators.isNotEmpty()) {
-                val hasUser = fetchedCreators.any { it.isCurrentUser || it.name == currentUserName }
-                val list = if (!hasUser) {
+                val hasUser = fetchedCreators.any { it.isCurrentUser }
+                // المستخدم الحالي غير موجود سحابياً وله نقاط محلية فقط:
+                // يُلحق صفاً واحداً موسوماً بوضوح "نقاط محلية لم تُزامن بعد"
+                // ولا يُعطى ترتيباً وهمياً حين لا نقاط له إطلاقاً. إلحاقه
+                // يبدّل الترتيب، فتُحجب أسهم الحراك (محسوبة على ترتيب
+                // السحابة وحده) بدل عرض أسهم خاطئة.
+                val list = if (!hasUser && currentUserPoints > 0) {
                     (fetchedCreators + CreatorStats(
                         name = currentUserName,
                         rank = fetchedCreators.size + 1,
                         points = currentUserPoints,
-                        views = "${userProjects.size} مشروع",
+                        views = "نقاط محلية — لم تُزامن بعد",
                         badge = userBadge,
                         isCurrentUser = true,
                         avatarColor = theme.primary
                     )).sortedByDescending { it.points }
+                        .map { it.copy(movement = null) }
                 } else {
-                    fetchedCreators.map {
-                        if (it.name == currentUserName) it.copy(isCurrentUser = true) else it
-                    }.sortedByDescending { it.points }
+                    fetchedCreators
                 }
 
                 topCreators = list.mapIndexed { idx, item -> item.copy(rank = idx + 1) }
             } else {
-                topCreators = listOf(
-                    CreatorStats(
-                        name = currentUserName,
-                        rank = 1,
-                        points = currentUserPoints,
-                        views = "${userProjects.size} مشروع",
-                        badge = userBadge,
-                        isCurrentUser = true,
-                        avatarColor = theme.primary
+                // فراغ صادق: لا متصدر وهمي بالمرتبة الأولى حين لا نقاط
+                // لأحد. صف محلي واحد فقط إن كانت للمستخدم نقاط محلية.
+                topCreators = if (currentUserPoints > 0) {
+                    listOf(
+                        CreatorStats(
+                            name = currentUserName,
+                            rank = 1,
+                            points = currentUserPoints,
+                            views = "نقاط محلية — لم تُزامن بعد",
+                            badge = userBadge,
+                            isCurrentUser = true,
+                            avatarColor = theme.primary
+                        )
                     )
-                )
+                } else {
+                    emptyList()
+                }
             }
 
             val cloudProjects = CloudServices.Database.getFeedProjects()
@@ -186,7 +206,7 @@ fun LeaderboardScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(timeFilter) {
         loadData()
     }
 
@@ -369,6 +389,7 @@ private fun LeaderboardTab(
                     AppleSegmentedControl(
                         items = listOf(
                             "الأسبوع" to "الأسبوع",
+                            "الأسبوع الماضي" to "الأسبوع الماضي",
                             "الشهر" to "الشهر",
                             "الكل" to "الكل"
                         ),
@@ -390,6 +411,42 @@ private fun LeaderboardTab(
         } else if (topCreators.isNotEmpty()) {
             item {
                 SingleLeaderHeroCard(creator = topCreators[0])
+            }
+        }
+
+        if (topCreators.isEmpty()) {
+            item {
+                AppleCard(cornerRadius = 16.dp) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = theme.textSecondary.copy(alpha = 0.5f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = Translator.tr("لا توجد نقاط مجتمع بعد"),
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = Translator.tr("تُكتسب النقاط من تصدير فيديو أو إكمال اختبار أو الدخول اليومي، وتظهر هنا بعد مزامنتها مع السحابة."),
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
         }
 
@@ -535,12 +592,36 @@ private fun LeaderboardTab(
                             fontSize = 13.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = creator.views,
-                            color = theme.textSecondary,
-                            fontFamily = NotoSansFont,
-                            fontSize = 11.sp
-                        )
+                        // سهم الحراك فقط عند وجود ترتيب أسبوع سابق حقيقي؛
+                        // movement == null تعني "لا بيانات سابقة" فلا سهم.
+                        when {
+                            creator.movement != null && creator.movement > 0 -> Text(
+                                text = "▲ ${creator.movement}",
+                                color = theme.success,
+                                fontFamily = NotoSansFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            creator.movement != null && creator.movement < 0 -> Text(
+                                text = "▼ ${-creator.movement}",
+                                color = theme.destructive,
+                                fontFamily = NotoSansFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            creator.movement != null -> Text(
+                                text = "– بلا تغيير",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.sp
+                            )
+                            creator.views.isNotBlank() -> Text(
+                                text = creator.views,
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }

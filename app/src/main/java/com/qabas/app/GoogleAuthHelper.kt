@@ -32,6 +32,15 @@ object GoogleAuthHelper {
     /**
      * Reads the Google OAuth web client ID from app-owned configuration.
      * This keeps Google Credential Manager independent from Firebase-generated resources.
+     *
+     * Batch 6 Priority 3: the id now comes from BuildConfig (injected at build
+     * time from the Gradle property, the environment, or the root `.env` file —
+     * see `app/build.gradle.kts` and `.env.example`), falling back to the
+     * developer-pasted value in `qabas_prefs`. It is a public OAuth client id,
+     * not a secret key, so BuildConfig is the right place for it. The owner must
+     * still create the Web-application OAuth client in Google Cloud and set
+     * GOOGLE_WEB_CLIENT_ID; until then Google sign-in reports "not configured"
+     * gracefully instead of failing hard (see [GoogleSignInFlow]).
      */
     fun getWebClientId(context: Context): String {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)

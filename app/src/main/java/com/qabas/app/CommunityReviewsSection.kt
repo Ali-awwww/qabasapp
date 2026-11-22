@@ -54,6 +54,11 @@ fun CommunityReviewsCard(
 
     var showReviewsDialog by remember { mutableStateOf(false) }
     var showSubmitDialog by remember { mutableStateOf(false) }
+    var currentUserId by remember { mutableStateOf<String?>(null) }
+    var myHelpfulVotes by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var reviewToEdit by remember { mutableStateOf<SupabaseServices.AppReviewDto?>(null) }
+    var reviewToDelete by remember { mutableStateOf<SupabaseServices.AppReviewDto?>(null) }
+    var reviewToReport by remember { mutableStateOf<SupabaseServices.AppReviewDto?>(null) }
 
     fun loadReviews() {
         isLoading = true
@@ -68,6 +73,10 @@ fun CommunityReviewsCard(
             }.onFailure { err ->
                 errorMessage = err.message
                 isLoading = false
+            }
+            currentUserId = SupabaseServices.Auth.getCurrentUserId()
+            myHelpfulVotes = withContext(Dispatchers.IO) {
+                SupabaseServices.AppReviews.getMyHelpfulVoteReviewIds()
             }
         }
     }
@@ -146,21 +155,46 @@ fun CommunityReviewsCard(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("جلب التقييمات...", color = theme.textSecondary, fontSize = 10.5.sp, fontFamily = NotoSansFont)
                         } else if (totalCount == 0) {
-                            Text(
-                                if (errorMessage != null) "—" else "5.0",
-                                color = theme.warning,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 26.sp
-                            )
-                            RatingStarsRow(rating = if (errorMessage != null) 0 else 5, size = 14.dp)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                if (errorMessage != null) "تعذر الجلب" else "كن أول من يقيّم",
-                                color = theme.textSecondary,
-                                fontFamily = NotoSansFont,
-                                fontSize = 10.5.sp
-                            )
+                            // لا متوسط ولا نجوم قبل وجود أي تقييم: عرض متوسط
+                            // وهمي ونجوم ممتلئة لصفر مراجعات كان تقييماً مختلقاً.
+                            if (errorMessage != null) {
+                                Text(
+                                    "—",
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 26.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    "تعذر الجلب",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 10.5.sp
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.RateReview,
+                                    contentDescription = null,
+                                    tint = theme.textSecondary.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(26.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    "لا تقييمات بعد",
+                                    color = theme.textPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    "كن أول من يقيّم",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 10.5.sp
+                                )
+                            }
                         } else {
                             Text(
                                 String.format(Locale.US, "%.1f", averageRating),
@@ -242,33 +276,123 @@ fun CommunityReviewsCard(
             reviews = reviewsList,
             averageRating = averageRating,
             isLoading = isLoading,
+            currentUserId = currentUserId,
+            myHelpfulVotes = myHelpfulVotes,
             onDismiss = { showReviewsDialog = false },
             onOpenSubmit = {
                 showReviewsDialog = false
                 showSubmitDialog = true
             },
             onRefresh = { loadReviews() },
-            onHelpfulClicked = { review ->
+            onHelpfulToggle = { review ->
                 coroutineScope.launch {
                     val res = withContext(Dispatchers.IO) {
-                        SupabaseServices.AppReviews.markReviewHelpful(review.id, review.helpfulCount)
+                        SupabaseServices.AppReviews.toggleHelpfulVote(review.id)
                     }
-                    if (res.isSuccess) {
+                    res.onSuccess {
                         loadReviews()
-                        Toast.makeText(context, "شكراً لإفادتك! تم تسجيل إعجابك بالمراجعة", Toast.LENGTH_SHORT).show()
+                    }.onFailure { e ->
+                        Toast.makeText(
+                            context,
+                            e.message ?: "تعذر تسجيل التصويت",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
-            }
+            },
+            onEditReview = { review ->
+                reviewToEdit = review
+                showReviewsDialog = false
+                showSubmitDialog = true
+            },
+            onDeleteReview = { review -> reviewToDelete = review },
+            onReportReview = { review -> reviewToReport = review }
         )
     }
 
     if (showSubmitDialog) {
         SubmitAppReviewDialog(
-            onDismiss = { showSubmitDialog = false },
+            existingReview = reviewToEdit,
+            onDismiss = {
+                showSubmitDialog = false
+                reviewToEdit = null
+            },
             onSubmitSuccess = {
                 showSubmitDialog = false
+                reviewToEdit = null
                 loadReviews()
-                Toast.makeText(context, "تم إرسال تقييمك وحفظه بنجاح", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "تم حفظ تقييمك بنجاح", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+
+    if (reviewToDelete != null) {
+        val target = reviewToDelete!!
+        AlertDialog(
+            onDismissRequest = { reviewToDelete = null },
+            title = {
+                Text(
+                    "حذف تقييمك",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    color = theme.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    "سيُحذف تقييمك نهائياً ولا يمكن التراجع عن الحذف.",
+                    fontFamily = NotoSansFont,
+                    color = theme.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        reviewToDelete = null
+                        coroutineScope.launch {
+                            val res = withContext(Dispatchers.IO) {
+                                SupabaseServices.AppReviews.deleteMyReview(target.id)
+                            }
+                            res.onSuccess { loadReviews() }
+                                .onFailure { e ->
+                                    Toast.makeText(
+                                        context,
+                                        e.message ?: "تعذر حذف التقييم",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                    }
+                ) { Text("حذف", color = theme.destructive, fontFamily = CairoFont) }
+            },
+            dismissButton = {
+                TextButton(onClick = { reviewToDelete = null }) {
+                    Text("إلغاء", fontFamily = CairoFont)
+                }
+            }
+        )
+    }
+
+    if (reviewToReport != null) {
+        val target = reviewToReport!!
+        ReportReviewDialog(
+            onDismiss = { reviewToReport = null },
+            onReasonSelected = { reason ->
+                reviewToReport = null
+                coroutineScope.launch {
+                    val res = withContext(Dispatchers.IO) {
+                        SupabaseServices.AppReviews.submitReviewReport(target.id, reason)
+                    }
+                    res.onSuccess {
+                        Toast.makeText(context, "تم إرسال البلاغ، شكراً لك", Toast.LENGTH_SHORT).show()
+                    }.onFailure { e ->
+                        Toast.makeText(
+                            context,
+                            e.message ?: "تعذر إرسال البلاغ",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             }
         )
     }
@@ -332,10 +456,15 @@ fun CommunityReviewsListDialog(
     reviews: List<SupabaseServices.AppReviewDto>,
     averageRating: Double,
     isLoading: Boolean,
+    currentUserId: String? = null,
+    myHelpfulVotes: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onOpenSubmit: () -> Unit,
     onRefresh: () -> Unit,
-    onHelpfulClicked: (SupabaseServices.AppReviewDto) -> Unit
+    onHelpfulToggle: (SupabaseServices.AppReviewDto) -> Unit,
+    onEditReview: (SupabaseServices.AppReviewDto) -> Unit = {},
+    onDeleteReview: (SupabaseServices.AppReviewDto) -> Unit = {},
+    onReportReview: (SupabaseServices.AppReviewDto) -> Unit = {}
 ) {
     val theme = QabasTheme.current
     var selectedCategoryFilter by remember { mutableStateOf("الكل") }
@@ -379,14 +508,15 @@ fun CommunityReviewsListDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "مراجعات مجتمع مساعد المسلم",
+                                "مراجعات مجتمع قبس",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
                             Text(
-                                "متوسط التقييم: ${if (reviews.isNotEmpty()) String.format(Locale.US, "%.1f", averageRating) else "5.0"} ★ (${reviews.size} مراجعة)",
+                                if (reviews.isNotEmpty()) "متوسط التقييم: ${String.format(Locale.US, "%.1f", averageRating)} ★ (${reviews.size} مراجعة)"
+                                else "لا تقييمات بعد",
                                 color = theme.textSecondary,
                                 fontFamily = NotoSansFont,
                                 fontSize = 11.5.sp
@@ -425,7 +555,7 @@ fun CommunityReviewsListDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = theme.primary)
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("جاري الاتصال بسحابة مساعد المسلم...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text("جاري الاتصال بسحابة قبس...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 } else if (filteredReviews.isEmpty()) {
@@ -452,7 +582,15 @@ fun CommunityReviewsListDialog(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(filteredReviews, key = { it.id }) { review ->
-                            ReviewItemCard(review = review, onHelpful = { onHelpfulClicked(review) })
+                            ReviewItemCard(
+                                review = review,
+                                isMine = currentUserId != null && review.userId == currentUserId,
+                                isHelpfulByMe = myHelpfulVotes.contains(review.id),
+                                onHelpful = { onHelpfulToggle(review) },
+                                onEdit = { onEditReview(review) },
+                                onDelete = { onDeleteReview(review) },
+                                onReport = { onReportReview(review) }
+                            )
                         }
                     }
                 }
@@ -464,7 +602,12 @@ fun CommunityReviewsListDialog(
 @Composable
 private fun ReviewItemCard(
     review: SupabaseServices.AppReviewDto,
-    onHelpful: () -> Unit
+    isMine: Boolean = false,
+    isHelpfulByMe: Boolean = false,
+    onHelpful: () -> Unit,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onReport: () -> Unit = {}
 ) {
     val theme = QabasTheme.current
     AppleCard {
@@ -488,7 +631,7 @@ private fun ReviewItemCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = review.authorName.ifBlank { "مستخدم مساعد المسلم" },
+                                text = review.authorName.ifBlank { "مستخدم قبس" },
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -496,7 +639,23 @@ private fun ReviewItemCard(
                             )
                             if (review.verifiedUser) {
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Icon(Icons.Default.Verified, contentDescription = "موثوق", tint = theme.success, modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.Verified, contentDescription = "بريد مؤكد", tint = theme.success, modifier = Modifier.size(13.dp))
+                            }
+                            if (isMine) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Surface(
+                                    color = theme.primary.copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "تقييمك",
+                                        color = theme.primary,
+                                        fontSize = 10.sp,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                         }
                         if (review.createdAt != null) {
@@ -549,34 +708,59 @@ private fun ReviewItemCard(
                         Spacer(modifier = Modifier.width(6.dp))
                     }
 
-                    Surface(color = theme.secondarySurface, shape = RoundedCornerShape(6.dp)) {
-                        Text(
-                            text = review.appVersion,
-                            color = theme.primary,
-                            fontSize = 10.sp,
-                            fontFamily = NotoSansFont,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                        )
+                    // بلا إصدار مختلق: الشارة تظهر فقط عند وجود إصدار حقيقي.
+                    if (review.appVersion.isNotBlank()) {
+                        Surface(color = theme.secondarySurface, shape = RoundedCornerShape(6.dp)) {
+                            Text(
+                                text = review.appVersion,
+                                color = theme.primary,
+                                fontSize = 10.sp,
+                                fontFamily = NotoSansFont,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
                     }
                 }
 
-                Surface(
-                    color = theme.secondarySurface.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.clickable { onHelpful() }
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isMine) {
+                        IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = "تعديل تقييمك", tint = theme.primary, modifier = Modifier.size(16.dp))
+                        }
+                        IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "حذف تقييمك", tint = theme.destructive, modifier = Modifier.size(16.dp))
+                        }
+                    } else {
+                        IconButton(onClick = onReport, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Flag, contentDescription = "الإبلاغ عن المراجعة", tint = theme.textSecondary, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    // "مفيد" صوت واحد قابل للسحب لكل مستخدم؛ العدد من صفوف
+                    // الأصوات الحقيقية، لا زيادة بلا حد عند كل نقرة.
+                    Surface(
+                        color = if (isHelpfulByMe) theme.primary.copy(alpha = 0.18f) else theme.secondarySurface.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.clickable { onHelpful() }
                     ) {
-                        Icon(Icons.Default.ThumbUp, contentDescription = "مفيد", tint = theme.primary, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "مفيد (${review.helpfulCount})",
-                            color = theme.textPrimary,
-                            fontSize = 10.5.sp,
-                            fontFamily = CairoFont
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.ThumbUp,
+                                contentDescription = "مفيد",
+                                tint = if (isHelpfulByMe) theme.primary else theme.textSecondary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "مفيد (${review.helpfulCount})",
+                                color = theme.textPrimary,
+                                fontSize = 10.5.sp,
+                                fontFamily = CairoFont
+                            )
+                        }
                     }
                 }
             }
@@ -584,8 +768,56 @@ private fun ReviewItemCard(
     }
 }
 
+/** حوار اختيار سبب البلاغ على مراجعة (يُحفظ صفاً في `review_reports`). */
+@Composable
+private fun ReportReviewDialog(
+    onDismiss: () -> Unit,
+    onReasonSelected: (String) -> Unit
+) {
+    val theme = QabasTheme.current
+    val reasons = listOf("محتوى مسيء", "معلومات غير صحيحة", "بريد مزعج", "أخرى")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "الإبلاغ عن المراجعة",
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                color = theme.textPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "اختر سبب البلاغ:",
+                    fontFamily = NotoSansFont,
+                    color = theme.textSecondary,
+                    fontSize = 12.sp
+                )
+                reasons.forEach { reason ->
+                    TextButton(
+                        onClick = { onReasonSelected(reason) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            reason,
+                            fontFamily = CairoFont,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("إلغاء", fontFamily = CairoFont) }
+        }
+    )
+}
+
 @Composable
 fun SubmitAppReviewDialog(
+    existingReview: SupabaseServices.AppReviewDto? = null,
     onDismiss: () -> Unit,
     onSubmitSuccess: () -> Unit
 ) {
@@ -594,18 +826,41 @@ fun SubmitAppReviewDialog(
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE) }
 
-    val savedName = remember {
+    // الاسم الحقيقي للمستخدم المسجّل؛ الضيوف لا يرسلون تقييماً إطلاقاً.
+    val displayName = remember {
         prefs.getString("user_display_name", null)
             ?: CloudServices.Auth.currentUser.value?.displayName
-            ?: "مستخدم مساعد المسلم"
+            ?: "مستخدم قبس"
     }
 
-    var authorName by remember { mutableStateOf(savedName) }
-    var rating by remember { mutableIntStateOf(5) }
-    var comment by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("overall") }
+    var currentUserId by remember { mutableStateOf(SupabaseServices.Auth.getCurrentUserId()) }
+    var rating by remember { mutableIntStateOf(existingReview?.rating?.coerceIn(1, 5) ?: 5) }
+    var comment by remember { mutableStateOf(existingReview?.comment ?: "") }
+    var selectedCategory by remember { mutableStateOf(existingReview?.categoryRating ?: "overall") }
+    var editingReviewId by remember { mutableStateOf(existingReview?.id) }
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // مراجعة واحدة لكل مستخدم: عند الفتح بلا مراجعة محددة، نتحقق هل
+    // للمستخدم تقييم سابق؛ فإن وُجد يُفتح الحوار في وضع التعديل بدل
+    // إرسال تقييم ثانٍ.
+    LaunchedEffect(Unit) {
+        currentUserId = SupabaseServices.Auth.getCurrentUserId()
+        if (existingReview == null && currentUserId != null) {
+            val mine = withContext(Dispatchers.IO) {
+                SupabaseServices.AppReviews.getMyReview().getOrNull()
+            }
+            if (mine != null) {
+                editingReviewId = mine.id
+                rating = mine.rating.coerceIn(1, 5)
+                comment = mine.comment
+                selectedCategory = mine.categoryRating
+            }
+        }
+    }
+
+    val isEditing = editingReviewId != null
+    val isGuest = currentUserId == null
 
     val deviceInfo = remember {
         val man = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
@@ -638,7 +893,7 @@ fun SubmitAppReviewDialog(
                         Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "تقييم تطبيق مساعد المسلم",
+                            if (isEditing) "تعديل تقييمك" else "تقييم تطبيق قبس",
                             color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -651,6 +906,24 @@ fun SubmitAppReviewDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+
+                if (isGuest) {
+                    Text(
+                        text = "سجّل الدخول أولاً لإرسال تقييمك — لا يمكن للضيوف التقييم.",
+                        color = theme.destructive,
+                        fontSize = 12.sp,
+                        fontFamily = NotoSansFont
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                } else if (isEditing) {
+                    Text(
+                        text = "لديك تقييم سابق — تعديله يحدّث التقييم نفسه بدل إرسال تقييم ثانٍ.",
+                        color = theme.textSecondary,
+                        fontSize = 12.sp,
+                        fontFamily = NotoSansFont
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
                 Column(
                     modifier = Modifier
@@ -701,14 +974,27 @@ fun SubmitAppReviewDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedTextField(
-                    value = authorName,
-                    onValueChange = { authorName = it },
-                    label = { Text("اسمك أو لقبك", fontFamily = CairoFont, fontSize = 12.sp) },
-                    singleLine = true,
+                // الاسم الحقيقي للمستخدم المسجّل — عرض فقط، لا إدخال حر لأي اسم.
+                Surface(
+                    color = theme.secondarySurface.copy(alpha = 0.65f),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
-                )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = displayName,
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -757,26 +1043,43 @@ fun SubmitAppReviewDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 ApplePrimaryButton(
-                    text = "إرسال التقييم",
+                    text = if (isEditing) "حفظ التعديل" else "إرسال التقييم",
                     icon = Icons.Default.Send,
                     isLoading = isSubmitting,
                     onClick = {
-                        isSubmitting = true
-                        errorMessage = null
-                        coroutineScope.launch {
-                            val res = withContext(Dispatchers.IO) {
-                                SupabaseServices.AppReviews.submitAppReview(
-                                    rating = rating,
-                                    comment = comment,
-                                    authorName = authorName,
-                                    category = selectedCategory
-                                )
-                            }
-                            isSubmitting = false
-                            res.onSuccess {
-                                onSubmitSuccess()
-                            }.onFailure { e ->
-                                errorMessage = e.message ?: "تعذر الإرسال، تحقق من اتصالك بالإنترنت"
+                        when {
+                            isGuest -> errorMessage =
+                                "سجّل الدخول أولاً لإرسال تقييمك — لا يمكن للضيوف التقييم"
+                            comment.isBlank() -> errorMessage = "اكتب تعليقاً قبل الإرسال"
+                            else -> {
+                                isSubmitting = true
+                                errorMessage = null
+                                coroutineScope.launch {
+                                    val res = withContext(Dispatchers.IO) {
+                                        val targetId = editingReviewId
+                                        if (targetId != null) {
+                                            SupabaseServices.AppReviews.updateMyReview(
+                                                reviewId = targetId,
+                                                rating = rating,
+                                                comment = comment,
+                                                category = selectedCategory
+                                            )
+                                        } else {
+                                            SupabaseServices.AppReviews.submitAppReview(
+                                                rating = rating,
+                                                comment = comment,
+                                                authorName = displayName,
+                                                category = selectedCategory
+                                            )
+                                        }
+                                    }
+                                    isSubmitting = false
+                                    res.onSuccess {
+                                        onSubmitSuccess()
+                                    }.onFailure { e ->
+                                        errorMessage = e.message ?: "تعذر الإرسال، تحقق من اتصالك بالإنترنت"
+                                    }
+                                }
                             }
                         }
                     }

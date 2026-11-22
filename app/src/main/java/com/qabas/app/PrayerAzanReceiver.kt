@@ -26,7 +26,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         val prayerKey = intent.getStringExtra("prayer_key") ?: PrayerAlarmManager.PRAYER_FAJR
         val prayerName = intent.getStringExtra("prayer_name") ?: "الصلاة"
         val soundMode = intent.getStringExtra("sound_mode") ?: "FULL_AZAN"
-        val voiceId = intent.getStringExtra("voice_id") ?: "makkah_mulla"
+        val voiceId = intent.getStringExtra("voice_id") ?: MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID
 
         Log.d(TAG, "Prayer Alarm fired: $prayerName ($prayerKey), Sound: $soundMode, Voice: $voiceId")
 

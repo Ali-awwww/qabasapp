@@ -58,6 +58,67 @@ fun LoginScreen(
     var rememberMe by remember { mutableStateOf(true) }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
     var authErrorIsNetwork by remember { mutableStateOf(false) }
+    // Batch 6 Priority 3 — Google one-tap sign-in (was wired to nothing on
+    // this screen). Failure when the client id is unset is graceful, never
+    // a hard failure; the setup dialog stays available for the developer.
+    var isGoogleLoading by remember { mutableStateOf(false) }
+    var showGoogleSetupDialog by remember { mutableStateOf(false) }
+
+    val submitGoogleLogin: () -> Unit = {
+        if (!isGoogleLoading) {
+            if (!GoogleAuthHelper.isWebClientIdConfigured(context)) {
+                authErrorMessage = GoogleSignInFlow.NOT_CONFIGURED_MESSAGE
+                authErrorIsNetwork = false
+                showGoogleSetupDialog = true
+            } else {
+                authErrorMessage = null
+                authErrorIsNetwork = false
+                isGoogleLoading = true
+                val authRepository = SupabaseRepository.getInstance()
+                authRepository.beginInteractiveAuthFlow()
+                var authFlowAccepted = false
+                val googleJob = coroutineScope.launch {
+                    when (val outcome = GoogleSignInFlow.signIn(context)) {
+                        is GoogleSignInFlow.Outcome.Success -> {
+                            Toast.makeText(
+                                context,
+                                "مرحباً بك! تم تسجيل الدخول عبر Google" +
+                                    if (outcome.guestMigrated) " — نُقلت بيانات الضيف إلى حسابك" else "",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            onLoginSuccess(outcome.isAdmin)
+                            authFlowAccepted = true
+                        }
+                        GoogleSignInFlow.Outcome.NotConfigured -> {
+                            authErrorMessage = GoogleSignInFlow.NOT_CONFIGURED_MESSAGE
+                            authErrorIsNetwork = false
+                            showGoogleSetupDialog = true
+                        }
+                        GoogleSignInFlow.Outcome.Cancelled -> Unit
+                        is GoogleSignInFlow.Outcome.Failed -> {
+                            authErrorMessage = outcome.message
+                            authErrorIsNetwork = false
+                            Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    isGoogleLoading = false
+                }
+                googleJob.invokeOnCompletion {
+                    authRepository.completeInteractiveAuthFlow(accepted = authFlowAccepted)
+                }
+            }
+        }
+    }
+
+    if (showGoogleSetupDialog) {
+        GoogleSupabaseSetupDialog(
+            onDismiss = { showGoogleSetupDialog = false },
+            onTestSignIn = {
+                showGoogleSetupDialog = false
+                submitGoogleLogin()
+            }
+        )
+    }
 
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -98,7 +159,7 @@ fun LoginScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "شعار مساعد المسلم",
+                        contentDescription = "شعار قبس",
                         tint = theme.primary,
                         modifier = Modifier.size(34.dp)
                     )
@@ -108,7 +169,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "مساعد المسلمْ سْتُودْيُو",
+                text = "قبس ستوديو",
                 color = theme.textPrimary,
                 fontSize = 30.sp,
                 fontFamily = CairoFont,
@@ -186,6 +247,33 @@ fun LoginScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Batch 6 Priority 3 — one-tap Google sign-in, above the email form.
+            GoogleSignInButton(
+                isLoading = isGoogleLoading,
+                onClick = submitGoogleLogin,
+                onConfigureClick = { showGoogleSetupDialog = true },
+                text = "متابعة مع Google"
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = theme.separator.copy(alpha = 0.5f))
+                Text(
+                    text = "أو سجّل بالبريد",
+                    color = theme.textSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = theme.separator.copy(alpha = 0.5f))
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -368,6 +456,22 @@ fun LoginScreen(
                                 }
 
                                 CloudServices.syncAdminClaim(context)
+                                // Batch 6 Priority 3: record the real email
+                                // confirmation state (gates cloud sync) and, if
+                                // this user arrived as a guest, migrate their
+                                // local data to the new account id.
+                                val emailConfirmedAfterLogin =
+                                    SupabaseServices.Auth.refreshEmailConfirmationState() ?: true
+                                if (GuestUpgradeManager.shouldMigrate(context)) {
+                                    runCatching {
+                                        GuestUpgradeManager.migrateGuestDataToAccount(
+                                            context = context,
+                                            newUserId = authUid,
+                                            newEmail = authEmail,
+                                            emailConfirmed = emailConfirmedAfterLogin
+                                        )
+                                    }
+                                }
                                 val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل)" else ""
                                 Toast.makeText(
                                     context,
@@ -730,7 +834,7 @@ fun LoginScreen(
                         remove("user_account_number")
                         remove("user_name_with_account")
                         putString("user_email", "guest@qabas.studio")
-                        putString("user_name", "ضيف مساعد المسلم")
+                        putString("user_name", "ضيف قبس")
                         putString("user_display_name", "زائر مؤقت")
                         putString("user_custom_id", "guest")
                         putString("user_tag", "@guest")
@@ -739,7 +843,7 @@ fun LoginScreen(
                         remove("user_api_key")
                         apply()
                     }
-                    SupabaseRepository.getInstance().emitGuestMode("ضيف مساعد المسلم")
+                    SupabaseRepository.getInstance().emitGuestMode("ضيف قبس")
                     Toast.makeText(
                         context,
                         "تم الدخول كضيف. هذا الوضع للمعاينة فقط؛ لا يتم حفظ البيانات أو مزامنتها مع السحابة بدون تسجيل دخول رسمي.",
@@ -753,7 +857,7 @@ fun LoginScreen(
 
             TextButton(onClick = onNavigateToRules) {
                 Text(
-                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام مساعد المسلم",
+                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
                     color = theme.primary,
                     fontSize = 11.5.sp,
                     fontFamily = CairoFont,

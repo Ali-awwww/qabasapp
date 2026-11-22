@@ -29,7 +29,7 @@ import com.qabas.app.ui.theme.TextSecondary
 
 /**
  * شاشة النشر الموحّدة — تجمع نهاية خط الإنتاج في مكان واحد:
- * مراجعة الإنتاج (ReviewScreen) + التصدير السينمائي (SaveShareScreen) + نشر الريلز (ReelPublishScreen).
+ * مراجعة الإنتاج (VideoSceneApprovalScreen) + التصدير السينمائي (SaveShareScreen) + نشر الريلز (ReelPublishScreen).
  * الشاشات الأصلية باقية كما هي؛ حالتا REVIEW وSAVE_SHARE تدخلان على التبويب المناسب.
  */
 @Composable
@@ -89,7 +89,7 @@ fun UnifiedPublishScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             when (tab) {
-                PUBLISH_TAB_REVIEW -> ReviewScreen(
+                PUBLISH_TAB_REVIEW -> VideoSceneApprovalScreen(
                     state = state,
                     onBack = onExit,
                     onUpdateScenes = onUpdateScenes,

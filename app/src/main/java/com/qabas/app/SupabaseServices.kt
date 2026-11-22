@@ -5,6 +5,7 @@ package com.qabas.app
 import android.os.Build
 import android.util.Log
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.providers.Google
@@ -38,6 +39,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -75,6 +78,46 @@ object SupabaseServices {
                 limit(1)
             }.decodeSingleOrNull<MishkatReminderContent>()
         }.onFailure { Log.e(TAG, "getMishkatReminderContent failed: ${it.message}") }.getOrNull()
+
+        // ════════════════════════════════════════════════════════════════
+        // حالة قراءة المكتبة الإسلامية (Batch 6 — الأولوية 2)
+        // جدول `library_reading_state`: آخر موضع + نسبة تقدم + إشارة مرجعية
+        // لكل (مستخدم، كتاب)، بملكية صارمة (RLS owner-only). غياب الجدول
+        // أو الجلسة أو الشبكة يعيد فراغاً لا خطأ — القراءة المحلية تستمر.
+        // ════════════════════════════════════════════════════════════════
+
+        @Serializable
+        data class LibraryReadingStateRow(
+            @SerialName("user_id") val userId: String,
+            @SerialName("book_id") val bookId: String,
+            @SerialName("last_chapter") val lastChapter: Int = 0,
+            @SerialName("last_section") val lastSection: Int = 0,
+            val progress: Int = 0,
+            val bookmarked: Boolean = false,
+            @SerialName("updated_at") val updatedAt: String? = null
+        )
+
+        /** كل حالات قراءة المستخدم الحالي؛ قائمة فارغة عند غياب الجدول/الجلسة. */
+        suspend fun getLibraryReadingState(): List<LibraryReadingStateRow> = runCatching {
+            val client = client ?: return emptyList()
+            val userId = Auth.getCurrentUserId() ?: return emptyList()
+            client.postgrest.from("library_reading_state").select {
+                filter { eq("user_id", userId) }
+            }.decodeList<LibraryReadingStateRow>()
+        }.onFailure { Log.e(TAG, "getLibraryReadingState failed: ${it.message}") }
+            .getOrDefault(emptyList())
+
+        /** يحفظ/يحدّث حالة كتاب واحد للمستخدم الحالي فقط (upsert على المفتاح). */
+        suspend fun upsertLibraryReadingState(row: LibraryReadingStateRow): Boolean = runCatching {
+            val client = client ?: return false
+            val userId = Auth.getCurrentUserId() ?: return false
+            if (row.userId != userId) return false
+            client.postgrest.from("library_reading_state").upsert(row) {
+                onConflict = "user_id,book_id"
+            }
+            true
+        }.onFailure { Log.e(TAG, "upsertLibraryReadingState failed: ${it.message}") }
+            .getOrDefault(false)
 
         /** Save the reminder only through the authenticated developer RLS policy. */
         suspend fun saveMishkatReminderContent(
@@ -832,6 +875,12 @@ object SupabaseServices {
             true
         }.onFailure { Log.e(TAG, "upvoteScholarProposal failed: ${it.message}") }.getOrDefault(false)
 
+        // ── Batch 6 Priority 5: LEGACY — do not use for points any more. ──
+        // This read the `users.strikes` column as if it were points. The
+        // column is legacy (it really stored strikes) and is left untouched;
+        // community points now live in `user_points` / `points_ledger`
+        // (see getCommunityPointsLeaderboard). Kept only so older callers
+        // keep compiling until they are migrated; new code must not call it.
         suspend fun getLeaderboard(limit: Long = 50L): List<LeaderboardRow> = runCatching {
             val client = client ?: return emptyList()
             client.postgrest.from("users").select {
@@ -846,6 +895,11 @@ object SupabaseServices {
                 .take(limit.toInt())
         }.onFailure { Log.e(TAG, "getLeaderboard failed: ${it.message}") }.getOrDefault(emptyList())
 
+        // ── Batch 6 Priority 5: LEGACY — do not use for points any more. ──
+        // This overwrote the legacy `users.strikes` column with the points
+        // total, destroying the audit trail. Points are now recorded as
+        // auditable rows via recordPointsAward (points_ledger + user_points).
+        // Kept only so older callers keep compiling; new code must not call it.
         suspend fun upsertLeaderboardScore(
             userId: String,
             name: String,
@@ -867,6 +921,212 @@ object SupabaseServices {
             }
             true
         }.onFailure { Log.e(TAG, "upsertLeaderboardScore failed: ${it.message}") }.getOrDefault(false)
+
+        // ════════════════════════════════════════════════════════════════
+        // نقاط المجتمع (Batch 6 — الأولوية 5)
+        // مصدر الحقيقة هو جدولا `user_points` و`points_ledger` (الترحيل
+        // 20261122140000_community_points.sql). كل منح نقطة هو صف في سجل
+        // التدقيق، وليس كتابة فوق قيمة؛ وعمود `strikes` القديم في جدول
+        // `users` لا يُقرأ ولا يُكتب هنا إطلاقاً. غياب الجدولين أو الجلسة
+        // أو الشبكة يعيد فراغاً لا خطأ — نمط `getMishkatReminderContent`.
+        // النقاط هنا نقاط مجتمع مكتسبة (تصدير فيديو، اختبار، دخول يومي)
+        // كما يعرّفها PointsManager، وليست منافسة عبادة: لا ترتيب على
+        // الصلاة ولا منافسة على الحسنات (§6 من تقرير التدقيق).
+        // ════════════════════════════════════════════════════════════════
+
+        @Serializable
+        data class UserPointsRow(
+            @SerialName("user_id") val userId: String = "",
+            val points: Long = 0L,
+            @SerialName("weekly_points") val weeklyPoints: Long = 0L,
+            @SerialName("updated_at") val updatedAt: String? = null
+        )
+
+        @Serializable
+        data class PointsLedgerRow(
+            val id: String = "",
+            @SerialName("user_id") val userId: String = "",
+            @SerialName("points_delta") val pointsDelta: Int = 0,
+            val reason: String = "",
+            @SerialName("created_at") val createdAt: String? = null
+        )
+
+        @Serializable
+        data class UserNameRow(
+            val id: String = "",
+            val name: String? = null
+        )
+
+        /** بداية أسبوع ISO الحالي (الاثنين 00:00 UTC) وبداية الأسبوع الذي قبله. */
+        private fun isoWeekBoundsUtc(weeksAgo: Int): Pair<String, String> {
+            val monday = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+                .minusWeeks(weeksAgo.toLong())
+            val start = monday.atStartOfDay(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+            val end = monday.plusWeeks(1).atStartOfDay(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+            return start to end
+        }
+
+        /** بداية الشهر الميلادي الحالي (00:00 UTC). */
+        private fun monthStartUtc(): String {
+            val first = java.time.LocalDate.now(java.time.ZoneOffset.UTC).withDayOfMonth(1)
+            return first.atStartOfDay(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+        }
+
+        /** مجموع نقاط كل مستخدم من سجل التدقيق داخل نافذة [start, end). */
+        private suspend fun ledgerSumsInWindow(
+            client: io.github.jan.supabase.SupabaseClient,
+            start: String,
+            end: String
+        ): Map<String, Long> {
+            val rows = client.postgrest.from("points_ledger").select {
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("user_id, points_delta")
+                filter {
+                    gte("created_at", start)
+                    lt("created_at", end)
+                }
+                limit(10_000)
+            }.decodeList<PointsLedgerRow>()
+            return rows.groupBy { it.userId }
+                .mapValues { (_, group) -> group.sumOf { it.pointsDelta.toLong() } }
+                .filterValues { it != 0L }
+        }
+
+        /** أسماء العرض للمستخدمين من جدول `users`؛ الغائب يبقى بلا اسم. */
+        private suspend fun resolveUserNames(
+            client: io.github.jan.supabase.SupabaseClient,
+            userIds: List<String>
+        ): Map<String, String> {
+            if (userIds.isEmpty()) return emptyMap()
+            val rows = client.postgrest.from("users").select {
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("id, name")
+                filter { isIn("id", userIds) }
+                limit(userIds.size.toLong())
+            }.decodeList<UserNameRow>()
+            return rows.mapNotNull { row ->
+                row.name?.takeIf { it.isNotBlank() }?.let { row.id to it }
+            }.toMap()
+        }
+
+        private fun toLeaderboardRows(
+            sums: Map<String, Long>,
+            names: Map<String, String>,
+            previousRanks: Map<String, Int>,
+            limit: Long
+        ): List<LeaderboardRow> {
+            return sums.entries.sortedByDescending { it.value }.take(limit.toInt())
+                .mapIndexed { index, (userId, points) ->
+                    LeaderboardRow(
+                        userId = userId,
+                        name = names[userId] ?: "مستخدم قبس",
+                        points = points,
+                        isEligible = true,
+                        avatarUrl = null,
+                        previousRank = previousRanks[userId]
+                    )
+                }
+        }
+
+        /**
+         * لوحة شرف نقاط المجتمع لنافذة زمنية حقيقية: الأسبوع الحالي من سجل
+         * التدقيق، الأسبوع الماضي كذلك، الشهر الحالي من السجل، وكل الأوقات
+         * من `user_points.points`. أسهم الحركة (previousRank) تُحسب فقط من
+         * ترتيب الأسبوع السابق الحقيقي؛ فإن لم توجد بيانات أسبوع سابق
+         * فالقيمة null ولا يظهر أي سهم. قائمة فارغة عند غياب الجداول.
+         */
+        suspend fun getCommunityPointsLeaderboard(
+            window: PointsWindow = PointsWindow.WEEK,
+            limit: Long = 50L
+        ): List<LeaderboardRow> = runCatching {
+            val client = client ?: return emptyList()
+            when (window) {
+                PointsWindow.ALL_TIME -> {
+                    val rows = client.postgrest.from("user_points").select {
+                        order("points", Order.DESCENDING)
+                        limit(limit)
+                    }.decodeList<UserPointsRow>()
+                    val names = resolveUserNames(client, rows.map { it.userId })
+                    rows.map { row ->
+                        LeaderboardRow(
+                            userId = row.userId,
+                            name = names[row.userId] ?: "مستخدم قبس",
+                            points = row.points,
+                            isEligible = true,
+                            avatarUrl = null,
+                            previousRank = null
+                        )
+                    }
+                }
+                PointsWindow.WEEK, PointsWindow.LAST_WEEK -> {
+                    val weeksAgo = if (window == PointsWindow.WEEK) 0 else 1
+                    val (start, end) = isoWeekBoundsUtc(weeksAgo)
+                    val sums = ledgerSumsInWindow(client, start, end)
+                    // ترتيب الأسبوع الذي قبله، لأسهم الحركة فقط؛ غيابه = لا أسهم.
+                    val (prevStart, prevEnd) = isoWeekBoundsUtc(weeksAgo + 1)
+                    val prevSums = ledgerSumsInWindow(client, prevStart, prevEnd)
+                    val prevRanks = prevSums.entries.sortedByDescending { it.value }
+                        .mapIndexed { index, (userId, _) -> userId to (index + 1) }.toMap()
+                    val names = resolveUserNames(client, sums.keys.toList())
+                    toLeaderboardRows(sums, names, prevRanks, limit)
+                }
+                PointsWindow.MONTH -> {
+                    val start = monthStartUtc()
+                    val end = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                        .plusMonths(1).withDayOfMonth(1)
+                        .atStartOfDay(java.time.ZoneOffset.UTC)
+                        .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+                    val sums = ledgerSumsInWindow(client, start, end)
+                    val names = resolveUserNames(client, sums.keys.toList())
+                    toLeaderboardRows(sums, names, emptyMap(), limit)
+                }
+            }
+        }.onFailure { Log.e(TAG, "getCommunityPointsLeaderboard failed: ${it.message}") }
+            .getOrDefault(emptyList())
+
+        /**
+         * يسجّل منح نقاط كصف تدقيق في `points_ledger` ثم يحدّث إجمالي
+         * `user_points` (النقاط الكلية + نقاط الأسبوع الحالي من السجل).
+         * أفضل جهد: يفشل بصمت (false) عند غياب الجدولين أو الجلسة، فتبقى
+         * النقاط محلية فقط في SharedPreferences حتى يُطبَّق الترحيل.
+         */
+        suspend fun recordPointsAward(
+            userId: String,
+            pointsDelta: Int,
+            reason: String
+        ): Boolean = runCatching {
+            val client = client ?: return false
+            if (userId.isBlank() || pointsDelta <= 0) return false
+            val now = java.time.Instant.now().toString()
+            client.postgrest.from("points_ledger").insert(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("user_id", userId)
+                    put("points_delta", pointsDelta)
+                    put("reason", reason.take(200))
+                    put("created_at", now)
+                }
+            )
+            val current = client.postgrest.from("user_points").select {
+                filter { eq("user_id", userId) }
+                limit(1)
+            }.decodeSingleOrNull<UserPointsRow>()
+            val (weekStart, weekEnd) = isoWeekBoundsUtc(0)
+            val weekSum = ledgerSumsInWindow(client, weekStart, weekEnd)[userId] ?: 0L
+            client.postgrest.from("user_points").upsert(
+                kotlinx.serialization.json.buildJsonObject {
+                    put("user_id", userId)
+                    put("points", (current?.points ?: 0L) + pointsDelta)
+                    put("weekly_points", weekSum)
+                    put("updated_at", now)
+                }
+            ) {
+                onConflict = "user_id"
+            }
+            true
+        }.onFailure { Log.e(TAG, "recordPointsAward failed: ${it.message}") }
+            .getOrDefault(false)
 
         suspend fun findEmailByCustomId(customId: String): String? = runCatching {
             val client = client ?: return null
@@ -1421,6 +1681,112 @@ object SupabaseServices {
             }
             true
         }.onFailure { Log.e(TAG, "loginWithGoogle failed: ${it.message}") }.getOrDefault(false)
+
+        // ── Batch 6 Priority 3: email verification (real Supabase Auth state) ──
+        //
+        // The confirmation state is read from the Auth user object itself
+        // (`emailConfirmedAt`): null means the address was never confirmed.
+        // The client cannot read the project-side "Confirm email" switch, so
+        // there is no "verification disabled on the server" state to show:
+        // if the owner disabled confirmation server-side, Supabase confirms
+        // every new address immediately and this simply always reports true —
+        // the UI never shows a verification prompt it cannot verify.
+        // Google sign-ins are confirmed by Google itself (emailConfirmedAt is
+        // set by the provider), so Google users never hit the banner.
+
+        /** True when the current Auth user's email is confirmed, false when it is not, null when unknown (no session / Supabase unavailable). */
+        fun isEmailConfirmed(): Boolean? = runCatching {
+            if (!isSupabaseAvailable) return null
+            val user = client?.auth?.currentUserOrNull() ?: return null
+            user.emailConfirmedAt != null
+        }.getOrNull()
+
+        /**
+         * Refreshes the Auth user from the server and records the confirmation
+         * state in `qabas_prefs` (`email_confirmed`). The cloud-sync gate in
+         * [UserPreferencesManager] reads that flag: it blocks sync only when
+         * the flag is explicitly false. Absent flag (older installs, no session)
+         * means "unknown" and sync stays allowed, so nothing changes for
+         * existing users until a login/registration records a real state.
+         */
+        suspend fun refreshEmailConfirmationState(): Boolean? = runCatching {
+            if (!isSupabaseAvailable) return null
+            val client = client ?: return null
+            runCatching { client.auth.retrieveUserForCurrentSession(updateSession = true) }
+            val confirmed = client.auth.currentUserOrNull()?.emailConfirmedAt != null
+            runCatching {
+                AppServices.appContext
+                    .getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean("email_confirmed", confirmed).apply()
+            }
+            confirmed
+        }.getOrNull()
+
+        /** Re-sends the signup confirmation email via Supabase Auth (`resend`, type signup). Returns false when the server refuses (e.g. rate-limited: one request per 60s). */
+        suspend fun resendSignupConfirmation(email: String): Boolean = runCatching {
+            if (!isSupabaseAvailable) return false
+            val client = client ?: return false
+            client.auth.resendEmail(OtpType.Email.SIGNUP, email.trim())
+            true
+        }.onFailure { Log.e(TAG, "resendSignupConfirmation failed: ${it.message}") }.getOrDefault(false)
+
+        // ── Batch 6 Priority 3: real account deletion ──
+
+        /**
+         * Asks the server-side `delete-account` Edge Function to delete the
+         * caller's Auth user (service_role) together with their user-owned
+         * rows. The function is authoritative: the anon key cannot delete its
+         * own Auth user, so a client-only delete can never be complete.
+         * Returns true only when the function reports `ok: true`.
+         */
+        suspend fun invokeDeleteAccountFunction(): Boolean = runCatching {
+            if (!isSupabaseAvailable) return false
+            val client = client ?: return false
+            val response = client.functions.invoke(
+                function = "delete-account",
+                body = buildJsonObject { put("confirm", true) }
+            )
+            val body = response.body<JsonObject>()
+            body["ok"]?.jsonPrimitive?.booleanOrNull == true
+        }.onFailure { Log.e(TAG, "invokeDeleteAccountFunction failed: ${it.message}") }.getOrDefault(false)
+
+        /**
+         * Best-effort client-side deletion of the caller's own rows, used as a
+         * fallback when the `delete-account` function is not deployed yet and
+         * as defence-in-depth after it runs. Each table is attempted
+         * independently and reported separately — RLS may legitimately deny
+         * some deletes, so a false here never means "deletion is complete".
+         * The caller must check [invokeDeleteAccountFunction] for the real
+         * Auth-user deletion and must never claim completion from this alone.
+         */
+        suspend fun deleteOwnAccountRows(userId: String): Map<String, Boolean> {
+            val client = client ?: return emptyMap()
+            val byUserId = listOf(
+                "user_settings",
+                "user_api_keys",
+                "user_push_tokens",
+                "saved_items",
+                "library_reading_state",
+                "reel_likes",
+                "reel_bookmarks",
+                "reel_history",
+                "reel_comments"
+            )
+            val results = linkedMapOf<String, Boolean>()
+            for (table in byUserId) {
+                results[table] = runCatching {
+                    client.postgrest.from(table).delete { eq("user_id", userId) }
+                    true
+                }.onFailure { Log.w(TAG, "deleteOwnAccountRows: $table failed: ${it.message}") }
+                    .getOrDefault(false)
+            }
+            results["users"] = runCatching {
+                client.postgrest.from("users").delete { eq("id", userId) }
+                true
+            }.onFailure { Log.w(TAG, "deleteOwnAccountRows: users failed: ${it.message}") }
+                .getOrDefault(false)
+            return results
+        }
 
         suspend fun updatePassword(newPassword: String): Boolean = runCatching {
             val client = client ?: return false
@@ -2398,27 +2764,77 @@ object SupabaseServices {
     // AppReviews Operations
     // ==========================================
     object AppReviews {
+        @Serializable
+        private data class HelpfulVoteRow(
+            @SerialName("review_id") val reviewId: String = ""
+        )
+
+        @Serializable
+        private data class ReviewReportRow(
+            @SerialName("review_id") val reviewId: String = "",
+            @SerialName("reporter_id") val reporterId: String = "",
+            val reason: String = "",
+            @SerialName("created_at") val createdAt: String? = null
+        )
+
+        /**
+         * عدد أصوات "مفيد" الحقيقي من صفوف `review_helpful_votes`؛ عند غياب
+         * الجدول (قبل تطبيق الترحيل) يُبقي العدد المخزّن في الصف نفسه.
+         */
+        private suspend fun realHelpfulCounts(): Map<String, Int> = runCatching {
+            val client = client ?: return emptyMap()
+            client.postgrest.from("review_helpful_votes").select {
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("review_id")
+                limit(10_000)
+            }.decodeList<HelpfulVoteRow>()
+                .groupingBy { it.reviewId }.eachCount()
+        }.onFailure { Log.e(TAG, "realHelpfulCounts failed: ${it.message}") }
+            .getOrDefault(emptyMap())
+
         suspend fun getAppReviews(): Result<List<AppReviewDto>> = runCatching {
             if (!isSupabaseAvailable) emptyList()
             else {
                 val client = client ?: return@runCatching emptyList()
-                client.postgrest.from("app_reviews_public").select {
+                val publicList = client.postgrest.from("app_reviews_public").select {
                     order("created_at", Order.DESCENDING)
                 }.decodeList<AppReviewDto>()
-            }
-        }
-
-        suspend fun markReviewHelpful(reviewId: String, currentCount: Int): Result<Boolean> = runCatching {
-            if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
-            val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
-            client.postgrest.from("app_reviews").update(mapOf("helpful_count" to (currentCount + 1))) {
-                filter {
-                    eq("id", reviewId)
+                val counts = realHelpfulCounts()
+                // العرض العام قد لا يكشف user_id؛ ندمج مراجعتي الخاصة من
+                // الجدول نفسه حتى تظهر أزرار التعديل/الحذف لصاحبها دائماً.
+                val myReview = getMyReview().getOrNull()
+                val uid = Auth.getCurrentUserId()
+                publicList.map { review ->
+                    var fixed = review
+                    if (counts.isNotEmpty()) {
+                        fixed = fixed.copy(helpfulCount = counts[review.id] ?: 0)
+                    }
+                    if (myReview != null && review.id == myReview.id && uid != null) {
+                        fixed = fixed.copy(userId = uid)
+                    }
+                    fixed
                 }
             }
-            true
         }
 
+        /** مراجعة المستخدم الحالي (واحدة فقط) أو null؛ null أيضاً عند غياب الجدول. */
+        suspend fun getMyReview(): Result<AppReviewDto?> = runCatching {
+            if (!isSupabaseAvailable) return Result.success(null)
+            val client = client ?: return Result.success(null)
+            val uid = Auth.getCurrentUserId() ?: return Result.success(null)
+            client.postgrest.from("app_reviews").select {
+                filter { eq("user_id", uid) }
+                order("created_at", Order.DESCENDING)
+                limit(1)
+            }.decodeSingleOrNull<AppReviewDto>()
+        }
+
+        /**
+         * إرسال مراجعة جديدة. يشترط مستخدماً مسجّلاً وتعليقاً غير فارغ،
+         * ويرفض وجود مراجعة سابقة (مراجعة واحدة لكل مستخدم — للتعديل
+         * استخدم updateMyReview). `verified_user` صحيح فقط عندما يكون
+         * بريد المستخدم مؤكداً فعلاً في Supabase Auth
+         * (Auth.isEmailConfirmed)؛ لا يوجد نظام توثيق آخر بعد.
+         */
         suspend fun submitAppReview(
             rating: Int,
             comment: String,
@@ -2428,22 +2844,143 @@ object SupabaseServices {
             if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
             val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
             val uid = Auth.getCurrentUserId()
+                ?: return Result.failure(IllegalStateException("يلزم تسجيل الدخول لإرسال تقييم"))
+            if (comment.isBlank()) {
+                return Result.failure(IllegalArgumentException("اكتب تعليقاً قبل الإرسال"))
+            }
+            if (getMyReview().getOrNull() != null) {
+                return Result.failure(
+                    IllegalStateException("لديك تقييم بالفعل — يمكنك تعديله بدل إرسال تقييم ثانٍ")
+                )
+            }
             val review = AppReviewDto(
                 id = UUID.randomUUID().toString(),
                 userId = uid,
-                authorName = authorName.ifBlank { "مستخدم مساعد المسلم" },
+                authorName = authorName.ifBlank { "مستخدم قبس" },
                 rating = rating.coerceIn(1, 5),
                 categoryRating = category,
-                appVersion = "v1.3.0",
+                appVersion = "v${BuildConfig.VERSION_NAME}",
                 deviceModel = Build.MODEL ?: "Android Device",
-                comment = comment,
+                comment = comment.trim(),
                 helpfulCount = 0,
-                verifiedUser = true,
+                verifiedUser = Auth.isEmailConfirmed() == true,
                 createdAt = java.time.Instant.now().toString()
             )
             client.postgrest.from("app_reviews").insert(review)
             Unit
         }
+
+        /** تعديل مراجعتي الخاصة فقط (الفلترة بـ id + user_id). */
+        suspend fun updateMyReview(
+            reviewId: String,
+            rating: Int,
+            comment: String,
+            category: String = "overall"
+        ): Result<Unit> = runCatching {
+            if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
+            val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
+            val uid = Auth.getCurrentUserId()
+                ?: return Result.failure(IllegalStateException("يلزم تسجيل الدخول لتعديل تقييم"))
+            if (comment.isBlank()) {
+                return Result.failure(IllegalArgumentException("اكتب تعليقاً قبل الحفظ"))
+            }
+            client.postgrest.from("app_reviews").update(
+                mapOf(
+                    "rating" to rating.coerceIn(1, 5),
+                    "comment" to comment.trim(),
+                    "category_rating" to category,
+                    "app_version" to "v${BuildConfig.VERSION_NAME}"
+                )
+            ) {
+                filter {
+                    eq("id", reviewId)
+                    eq("user_id", uid)
+                }
+            }
+            Unit
+        }
+
+        /** حذف مراجعتي الخاصة فقط (الفلترة بـ id + user_id). */
+        suspend fun deleteMyReview(reviewId: String): Result<Unit> = runCatching {
+            if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
+            val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
+            val uid = Auth.getCurrentUserId()
+                ?: return Result.failure(IllegalStateException("يلزم تسجيل الدخول لحذف تقييم"))
+            client.postgrest.from("app_reviews").delete {
+                filter {
+                    eq("id", reviewId)
+                    eq("user_id", uid)
+                }
+            }
+            Unit
+        }
+
+        /** بلاغ على مراجعة: صف واحد في `review_reports` (بلا واجهة إشراف بعد). */
+        suspend fun submitReviewReport(reviewId: String, reason: String): Result<Unit> = runCatching {
+            if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
+            val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
+            val uid = Auth.getCurrentUserId()
+                ?: return Result.failure(IllegalStateException("يلزم تسجيل الدخول للإبلاغ"))
+            client.postgrest.from("review_reports").insert(
+                ReviewReportRow(
+                    reviewId = reviewId,
+                    reporterId = uid,
+                    reason = reason.trim().take(200),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Unit
+        }
+
+        /**
+         * تبديل صوت "مفيد": صوت واحد لكل مستخدم لكل مراجعة (المفتاح
+         * المركّب user_id + review_id في `review_helpful_votes`). يعيد
+         * الحالة الجديدة: true إن صوّت الآن، false إن سحب صوته. لا يمسّ
+         * عمود helpful_count المخزّن — العدد يُحسب من صفوف الأصوات.
+         */
+        suspend fun toggleHelpfulVote(reviewId: String): Result<Boolean> = runCatching {
+            if (!isSupabaseAvailable) return Result.failure(IllegalStateException("Supabase not available"))
+            val client = client ?: return Result.failure(IllegalStateException("Supabase client is null"))
+            val uid = Auth.getCurrentUserId()
+                ?: return Result.failure(IllegalStateException("يلزم تسجيل الدخول للتصويت"))
+            val existing = client.postgrest.from("review_helpful_votes").select {
+                filter {
+                    eq("user_id", uid)
+                    eq("review_id", reviewId)
+                }
+                limit(1)
+            }.decodeSingleOrNull<HelpfulVoteRow>()
+            if (existing != null) {
+                client.postgrest.from("review_helpful_votes").delete {
+                    filter {
+                        eq("user_id", uid)
+                        eq("review_id", reviewId)
+                    }
+                }
+                false
+            } else {
+                client.postgrest.from("review_helpful_votes").insert(
+                    kotlinx.serialization.json.buildJsonObject {
+                        put("user_id", uid)
+                        put("review_id", reviewId)
+                        put("created_at", java.time.Instant.now().toString())
+                    }
+                )
+                true
+            }
+        }
+
+        /** معرّفات المراجعات التي صوّت لها المستخدم الحالي بـ"مفيد". */
+        suspend fun getMyHelpfulVoteReviewIds(): Set<String> = runCatching {
+            val client = client ?: return emptySet()
+            val uid = Auth.getCurrentUserId() ?: return emptySet()
+            client.postgrest.from("review_helpful_votes").select {
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("review_id")
+                filter { eq("user_id", uid) }
+                limit(10_000)
+            }.decodeList<HelpfulVoteRow>().map { it.reviewId }.toSet()
+        }.onFailure { Log.e(TAG, "getMyHelpfulVoteReviewIds failed: ${it.message}") }
+            .getOrDefault(emptySet())
     }
 
     // ==========================================
@@ -2971,27 +3508,38 @@ object SupabaseServices {
         @SerialName("created_at_millis") val createdAtMillis: Long = System.currentTimeMillis()
     )
 
+    /** نافذة زمنية حقيقية للوحة شرف نقاط المجتمع (الأولوية 5). */
+    enum class PointsWindow { WEEK, LAST_WEEK, MONTH, ALL_TIME }
+
     @Serializable
     data class LeaderboardRow(
         @SerialName("user_id") val userId: String = "",
         val name: String = "",
         val points: Long = 0L,
         @SerialName("is_eligible") val isEligible: Boolean = true,
-        @SerialName("avatar_url") val avatarUrl: String? = null
+        @SerialName("avatar_url") val avatarUrl: String? = null,
+        /**
+         * ترتيب المستخدم في الأسبوع السابق (لأسهم الحركة فقط). null تعني
+         * "لا بيانات أسبوع سابق" — فلا يظهر أي سهم أبداً، ولا يُخترع سهم.
+         * لا يُقرأ من أي جدول؛ تملؤه getCommunityPointsLeaderboard فقط.
+         */
+        @SerialName("previous_rank") val previousRank: Int? = null
     )
 
     @Serializable
     data class AppReviewDto(
         val id: String = UUID.randomUUID().toString(),
         @SerialName("user_id") val userId: String? = null,
-        @SerialName("author_name") val authorName: String = "مستخدم مساعد المسلم",
-        val rating: Int = 5,
+        @SerialName("author_name") val authorName: String = "مستخدم قبس",
+        // لا افتراض: غياب التقييم في الصف يعني 0 لا 5.
+        val rating: Int = 0,
         @SerialName("category_rating") val categoryRating: String = "overall",
-        @SerialName("app_version") val appVersion: String = "v1.3.0",
+        @SerialName("app_version") val appVersion: String = "",
         @SerialName("device_model") val deviceModel: String = "",
         val comment: String = "",
         @SerialName("helpful_count") val helpfulCount: Int = 0,
-        @SerialName("verified_user") val verifiedUser: Boolean = true,
+        // لا افتراض: المراجعة غير موثقة حتى يثبت تأكيد بريد صاحبها.
+        @SerialName("verified_user") val verifiedUser: Boolean = false,
         @SerialName("created_at") val createdAt: String = ""
     )
 

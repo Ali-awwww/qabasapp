@@ -251,6 +251,24 @@ object UserPreferencesManager {
 
     // ── Supabase Cloud Sync Operations ──
 
+    /**
+     * Batch 6 Priority 3 — email verification gate.
+     *
+     * Cloud sync is blocked only while the signed-in account's email is
+     * explicitly unconfirmed (`email_confirmed == false` in `qabas_prefs`,
+     * recorded by [SupabaseServices.Auth.refreshEmailConfirmationState] at
+     * login/registration). An absent flag means "unknown" (older installs, no
+     * session) and sync stays allowed, so this changes nothing for existing
+     * users. Local use is unaffected: preferences keep working on-device and
+     * pending changes are kept for the next allowed sync.
+     */
+    fun isCloudSyncBlockedByUnconfirmedEmail(context: Context): Boolean {
+        if (SupabaseServices.Auth.getCurrentUserId().isNullOrBlank()) return false
+        val confirmed = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("email_confirmed", true)
+        return !confirmed
+    }
+
     fun setCloudSyncEnabled(context: Context, enabled: Boolean) {
         _cloudSyncEnabled.value = enabled
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("cloud_sync_enabled", enabled).apply()
@@ -299,6 +317,10 @@ object UserPreferencesManager {
 
     suspend fun syncToSupabase(context: Context): Boolean = withContext(Dispatchers.IO) {
         if (!_cloudSyncEnabled.value || !SupabaseServices.isSupabaseAvailable) {
+            return@withContext false
+        }
+        if (isCloudSyncBlockedByUnconfirmedEmail(context)) {
+            Log.d("UserPreferencesManager", "cloud sync blocked: email not confirmed yet")
             return@withContext false
         }
         withSyncLock {
@@ -467,6 +489,7 @@ object UserPreferencesManager {
         }
 
     fun triggerAutoSync(context: Context) {
+        if (isCloudSyncBlockedByUnconfirmedEmail(context)) return
         if (_cloudSyncEnabled.value && SupabaseServices.isSupabaseAvailable) {
             pendingSyncRevision.incrementAndGet()
             hasPendingChanges = true

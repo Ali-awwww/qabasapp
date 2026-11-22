@@ -58,6 +58,11 @@ android {
     buildConfigField("String", "QF_CLIENT_SECRET", "\"${resolveSecret("QF_CLIENT_SECRET")}\"")
     buildConfigField("String", "GITHUB_CLIENT_ID", "\"${resolveSecret("GITHUB_CLIENT_ID")}\"")
     buildConfigField("String", "GITHUB_CLIENT_SECRET", "\"${resolveSecret("GITHUB_CLIENT_SECRET")}\"")
+    // Google Sign-In web client id (public OAuth client id, not a secret key).
+    // Resolved from the Gradle property, the environment, or the root `.env`
+    // file (see `.env.example`: GOOGLE_WEB_CLIENT_ID). Empty until the owner
+    // creates a Web-application OAuth client in Google Cloud and pastes its id.
+    buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${resolveSecret("GOOGLE_WEB_CLIENT_ID")}\"")
   }
 
   signingConfigs {

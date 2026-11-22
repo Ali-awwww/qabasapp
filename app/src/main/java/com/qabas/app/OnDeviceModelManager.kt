@@ -58,8 +58,11 @@ sealed class ModelDownloadState {
 object OnDeviceModelManager {
     private const val TAG = "OnDeviceModelManager"
     private const val PREFS_NAME = "qabas_prefs"
-    private const val KEY_SELECTED_MODEL = "selected_local_model_id"
-    private const val KEY_OFFLINE_MODE_ACTIVE = "offline_ai_mode"
+    private const val KEY_RESUME_BYTES_PREFIX = "model_resume_"
+    private const val KEY_RESUME_TOTAL_PREFIX = "model_total_"
+    private const val KEY_RESUME_URL_PREFIX = "model_resume_url_"
+    private const val KEY_RESUME_ETAG_PREFIX = "model_resume_etag_"
+    private const val KEY_RESUME_LASTMOD_PREFIX = "model_resume_lastmod_"
     private const val MODEL_SUBDIR = "models/local"
 
     private val httpClient: OkHttpClient by lazy {
@@ -251,15 +254,55 @@ object OnDeviceModelManager {
     }
 
     /**
-     * إلغاء التنزيل الجاري وحذف الملف الجزئي
-     * يُستدعى من dialog أو viewmodel بتمرير modelInfo
+     * إلغاء التنزيل الجاري مع الإبقاء على الملف الجزئي (.tmp) وحالة الاستئناف،
+     * ليستكمل التنزيل لاحقاً من حيث توقف بدل البدء من الصفر.
+     * يُستدعى من dialog أو viewmodel بتمرير modelInfo.
+     * حذف التقدم نهائياً يتم فقط عبر [deletePartialDownload] عند طلب المستخدم الصريح.
      */
     fun cancelDownload(context: Context, modelInfo: OnDeviceModelInfo) {
         isCancelled = true
-        val destFile = File(context.filesDir, "models/local/${modelInfo.id}")
+        _downloadState.value = ModelDownloadState.Idle
+    }
+
+    /**
+     * حذف الملف الجزئي وحالة الاستئناف نهائياً — إجراء صريح من المستخدم فقط
+     * (زر «حذف التنزيل» لا زر الإلغاء). لا يُستدعى تلقائياً عند الإلغاء أو الخطأ.
+     */
+    fun deletePartialDownload(context: Context, modelInfo: OnDeviceModelInfo) {
+        isCancelled = true
+        val destFile = getModelFile(context, modelInfo)
         val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
         if (tempFile.exists()) tempFile.delete()
+        clearResumeState(context, modelInfo)
         _downloadState.value = ModelDownloadState.Idle
+    }
+
+    /** حفظ حالة الاستئناف (الإزاحة + الحجم المتوقع + الرابط + بصمات السيرفر). */
+    private fun saveResumeState(
+        context: Context,
+        modelInfo: OnDeviceModelInfo,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        etag: String? = null,
+        lastModified: String? = null
+    ) {
+        getPrefs(context).edit()
+            .putLong(KEY_RESUME_BYTES_PREFIX + modelInfo.id, downloadedBytes)
+            .putLong(KEY_RESUME_TOTAL_PREFIX + modelInfo.id, totalBytes)
+            .putString(KEY_RESUME_URL_PREFIX + modelInfo.id, modelInfo.downloadUrl)
+            .putString(KEY_RESUME_ETAG_PREFIX + modelInfo.id, etag)
+            .putString(KEY_RESUME_LASTMOD_PREFIX + modelInfo.id, lastModified)
+            .apply()
+    }
+
+    private fun clearResumeState(context: Context, modelInfo: OnDeviceModelInfo) {
+        getPrefs(context).edit()
+            .remove(KEY_RESUME_BYTES_PREFIX + modelInfo.id)
+            .remove(KEY_RESUME_TOTAL_PREFIX + modelInfo.id)
+            .remove(KEY_RESUME_URL_PREFIX + modelInfo.id)
+            .remove(KEY_RESUME_ETAG_PREFIX + modelInfo.id)
+            .remove(KEY_RESUME_LASTMOD_PREFIX + modelInfo.id)
+            .apply()
     }
 
     /**
@@ -273,20 +316,42 @@ object OnDeviceModelManager {
         val destFile = getModelFile(context, modelInfo)
         val tempFile = File(destFile.parentFile, "${destFile.name}.tmp")
 
-        // محاولة الاستكمال من حيث توقف التنزيل السابق
-        var resumeBytes = 0L
+        // حالة الاستئناف المحفوظة: الإزاحة + الحجم المتوقع + الرابط + بصمات السيرفر،
+        // فتبقى صالحة بعد موت العملية وإعادة تشغيل التطبيق.
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedResumeBytes = prefs.getLong("model_resume_${modelInfo.id}", 0L)
-        val savedTotalBytes = prefs.getLong("model_total_${modelInfo.id}", modelInfo.sizeBytes)
-        if (savedResumeBytes > 0 && savedTotalBytes > 0) {
-            resumeBytes = savedResumeBytes
-            Log.i(TAG, "Resuming download of ${modelInfo.id} from $resumeBytes/${savedTotalBytes}")
+        val savedResumeBytes = prefs.getLong(KEY_RESUME_BYTES_PREFIX + modelInfo.id, 0L)
+        val savedTotalBytes = prefs.getLong(KEY_RESUME_TOTAL_PREFIX + modelInfo.id, modelInfo.sizeBytes)
+        val savedUrl = prefs.getString(KEY_RESUME_URL_PREFIX + modelInfo.id, null)
+        val savedEtag = prefs.getString(KEY_RESUME_ETAG_PREFIX + modelInfo.id, null)
+        val savedLastModified = prefs.getString(KEY_RESUME_LASTMOD_PREFIX + modelInfo.id, null)
+
+        // الإزاحة الحقيقية هي طول الملف الجزئي على القرص، لا الرقم المحفوظ وحده:
+        // إن حُذف الملف الجزئي من خارج التطبيق فلا معنى للرقم المحفوظ.
+        var resumeBytes = if (tempFile.exists()) tempFile.length() else 0L
+        if (resumeBytes > 0 && savedResumeBytes > 0) resumeBytes = minOf(resumeBytes, savedResumeBytes)
+        // إن تغيّر الرابط فالملف الجزئي يخص ملفاً آخر — لا يُستأنف.
+        if (resumeBytes > 0 && savedUrl != null && savedUrl != modelInfo.downloadUrl) resumeBytes = 0L
+
+        var expectedTotalBytes = savedTotalBytes.takeIf { it > 0 } ?: modelInfo.sizeBytes
+        // إن اكتمل الملف الجزئي فعلاً (طوله يساوي الحجم المتوقع) ثبّته دون إعادة تنزيل.
+        if (resumeBytes > 0 && expectedTotalBytes > 0 && resumeBytes >= expectedTotalBytes) {
+            if (tempFile.length() == expectedTotalBytes) {
+                if (destFile.exists()) destFile.delete()
+                if (tempFile.renameTo(destFile)) {
+                    setSelectedModel(context, modelInfo.id)
+                    clearResumeState(context, modelInfo)
+                    _downloadState.value = ModelDownloadState.Success(modelInfo.id)
+                    return@withContext true
+                }
+            }
+            // ملف جزئي تالف (أطول من المتوقع أو تعذّر تثبيته) — إعادة كاملة من الصفر.
+            resumeBytes = 0L
         }
 
         var downloadedBytes = resumeBytes
 
         val availableBytes = android.os.StatFs(tempFile.parentFile?.absolutePath ?: context.filesDir.absolutePath).availableBytes
-        val estimatedRemainingBytes = ((savedTotalBytes.takeIf { it > 0 } ?: modelInfo.sizeBytes) - resumeBytes).coerceAtLeast(0L)
+        val estimatedRemainingBytes = (expectedTotalBytes - resumeBytes).coerceAtLeast(0L)
         val requiredBytes = estimatedRemainingBytes + 32L * 1024L * 1024L
         if (availableBytes < requiredBytes) {
             val message = "المساحة الحرة غير كافية: يلزم نحو ${StorageMetrics.formatBytes(requiredBytes)} مع هامش أمان، والمتاح ${StorageMetrics.formatBytes(availableBytes)}."
@@ -297,57 +362,83 @@ object OnDeviceModelManager {
         try {
             _downloadState.value = ModelDownloadState.Downloading(
                 modelId = modelInfo.id,
-                progress = if (savedTotalBytes > 0) resumeBytes.toFloat() / savedTotalBytes else 0f,
+                progress = if (expectedTotalBytes > 0) resumeBytes.toFloat() / expectedTotalBytes else 0f,
                 downloadedBytes = resumeBytes,
-                totalBytes = savedTotalBytes
+                totalBytes = expectedTotalBytes
             )
 
-            val request = Request.Builder()
-                .url(modelInfo.downloadUrl)
-                .build()
+            // استئناف حقيقي عبر HTTP Range: يُطلب من السيرفر البايتات المتبقية فقط.
+            // لا يُستخدم skip() على مجرى الشبكة إطلاقاً — فهو غير مضمون العدد،
+            // بل يبدأ السيرفر نفسه من الإزاحة المطلوبة.
+            val requestBuilder = Request.Builder().url(modelInfo.downloadUrl)
+            if (resumeBytes > 0) {
+                requestBuilder.header("Range", "bytes=$resumeBytes-")
+                Log.i(TAG, "Resuming download of ${modelInfo.id} from $resumeBytes/$expectedTotalBytes")
+            }
+            val request = requestBuilder.build()
 
             val response = httpClient.newCall(request).execute()
             if (!response.isSuccessful) {
                 val error = "فشل بدء التنزيل: كود الاستجابة ${response.code}"
                 Log.e(TAG, error)
-                // حفظ progress Interrupted قبل الخطأ
-                prefs.edit()
-                    .putLong("model_resume_${modelInfo.id}", resumeBytes)
-                    .putLong("model_total_${modelInfo.id}", savedTotalBytes)
-                    .apply()
+                // حفظ progress Interrupted قبل الخطأ — مع الإبقاء على الملف الجزئي.
+                saveResumeState(context, modelInfo, resumeBytes, expectedTotalBytes, savedEtag, savedLastModified)
                 _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
                 return@withContext false
             }
 
             val body = response.body ?: run {
                 val error = "لم يتم استلام محتوى من السيرفر"
-                // حفظ progress Interrupted قبل الخطأ
-                prefs.edit()
-                    .putLong("model_resume_${modelInfo.id}", resumeBytes)
-                    .putLong("model_total_${modelInfo.id}", savedTotalBytes)
-                    .apply()
+                // حفظ progress Interrupted قبل الخطأ — مع الإبقاء على الملف الجزئي.
+                saveResumeState(context, modelInfo, resumeBytes, expectedTotalBytes, savedEtag, savedLastModified)
                 _downloadState.value = ModelDownloadState.Error(modelInfo.id, error)
                 return@withContext false
             }
 
-            val totalBytes = if (body.contentLength() > 0) body.contentLength() else modelInfo.sizeBytes
+            val responseEtag = response.header("ETag")
+            val responseLastModified = response.header("Last-Modified")
+            val contentRange = response.header("Content-Range")
+
+            // لا يُقبل الاستئناف إلا بردّ 206 Partial Content مع Content-Range
+            // يبدأ فعلاً من الإزاحة المطلوبة، وبصمات مطابقة إن كانت محفوظة.
+            // أي رفض من السيرفر (ردّ 200 أو غياب Content-Range أو تغيّر الملف)
+            // يعني إعادة تنزيل كاملة صادقة من الصفر بعد حذف الجزئي — لا تخطٍّ صامت.
+            var appendMode = false
+            var totalBytes = expectedTotalBytes
+            if (resumeBytes > 0) {
+                val rangeAccepted = response.code == 206 &&
+                    contentRange != null &&
+                    contentRange.startsWith("bytes $resumeBytes-") &&
+                    (savedEtag == null || responseEtag == null || responseEtag == savedEtag) &&
+                    (savedLastModified == null || responseLastModified == null || responseLastModified == savedLastModified)
+                if (rangeAccepted) {
+                    appendMode = true
+                    totalBytes = contentRange.substringAfterLast('/').toLongOrNull()?.takeIf { it > 0 }
+                        ?: (body.contentLength().takeIf { it > 0 }?.plus(resumeBytes) ?: expectedTotalBytes)
+                } else {
+                    Log.w(TAG, "Server refused Range resume for ${modelInfo.id} (code ${response.code}); restarting full download from 0")
+                    tempFile.delete()
+                    resumeBytes = 0L
+                    downloadedBytes = 0L
+                    totalBytes = body.contentLength().takeIf { it > 0 } ?: expectedTotalBytes
+                }
+            } else {
+                totalBytes = body.contentLength().takeIf { it > 0 } ?: expectedTotalBytes
+            }
+            expectedTotalBytes = totalBytes
             val startTime = System.currentTimeMillis()
             var lastUpdateTime = startTime
 
-            // إذا كان هناك ملف مؤقت مسبق يحتوي على بايتات، الكتابة بعده (append)
-            val appendMode = if (resumeBytes > 0 && tempFile.exists()) true else false
+            // الكتابة بعد الملف الجزئي فقط عند قبول الاستئناف؛ وإلا كتابة من الصفر.
             val byteStream = body.byteStream()
             FileOutputStream(tempFile, appendMode).use { output ->
                 val buffer = ByteArray(256 * 1024) // 256KB buffer: fewer syscalls, faster writes
                 var bytesRead: Int
 
-                if (resumeBytes > 0) {
-                    byteStream.skip(resumeBytes)
-                }
-
                 while (byteStream.read(buffer).also { bytesRead = it } != -1) {
                     if (isCancelled) {
-                        tempFile.delete()
+                        // الإلغاء يُبقي الملف الجزئي وحالة الاستئناف ليُستكمل لاحقاً.
+                        saveResumeState(context, modelInfo, downloadedBytes, totalBytes, responseEtag, responseLastModified)
                         _downloadState.value = ModelDownloadState.Idle
                         return@withContext false
                     }
@@ -373,6 +464,14 @@ object OnDeviceModelManager {
                 }
             }
 
+            // مجرى منقطع قبل اكتمال الحجم المعلن: لا يُثبَّت ملف ناقص على أنه
+            // مكتمل — يُحفظ التقدم وتُبلَّغ حالة انقطاع قابلة للاستئناف.
+            if (totalBytes > 0 && downloadedBytes < totalBytes) {
+                saveResumeState(context, modelInfo, downloadedBytes, totalBytes, responseEtag, responseLastModified)
+                _downloadState.value = ModelDownloadState.Interrupted(modelInfo.id, downloadedBytes, totalBytes)
+                return@withContext false
+            }
+
             // التنزيل اكتمل بنجاح، استبدال الملف المؤقت
             if (tempFile.exists() && tempFile.length() > 0) {
                 if (destFile.exists()) destFile.delete()
@@ -380,7 +479,7 @@ object OnDeviceModelManager {
                 if (renamed || destFile.exists()) {
                     setSelectedModel(context, modelInfo.id)
                     // تنظيف saved resume state
-                    prefs.edit().remove("model_resume_${modelInfo.id}").remove("model_total_${modelInfo.id}").apply()
+                    clearResumeState(context, modelInfo)
                     _downloadState.value = ModelDownloadState.Success(modelInfo.id)
                     Log.i(TAG, "Model downloaded successfully to ${destFile.absolutePath}")
                     return@withContext true
@@ -391,18 +490,13 @@ object OnDeviceModelManager {
             false
         } catch (e: Exception) {
             Log.e(TAG, "Download error: ${e.message}", e)
-            prefs.edit()
-                .putLong("model_resume_${modelInfo.id}", downloadedBytes)
-                .putLong("model_total_${modelInfo.id}", savedTotalBytes)
-                .apply()
+            // الانقطاع يُبقي الملف الجزئي وحالة الاستئناف ليُستكمل لاحقاً.
+            saveResumeState(context, modelInfo, downloadedBytes, expectedTotalBytes)
             _downloadState.value = ModelDownloadState.Interrupted(
                 modelId = modelInfo.id,
                 downloadedBytes = downloadedBytes,
-                totalBytes = savedTotalBytes
+                totalBytes = expectedTotalBytes
             )
-            if (tempFile.exists() && tempFile.length() > 0) {
-                // الملف الجزئي موجود ويمكن استئنافه
-            }
             false
         }
     }
@@ -413,8 +507,8 @@ object OnDeviceModelManager {
     suspend fun resumeDownload(context: Context, modelInfo: OnDeviceModelInfo): Boolean {
         // التحقق مما لو كان هناك حالة إنقطاع محفوظة
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedResume = prefs.getLong("model_resume_${modelInfo.id}", 0L)
-        val savedTotal = prefs.getLong("model_total_${modelInfo.id}", modelInfo.sizeBytes)
+        val savedResume = prefs.getLong(KEY_RESUME_BYTES_PREFIX + modelInfo.id, 0L)
+        val savedTotal = prefs.getLong(KEY_RESUME_TOTAL_PREFIX + modelInfo.id, modelInfo.sizeBytes)
 
         if (savedResume <= 0) return false
 
