@@ -66,6 +66,7 @@ import java.util.zip.ZipOutputStream
 
 enum class DashboardSection {
     MAIN,
+    OVERVIEW,
     QUEUES,
     ALERTS,
     CLOUD_API_HUB,
@@ -341,9 +342,14 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         onSystemIdentityHub = { currentSection = DashboardSection.SYSTEM_IDENTITY_HUB },
                         onWorkQueues = { currentSection = DashboardSection.QUEUES },
                         onAlerts = { currentSection = DashboardSection.ALERTS },
+                        onOverview = { currentSection = DashboardSection.OVERVIEW },
                         userCount = devUsers.size,
                         queueCounts = queueCounts
                     )
+                }
+
+                DashboardSection.OVERVIEW -> {
+                    DashboardOverviewScreen(onBack = { currentSection = DashboardSection.MAIN })
                 }
 
                 DashboardSection.QUEUES -> {
@@ -798,6 +804,7 @@ fun DashboardMainGrid(
     onSystemIdentityHub: () -> Unit = {},
     onWorkQueues: () -> Unit = {},
     onAlerts: () -> Unit = {},
+    onOverview: () -> Unit = {},
     userCount: Int = 0,
     queueCounts: DevQueuePendingCounts = DevQueuePendingCounts()
 ) {
@@ -848,6 +855,7 @@ fun DashboardMainGrid(
         val onClick: () -> Unit
     )
     val hubs = listOf(
+        MainHub("نظرة عامة", "المستخدمون النشطون يومياً وشهرياً وأحداث التطبيق", "النمو", Icons.Default.TrendingUp, cyan, onOverview),
         MainHub("قوائم العمل", "إشراف المحتوى، الدعم، والأعطال — بحالات", "${queueCounts.totalPending} معلّق", Icons.Default.Assignment, Color(0xFFF59E0B), onWorkQueues),
         MainHub("التنبيهات", "قفزة أعطال، فشل مفتاح، خطأ بوابة، موجة تسجيلات", "داخل التطبيق", Icons.Default.NotificationsActive, Color(0xFFEF4444), onAlerts),
         MainHub("التشغيل والصحة", "حالة الخدمات، الأعطال، السجلات، والتدقيق في مكان واحد", "صحة النظام", Icons.Default.MedicalServices, cyan, onHealthDiagnosticsHub),
