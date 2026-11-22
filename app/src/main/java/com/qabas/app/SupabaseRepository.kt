@@ -920,6 +920,40 @@ class SupabaseRepository(
         }
     }
 
+    /**
+     * Deletes one user API key from the cloud vault (action `delete` in
+     * `qabas-key-vault` — موجود في الخادم أصلاً). Without this call deletion
+     * was local-only and the key was re-pulled from the cloud on next sync.
+     * Local-only services (Anthropic/Leonardo/…) return false — they have
+     * no cloud copy to delete. The key value is never logged.
+     */
+    suspend fun deleteApiKey(service: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val vaultService = normalizeVaultService(service)
+            if (vaultService == null) {
+                Log.w(TAG, "Refusing to delete API key for unknown service: $service")
+                return@withContext false
+            }
+            getCurrentUserId() ?: return@withContext false
+            val response = client.functions.invoke(
+                function = "qabas-key-vault",
+                body = buildJsonObject {
+                    put("action", "delete")
+                    put("services", buildJsonArray { add(JsonPrimitive(vaultService)) })
+                }
+            )
+            val result = response.body<KeySyncService.VaultResponse>()
+            if (!result.ok) {
+                Log.e(TAG, "Key vault delete failed: ${result.error ?: "unknown error"}")
+                return@withContext false
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete API key: ${e.message}")
+            false
+        }
+    }
+
     /** Fetch user role from auth app_metadata. */
     suspend fun getUserRoleFromMetadata(): String = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext "free"

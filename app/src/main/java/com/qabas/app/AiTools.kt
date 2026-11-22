@@ -1,16 +1,20 @@
 package com.qabas.app
 
 import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.util.UUID
 
 /**
  * صندوق أدوات النموذج 🛠️ — دوال حقيقية داخل التطبيق يستدعيها النموذج
  * عبر OpenRouter function-calling بدل التخمين من ذاكرته.
  *
- * الأدوات: حالة الجهاز • تشخيص شامل • توليد سكريبت • بحث قرآني • تفسير آية.
+ * الأدوات: حالة الجهاز • تشخيص شامل • توليد سكريبت • بحث قرآني • تفسير آية
+ * • توليد صورة • توليد فيديو • توليد صوت • نشر كريلز (الدفعة 4).
  * كل أداة تُنفّذ فعلياً أو تُرجع رسالة فشل صادقة — لا نتائج وهمية.
  */
 object AiTools {
@@ -86,6 +90,189 @@ object AiTools {
                 QuranDataProvider.getTafsirForVerse(s, a)
                     ?.let { "تفسير $s:$a (الميسر): $it" }
                     ?: "لا يتوفر تفسير ميسر لـ $s:$a في النسخة المدمجة."
+            }
+        },
+        ToolDef(
+            name = "generate_image",
+            description = "توليد صورة حقيقية من وصف نصي عبر AppServices.generateAiImage. " +
+                "تُرجع مسار الملف المحلي عند النجاح، أو رسالة فشل تبدأ بـ «تعذّر».",
+            properties = JSONObject().put("prompt", strProp("وصف الصورة المطلوبة")),
+            required = listOf("prompt")
+        ) { args ->
+            val prompt = args.optString("prompt").ifBlank { "مشهد دعوي هادئ" }
+            val path = AppServices.generateAiImage(prompt)
+            if (path.isNullOrBlank()) {
+                "تعذّر توليد الصورة: لا مزود صور متاح (تحقق من مفاتيحك أو الاتصال)."
+            } else {
+                runCatching {
+                    SupabaseServices.Database.insertAiGeneration(
+                        SupabaseServices.AiGenerationRow(
+                            id = UUID.randomUUID().toString(),
+                            type = "image",
+                            // سلسلة AppServices.generateAiImage الفعلية: HuggingFace ثم Pollinations/FLUX.
+                            provider = "huggingface_pollinations",
+                            prompt = prompt,
+                            filePath = path,
+                            // التكلفة الفعلية 0 حتى تُقاس من المزود (خارج نطاق الدفعة 4).
+                            costUsd = 0.0
+                        )
+                    )
+                }
+                path
+            }
+        },
+        ToolDef(
+            name = "generate_video",
+            description = "توليد فيديو حقيقي نص-إلى-فيديو عبر Higgsfield/Kling. " +
+                "متزامن داخل الأداة (استطلاع حتى ~6 دقائق) — الطابور السحابي يسجّل " +
+                "النتيجة المنتهية فقط ولا يحرّك تنفيذاً غير متزامن. تُرجع مسار الملف " +
+                "عند النجاح، أو رسالة فشل تبدأ بـ «تعذّر».",
+            properties = JSONObject()
+                .put("prompt", strProp("وصف الفيديو المطلوب"))
+                .put("duration_seconds", intProp("المدة بالثواني (3-30، الافتراضي 5)")),
+            required = listOf("prompt")
+        ) { args ->
+            val prompt = args.optString("prompt").ifBlank { "مشهد دعوي سينمائي" }
+            val duration = args.optInt("duration_seconds", 5).coerceIn(3, 30)
+            val file = HiggsfieldVideoService.generateTextToVideo(
+                context, prompt, durationSeconds = duration
+            )
+            if (file == null || !file.exists()) {
+                runCatching {
+                    SupabaseServices.Database.insertStudioJob(
+                        SupabaseServices.StudioJobRow(
+                            id = UUID.randomUUID().toString(),
+                            type = "video",
+                            status = "failed",
+                            progress = 0f,
+                            prompt = prompt,
+                            error = "فشل توليد الفيديو عبر Higgsfield"
+                        )
+                    )
+                }
+                "تعذّر توليد الفيديو عبر Higgsfield — تحقق من بوابة المنصة والاتصال."
+            } else {
+                runCatching {
+                    SupabaseServices.Database.insertStudioJob(
+                        SupabaseServices.StudioJobRow(
+                            id = UUID.randomUUID().toString(),
+                            type = "video",
+                            status = "completed",
+                            progress = 1f,
+                            prompt = prompt,
+                            filePath = file.absolutePath
+                        )
+                    )
+                    SupabaseServices.Database.insertAiGeneration(
+                        SupabaseServices.AiGenerationRow(
+                            id = UUID.randomUUID().toString(),
+                            type = "video",
+                            provider = "higgsfield_kling",
+                            prompt = prompt,
+                            filePath = file.absolutePath,
+                            costUsd = 0.0
+                        )
+                    )
+                }
+                file.absolutePath
+            }
+        },
+        ToolDef(
+            name = "generate_voice",
+            description = "توليد تعليق صوتي حقيقي من نص عبر AppServices.generateVoiceover " +
+                "(Kokoro ثم Edge TTS ثم Azure/ElevenLabs ثم Android TTS). تُرجع مسار " +
+                "الملف الصوتي عند النجاح، أو رسالة فشل تبدأ بـ «تعذّر».",
+            properties = JSONObject()
+                .put("text", strProp("نص التعليق الصوتي"))
+                .put("tone", strProp("النبرة، مثال: وثائقي"))
+                .put("voice_id", strProp("معرّف الصوت، مثال: ar-SA-HamedNeural")),
+            required = listOf("text")
+        ) { args ->
+            val text = args.optString("text")
+            if (text.isBlank()) {
+                "تعذّر توليد الصوت: النص فارغ."
+            } else {
+                val tone = args.optString("tone").ifBlank { "وثائقي" }
+                val voiceId = args.optString("voice_id").ifBlank { "ar-SA-HamedNeural" }
+                val path = AppServices.generateVoiceover(text, tone = tone, voiceId = voiceId)
+                if (path.isNullOrBlank()) {
+                    "تعذّر توليد الصوت: لا محرك صوتي متاح."
+                } else {
+                    runCatching {
+                        SupabaseServices.Database.insertAiGeneration(
+                            SupabaseServices.AiGenerationRow(
+                                id = UUID.randomUUID().toString(),
+                                type = "voice",
+                                provider = "auto_kokoro_edge_azure_elevenlabs",
+                                prompt = text.take(500),
+                                filePath = path,
+                                costUsd = 0.0
+                            )
+                        )
+                    }
+                    path
+                }
+            }
+        },
+        ToolDef(
+            name = "publish_to_reels",
+            description = "نشر فيديو كريلز بعد فحص أهلية النشر (الحد اليومي والفاصل الزمني). " +
+                "الدالة الحالية publishReelWithUpload بلا معامل tags، فالوسوم تُضمَّن في الوصف.",
+            properties = JSONObject()
+                .put("video_path", strProp("مسار ملف الفيديو المحلي أو رابطه https"))
+                .put("title", strProp("عنوان المقطع (3 أحرف فأكثر)"))
+                .put("description", strProp("وصف المقطع"))
+                .put("tags", strProp("وسوم مفصولة بفواصل — تُضمَّن في الوصف")),
+            required = listOf("video_path", "title")
+        ) { args ->
+            val videoPath = args.optString("video_path")
+            val title = args.optString("title").ifBlank { "ريلز دعوي" }
+            val description = args.optString("description")
+            val tags = args.optString("tags")
+            if (videoPath.isBlank()) {
+                "تعذّر النشر: لا مسار فيديو."
+            } else {
+                val email = SupabaseServices.Auth.getCurrentUserEmail()
+                val userId = SupabaseServices.Auth.getCurrentUserId()
+                if (userId.isNullOrBlank()) {
+                    "تعذّر النشر: سجّل الدخول أولاً."
+                } else when (val eligibility = ReelPublishManager.checkPublishEligibility(context, email)) {
+                    is ReelPublishManager.PublishStatus.Allowed -> {
+                        val fullDescription = buildString {
+                            append(description)
+                            if (tags.isNotBlank()) {
+                                if (isNotEmpty()) append("\n")
+                                append("الوسوم: $tags")
+                            }
+                        }.takeIf { it.isNotBlank() }
+                        val videoUri = if (videoPath.startsWith("https://")) null
+                        else Uri.fromFile(File(videoPath))
+                        val directUrl = videoPath.takeIf { it.startsWith("https://") }
+                        when (val result = ReelPublishManager.publishReelWithUpload(
+                            context = context,
+                            userId = userId,
+                            userName = email?.substringBefore("@") ?: "مستخدم قبس",
+                            email = email,
+                            title = title,
+                            description = fullDescription,
+                            videoUri = videoUri,
+                            directUrl = directUrl,
+                            thumbnailBytes = null,
+                            category = "دعوي"
+                        )) {
+                            is ReelPublishManager.PublishResult.Success ->
+                                "تم نشر الريلز: ${result.videoUrl}"
+                            is ReelPublishManager.PublishResult.Failed ->
+                                "تعذّر النشر (${result.stage}): ${result.devMessage}"
+                        }
+                    }
+                    is ReelPublishManager.PublishStatus.DailyLimitExceeded ->
+                        "تعذّر النشر: تجاوزت الحد اليومي (${eligibility.maxLimit})."
+                    is ReelPublishManager.PublishStatus.CooldownActive ->
+                        "تعذّر النشر: انتظر ${eligibility.remainingMinutes} دقيقة قبل النشر التالي."
+                    is ReelPublishManager.PublishStatus.Error ->
+                        "تعذّر النشر: ${eligibility.message}"
+                }
             }
         }
     )
