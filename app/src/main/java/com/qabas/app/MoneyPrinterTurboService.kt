@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 /**
  * ⚡ محرك ومنظومة «MoneyPrinterTurbo» السيبرانية لإنتاج الفيديوهات القصيرة ذاتياً
  * يدعم نمطين:
- * 1) النمط السحابي (Remote FastAPI Server): يربط تطبيق مساعد المسلم مع سيرفر MoneyPrinterTurbo عبر الشبكة.
+ * 1) النمط السحابي (Remote FastAPI Server): يربط تطبيق خادم المسلم مع سيرفر MoneyPrinterTurbo عبر الشبكة.
  * 2) النمط المحلي المستقل (Autonomous Standalone Engine): يشغّل فلسفة ومحرك MoneyPrinterTurbo محلياً
  *    بدمج Edge-TTS المجاني العصبي، استخراج لقطات B-Roll الدلالية، ورندرة FFmpegKit بدقة 9:16 و 16:9.
  */
@@ -257,7 +257,7 @@ object MoneyPrinterTurboService {
             appendLine("هل تساءلت يوماً عن سر هذا المعنى العظيم في: $topic؟")
             appendLine("في تراثنا وحكمتنا الإيمانية، تكمن قوة حقيقية تغير نظرتنا للواقع.")
             appendLine("كل لحظة تفكر وتدبر تقربك خطوة نحو السكينة والطمأنينة.")
-            appendLine("شارك هذا الأثر مع من تحب، واشترك في مساعد المسلم للمزيد من الدرر الملهمة.")
+            appendLine("شارك هذا الأثر مع من تحب، واشترك في خادم المسلم للمزيد من الدرر الملهمة.")
         }
     }
 
@@ -400,7 +400,7 @@ object MoneyPrinterTurboService {
                         bottomHex = "#050A14",
                         accentHex = "#38BDF8",
                         caption = config.subject.ifBlank { script.lineSequence().firstOrNull().orEmpty() },
-                        brandLine = "مساعد المسلم | QABAS STUDIO",
+                        brandLine = "خادم المسلم | QABAS STUDIO",
                         footerText = visualTerms.firstOrNull() ?: "محتوى دعوي هادف"
                     )
                 }

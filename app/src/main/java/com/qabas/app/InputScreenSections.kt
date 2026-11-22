@@ -97,7 +97,7 @@ fun DefaultSourceSelectionView(
         )
 
         SourceTypeCard(
-            title = Translator.tr("قاص مساعد المسلم — قصص تتحول لريلز"),
+            title = Translator.tr("قاص خادم المسلم — قصص تتحول لريلز"),
             subtitle = Translator.tr("5 قصص قرآنية مروية + اسأل القاص وحول أي قصة لفيديو"),
             icon = Icons.AutoMirrored.Filled.MenuBook,
             badge = Translator.tr("جديد 📖"),

@@ -82,7 +82,7 @@ fun SpatialPrecisionDiagnosticDialog(
         AppSoundManager.playClick()
         val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val markdown = PrecisionDiagnosticEngine.formatDiagnosticMarkdown(telemetry)
-        cb.setPrimaryClip(ClipData.newPlainText("Muslim Assistant Precision Diagnostics", markdown))
+        cb.setPrimaryClip(ClipData.newPlainText("Muslim AI Assistant Precision Diagnostics", markdown))
         Toast.makeText(context, "تم نسخ التقرير التشخيصي الدقيق بنجاح 📋", Toast.LENGTH_SHORT).show()
     }
 
@@ -323,7 +323,7 @@ fun SpatialPrecisionDiagnosticDialog(
                                     DiagMetricRow("التخزين الداخلي الحر", "${telemetry.freeInternalStorageMb} MB")
                                     DiagMetricRow("حالة الشبكة", telemetry.networkType)
                                     DiagMetricRow("الجهاز والنظام", "${telemetry.deviceModel} - ${telemetry.cpuAbi}")
-                                    DiagMetricRow("إصدار تطبيق مساعد المسلم", telemetry.appVersion)
+                                    DiagMetricRow("إصدار تطبيق خادم المسلم", telemetry.appVersion)
                                 }
                             }
 

@@ -26,7 +26,7 @@ import java.io.OutputStream
  * ImageEditorEngine.kt
  * محرك معالجة وتصدير الصور — موصول بعدة التصميم DesignDesignKit:
  * خلفيات (صورة/سادة/تدرّج/ذكاء اصطناعي/ضبابية)، فلاتر لونية، نصوص عربية متعددة
- * بخطوط مضمّنة، زخارف، أختيار الدقة والصيغة، وعلامة مساعد المسلم القابلة للإيقاف.
+ * بخطوط مضمّنة، زخارف، أختيار الدقة والصيغة، وعلامة خادم المسلم القابلة للإيقاف.
  */
 
 data class ImageAdjustmentParams(
@@ -83,7 +83,7 @@ object ImageEditorEngine {
                         drawCoverBitmap(canvas, aiBitmap, finalW, finalH, matrixFilter)
                         aiBitmap.recycle()
                     } else {
-                        // بلا خلفية وهمية: تدرج احتياطي معتم على نفس هوية مساعد المسلم
+                        // بلا خلفية وهمية: تدرج احتياطي معتم على نفس هوية خادم المسلم
                         drawGradientBackground(canvas, finalW, finalH, listOf("#0B0F19", "#3B2A10", "#0B0F19"))
                     }
                 }
@@ -154,7 +154,7 @@ object ImageEditorEngine {
                 DesignCanvasText.drawBlock(canvas, finalW, finalH, block, designFontTypeface(context, block.style.font))
             }
 
-            // 6. علامة مساعد المسلم (قابلة للإيقاف)
+            // 6. علامة خادم المسلم (قابلة للإيقاف)
             if (params.showBrandWatermark) {
                 drawBrandWatermark(canvas, finalW, finalH, params.resolutionScale)
             }
@@ -276,7 +276,7 @@ object ImageEditorEngine {
             isFakeBoldText = true
             setShadowLayer(4f, 1f, 1f, android.graphics.Color.BLACK)
         }
-        canvas.drawText("✦ مساعد المسلم | QABAS STUDIO ✦", width / 2f, height - (40f * scale), brandPaint)
+        canvas.drawText("✦ خادم المسلم | QABAS STUDIO ✦", width / 2f, height - (40f * scale), brandPaint)
     }
 
     private fun saveImageToGallery(context: Context, bitmap: Bitmap, title: String, isPng: Boolean) {

@@ -1143,7 +1143,7 @@ fun DeveloperKeyStatusHub(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        "تتوزع المفاتيح الـ 14 في تطبيق مساعد المسلم ضمن طبقات معمارية متكاملة تضمن أعلى دقة وموثوقية:",
+                        "تتوزع المفاتيح الـ 14 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة تضمن أعلى دقة وموثوقية:",
                         fontFamily = NotoSansFont,
                         color = TextSecondary,
                         fontSize = 11.sp

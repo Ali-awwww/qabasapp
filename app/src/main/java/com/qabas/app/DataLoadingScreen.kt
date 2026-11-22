@@ -82,7 +82,7 @@ fun DataLoadingScreen(
 
     var currentStep by remember { mutableIntStateOf(0) }
     var overallProgress by remember { mutableFloatStateOf(0f) }
-    var statusText by remember { mutableStateOf("جاري تجهيز مساعد المسلم...") }
+    var statusText by remember { mutableStateOf("جاري تجهيز خادم المسلم...") }
     var loadError by remember { mutableStateOf<String?>(null) }
     var retryToken by remember { mutableIntStateOf(0) }
 
@@ -176,7 +176,7 @@ fun DataLoadingScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "شعار مساعد المسلم",
+                        contentDescription = "شعار خادم المسلم",
                         tint = theme.primary,
                         modifier = Modifier.size(44.dp)
                     )
@@ -186,7 +186,7 @@ fun DataLoadingScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             Text(
-                text = "مساعد المسلم",
+                text = "خادم المسلم",
                 color = theme.textPrimary,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,

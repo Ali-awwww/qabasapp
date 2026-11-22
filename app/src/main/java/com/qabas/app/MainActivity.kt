@@ -134,6 +134,9 @@ fun RatioButton(
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Cold start uses Theme.Khadim.Splash from the manifest; switch back to
+        // the normal theme before the window is created.
+        setTheme(R.style.Theme_MyApplication)
         super.onCreate(savedInstanceState)
         
         // Restore a previously verified recovery session, then handle any cold-start callback.
@@ -200,6 +203,7 @@ class MainActivity : ComponentActivity() {
 
             val highContrast by UserPreferencesManager.highContrastMode.collectAsState()
             val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
+            var showSplash by rememberSaveable { mutableStateOf(true) }
             val globalTextScale by UserPreferencesManager.globalTextScale.collectAsState()
 
             val density = androidx.compose.ui.platform.LocalDensity.current
@@ -283,6 +287,17 @@ class MainActivity : ComponentActivity() {
                                         com.qabas.app.ui.components.NetworkHUD()
                                 com.qabas.app.ui.components.OnlineHUD()
                                     }
+                                }
+
+                                // Brand splash overlay: covers the content until it
+                                // dismisses itself (~1.4s); the app keeps
+                                // initialising underneath.
+                                if (showSplash) {
+                                    KhadimSplashScreen(
+                                        reducedMotion = reducedMotion,
+                                        modifier = Modifier.zIndex(20f),
+                                        onFinished = { showSplash = false }
+                                    )
                                 }
 
                             }
@@ -877,7 +892,7 @@ class MainActivity : ComponentActivity() {
         val uri = intent.data
         if (uri != null && uri.host == QabasWebConfig.OFFICIAL_WEB_HOST) {
             val path = uri.path.orEmpty()
-            android.widget.Toast.makeText(this, "مرحباً بك في تطبيق مساعد المسلم عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, "مرحباً بك في تطبيق خادم المسلم عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
         }
 
         if (uri != null && uri.scheme == "qabas" && uri.host == "github-callback") {

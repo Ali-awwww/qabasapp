@@ -530,7 +530,7 @@ fun GoogleSupabaseSetupDialog(
                                         StepItem(
                                             number = "2",
                                             title = "تهيئة شاشة الموافقة (OAuth Consent Screen)",
-                                            description = "اختر External، اكتب اسم التطبيق (مساعد المسلم)، وأضف بريدك ونطاقات email, profile, openid."
+                                            description = "اختر External، اكتب اسم التطبيق (خادم المسلم)، وأضف بريدك ونطاقات email, profile, openid."
                                         )
 
                                         StepItem(

@@ -117,7 +117,7 @@ object GatewayAiService {
                     }
                     if (config.provider == AiProviderType.OPENROUTER) {
                         reqBuilder.header("HTTP-Referer", "https://qabas.app")
-                        reqBuilder.header("X-Title", "Muslim Assistant")
+                        reqBuilder.header("X-Title", "Muslim AI Assistant")
                     }
 
                     val response = directClient.newCall(reqBuilder.build()).execute()
