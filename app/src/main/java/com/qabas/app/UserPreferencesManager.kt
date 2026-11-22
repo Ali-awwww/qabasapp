@@ -660,6 +660,98 @@ object UserPreferencesManager {
         // المستمع المسجّل في init() — لا استدعاء صريح هنا.
     }
 
+    /**
+     * علامات المصحف (خارطة المصحف — المرحلة 1): آية + لون + ملاحظة اختيارية.
+     * تخزين محلي فقط في SharedPreferences (مصفوفة JSON تحت مفتاح
+     * "mushaf_bookmarks") — المفتاح غير مدرج في CLOUD_SYNCED_QABAS_KEYS
+     * عمداً فلا مزامنة سحابية ولا ادعاء بها: جدول library_reading_state
+     * في Supabase مخصص لحالات قراءة كتب المكتبة (مفتاحه معرّف كتاب)
+     * ولا يصلح لعلامات آيات قرآنية، فلا نعيد استخدامه هنا.
+     */
+    data class MushafBookmark(
+        val surah: Int,
+        val ayah: Int,
+        val colorArgb: Int,
+        val note: String,
+        val createdAtMillis: Long
+    )
+
+    /** لوحة ألوان العلامات الثابتة: (قيمة ARGB، الاسم العربي). */
+    val MUSHAF_BOOKMARK_COLORS: List<Pair<Int, String>> = listOf(
+        0xFFD4AF37.toInt() to "ذهبي",
+        0xFF10B981.toInt() to "أخضر",
+        0xFF0EA5E9.toInt() to "أزرق",
+        0xFF8B5CF6.toInt() to "بنفسجي",
+        0xFFEC4899.toInt() to "وردي"
+    )
+
+    val MUSHAF_BOOKMARK_DEFAULT_COLOR: Int = 0xFFD4AF37.toInt()
+
+    /** أقصى طول لملاحظة العلامة — يُقصّ الزائد عند الحفظ لا عند العرض. */
+    const val MUSHAF_BOOKMARK_MAX_NOTE_LENGTH = 200
+
+    fun getMushafBookmarks(context: Context): List<MushafBookmark> {
+        val prefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString("mushaf_bookmarks", null) ?: return emptyList()
+        return try {
+            val array = JSONArray(raw)
+            val result = ArrayList<MushafBookmark>(array.length())
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val surah = obj.optInt("s", 0)
+                val ayah = obj.optInt("a", 0)
+                if (surah !in 1..114 || ayah < 1) continue
+                result += MushafBookmark(
+                    surah = surah,
+                    ayah = ayah,
+                    colorArgb = obj.optInt("c", MUSHAF_BOOKMARK_DEFAULT_COLOR),
+                    note = obj.optString("n", "").take(MUSHAF_BOOKMARK_MAX_NOTE_LENGTH),
+                    createdAtMillis = obj.optLong("t", 0L)
+                )
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getMushafBookmark(context: Context, surah: Int, ayah: Int): MushafBookmark? =
+        getMushafBookmarks(context).firstOrNull { it.surah == surah && it.ayah == ayah }
+
+    /** إضافة أو تحديث علامة (مفتاحها السورة:الآية)؛ الأحدث أولاً. */
+    fun saveMushafBookmark(context: Context, bookmark: MushafBookmark) {
+        if (bookmark.surah !in 1..114 || bookmark.ayah < 1) return
+        val cleaned = bookmark.copy(
+            note = bookmark.note.trim().take(MUSHAF_BOOKMARK_MAX_NOTE_LENGTH)
+        )
+        val kept = getMushafBookmarks(context)
+            .filterNot { it.surah == cleaned.surah && it.ayah == cleaned.ayah }
+        writeMushafBookmarks(context, listOf(cleaned) + kept)
+    }
+
+    fun removeMushafBookmark(context: Context, surah: Int, ayah: Int) {
+        val kept = getMushafBookmarks(context)
+            .filterNot { it.surah == surah && it.ayah == ayah }
+        writeMushafBookmarks(context, kept)
+    }
+
+    private fun writeMushafBookmarks(context: Context, bookmarks: List<MushafBookmark>) {
+        val array = JSONArray()
+        for (bookmark in bookmarks) {
+            array.put(
+                JSONObject()
+                    .put("s", bookmark.surah)
+                    .put("a", bookmark.ayah)
+                    .put("c", bookmark.colorArgb)
+                    .put("n", bookmark.note)
+                    .put("t", bookmark.createdAtMillis)
+            )
+        }
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_bookmarks", array.toString())
+            .apply()
+    }
+
     // Helper to resolve font family
     fun getResolvedFontFamily(key: String = _readingFontFamily.value): FontFamily {
         return when (key) {

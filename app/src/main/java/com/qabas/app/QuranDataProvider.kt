@@ -776,4 +776,31 @@ object QuranDataProvider {
         }
         return results.sortedWith(compareBy({ it.surahNumber }, { it.verseNumber }))
     }
+
+    /**
+     * بحث أسماء السور بالعربية (خارطة المصحف — المرحلة 1): التطبيع نفسه
+     * المستعمل في بحث الآيات (بلا تشكيل/تطويل، وتوحيد الهمزات)، فيجد
+     * «البقره» و«البقرة» معاً. استعلام رقمي (أرقام عربية أو غربية) يطابق
+     * رقم السورة مباشرة. استعلام فارغ يرجع السور الـ 114 بالترتيب.
+     */
+    fun searchSurahs(query: String): List<QuranSurahItem> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return surahs
+        val westernDigits = trimmed
+            .map { ch ->
+                when (ch) {
+                    in '٠'..'٩' -> ('0' + (ch - '٠'))
+                    in '۰'..'۹' -> ('0' + (ch - '۰'))
+                    else -> ch
+                }
+            }.joinToString("")
+        westernDigits.toIntOrNull()?.let { number ->
+            if (number in 1..114) {
+                return surahs.filter { it.id == number }
+            }
+        }
+        val needle = normalizeArabicText(trimmed)
+        if (needle.isEmpty()) return emptyList()
+        return surahs.filter { normalizeArabicText(it.name).contains(needle) }
+    }
 }
