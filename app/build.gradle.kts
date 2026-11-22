@@ -136,6 +136,20 @@ secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+  // مفاتيح مزودي الذكاء الاصطناعي والوسائط: لا تُولَّد في BuildConfig أبداً (أمان الدفعة 1).
+  // المصدر الوحيد لها هو ما يدخله المستخدم في الواجهة (مسبح المفاتيح + التفضيلات المشفرة).
+  ignoreList.add("GEMINI_API_KEY")
+  ignoreList.add("GROQ_API_KEY")
+  ignoreList.add("OPENAI_API_KEY")
+  ignoreList.add("OPENROUTER_API_KEY")
+  ignoreList.add("HUGGINGFACE_API_KEY")
+  ignoreList.add("ANTHROPIC_API_KEY")
+  ignoreList.add("AZURE_SPEECH_KEY")
+  ignoreList.add("AZURE_SPEECH_REGION")
+  ignoreList.add("ELEVENLABS_API_KEY")
+  ignoreList.add("PEXELS_API_KEY")
+  ignoreList.add("PIXABAY_API_KEY")
+  ignoreList.add("COVERR_API_KEY")
   ignoreList.add("AW_CLIENT_ID")
   ignoreList.add("AW_CLIENT_SECRET")
   ignoreList.add("QF_CLIENT_ID")

@@ -210,7 +210,7 @@ fun StudioGatewayScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
-                        title = "MoneyPrinter Turbo ⚡",
+                        title = "أدوات دخل المبدعين ⚡",
                         description = "أتمتة إنتاج الريلز والشورتس بضغطة زر واحدة (سكربت + صوت + لقطات).",
                         badge = "AUTOMATION",
                         badgeColor = Color(0xFF10B981),

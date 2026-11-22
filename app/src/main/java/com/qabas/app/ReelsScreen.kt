@@ -111,6 +111,11 @@ private fun formatRelativeTime(iso: String?): String {
  * 🌟 خلاصة المقاطع الأصلية الجاهزة (Authentic Starter Reels Feed)
  * تلاوات قرآنية وتدبرات إسلامية متوافقة مع ExoPlayer تعمل للضيف وفي حال انقطاع الشبكة
  */
+/**
+ * مقاطع احتياطية محلية تُعرض فقط عند غياب أي مقاطع من قاعدة البيانات.
+ * لا تحمل هذه المقاطع أي بيانات تفاعل حقيقية، فعداداتها كلها صفر —
+ * يُمنع عرض أرقام مخترعة؛ العدادات الحقيقية يجب أن تأتي من قاعدة البيانات.
+ */
 private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
     SupabaseServices.ReelRow(
         id = "qabas_quran_recitation_starter",
@@ -123,9 +128,9 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
         videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/quran_recitation.mp4",
         thumbnailUrl = "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=600&q=80",
         tags = listOf("قرآن", "تلاوة", "خشوع", "سكينة", "ذكر"),
-        likesCount = 1420,
-        commentsCount = 85,
-        sharesCount = 312,
+        likesCount = 0,
+        commentsCount = 0,
+        sharesCount = 0,
         createdAt = "2025-01-01T12:00:00Z"
     ),
     SupabaseServices.ReelRow(
@@ -139,9 +144,9 @@ private val AUTHENTIC_STARTER_REELS: List<SupabaseServices.ReelRow> = listOf(
         videoUrl = "https://egkgygbvoeevakwkbvfu.supabase.co/storage/v1/object/public/media-assets/starter_reels/faith_lecture.mp4",
         thumbnailUrl = "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80",
         tags = listOf("مواعظ", "تذكير", "آخرة", "زهد", "قلب"),
-        likesCount = 2210,
-        commentsCount = 130,
-        sharesCount = 470,
+        likesCount = 0,
+        commentsCount = 0,
+        sharesCount = 0,
         createdAt = "2025-01-02T15:30:00Z"
     )
 )

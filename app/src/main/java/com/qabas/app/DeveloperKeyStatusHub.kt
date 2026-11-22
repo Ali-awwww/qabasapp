@@ -278,17 +278,11 @@ fun DeveloperKeyStatusHub(
         if (fromSp.isNotBlank()) return fromSp
 
         return when (spec.envName) {
-            "GEMINI_API_KEY" -> runCatching {
-                BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String ?: ""
-            }.getOrDefault("")
-            "OPENAI_API_KEY" -> runCatching { BuildConfig.OPENAI_API_KEY }.getOrDefault("")
-            "GROQ_API_KEY" -> runCatching { BuildConfig.GROQ_API_KEY }.getOrDefault("")
-            "OPENROUTER_API_KEY" -> runCatching { BuildConfig.OPENROUTER_API_KEY }.getOrDefault("")
-            "ELEVENLABS_API_KEY" -> runCatching { BuildConfig.ELEVENLABS_API_KEY }.getOrDefault("")
-            "HUGGINGFACE_API_KEY" -> runCatching { BuildConfig.HUGGINGFACE_API_KEY }.getOrDefault("")
-            "PEXELS_API_KEY" -> runCatching { BuildConfig.PEXELS_API_KEY }.getOrDefault("")
-            "PIXABAY_API_KEY" -> runCatching { BuildConfig.PIXABAY_API_KEY }.getOrDefault("")
-            "COVERR_API_KEY" -> runCatching { BuildConfig.COVERR_API_KEY }.getOrDefault("")
+            // مفاتيح المزودين لا تُقرأ من BuildConfig أبداً (أمان الدفعة 1):
+            // المصدر الوحيد هو ما أدخله المستخدم في الواجهة (يُقرأ أعلاه من SharedPreferences).
+            "GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
+            "ELEVENLABS_API_KEY", "HUGGINGFACE_API_KEY", "PEXELS_API_KEY", "PIXABAY_API_KEY",
+            "COVERR_API_KEY" -> ""
             "QF_CLIENT_ID" -> runCatching { BuildConfig.QF_CLIENT_ID }.getOrDefault("")
             "QF_CLIENT_SECRET" -> runCatching { BuildConfig.QF_CLIENT_SECRET }.getOrDefault("")
             "SUPABASE_URL" -> SupabaseConfig.url

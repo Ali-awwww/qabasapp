@@ -109,8 +109,8 @@ object ApiKeyValidator {
                             suggestedFix = "افتح aistudio.google.com/app/apikey ثم اضغط «Create API key» في مشروع جديد وانسخ المفتاح كاملاً (يبدأ بـ AIzaSy…) دون أي مسافات."
                         )
                     }
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models?key=$trimmedKey"
-                    val request = Request.Builder().url(url).build()
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models"
+                    val request = Request.Builder().url(url).header("x-goog-api-key", trimmedKey).build()
                     val response = client.newCall(request).execute()
                     val code = response.code
                     val bodyStr = response.body?.string().orEmpty()

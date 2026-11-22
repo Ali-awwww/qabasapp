@@ -184,7 +184,7 @@ fun ConnectorsSection(
                 ConnectorState(
                     id = "moneyprinter",
                     title = "سحابة إنتاج الريلز ودبلجة الصوت",
-                    technicalName = "MoneyPrinter Turbo FastAPI Engine + Edge-TTS",
+                    technicalName = "أدوات دخل المبدعين — FastAPI Engine + Edge-TTS",
                     icon = Icons.Default.Movie,
                     category = "AUTONOMOUS REELS",
                     usedIn = "قسم إنتاج الفيديو: أتمتة توليد مقاطع الريلز والشورتس 9:16 حياً",
@@ -465,7 +465,7 @@ fun ConnectorsSection(
                     val status = MoneyPrinterTurboService.pingServer(url)
                     val latency = System.currentTimeMillis() - startTime
                     if (status.isOnline) {
-                        set("moneyprinter", true, "خادم MoneyPrinter متصل بنجاح (${status.latencyMs}ms)", latency)
+                        set("moneyprinter", true, "خادم أدوات دخل المبدعين متصل بنجاح (${status.latencyMs}ms)", latency)
                     } else {
                         set("moneyprinter", true, "المحرك المستقل نشط بـ Edge-TTS المجاني ومونتاج FFmpeg", latency)
                     }

@@ -1410,7 +1410,7 @@ fun AppNavigation(
                 onOpenInProEditor = { videoPath ->
                     viewModel.updateState {
                         copy(
-                            libraryScenes = listOf(Scene("فيديو MoneyPrinter Turbo", "ريلز ذاتي جاهز", 15, mediaUrl = videoPath)),
+                            libraryScenes = listOf(Scene("فيديو أدوات دخل المبدعين", "ريلز ذاتي جاهز", 15, mediaUrl = videoPath)),
                             appState = AppState.ADVANCED_EDIT
                         )
                     }
