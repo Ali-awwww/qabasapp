@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -47,10 +48,14 @@ class AppReviewsTest {
 
     @Test
     fun testRatingCoercionAndDefaults() {
+        // القيم الافتراضية الصادقة (الدفعة 6): لا تقييم مختلق ولا توثيق مختلق.
+        // غياب التقييم في الصف يعني 0 لا 5، والمراجعة غير موثقة حتى يثبت
+        // تأكيد بريد صاحبها، ولا إصدار افتراضي مختلق.
         val defaultReview = SupabaseServices.AppReviewDto()
-        assertEquals(5, defaultReview.rating)
-        assertEquals("مستخدم مساعد المسلم", defaultReview.authorName)
-        assertTrue(defaultReview.verifiedUser)
+        assertEquals(0, defaultReview.rating)
+        assertEquals("مستخدم قبس", defaultReview.authorName)
+        assertFalse(defaultReview.verifiedUser)
+        assertEquals("", defaultReview.appVersion)
         assertNotNull(defaultReview.id)
     }
 }
