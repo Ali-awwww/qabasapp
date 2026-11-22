@@ -162,8 +162,7 @@ fun ReelsScreen(
     onBack: () -> Unit,
     bottomBar: @Composable () -> Unit = {},
     onOpenProfile: () -> Unit = {},
-    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C؛ تُمرَّر من AppNavigation):
-    // مقطع محدد أو صانع محدد.
+    // روابط عميقة عند الدخول (الدفعة 5 — الجزء C؛ تُمرَّر من AppNavigation).
     initialReelId: String? = null,
     initialCreatorId: String? = null,
     initialCreatorName: String? = null,

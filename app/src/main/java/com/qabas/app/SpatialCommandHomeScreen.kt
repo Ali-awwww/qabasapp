@@ -87,7 +87,6 @@ fun SpatialCommandHomeScreen(
     onRules: () -> Unit = {},
     onAiStudioAgent: () -> Unit = {},
     onViewDownloads: () -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
     // وجهات نتائج البحث العام — الافتراضي يفتح قسم كل نتيجة (تُمرَّر من
     // AppNavigation عند توفر تنقّل عميق إلى الآية/الحديث/الكتاب/المقطع).
     // واجهة البحث العام وشريط «أكمل» من الدفعة 3؛ تُمرَّران إلى
@@ -98,7 +97,8 @@ fun SpatialCommandHomeScreen(
     onOpenReel: (String) -> Unit = { onReels() },
     onOpenCreator: (String, String) -> Unit = { _, _ -> onReels() },
     // فتح قارئ المصحف عند موضع محدد (سورة، آية، صفحة) — الدفعة 5 الجزء C.
-    onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() }
+    onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() },
+    bottomBar: @Composable () -> Unit = {}
 ) {
     val theme = QabasTheme.current
     val context = LocalContext.current

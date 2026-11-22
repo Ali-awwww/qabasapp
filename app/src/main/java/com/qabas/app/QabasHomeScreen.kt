@@ -81,7 +81,6 @@ fun HomeScreen(
     onRules: () -> Unit = {},
     onAiStudioAgent: () -> Unit = {},
     onViewDownloads: () -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
     // وجهات نتائج البحث العام — الافتراضي يفتح قسم كل نتيجة.
     // (الدفعة 5 — الجزء C: تُمرَّر دوال حقيقية من AppNavigation؛ واجهة
     // البحث العام نفسها من الدفعة 3، فتُمرَّر هنا إلى HomeGlobalSearch.)
@@ -91,7 +90,8 @@ fun HomeScreen(
     onOpenReel: (String) -> Unit = { onReels() },
     onOpenCreator: (String, String) -> Unit = { _, _ -> onReels() },
     // فتح قارئ المصحف عند موضع محدد (سورة، آية، صفحة) — الدفعة 5 الجزء C.
-    onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() }
+    onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() },
+    bottomBar: @Composable () -> Unit = {}
 ) {
     val homeStyle = HomeScreenStyleManager.currentStyle.collectAsState().value
     if (homeStyle == HomeScreenStyle.SPATIAL_CYBER_HUD) {
@@ -135,13 +135,13 @@ fun HomeScreen(
             onRules = onRules,
             onAiStudioAgent = onAiStudioAgent,
             onViewDownloads = onViewDownloads,
-            bottomBar = bottomBar,
             onOpenQuranVerse = onOpenQuranVerse,
             onOpenHadith = onOpenHadith,
             onOpenLibraryBook = onOpenLibraryBook,
             onOpenReel = onOpenReel,
             onOpenCreator = onOpenCreator,
-            onOpenMushaf = onOpenMushaf
+            onOpenMushaf = onOpenMushaf,
+            bottomBar = bottomBar
         )
         return
     }
