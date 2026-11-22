@@ -203,7 +203,7 @@ fun HasanatHubScreen(
                     )
                     HorizontalDivider(color = theme.separator.copy(alpha = 0.5f))
                     Text(
-                        Translator.tr("نسخة التطبيق: 1.2.5 (الإصدار الذهبي)"),
+                        Translator.tr("نسخة التطبيق: 1.3.7 (الإصدار الذهبي)"),
                         color = theme.primary,
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
@@ -228,14 +228,8 @@ fun HasanatHubScreen(
         "khatma" -> QuranKhatmaDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "hajj" -> HajjUmrahDialog(onDismiss = { viewModel.dismissToolDialog() })
         "hijri" -> HijriCalendarDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
-        "tasbeeh" -> SmartTasbeehDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "habits" -> HabitsTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "stats" -> WorshipAnalyticsDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
-        "qibla" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.PRAYER_TIMES); viewModel.dismissToolDialog() }
-        "hadith" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.ISLAMIC_LIBRARY); viewModel.dismissToolDialog() }
-        "learn" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.SCHOLAR_BIOGRAPHIES); viewModel.dismissToolDialog() }
-        "share" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.PHOTO_STUDIO); viewModel.dismissToolDialog() }
-        "reward" -> LaunchedEffect(activeToolDialog) { onNavigate(AppState.REWARDS); viewModel.dismissToolDialog() }
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")

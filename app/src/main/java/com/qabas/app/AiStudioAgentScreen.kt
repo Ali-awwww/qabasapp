@@ -74,7 +74,6 @@ private fun agentModelsFor(provider: DetectedProvider): List<String> = when (pro
 @Composable
 fun AiStudioAgentScreen(
     onBack: () -> Unit,
-    onOpenDeveloperDashboard: () -> Unit = {},
     onOpenTeamConfig: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
     initialTab: Int = 0

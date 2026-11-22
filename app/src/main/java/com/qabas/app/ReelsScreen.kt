@@ -255,8 +255,6 @@ fun ReelsScreen(
 
     // Interactive & Spatial Experience State
     var isKhushuMode by remember { mutableStateOf(false) }
-    var showSoundscapeBar by remember { mutableStateOf(false) }
-    var showTadabburCard by remember { mutableStateOf(false) }
     // عدّاد التعليقات المُضافة جالسياً بعد نشر تعليق ناجح (يدمج مع عدّاد الصف)
     var commentBumps by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
@@ -338,8 +336,6 @@ fun ReelsScreen(
     // Graceful Back Handling (DevChat -> Sheets -> Search -> Home)
     BackHandler {
         when {
-            showSoundscapeBar -> showSoundscapeBar = false
-            showTadabburCard -> showTadabburCard = false
             isKhushuMode -> isKhushuMode = false
             activeAudioReel != null -> activeAudioReel = null
             activeCreatorProfile != null -> activeCreatorProfile = null

@@ -76,7 +76,6 @@ fun isKeyConfigured(value: String): Boolean {
 @Composable
 fun DeveloperKeyStatusHub(
     onBack: () -> Unit,
-    onNavigateToEditKey: ((String) -> Unit)? = null,
     showTopBar: Boolean = false
 ) {
     val context = LocalContext.current
