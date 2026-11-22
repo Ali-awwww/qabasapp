@@ -73,7 +73,7 @@ fun AiSmartDirectorScreen(
                 Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(64.dp))
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "اشترك في مساعد المسلم برو 👑",
+                    "اشترك في خادم المسلم برو 👑",
                     color = Color.White,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,

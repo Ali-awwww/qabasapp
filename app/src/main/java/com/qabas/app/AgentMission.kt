@@ -372,7 +372,7 @@ private suspend fun executeAgentMissionInner(
     onUpdate(mission)
 
     val sysInstruction = """
-        أنت مهندس وكيل ذكي مستقل لتطبيق «استوديو مساعد المسلم» لنظام Android (Kotlin + Jetpack Compose + Material 3).
+        أنت مهندس وكيل ذكي مستقل لتطبيق «استوديو خادم المسلم» لنظام Android (Kotlin + Jetpack Compose + Material 3).
         المهمة المطلوبة من المستخدم: $prompt
         نمط تخصص الوكيل: ${spec.title}
         

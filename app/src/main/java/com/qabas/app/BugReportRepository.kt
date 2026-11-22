@@ -165,7 +165,7 @@ object BugReportRepository {
             "— معلومات تشخيصية تلقائية —",
             "إصدار Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})",
             "الجهاز: ${Build.MANUFACTURER} ${Build.MODEL}",
-            "إصدار مساعد المسلم: v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            "إصدار خادم المسلم: v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
             "دقة الشاشة: $screenSize | كثافة العرض: $density",
             "الشبكة: $networkDescription",
             "ملاحظة: لا تتضمن هذه المعلومات الموقع أو عنوان IP."
@@ -349,7 +349,7 @@ object BugReportRepository {
         }
 
         val message = if (isSynced) {
-            "تم إرسال بلاغك بنجاح إلى المطور وسحابة مساعد المسلم! شكراً لمساعدتك 🚀"
+            "تم إرسال بلاغك بنجاح إلى المطور وسحابة خادم المسلم! شكراً لمساعدتك 🚀"
         } else {
             "تم تسجيل بلاغك بنجاح وحفظه على جهازك! سيتم رفعه تلقائياً فور توفر الاتصال 🚀"
         }

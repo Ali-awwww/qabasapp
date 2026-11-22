@@ -682,7 +682,7 @@ private fun shareThumbnailImage(
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(android.content.Intent.EXTRA_STREAM, uri)
-            putExtra(android.content.Intent.EXTRA_TEXT, "$headlineText - $sublineText\n\nغلاف فيديو مصمم عبر استوديو مساعد المسلم")
+            putExtra(android.content.Intent.EXTRA_TEXT, "$headlineText - $sublineText\n\nغلاف فيديو مصمم عبر استوديو خادم المسلم")
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(android.content.Intent.createChooser(intent, "مشاركة الغلاف المصغر"))

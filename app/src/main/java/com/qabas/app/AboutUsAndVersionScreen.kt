@@ -44,20 +44,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 val FULL_OFFICIAL_PRIVACY_POLICY = """
-ميثاق الخصوصية والضوابط الشرعية لتطبيق مساعد المسلم (Muslim Assistant)
+ميثاق الخصوصية والضوابط الشرعية لتطبيق خادم المسلم (Muslim AI Assistant)
 الإصدار المعتمد: v1.0.0
 
 بسم الله الرحمن الرحيم
 «إِنَّ السَّمْعَ وَالْبَصَرَ وَالْفُؤَادَ كُلُّ أُولَٰئِكَ كَانَ عَنْهُ مَسْئُولًا» [الإسراء: 36]
 
 ١. النزاهة والمحتوى الشرعي النقي:
-يلتزم تطبيق مساعد المسلم بضمان خلو كافة التصاميم والتلاوات والأصوات والنصوص من أي مخالفات شرعية أو عقدية، وتخلو المقاطع المنتجة تماماً من المعازف والآلات الموسيقية المحرمة.
+يلتزم تطبيق خادم المسلم بضمان خلو كافة التصاميم والتلاوات والأصوات والنصوص من أي مخالفات شرعية أو عقدية، وتخلو المقاطع المنتجة تماماً من المعازف والآلات الموسيقية المحرمة.
 
 ٢. التخزين المحلي المشفر وحفظ الأمانات (Offline-First):
 تُخزن جميع المشاريع والتسجيلات الخاصة بك محلياً داخل جهازك في قاعدة بيانات Room مشفرة. لا نقوم برفع أو قراءة ملفاتك الشخصية، والتطبيق يعمل بشكل كامل دون الحاجة لاتصال بالإنترنت أو موقع ويب خارجي.
 
 ٣. عدم بيع أو مشاركة البيانات:
-لا نقوم بجمع أو بيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق مساعد المسلم خالٍ تماماً من الإعلانات التجارية وأدوات التتبع الربحية.
+لا نقوم بجمع أو بيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق خادم المسلم خالٍ تماماً من الإعلانات التجارية وأدوات التتبع الربحية.
 
 ٤. أمان المعالجة والذكاء الاصطناعي المسؤول:
 تتم معالجة نصوص الآيات والأحاديث النبوية والتفاسير وفق منهج أهل السنة والجماعة المعتمد، ولا يتم توليد أي محتوى يمس ثوابت العقيدة الإسلامية.
@@ -66,7 +66,7 @@ val FULL_OFFICIAL_PRIVACY_POLICY = """
 يملك المستخدم السيطرة الكاملة على بياناته، مع إمكانية مسح الذاكرة المؤقتة، تصفير المشاريع، أو حذف كافة الملفات بلمسة واحدة من داخل التطبيق. كما يمكنه حذف حسابه نهائياً من إعدادات الحساب (بعد تصدير نسخة احتياطية إن أراد): يُحذف حساب المصادقة وملفه الشخصي وبياناته السحابية، وتُسجَّل خروج جلسته.
 
 ٦. التواصل والدعم الفني المباشر:
-للتواصل المباشر مع فريق التطوير أو الانضمام لمجتمع مساعد المسلم الرسمي على واتساب:
+للتواصل المباشر مع فريق التطوير أو الانضمام لمجتمع خادم المسلم الرسمي على واتساب:
 https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&mlu=4&ilr=4
 """.trimIndent()
 
@@ -183,7 +183,7 @@ fun AboutUsAndVersionScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "عن مساعد المسلم وسجل التحديثات",
+                                "عن خادم المسلم وسجل التحديثات",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -205,7 +205,7 @@ fun AboutUsAndVersionScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        val shareText = "✨ تطبيق «مساعد المسلم | Muslim Assistant» v${BuildConfig.VERSION_NAME}\nاستوديو صناعة المحتوى الإسلامي والقرآن الكريم بالذكاء الاصطناعي.\n💬 انضم لمجتمع مساعد المسلم الرسمي على واتساب:\n$officialWhatsAppGroupUrl"
+                        val shareText = "✨ تطبيق «خادم المسلم | Muslim AI Assistant» v${BuildConfig.VERSION_NAME}\nاستوديو صناعة المحتوى الإسلامي والقرآن الكريم بالذكاء الاصطناعي.\n💬 انضم لمجتمع خادم المسلم الرسمي على واتساب:\n$officialWhatsAppGroupUrl"
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, shareText)
@@ -271,7 +271,7 @@ fun AboutUsAndVersionScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.LocalFireDepartment,
-                                    contentDescription = "شعار مساعد المسلم",
+                                    contentDescription = "شعار خادم المسلم",
                                     tint = GoldPrimary,
                                     modifier = Modifier.size(38.dp)
                                 )
@@ -280,7 +280,7 @@ fun AboutUsAndVersionScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             Text(
-                                text = "مَنظُومَة مساعد المسلم الإِسْلَامِيَّة",
+                                text = "مَنظُومَة خادم المسلم الإِسْلَامِيَّة",
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -288,7 +288,7 @@ fun AboutUsAndVersionScreen(
                             )
 
                             Text(
-                                text = "Muslim Assistant & Islamic Knowledge Hub",
+                                text = "Muslim AI Assistant & Islamic Knowledge Hub",
                                 color = qabasTextSecondary(),
                                 fontFamily = NotoSansFont,
                                 fontSize = 11.sp,
@@ -330,7 +330,7 @@ fun AboutUsAndVersionScreen(
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        text = "﴿ إِذْ رَأَىٰ نَارًا فَقَالَ لِأَهْلِهِ امْكُثُوا إِنِّي آنَسْتُ نَارًا لَّعَلِّي آتِيكُم مِّنْهَا بِمساعد المسلمٍ ﴾",
+                                        text = "﴿ إِذْ رَأَىٰ نَارًا فَقَالَ لِأَهْلِهِ امْكُثُوا إِنِّي آنَسْتُ نَارًا لَّعَلِّي آتِيكُم مِّنْهَا بِقَبَسٍ ﴾",
                                         color = Color(0xFFF8FAFC),
                                         fontFamily = AmiriFont,
                                         fontSize = 14.sp,
@@ -350,7 +350,7 @@ fun AboutUsAndVersionScreen(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
-                                text = "مساعد المسلم هو استوديو متكامل في جيبك لصناعة المحتوى الدعوي والإسلامي الهادف بالذكاء الاصطناعي، يجمع بين تلاوة وتدبر القرآن الكريم، الصحيحين، الإخراج السينمائي، والتعليق الصوتي الصافي.",
+                                text = "خادم المسلم هو استوديو متكامل في جيبك لصناعة المحتوى الدعوي والإسلامي الهادف بالذكاء الاصطناعي، يجمع بين تلاوة وتدبر القرآن الكريم، الصحيحين، الإخراج السينمائي، والتعليق الصوتي الصافي.",
                                 color = qabasTextPrimary(),
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
@@ -410,7 +410,7 @@ fun AboutUsAndVersionScreen(
                 }
             }
 
-            // 🌐 بطاقة الموقع الرسمي والمستودع السحابي لمنظومة مساعد المسلم (Official Web Hub & Cloud Repository)
+            // 🌐 بطاقة الموقع الرسمي والمستودع السحابي لمنظومة خادم المسلم (Official Web Hub & Cloud Repository)
             item {
                 Card(
                     modifier = Modifier
@@ -439,7 +439,7 @@ fun AboutUsAndVersionScreen(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        "بوابة مساعد المسلم والمستودع السحابي",
+                                        "بوابة خادم المسلم والمستودع السحابي",
                                         color = GoldPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
@@ -516,7 +516,7 @@ fun AboutUsAndVersionScreen(
 
                             Button(
                                 onClick = {
-                                    QabasLinkOpener.openUrl(context, QabasWebConfig.URL_LECTURES, "محاضرات مساعد المسلم")
+                                    QabasLinkOpener.openUrl(context, QabasWebConfig.URL_LECTURES, "محاضرات خادم المسلم")
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                                 shape = RoundedCornerShape(10.dp),
@@ -550,7 +550,7 @@ fun AboutUsAndVersionScreen(
                 }
             }
 
-            // 💬 بطاقة مجموعة ومجتمع مساعد المسلم الرسمي (Official Community & Discussion Group)
+            // 💬 بطاقة مجموعة ومجتمع خادم المسلم الرسمي (Official Community & Discussion Group)
             item {
                 val groupUrl = remember { QabasWebConfig.getOfficialGroupUrl(context) }
                 Card(
@@ -580,7 +580,7 @@ fun AboutUsAndVersionScreen(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        "مجموعة ومجتمع مساعد المسلم الرسمي",
+                                        "مجموعة ومجتمع خادم المسلم الرسمي",
                                         color = Color(0xFF10B981),
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
@@ -783,7 +783,7 @@ fun AboutUsAndVersionScreen(
                                         type = "text/plain"
                                         putExtra(Intent.EXTRA_TEXT, FULL_OFFICIAL_PRIVACY_POLICY)
                                     }
-                                    context.startActivity(Intent.createChooser(intent, "مشاركة ميثاق وسياسة خصوصية مساعد المسلم"))
+                                    context.startActivity(Intent.createChooser(intent, "مشاركة ميثاق وسياسة خصوصية خادم المسلم"))
                                 },
                                 border = BorderStroke(1.dp, Color(0xFF10B981)),
                                 shape = RoundedCornerShape(10.dp),
@@ -1112,7 +1112,7 @@ fun AboutUsAndVersionScreen(
                         PrivacySectionItem(
                             number = "١",
                             title = "النزاهة والمحتوى الشرعي النقي",
-                            desc = "يلتزم تطبيق مساعد المسلم بضمان خلو كافة التصاميم والتلاوات والأصوات من أي مخالفات عقدية أو فقهية، وتخلو جميع المقاطع تماماً من المعازف والآلات الموسيقية."
+                            desc = "يلتزم تطبيق خادم المسلم بضمان خلو كافة التصاميم والتلاوات والأصوات من أي مخالفات عقدية أو فقهية، وتخلو جميع المقاطع تماماً من المعازف والآلات الموسيقية."
                         )
 
                         PrivacySectionItem(
@@ -1124,7 +1124,7 @@ fun AboutUsAndVersionScreen(
                         PrivacySectionItem(
                             number = "٣",
                             title = "عدم بيع أو مشاركة البيانات",
-                            desc = "لا نقوم بجمع أو بيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق مساعد المسلم خالٍ تماماً من الإعلانات التجارية المزعجة."
+                            desc = "لا نقوم بجمع أو بيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق خادم المسلم خالٍ تماماً من الإعلانات التجارية المزعجة."
                         )
 
                         PrivacySectionItem(
@@ -1141,7 +1141,7 @@ fun AboutUsAndVersionScreen(
 
                         PrivacySectionItem(
                             number = "٦",
-                            title = "الدعم المباشر ومجتمع مساعد المسلم",
+                            title = "الدعم المباشر ومجتمع خادم المسلم",
                             desc = "يحق لك دائماً الاستفسار أو تقديم المقترحات والتواصل مع فريق العمل عبر مجموعة واتساب الرسمية للتطبيق."
                         )
                     }
@@ -1338,7 +1338,7 @@ fun FeedbackContactForm() {
                 runCatching { context.startActivity(intent) }
                     .onFailure { Toast.makeText(context, "تعذر فتح رابط المجتمع حالياً", Toast.LENGTH_SHORT).show() }
             }) {
-                Text("أو الانضمام إلى مجتمع مساعد المسلم الرسمي", color = Color(0xFF25D366), fontFamily = CairoFont, fontSize = 11.sp)
+                Text("أو الانضمام إلى مجتمع خادم المسلم الرسمي", color = Color(0xFF25D366), fontFamily = CairoFont, fontSize = 11.sp)
             }
         }
     }

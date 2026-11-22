@@ -81,7 +81,7 @@ fun AppRealVersionFooterBadge(
                     AppSoundManager.playClick()
                     scope.launch {
                         isChecking = true
-                        Toast.makeText(context, "🔍 جاري فحص تحديثات مساعد المسلم الرسمية...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "🔍 جاري فحص تحديثات خادم المسلم الرسمية...", Toast.LENGTH_SHORT).show()
                         try {
                             val update = UpdateManager.checkForUpdate(context, force = true)
                             if (update != null) {
@@ -94,7 +94,7 @@ fun AppRealVersionFooterBadge(
                             } else {
                                 Toast.makeText(
                                     context,
-                                    "✨ تطبيق مساعد المسلم محدث لأحدث إصدار رسمي: v$versionName Build $versionCode",
+                                    "✨ تطبيق خادم المسلم محدث لأحدث إصدار رسمي: v$versionName Build $versionCode",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }

@@ -249,7 +249,7 @@ private fun AdhanScreen(
             )
             Spacer(Modifier.height(22.dp))
             Text(
-                text = "مساعد المسلم",
+                text = "خادم المسلم",
                 color = Color(0xFFFFD166),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
