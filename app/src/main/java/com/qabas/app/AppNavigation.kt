@@ -45,6 +45,9 @@ fun AppNavigation(
     val authScope = rememberCoroutineScope()
     var isSessionVerificationInProgress by remember { mutableStateOf(false) }
 
+    // موضوع أولي لوكيل الاستوديو — يُضبط عند «إعادة من الوكيل» من مكتبة المشاريع.
+    var studioAgentInitialBrief by remember { mutableStateOf<String?>(null) }
+
     val verifySessionBeforeNavigation: (AppState) -> Unit = { destination ->
         if (!isSessionVerificationInProgress) {
             isSessionVerificationInProgress = true
@@ -492,6 +495,36 @@ fun AppNavigation(
                 onNavigateToHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onNavigateToStats = { viewModel.updateState { copy(appState = AppState.SOCIAL_STATS) } },
                 onNavigateToAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
+                onNavigateToStudioAgent = { viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) } },
+                onNavigateToMyKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onNavigateToStudioLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
+                bottomBar = bottomNav
+            )
+        }
+        AppState.STUDIO_AGENT -> {
+            StudioAgentScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onOpenCodingAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
+                onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onOpenProject = { project -> viewModel.openProject(project) },
+                initialBrief = studioAgentInitialBrief,
+                bottomBar = bottomNav
+            )
+        }
+        AppState.MY_KEYS -> {
+            StudioKeysScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                bottomBar = bottomNav
+            )
+        }
+        AppState.STUDIO_LIBRARY -> {
+            StudioLibraryScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onOpenProject = { project -> viewModel.openProject(project) },
+                onRetryJob = { job ->
+                    studioAgentInitialBrief = job.prompt
+                    viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) }
+                },
                 bottomBar = bottomNav
             )
         }
@@ -645,12 +678,21 @@ fun AppNavigation(
             )
         }
         AppState.AI_STUDIO_AGENT -> {
-            AiStudioAgentScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
-                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
-                bottomBar = bottomNav
-            )
+            // وكيل البرمجة خلف بوابة المطوّر (رتبة سحابية من app_metadata فقط).
+            // من لا يملك الرتبة يرى شاشة القفل — وكيل المحتوى (STUDIO_AGENT) غير مقيّد.
+            if (AdminGuard.isDashboardAccessAllowed(context)) {
+                AiStudioAgentScreen(
+                    onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                    onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
+                    onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                    bottomBar = bottomNav
+                )
+            } else {
+                DeveloperModeLockedScreen(
+                    onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                    onOpenStudioAgent = { viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) } }
+                )
+            }
         }
         AppState.AGENT_TEAM_CONFIG -> {
             AgentTeamConfigScreen(
