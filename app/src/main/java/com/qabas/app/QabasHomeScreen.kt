@@ -84,8 +84,7 @@ fun HomeScreen(
     bottomBar: @Composable () -> Unit = {},
     // وجهات نتائج البحث العام — الافتراضي يفتح قسم كل نتيجة.
     // (الدفعة 5 — الجزء C: تُمرَّر دوال حقيقية من AppNavigation؛ واجهة
-    // البحث العام نفسها من الدفعة 3 فُقدت مع فروعها، فلا مستدعٍ لها على
-    // أساس main الحالي — عند استعادة الدفعة 3 تُمرَّر إلى HomeGlobalSearch.)
+    // البحث العام نفسها من الدفعة 3، فتُمرَّر هنا إلى HomeGlobalSearch.)
     onOpenQuranVerse: (Int, Int) -> Unit = { _, _ -> onMishkatHub() },
     onOpenHadith: (String) -> Unit = { onHadithStudio() },
     onOpenLibraryBook: (String) -> Unit = { onIslamicLibrary() },
@@ -548,6 +547,33 @@ fun HomeScreen(
                 QabasSmartTipsBar(
                     isDeveloper = isDeveloper,
                     onNavigateToDeveloperDashboard = onDeveloperDashboard
+                )
+
+                // بطاقة اليوم + أكمل من حيث توقفت + بحث عام (الدفعة 3).
+                val todayState = rememberHomeTodayState()
+                HomeTodayCard(
+                    state = todayState,
+                    onOpenPrayerTimes = onPrayerTimes,
+                    onOpenAzkar = onAzkar,
+                    onOpenMishkatHub = onMishkatHub,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                HomeContinueRow(
+                    state = todayState,
+                    recentProjects = recentProjects,
+                    onOpenProject = onOpenProject,
+                    onOpenMishkatHub = onMishkatHub,
+                    onOpenAzkar = onAzkar,
+                    onOpenMushaf = onOpenMushaf,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                HomeGlobalSearch(
+                    onOpenQuranVerse = onOpenQuranVerse,
+                    onOpenHadith = onOpenHadith,
+                    onOpenLibraryBook = onOpenLibraryBook,
+                    onOpenReel = onOpenReel,
+                    onOpenCreator = onOpenCreator,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
 
                 // Hero Studio Card
