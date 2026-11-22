@@ -504,10 +504,6 @@ fun AppNavigation(
                 }
             )
         }
-        AppState.QURAN_HUB -> {
-            // Legacy state compatibility: the standalone Quran section has been removed.
-            viewModel.updateState { copy(appState = AppState.HASANAT_HUB) }
-        }
         AppState.MUSHAF_READER -> {
             // قارئ المصحف (الدفعة 5 — الجزء C): يفتح عند السورة/الآية/الصفحة
             // المطلوبة من البحث أو من «أكمل»، أو عند آخر قراءة محفوظة.
@@ -770,7 +766,6 @@ fun AppNavigation(
             if (AdminGuard.isDashboardAccessAllowed(context)) {
                 AiStudioAgentScreen(
                     onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                    onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
                     onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
                     bottomBar = bottomNav
                 )
@@ -1532,9 +1527,6 @@ fun AppNavigation(
         AppState.DEVELOPER_KEY_STATUS_HUB -> {
             DeveloperKeyStatusHub(
                 onBack = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
-                onNavigateToEditKey = { serviceKey ->
-                    viewModel.updateState { copy(appState = AppState.SETTINGS) }
-                },
                 showTopBar = true
             )
         }
