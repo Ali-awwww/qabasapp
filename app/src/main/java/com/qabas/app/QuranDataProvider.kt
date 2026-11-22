@@ -510,6 +510,26 @@ object QuranDataProvider {
         )
     }
 
+    /**
+     * آية اليوم (الدفعة 3): حتمية برقم يوم السنة — الآية نفسها لكل المستخدمين
+     * في اليوم نفسه، وتتغير كل يوم. تُرجع null عند عدم تحميل ملف المصحف
+     * بدلاً من اختلاق نص بديل.
+     */
+    fun getVerseOfDay(): QuranVerseDetail? {
+        val loadedAyahs = versesMap?.values?.flatten()?.takeIf { it.isNotEmpty() } ?: return null
+        val ordered = loadedAyahs.sortedWith(compareBy({ it.surah }, { it.ayah }))
+        val dayOfYear = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+        val ayah = ordered[dayOfYear % ordered.size]
+        return QuranVerseDetail(
+            surahNumber = ayah.surah,
+            surahName = getSurahName(ayah.surah),
+            verseNumber = ayah.ayah,
+            verseText = ayah.text,
+            tafseer = tafsirMap?.get("${ayah.surah}:${ayah.ayah}") ?: "",
+            tajweedNotes = ""
+        )
+    }
+
     /** اسم السورة علناً (يُستخدم في قارئ الصفحات). */
     fun surahNameOf(surahId: Int): String = getSurahName(surahId)
 
