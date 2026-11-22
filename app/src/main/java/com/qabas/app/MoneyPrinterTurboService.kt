@@ -98,7 +98,7 @@ object MoneyPrinterTurboService {
                             isOnline = true,
                             serverUrl = cleanUrl,
                             latencyMs = elapsed,
-                            message = "متصل بنجاح مع خادم MoneyPrinterTurbo ($elapsed ms)"
+                            message = "متصل بنجاح مع خادم أدوات دخل المبدعين ($elapsed ms)"
                         )
                     }
                 } catch (_: Exception) {}
@@ -188,7 +188,7 @@ object MoneyPrinterTurboService {
 
                 val stageDesc = when (state) {
                     0 -> "في قائمة الانتظار للتحليل..."
-                    1 -> "جاري التوليد والمونتاج في محرك MoneyPrinter ($progress%)..."
+                    1 -> "جاري التوليد والمونتاج في أدوات دخل المبدعين ($progress%)..."
                     2 -> "تم اكتمال إنتاج الفيديو بنجاح ✓"
                     else -> "فشل في مرحلة الرندرة"
                 }
@@ -436,7 +436,7 @@ object MoneyPrinterTurboService {
                         ProjectService.Project(
                             id = UUID.randomUUID().toString(),
                             title = config.subject,
-                            idea = "تم إنتاجه عبر مصفوفة MoneyPrinter Turbo و VoiceStudio الموحدة",
+                            idea = "تم إنتاجه عبر أدوات دخل المبدعين و VoiceStudio الموحدة",
                             script = script,
                             finalVideoPath = finalOutput.absolutePath,
                             settings = JSONObject().apply {

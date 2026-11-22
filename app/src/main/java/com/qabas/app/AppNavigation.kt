@@ -45,6 +45,9 @@ fun AppNavigation(
     val authScope = rememberCoroutineScope()
     var isSessionVerificationInProgress by remember { mutableStateOf(false) }
 
+    // موضوع أولي لوكيل الاستوديو — يُضبط عند «إعادة من الوكيل» من مكتبة المشاريع.
+    var studioAgentInitialBrief by remember { mutableStateOf<String?>(null) }
+
     val verifySessionBeforeNavigation: (AppState) -> Unit = { destination ->
         if (!isSessionVerificationInProgress) {
             isSessionVerificationInProgress = true
@@ -367,6 +370,71 @@ fun AppNavigation(
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
                 onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
+                // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C): كل نتيجة
+                // تفتح موضعها لا قسمها فقط — الآية في القارئ، والحديث في
+                // قارئ الصحيحين داخل المكتبة، والكتاب في قارئه، والمقطع
+                // بقفزة jumpToReel، والصانع في بطاقة ملفه داخل الريلز.
+                // (على أساس main الحالي لا واجهة بحث تستدعيها بعد — واجهة
+                // البحث العام من الدفعة 3 فُقدت مع فروعها؛ عند استعادتها
+                // تُمرَّر هذه الدوال نفسها إلى HomeGlobalSearch.)
+                onOpenQuranVerse = { surah, ayah ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                onOpenHadith = { hadithId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialHadithId = hadithId,
+                            libraryInitialBookId = null
+                        )
+                    }
+                },
+                onOpenLibraryBook = { bookId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialBookId = bookId,
+                            libraryInitialHadithId = null
+                        )
+                    }
+                },
+                onOpenReel = { reelId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkReelId = reelId,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                },
+                onOpenCreator = { creatorId, creatorName ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkCreatorId = creatorId,
+                            deepLinkCreatorName = creatorName,
+                            deepLinkReelId = null
+                        )
+                    }
+                },
+                onOpenMushaf = { surah, ayah, page ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = page
+                        )
+                    }
+                },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
                     rulesReturnToSettings = false
@@ -440,6 +508,26 @@ fun AppNavigation(
             // Legacy state compatibility: the standalone Quran section has been removed.
             viewModel.updateState { copy(appState = AppState.HASANAT_HUB) }
         }
+        AppState.MUSHAF_READER -> {
+            // قارئ المصحف (الدفعة 5 — الجزء C): يفتح عند السورة/الآية/الصفحة
+            // المطلوبة من البحث أو من «أكمل»، أو عند آخر قراءة محفوظة.
+            MushafReaderScreen(
+                initialSurah = state.mushafInitialSurah,
+                initialAyah = state.mushafInitialAyah,
+                initialPage = state.mushafInitialPage,
+                onBack = {
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.HOME,
+                            mushafInitialSurah = null,
+                            mushafInitialAyah = null,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                bottomBar = bottomNav
+            )
+        }
         AppState.HASANAT_HUB -> {
             HasanatHubScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
@@ -492,6 +580,36 @@ fun AppNavigation(
                 onNavigateToHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onNavigateToStats = { viewModel.updateState { copy(appState = AppState.SOCIAL_STATS) } },
                 onNavigateToAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
+                onNavigateToStudioAgent = { viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) } },
+                onNavigateToMyKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onNavigateToStudioLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
+                bottomBar = bottomNav
+            )
+        }
+        AppState.STUDIO_AGENT -> {
+            StudioAgentScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onOpenCodingAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
+                onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onOpenProject = { project -> viewModel.openProject(project) },
+                initialBrief = studioAgentInitialBrief,
+                bottomBar = bottomNav
+            )
+        }
+        AppState.MY_KEYS -> {
+            StudioKeysScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                bottomBar = bottomNav
+            )
+        }
+        AppState.STUDIO_LIBRARY -> {
+            StudioLibraryScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onOpenProject = { project -> viewModel.openProject(project) },
+                onRetryJob = { job ->
+                    studioAgentInitialBrief = job.prompt
+                    viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) }
+                },
                 bottomBar = bottomNav
             )
         }
@@ -647,12 +765,21 @@ fun AppNavigation(
             )
         }
         AppState.AI_STUDIO_AGENT -> {
-            AiStudioAgentScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
-                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
-                bottomBar = bottomNav
-            )
+            // وكيل البرمجة خلف بوابة المطوّر (رتبة سحابية من app_metadata فقط).
+            // من لا يملك الرتبة يرى شاشة القفل — وكيل المحتوى (STUDIO_AGENT) غير مقيّد.
+            if (AdminGuard.isDashboardAccessAllowed(context)) {
+                AiStudioAgentScreen(
+                    onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                    onOpenDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
+                    onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                    bottomBar = bottomNav
+                )
+            } else {
+                DeveloperModeLockedScreen(
+                    onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                    onOpenStudioAgent = { viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) } }
+                )
+            }
         }
         AppState.AGENT_TEAM_CONFIG -> {
             AgentTeamConfigScreen(
@@ -798,8 +925,27 @@ fun AppNavigation(
             ReelsScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 bottomBar = bottomNav,
-                onOpenProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } }
+                onOpenProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } },
+                // روابط البحث العميقة (الدفعة 5 — الجزء C): مقطع محدد بقفزة
+                // jumpToReel، أو صانع محدد ببطاقة ملفه.
+                initialReelId = state.deepLinkReelId,
+                initialCreatorId = state.deepLinkCreatorId,
+                initialCreatorName = state.deepLinkCreatorName
             )
+            // لقطة واحدة: تُمسح بعد أول تركيب حتى لا تتكرر القفزة عند
+            // دخول الريلز لاحقاً من الشريط السفلي. تأثيرات ReelsScreen
+            // نفسها تُسجَّل أولاً في التركيب فتقرأ الهدف قبل مسحه.
+            if (state.deepLinkReelId != null || state.deepLinkCreatorId != null) {
+                LaunchedEffect(state.deepLinkReelId, state.deepLinkCreatorId) {
+                    viewModel.updateState {
+                        copy(
+                            deepLinkReelId = null,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                }
+            }
         }
         AppState.DOWNLOAD_MANAGER -> {
             DownloadsHubScreen(
@@ -1403,8 +1549,20 @@ fun AppNavigation(
                             inputText = quote
                         )
                     }
-                }
+                },
+                // روابط البحث العميقة (الدفعة 5 — الجزء C): كتاب أو حديث محدد.
+                initialBookId = state.libraryInitialBookId,
+                initialHadithId = state.libraryInitialHadithId
             )
+            // لقطة واحدة: تُمسح بعد أول تركيب حتى لا يُعاد فتح الكتاب/
+            // الحديث عند دخول المكتبة لاحقاً.
+            if (state.libraryInitialBookId != null || state.libraryInitialHadithId != null) {
+                LaunchedEffect(state.libraryInitialBookId, state.libraryInitialHadithId) {
+                    viewModel.updateState {
+                        copy(libraryInitialBookId = null, libraryInitialHadithId = null)
+                    }
+                }
+            }
         }
         AppState.MONEY_PRINTER_TURBO -> {
             MoneyPrinterTurboScreen(
@@ -1412,7 +1570,7 @@ fun AppNavigation(
                 onOpenInProEditor = { videoPath ->
                     viewModel.updateState {
                         copy(
-                            libraryScenes = listOf(Scene("فيديو MoneyPrinter Turbo", "ريلز ذاتي جاهز", 15, mediaUrl = videoPath)),
+                            libraryScenes = listOf(Scene("فيديو أدوات دخل المبدعين", "ريلز ذاتي جاهز", 15, mediaUrl = videoPath)),
                             appState = AppState.ADVANCED_EDIT
                         )
                     }
@@ -1573,6 +1731,66 @@ fun AppNavigation(
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
                 onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
+                // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C) — كما في
+                // فرع HOME أعلاه؛ فرع الاحتياط هذا يعرض الرئيسية أيضاً.
+                onOpenQuranVerse = { surah, ayah ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                onOpenHadith = { hadithId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialHadithId = hadithId,
+                            libraryInitialBookId = null
+                        )
+                    }
+                },
+                onOpenLibraryBook = { bookId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialBookId = bookId,
+                            libraryInitialHadithId = null
+                        )
+                    }
+                },
+                onOpenReel = { reelId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkReelId = reelId,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                },
+                onOpenCreator = { creatorId, creatorName ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkCreatorId = creatorId,
+                            deepLinkCreatorName = creatorName,
+                            deepLinkReelId = null
+                        )
+                    }
+                },
+                onOpenMushaf = { surah, ayah, page ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = page
+                        )
+                    }
+                },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
                     rulesReturnToSettings = false

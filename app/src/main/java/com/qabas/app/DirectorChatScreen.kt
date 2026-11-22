@@ -376,7 +376,8 @@ private suspend fun geminiChat(context: android.content.Context, prompt: String)
                 }))
             }
             val req = okhttp3.Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$key")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent")
+                .header("x-goog-api-key", key)
                 .post(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
             val resp = ApiUsageTracker.track(context, "Gemini") { SharedHttpClient.instance.newCall(req).execute() }

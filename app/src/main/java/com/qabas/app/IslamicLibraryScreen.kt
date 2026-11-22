@@ -41,7 +41,11 @@ import java.util.Locale
 @Composable
 fun IslamicLibraryScreen(
     onBack: () -> Unit,
-    onNavigateToVideoCreation: (quoteText: String) -> Unit = {}
+    onNavigateToVideoCreation: (quoteText: String) -> Unit = {},
+    // فتح كتاب أو حديث محدد من رابط بحث عميق (الدفعة 5 — الجزء C).
+    // معرّف غير معروف يُتجاهل وتُعرض المكتبة كما هي — لا يُفتح مكان خاطئ.
+    initialBookId: String? = null,
+    initialHadithId: String? = null
 ) {
     val theme = QabasTheme.current
     val context = LocalContext.current
@@ -67,6 +71,26 @@ fun IslamicLibraryScreen(
         readingStates.associateBy { it.bookId }
     }
 
+    // رابط عميق لمرة واحدة: كتاب → قارئه، حديث → قارئ الصحيحين عنده.
+    LaunchedEffect(initialBookId, initialHadithId) {
+        if (initialHadithId != null) {
+            SahihHadithsRepository.getHadithById(initialHadithId)?.let { item ->
+                activeSahihBookType = item.bookType
+            }
+        } else if (initialBookId != null) {
+            IslamicLibraryRepository.books.firstOrNull { it.id == initialBookId }?.let { book ->
+                if (book.id == "sahih_al_bukhari") {
+                    activeSahihBookType = SahihBookType.BUKHARI
+                } else if (book.id == "sahih_muslim") {
+                    activeSahihBookType = SahihBookType.MUSLIM
+                } else {
+                    activeBookForReading = book
+                }
+            }
+        }
+    }
+
+
     BackHandler(enabled = activeSahihBookType != null || activeBookForReading != null) {
         if (activeSahihBookType != null) {
             activeSahihBookType = null
@@ -91,6 +115,7 @@ fun IslamicLibraryScreen(
 
         SahihReaderView(
             initialBookType = activeSahihBookType!!,
+            initialHadithId = initialHadithId,
             onBack = { activeSahihBookType = null },
             onNavigateToVideoCreation = onNavigateToVideoCreation,
             onOpenFullBook = { bookType ->

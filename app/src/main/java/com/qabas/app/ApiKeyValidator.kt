@@ -109,8 +109,8 @@ object ApiKeyValidator {
                             suggestedFix = "افتح aistudio.google.com/app/apikey ثم اضغط «Create API key» في مشروع جديد وانسخ المفتاح كاملاً (يبدأ بـ AIzaSy…) دون أي مسافات."
                         )
                     }
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models?key=$trimmedKey"
-                    val request = Request.Builder().url(url).build()
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models"
+                    val request = Request.Builder().url(url).header("x-goog-api-key", trimmedKey).build()
                     val response = client.newCall(request).execute()
                     val code = response.code
                     val bodyStr = response.body?.string().orEmpty()
@@ -686,7 +686,30 @@ object ApiKeyValidator {
                         )
                     }
                 }
+                "anthropic" -> {
+                    // فحص حي حقيقي: GET /v1/models بترويسة x-api-key (لا يقبل أي نص ≥ 8 أحرف).
+                    if (!trimmedKey.startsWith("sk-ant-", ignoreCase = true)) {
+                        return@withContext KeyValidationResult(
+                            isValid = false,
+                            summary = "صيغة المفتاح غير صحيحة 🔴",
+                            explanation = "مفتاح Anthropic الصحيح يبدأ بالبادئة «sk-ant-».",
+                            suggestedFix = "انسخ المفتاح كاملاً من لوحة تحكم Anthropic (يبدأ بـ sk-ant-…) دون مسافات."
+                        )
+                    }
+                    return@withContext pingAnthropicLive(trimmedKey)
+                }
+                "opencode" -> {
+                    // فحص حي حقيقي: GET /inference/v1/models بترويسة Bearer.
+                    return@withContext pingGenericBearerLive(
+                        trimmedKey,
+                        "https://opencode.ai/inference/v1/models",
+                        "OpenCode"
+                    )
+                }
                 else -> {
+                    // ثغرة معروفة موثقة: فرع الخدمات المجهولة يقبل أي نص ≥ 8 أحرف
+                    // دون أي فحص شبكي. لا خدمة معروفة تسقط فيه الآن (كل مزودي
+                    // الاستوديو لهم فرع خاص أعلاه) — يُغلق بإضافة فرع حي لكل خدمة جديدة.
                     if (trimmedKey.length >= 8) {
                         SystemLogsManager.addLog("SUCCESS", "تم قبول المفتاح وحفظ البيانات بنجاح", Color(0xFF4CAF50))
                         return@withContext KeyValidationResult(
@@ -718,4 +741,102 @@ object ApiKeyValidator {
             )
         }
     }
+
+    /**
+     * فحص حي لمفاتيح Anthropic: GET /v1/models بترويسة x-api-key
+     * وترويسة anthropic-version (لا Bearer هنا). لا يُطبع المفتاح أبداً.
+     */
+    private suspend fun pingAnthropicLive(key: String): KeyValidationResult = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("https://api.anthropic.com/v1/models")
+            .header("x-api-key", key)
+            .header("anthropic-version", "2023-06-01")
+            .build()
+        val response = client.newCall(request).execute()
+        val code = response.code
+        val bodyStr = response.body?.string().orEmpty()
+        if (response.isSuccessful) {
+            SystemLogsManager.addLog("SUCCESS", "مفتاح Anthropic متصل وسليم (200 OK)", Color(0xFF4CAF50))
+            KeyValidationResult(
+                isValid = true,
+                summary = "متصل بالسيرفر ✅ (Anthropic شغال حقيقياً)",
+                errorCode = code,
+                explanation = "تم التحقق الفعلي من صحة المفتاح واستجابة خوادم Anthropic بنجاح (200 OK).",
+                suggestedFix = "المفتاح جاهز للعمل الفوري."
+            )
+        } else {
+            val (exp, fix) = when (code) {
+                401 -> Pair(
+                    "المفتاح غير صحيح أو منتهي الصلاحية على Anthropic.",
+                    "أنشئ مفتاحاً جديداً من لوحة تحكم Anthropic."
+                )
+                429 -> Pair(
+                    "تم تجاوز حد الاستخدام على Anthropic.",
+                    "انتظر قليلاً وأعد المحاولة."
+                )
+                else -> Pair(
+                    "استجاب خادم Anthropic بكود خطأ ($code): $bodyStr",
+                    "تحقق من اتصال الإنترنت وحالة خدمات Anthropic."
+                )
+            }
+            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Anthropic ($code) - $exp", Color(0xFFEF4444))
+            KeyValidationResult(
+                isValid = false,
+                summary = "غير متصل 🔴 (كود $code)",
+                errorCode = code,
+                rawError = bodyStr.take(200),
+                explanation = exp,
+                suggestedFix = fix
+            )
+        }
+    }
+
+    /**
+     * فحص حي عام لمزودي Bearer: GET لقائمة النماذج بترويسة Authorization.
+     * يُستخدم لـ OpenCode (وما يشبهه) — لا يقبل المفتاح دون رد 200 فعلي.
+     */
+    private suspend fun pingGenericBearerLive(key: String, url: String, serviceName: String): KeyValidationResult =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $key")
+                .build()
+            val response = client.newCall(request).execute()
+            val code = response.code
+            val bodyStr = response.body?.string().orEmpty()
+            if (response.isSuccessful) {
+                SystemLogsManager.addLog("SUCCESS", "مفتاح $serviceName متصل وسليم (200 OK)", Color(0xFF4CAF50))
+                KeyValidationResult(
+                    isValid = true,
+                    summary = "متصل بالسيرفر ✅ ($serviceName شغال حقيقياً)",
+                    errorCode = code,
+                    explanation = "تم التحقق الفعلي من صحة المفتاح واستجابة خوادم $serviceName بنجاح (200 OK).",
+                    suggestedFix = "المفتاح جاهز للعمل الفوري."
+                )
+            } else {
+                val (exp, fix) = when (code) {
+                    401 -> Pair(
+                        "المفتاح غير صحيح أو منتهي الصلاحية على $serviceName.",
+                        "أنشئ مفتاحاً جديداً من لوحة تحكم $serviceName."
+                    )
+                    429 -> Pair(
+                        "تم تجاوز حد الاستخدام على $serviceName.",
+                        "انتظر قليلاً وأعد المحاولة."
+                    )
+                    else -> Pair(
+                        "استجاب خادم $serviceName بكود خطأ ($code): $bodyStr",
+                        "تحقق من اتصال الإنترنت وحالة خدمات $serviceName."
+                    )
+                }
+                SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح $serviceName ($code) - $exp", Color(0xFFEF4444))
+                KeyValidationResult(
+                    isValid = false,
+                    summary = "غير متصل 🔴 (كود $code)",
+                    errorCode = code,
+                    rawError = bodyStr.take(200),
+                    explanation = exp,
+                    suggestedFix = fix
+                )
+            }
+        }
 }

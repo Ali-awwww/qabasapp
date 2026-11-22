@@ -1091,13 +1091,13 @@ enum class AppState {
     ADVANCED_EDIT, PAYMENT, SAVE_SHARE, SAVE_PROJECT, API_DOCS, SETTINGS, TELEPROMPTER,
     AUDIO_LIBRARY, AI_ASSISTANT, YOUTUBE_STUDIO, LEADERBOARD, PROFILE, APP_IDEA_FORM,
     REQUEST_CHAT, NOTIFICATIONS, REQUEST_DETAILS, TASTE_PROFILE, SMART_DIRECTOR, REWARDS,
-    KNOWLEDGE_HUB, CONTENT_GUARD, HASANAT_HUB, QURAN_HUB, HADITH_STUDIO, ENTERPRISE_PORTAL, VIDEO_STYLE_CLONER,
+    KNOWLEDGE_HUB, CONTENT_GUARD, HASANAT_HUB, QURAN_HUB, MUSHAF_READER, HADITH_STUDIO, ENTERPRISE_PORTAL, VIDEO_STYLE_CLONER,
     PHOTO_STUDIO, STYLE_SELECTION, CREATE_STYLE_OBJECT, DIRECTOR_CHAT,
     QASAS, TRANSCRIPT_EDIT, CLIP_EXTRACTOR, CAMERA_CAPTURE, SCHOLAR_BIOGRAPHIES, SCHOLAR_DETAIL,
     AZKAR, ISLAMIC_LIBRARY, PRAYER_TIMES, STUDIO_GATEWAY, PRO_EDITOR, SOCIAL_STATS,
     ABOUT_US, MONEY_PRINTER_TURBO, VOICE_STUDIO, UNIFIED_MASTER_STUDIO, MEDIA_BROWSER,
     PERMISSIONS_HUB, CRASH_LOGS_HUB, REELS, RULES, AI_STUDIO_AGENT, AGENT_TEAM_CONFIG, SAVED_ITEMS,
-    DOWNLOAD_MANAGER, UPDATE_HISTORY
+    DOWNLOAD_MANAGER, UPDATE_HISTORY, STUDIO_AGENT, MY_KEYS, STUDIO_LIBRARY
 }
 
 @Immutable
@@ -1135,7 +1135,18 @@ data class ProjectState(
     val sourceLabel: String? = null,
     val selectedVerseText: String? = null,
     val selectedSurahName: String? = null,
-    val selectedVerseNumber: Int? = null
+    val selectedVerseNumber: Int? = null,
+    // أهداف التنقّل العميق (الدفعة 5 — الجزء C): لقطة واحدة تُستهلك عند
+    // فتح الوجهة ثم تُمسح، فلا تُعاد القفزة عند دخول القسم لاحقاً.
+    // عمداً خارج ترميز ProjectWorkspaceCodec (مثل selectedScholar).
+    val mushafInitialSurah: Int? = null,
+    val mushafInitialAyah: Int? = null,
+    val mushafInitialPage: Int? = null,
+    val libraryInitialBookId: String? = null,
+    val libraryInitialHadithId: String? = null,
+    val deepLinkReelId: String? = null,
+    val deepLinkCreatorId: String? = null,
+    val deepLinkCreatorName: String? = null
 )
 
 class ProjectViewModel(private val context: Context) : ViewModel() {

@@ -267,7 +267,7 @@ fun EnhancedUsersSection(
                     }
                     Column {
                         Text(user.name, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(user.email, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                        MaskedEmailText(email = user.email, reason = "عرض مستخدم في لوحة المطور", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
                 }
             },
@@ -718,13 +718,12 @@ fun EnhancedUsersSection(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text(
-                                    user.email,
+                                MaskedEmailText(
+                                    email = user.email,
+                                    reason = "عرض مستخدم في لوحة المطور",
                                     color = TextSecondary,
                                     fontFamily = NotoSansFont,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    fontSize = 11.sp
                                 )
                                 if (!user.customId.isNullOrBlank()) {
                                     Surface(
@@ -882,7 +881,7 @@ private fun buildUsersCsv(users: List<DevUser>): String {
     val sb = StringBuilder()
     sb.append("المعرف,الاسم,البريد,الرتبة,المشاريع,تاريخ_التسجيل,الحالة\n")
     users.forEach { u ->
-        sb.append("\"${u.id}\",\"${u.name}\",\"${u.email}\",\"${u.type}\",${u.projectCount},\"${u.regDate}\",\"${if (u.isSuspended) "موقوف" else "نشط"}\"\n")
+        sb.append("\"${u.id}\",\"${u.name}\",\"${maskEmail(u.email)}\",\"${u.type}\",${u.projectCount},\"${u.regDate}\",\"${if (u.isSuspended) "موقوف" else "نشط"}\"\n")
     }
     return sb.toString()
 }

@@ -104,7 +104,7 @@ object DevChatRepository {
             isUrgent = localMatch?.isUrgent == true || row.message.startsWith("[URGENT] "),
             duaStamp = localMatch?.duaStamp,
             reactions = localMatch?.reactions ?: emptyMap(),
-            status = "sent",
+            status = row.status,
             updatedAt = parseCreatedAt(row.updatedAt).takeIf { it > 0L },
             audioLengthSec = localMatch?.audioLengthSec ?: 0
         )
