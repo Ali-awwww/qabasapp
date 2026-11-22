@@ -66,6 +66,9 @@ fun StudioGatewayScreen(
     onNavigateToHadithStudio: () -> Unit = {},
     onNavigateToStats: () -> Unit,
     onNavigateToAiStudioAgent: () -> Unit = {},
+    onNavigateToStudioAgent: () -> Unit = {},
+    onNavigateToMyKeys: () -> Unit = {},
+    onNavigateToStudioLibrary: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     BackHandler { onBack() }
@@ -210,7 +213,7 @@ fun StudioGatewayScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     StudioFeatureCard(
-                        title = "MoneyPrinter Turbo ⚡",
+                        title = "أدوات دخل المبدعين ⚡",
                         description = "أتمتة إنتاج الريلز والشورتس بضغطة زر واحدة (سكربت + صوت + لقطات).",
                         badge = "AUTOMATION",
                         badgeColor = Color(0xFF10B981),
@@ -288,6 +291,37 @@ fun StudioGatewayScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(30.dp))
+
+            // وكيل الاستوديو الموحّد (الدفعة 4) — ظاهر دائماً فوق كل الفئات
+            SectionHeader("وكيل الاستوديو الموحّد", "STUDIO_AGENT_HUB", "🤖")
+            StudioFeatureCard(
+                title = "وكيل الاستوديو 💬",
+                description = "محادثة واحدة تصنع الريلز: فكرة ← خطة ← سكربت ← صور ← صوت ← فيديو ← نشر.",
+                badge = "STUDIO AGENT",
+                badgeColor = Color(0xFF00F2FE),
+                icon = Icons.Default.Chat,
+                onClick = onNavigateToStudioAgent
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            StudioFeatureCard(
+                title = "مفاتيحي 🔑",
+                description = "كل مفاتيح المزودين في شاشة واحدة — فحص حي قبل الحفظ وعرض مقنّع دائماً.",
+                badge = "BYOK KEYS",
+                badgeColor = Color(0xFFF59E0B),
+                icon = Icons.Default.VpnKey,
+                onClick = onNavigateToMyKeys
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            StudioFeatureCard(
+                title = "مكتبة المشاريع 📚",
+                description = "مشاريعك وطابور مهام الفيديو وسجل التوليدات — تابع من حيث توقفت.",
+                badge = "LIBRARY",
+                badgeColor = Color(0xFF10B981),
+                icon = Icons.Default.VideoLibrary,
+                onClick = onNavigateToStudioLibrary
+            )
 
             Spacer(modifier = Modifier.height(30.dp))
 
