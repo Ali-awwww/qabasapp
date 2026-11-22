@@ -194,6 +194,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           QF_CLIENT_ID: ${{ secrets.QF_CLIENT_ID }}
           QF_CLIENT_SECRET: ${{ secrets.QF_CLIENT_SECRET }}
+                    GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: |
           mkdir -p app
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
@@ -210,7 +211,7 @@ jobs:
             echo "AZURE_SPEECH_REGION=\"your_region\""
             echo "COVERR_API_KEY=\"your_key\""
             echo "ELEVENLABS_API_KEY=\"your_key\""
-            echo "GOOGLE_WEB_CLIENT_ID=\"your_key\""
+            echo "GOOGLE_WEB_CLIENT_ID=\"${GOOGLE_WEB_CLIENT_ID:-your_key}\""
             echo "GROQ_API_KEY=\"your_key\""
             echo "HUGGINGFACE_API_KEY=\"your_key\""
             echo "OPENAI_API_KEY=\"your_key\""
