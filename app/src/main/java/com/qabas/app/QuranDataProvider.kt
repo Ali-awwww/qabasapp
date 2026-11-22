@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.ui.graphics.Color
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.async
@@ -775,5 +776,415 @@ object QuranDataProvider {
             if (results.size >= limit) break
         }
         return results.sortedWith(compareBy({ it.surahNumber }, { it.verseNumber }))
+    }
+
+    /**
+     * بحث أسماء السور بالعربية (خارطة المصحف — المرحلة 1): التطبيع نفسه
+     * المستعمل في بحث الآيات (بلا تشكيل/تطويل، وتوحيد الهمزات)، فيجد
+     * «البقره» و«البقرة» معاً. استعلام رقمي (أرقام عربية أو غربية) يطابق
+     * رقم السورة مباشرة. استعلام فارغ يرجع السور الـ 114 بالترتيب.
+     */
+    fun searchSurahs(query: String): List<QuranSurahItem> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return surahs
+        val westernDigits = trimmed
+            .map { ch ->
+                when (ch) {
+                    in '٠'..'٩' -> ('0' + (ch - '٠'))
+                    in '۰'..'۹' -> ('0' + (ch - '۰'))
+                    else -> ch
+                }
+            }.joinToString("")
+        westernDigits.toIntOrNull()?.let { number ->
+            if (number in 1..114) {
+                return surahs.filter { it.id == number }
+            }
+        }
+        val needle = normalizeArabicText(trimmed)
+        if (needle.isEmpty()) return emptyList()
+        return surahs.filter { normalizeArabicText(it.name).contains(needle) }
+    }
+
+    // ========================================================================
+    // دراسة الآية (خارطة المصحف — المرحلة 3): ترجمة السورة + كلمة بكلمة.
+    //
+    // مصدران حقيقيان فقط، كلاهما عام بلا مفاتيح، وكلاهما تحققنا منه
+    // بطلبات حية قبل الكتابة:
+    // - الترجمة: QuranEnc (العائلة نفسها المستعملة لتفسير الميسر أعلاه)،
+    //   نقطة النهاية translation/sura/english_saheeh/{surah} — مكالمة
+    //   واحدة للسورة كاملة، ونصها ترجمة Saheeh International الإنجليزية.
+    //   أرقام الحواشي [2] [3] المضمّنة في النص تُحذف عند العرض فقط.
+    // - الكلمات: واجهة Quran.com العامة api.quran.com (بلا توكن)، نقطة
+    //   النهاية verses/by_key/{surah}:{ayah}?words=true — كل كلمة تحمل
+    //   نصها العثماني ونقلها الصوتي (transliteration) وترجمتها الإنجليزية.
+    //   وهي متميزة عن مسار apis.quran.foundation المقيّد بالتوكن المستعمل
+    //   للتلاوة؛ لا توكن ولا مفاتيح هنا، فتعمل على المصحف كاملاً.
+    // - الإعراب والصرف وأسباب النزول والآيات المشابهة: لا مصدر موثّق
+    //   في التطبيق ولا في هاتين الواجهتين، فلم تُضف لها لوحات إطلاقاً.
+    // الفشل (لا اتصال، خطأ خادم، استجابة فارغة) يعيد null — لا نص ملفّق.
+    // ========================================================================
+
+    /** اسم الترجمة المعروضة تحت الآيات وفي لوحة الدراسة. */
+    const val MUSHAF_TRANSLATION_LABEL = "Saheeh International"
+
+    /** كلمة قرآنية مع نقلها الصوتي وترجمتها الإنجليزية (من QF العام). */
+    data class QuranWordStudy(
+        val position: Int,
+        val textUthmani: String,
+        val transliteration: String?,
+        val translation: String?
+    )
+
+    private val surahTranslationCache = java.util.concurrent.ConcurrentHashMap<Int, Map<Int, String>>()
+    private val verseWordsCache = java.util.concurrent.ConcurrentHashMap<String, List<QuranWordStudy>>()
+
+    /** خريطة ترجمة السورة المخزنة في الذاكرة (آية ← ترجمة)، أو null قبل الجلب. */
+    fun getCachedSurahTranslation(surahId: Int): Map<Int, String>? =
+        surahTranslationCache[surahId]
+
+    /**
+     * ترجمة سورة كاملة (Saheeh International، إنجليزية) من QuranEnc.
+     * تُخزَّن في الذاكرة بعد أول جلب ناجح. null عند أي فشل.
+     */
+    suspend fun fetchSurahTranslation(surahId: Int): Map<Int, String>? {
+        if (surahId !in 1..114) return null
+        surahTranslationCache[surahId]?.let { return it }
+        return try {
+            val url = "https://quranenc.com/api/v1/translation/sura/english_saheeh/$surahId"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val array = try {
+                JSONObject(body).optJSONArray("result")
+            } catch (_: Exception) {
+                null
+            } ?: return null
+            val result = LinkedHashMap<Int, String>()
+            for (index in 0 until array.length()) {
+                val row = array.optJSONObject(index) ?: continue
+                val aya = row.optInt("aya", 0)
+                val text = row.optString("translation", "")
+                    .replace(Regex("\\[\\d+\\]"), "")
+                    .replace(Regex("[ \\t]+"), " ")
+                    .trim()
+                if (aya > 0 && text.isNotBlank()) result[aya] = text
+            }
+            if (result.isEmpty()) null else {
+                surahTranslationCache[surahId] = result
+                result
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load surah translation for $surahId", e)
+            null
+        }
+    }
+
+    // ── نص التجويد والرسم البديل (خارطة المصحف — المرحلة 5) ──
+    // مصدر موثّق: واجهة Quran.com العامة api.quran.com (بلا توكن) —
+    // verses/uthmani_tajweed (وسوم <tajweed class=...>) وverses/uthmani_simple
+    // وverses/imlaei. كلها نص حفص نفسه برسم مختلف؛ لا رواية أخرى متاحة
+    // في التطبيق أو في الواجهات التي فُحصت (alquran.cloud بلا ورش، وملف
+    // المصحف المحلي مصحف حفص وحده) — فلا خيار رواية في القارئ.
+
+    private val surahTajweedCache = java.util.concurrent.ConcurrentHashMap<Int, Map<Int, String>>()
+    private val surahScriptCache = java.util.concurrent.ConcurrentHashMap<String, Map<Int, String>>()
+
+    /** خريطة نص التجويد المخزنة (آية ← نص بوسوم tajweed)، أو null قبل الجلب. */
+    fun getCachedSurahTajweed(surahId: Int): Map<Int, String>? =
+        surahTajweedCache[surahId]
+
+    /**
+     * نص التجويد لسورة كاملة من QF العام (verses/uthmani_tajweed).
+     * تُخزَّن في الذاكرة بعد أول جلب ناجح. null عند أي فشل.
+     */
+    suspend fun fetchSurahTajweed(surahId: Int): Map<Int, String>? {
+        if (surahId !in 1..114) return null
+        surahTajweedCache[surahId]?.let { return it }
+        return try {
+            val url = "https://api.quran.com/api/v4/quran/verses/uthmani_tajweed?chapter_number=$surahId&per_page=300"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val array = try {
+                JSONObject(body).optJSONArray("verses")
+            } catch (_: Exception) {
+                null
+            } ?: return null
+            val result = LinkedHashMap<Int, String>()
+            for (index in 0 until array.length()) {
+                val row = array.optJSONObject(index) ?: continue
+                val key = row.optString("verse_key", "")
+                val ayah = key.substringAfter(":", "").toIntOrNull() ?: 0
+                val text = row.optString("text_uthmani_tajweed", "").trim()
+                if (ayah > 0 && text.isNotBlank()) result[ayah] = text
+            }
+            if (result.isEmpty()) null else {
+                surahTajweedCache[surahId] = result
+                result
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load surah tajweed for $surahId", e)
+            null
+        }
+    }
+
+    /** خريطة رسم بديل مخزنة (رسم:سورة ← آية ← نص)، أو null قبل الجلب. */
+    fun getCachedSurahScript(script: String, surahId: Int): Map<Int, String>? =
+        surahScriptCache["$script:$surahId"]
+
+    /**
+     * نص سورة كاملة برسم بديل ("uthmani_simple" أو "imlaei") من QF العام.
+     * تُخزَّن في الذاكرة بعد أول جلب ناجح. null عند أي فشل.
+     */
+    suspend fun fetchSurahScript(script: String, surahId: Int): Map<Int, String>? {
+        val field = when (script) {
+            "imlaei" -> "text_imlaei"
+            "uthmani_simple" -> "text_uthmani_simple"
+            else -> return null
+        }
+        if (surahId !in 1..114) return null
+        val key = "$script:$surahId"
+        surahScriptCache[key]?.let { return it }
+        return try {
+            val url = "https://api.quran.com/api/v4/quran/verses/$script?chapter_number=$surahId&per_page=300"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val array = try {
+                JSONObject(body).optJSONArray("verses")
+            } catch (_: Exception) {
+                null
+            } ?: return null
+            val result = LinkedHashMap<Int, String>()
+            for (index in 0 until array.length()) {
+                val row = array.optJSONObject(index) ?: continue
+                val verseKey = row.optString("verse_key", "")
+                val ayah = verseKey.substringAfter(":", "").toIntOrNull() ?: 0
+                val text = row.optString(field, "").trim()
+                if (ayah > 0 && text.isNotBlank()) result[ayah] = text
+            }
+            if (result.isEmpty()) null else {
+                surahScriptCache[key] = result
+                result
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load surah script $script for $surahId", e)
+            null
+        }
+    }
+
+    /** مقطع من نص التجويد: نصه وفئة الحكم (null للنص العادي). */
+    data class TajweedSegment(val text: String, val ruleClass: String?)
+
+    /**
+     * تحليل وسوم <tajweed class=...> و<span class=end> من نص QF.
+     * الوسوم متداخلة أحياناً (قاعدة داخل قاعدة) فيُحلَّل بمكدّس، والأعمق
+     * لونه هو الساري على نصه. الوسم المجهول يُحذف ويبقى نصه كنص عادي؛
+     * وعلامة نهاية الآية تُحذف بمحتواها (رقم الآية في شارة البطاقة أصلاً).
+     * المقاطع المتجاورة من الفئة نفسها تُدمج لتقليل عدد الـ spans.
+     */
+    fun parseTajweedMarkup(rawMarkup: String): List<TajweedSegment> {
+        val segments = ArrayList<TajweedSegment>()
+        val plain = StringBuilder()
+        val ruleStack = ArrayDeque<String?>()
+        var currentRule: String? = null
+        var skipSpanDepth = 0
+        fun flushPlain() {
+            if (plain.isNotEmpty()) {
+                segments += TajweedSegment(plain.toString(), currentRule)
+                plain.clear()
+            }
+        }
+        var index = 0
+        while (index < rawMarkup.length) {
+            val open = rawMarkup.indexOf('<', index)
+            if (open < 0) {
+                if (skipSpanDepth == 0) plain.append(rawMarkup, index, rawMarkup.length)
+                break
+            }
+            if (skipSpanDepth == 0) plain.append(rawMarkup, index, open)
+            val close = rawMarkup.indexOf('>', open)
+            if (close < 0) {
+                if (skipSpanDepth == 0) plain.append(rawMarkup, open, rawMarkup.length)
+                break
+            }
+            val tag = rawMarkup.substring(open + 1, close).trim()
+            when {
+                tag.startsWith("tajweed class=") -> {
+                    val rule = tag.removePrefix("tajweed class=").trim()
+                    flushPlain()
+                    ruleStack.addLast(currentRule)
+                    currentRule = rule
+                    index = close + 1
+                }
+                tag == "/tajweed" -> {
+                    flushPlain()
+                    currentRule = if (ruleStack.isEmpty()) null else ruleStack.removeLast()
+                    index = close + 1
+                }
+                tag.startsWith("span") -> {
+                    skipSpanDepth++
+                    index = close + 1
+                }
+                tag == "/span" -> {
+                    if (skipSpanDepth > 0) skipSpanDepth--
+                    index = close + 1
+                }
+                else -> index = close + 1
+            }
+        }
+        flushPlain()
+        val merged = ArrayList<TajweedSegment>()
+        for (segment in segments) {
+            val last = merged.lastOrNull()
+            if (last != null && last.ruleClass == segment.ruleClass) {
+                merged[merged.lastIndex] = TajweedSegment(last.text + segment.text, last.ruleClass)
+            } else {
+                merged += segment
+            }
+        }
+        return merged
+    }
+
+    /**
+     * ألوان أحكام التجويد في القارئ (لوحة التطبيق الخاصة؛ الفئات من QF).
+     * كل فئة لون مميز يقرأ على الخلفيات الداكنة والفاتحة معاً.
+     */
+    val TAJWEED_RULE_COLORS: Map<String, Color> = mapOf(
+        "ham_wasl" to Color(0xFF9AA0A6),
+        "slnt" to Color(0xFF78909C),
+        "laam_shamsiyah" to Color(0xFF8D6E63),
+        "madda_normal" to Color(0xFF1E88E5),
+        "madda_permissible" to Color(0xFF3949AB),
+        "madda_obligatory" to Color(0xFF5E35B1),
+        "madda_necessary" to Color(0xFF00897B),
+        "qalaqah" to Color(0xFFD32F2F),
+        "ikhafa" to Color(0xFF8E24AA),
+        "ikhafa_shafawi" to Color(0xFFD81B60),
+        "idgham_shafawi" to Color(0xFF388E3C),
+        "idgham_ghunnah" to Color(0xFF43A047),
+        "idgham_wo_ghunnah" to Color(0xFF7CB342),
+        "idgham_mutajanisayn" to Color(0xFF6D4C41),
+        "iqlab" to Color(0xFF00ACC1),
+        "ghunnah" to Color(0xFFFB8C00)
+    )
+
+    /** أسماء أحكام التجويد العربية لدليل الألوان في القارئ. */
+    val TAJWEED_RULE_NAMES_AR: Map<String, String> = mapOf(
+        "ham_wasl" to "همزة الوصل",
+        "slnt" to "حرف صامت",
+        "laam_shamsiyah" to "اللام الشمسية",
+        "madda_normal" to "مد طبيعي",
+        "madda_permissible" to "مد جائز",
+        "madda_obligatory" to "مد واجب متصل",
+        "madda_necessary" to "مد لازم",
+        "qalaqah" to "قلقلة",
+        "ikhafa" to "إخفاء",
+        "ikhafa_shafawi" to "إخفاء شفوي",
+        "idgham_shafawi" to "إدغام شفوي",
+        "idgham_ghunnah" to "إدغام بغنة",
+        "idgham_wo_ghunnah" to "إدغام بلا غنة",
+        "idgham_mutajanisayn" to "إدغام متجانسين",
+        "iqlab" to "إقلاب",
+        "ghunnah" to "غنة"
+    )
+
+    /**
+     * كلمات آية واحدة مع النقل الصوتي والترجمة الإنجليزية (QF العام).
+     * علامات نهاية الآية (char_type_name = "end") تُستبعد — ليست كلمات.
+     * null عند أي فشل أو غياب كلمات حقيقية.
+     */
+    suspend fun fetchVerseWords(surahId: Int, ayah: Int): List<QuranWordStudy>? {
+        if (surahId !in 1..114 || ayah < 1) return null
+        val key = "$surahId:$ayah"
+        verseWordsCache[key]?.let { return it }
+        return try {
+            val url = "https://api.quran.com/api/v4/verses/by_key/$surahId:$ayah?words=true&word_fields=text_uthmani"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val words = try {
+                JSONObject(body).optJSONObject("verse")?.optJSONArray("words")
+            } catch (_: Exception) {
+                null
+            } ?: return null
+            val result = ArrayList<QuranWordStudy>()
+            for (index in 0 until words.length()) {
+                val word = words.optJSONObject(index) ?: continue
+                if (word.optString("char_type_name") != "word") continue
+                val position = word.optInt("position", 0)
+                val uthmani = word.optString("text_uthmani").trim()
+                if (position < 1 || uthmani.isBlank()) continue
+                val transliteration = word.optJSONObject("transliteration")
+                    ?.optString("text")?.trim()?.takeIf { it.isNotBlank() }
+                val translation = word.optJSONObject("translation")
+                    ?.optString("text")?.trim()?.takeIf { it.isNotBlank() }
+                result += QuranWordStudy(position, uthmani, transliteration, translation)
+            }
+            val sorted = result.sortedBy { it.position }
+            if (sorted.isEmpty()) null else {
+                verseWordsCache[key] = sorted
+                sorted
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load verse words for $key", e)
+            null
+        }
     }
 }

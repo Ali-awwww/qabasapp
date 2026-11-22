@@ -660,6 +660,267 @@ object UserPreferencesManager {
         // المستمع المسجّل في init() — لا استدعاء صريح هنا.
     }
 
+    /**
+     * علامات المصحف (خارطة المصحف — المرحلة 1): آية + لون + ملاحظة اختيارية.
+     * تخزين محلي فقط في SharedPreferences (مصفوفة JSON تحت مفتاح
+     * "mushaf_bookmarks") — المفتاح غير مدرج في CLOUD_SYNCED_QABAS_KEYS
+     * عمداً فلا مزامنة سحابية ولا ادعاء بها: جدول library_reading_state
+     * في Supabase مخصص لحالات قراءة كتب المكتبة (مفتاحه معرّف كتاب)
+     * ولا يصلح لعلامات آيات قرآنية، فلا نعيد استخدامه هنا.
+     */
+    data class MushafBookmark(
+        val surah: Int,
+        val ayah: Int,
+        val colorArgb: Int,
+        val note: String,
+        val createdAtMillis: Long
+    )
+
+    /** لوحة ألوان العلامات الثابتة: (قيمة ARGB، الاسم العربي). */
+    val MUSHAF_BOOKMARK_COLORS: List<Pair<Int, String>> = listOf(
+        0xFFD4AF37.toInt() to "ذهبي",
+        0xFF10B981.toInt() to "أخضر",
+        0xFF0EA5E9.toInt() to "أزرق",
+        0xFF8B5CF6.toInt() to "بنفسجي",
+        0xFFEC4899.toInt() to "وردي"
+    )
+
+    val MUSHAF_BOOKMARK_DEFAULT_COLOR: Int = 0xFFD4AF37.toInt()
+
+    /** أقصى طول لملاحظة العلامة — يُقصّ الزائد عند الحفظ لا عند العرض. */
+    const val MUSHAF_BOOKMARK_MAX_NOTE_LENGTH = 200
+
+    fun getMushafBookmarks(context: Context): List<MushafBookmark> {
+        val prefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString("mushaf_bookmarks", null) ?: return emptyList()
+        return try {
+            val array = JSONArray(raw)
+            val result = ArrayList<MushafBookmark>(array.length())
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val surah = obj.optInt("s", 0)
+                val ayah = obj.optInt("a", 0)
+                if (surah !in 1..114 || ayah < 1) continue
+                result += MushafBookmark(
+                    surah = surah,
+                    ayah = ayah,
+                    colorArgb = obj.optInt("c", MUSHAF_BOOKMARK_DEFAULT_COLOR),
+                    note = obj.optString("n", "").take(MUSHAF_BOOKMARK_MAX_NOTE_LENGTH),
+                    createdAtMillis = obj.optLong("t", 0L)
+                )
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getMushafBookmark(context: Context, surah: Int, ayah: Int): MushafBookmark? =
+        getMushafBookmarks(context).firstOrNull { it.surah == surah && it.ayah == ayah }
+
+    /** إضافة أو تحديث علامة (مفتاحها السورة:الآية)؛ الأحدث أولاً. */
+    fun saveMushafBookmark(context: Context, bookmark: MushafBookmark) {
+        if (bookmark.surah !in 1..114 || bookmark.ayah < 1) return
+        val cleaned = bookmark.copy(
+            note = bookmark.note.trim().take(MUSHAF_BOOKMARK_MAX_NOTE_LENGTH)
+        )
+        val kept = getMushafBookmarks(context)
+            .filterNot { it.surah == cleaned.surah && it.ayah == cleaned.ayah }
+        writeMushafBookmarks(context, listOf(cleaned) + kept)
+    }
+
+    fun removeMushafBookmark(context: Context, surah: Int, ayah: Int) {
+        val kept = getMushafBookmarks(context)
+            .filterNot { it.surah == surah && it.ayah == ayah }
+        writeMushafBookmarks(context, kept)
+    }
+
+    private fun writeMushafBookmarks(context: Context, bookmarks: List<MushafBookmark>) {
+        val array = JSONArray()
+        for (bookmark in bookmarks) {
+            array.put(
+                JSONObject()
+                    .put("s", bookmark.surah)
+                    .put("a", bookmark.ayah)
+                    .put("c", bookmark.colorArgb)
+                    .put("n", bookmark.note)
+                    .put("t", bookmark.createdAtMillis)
+            )
+        }
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_bookmarks", array.toString())
+            .apply()
+    }
+
+    /**
+     * تفضيلات صوت المصحف (خارطة المصحف — المرحلة 2): سرعة التشغيل
+     * (0.5–2.0، النطاق نفسه في UnifiedVideoPlayerSettings)، ووضع التكرار،
+     * وآخر قارئ مختار — محلية فقط، مفاتيحها غير مدرجة في
+     * CLOUD_SYNCED_QABAS_KEYS فلا مزامنة سحابية.
+     */
+    fun getMushafAudioSpeed(context: Context): Float =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getFloat("mushaf_audio_speed", 1f).coerceIn(0.5f, 2f)
+
+    fun saveMushafAudioSpeed(context: Context, speed: Float) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putFloat("mushaf_audio_speed", speed.coerceIn(0.5f, 2f)).apply()
+    }
+
+    fun getMushafAudioRepeat(context: Context): String =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("mushaf_audio_repeat", "OFF") ?: "OFF"
+
+    fun saveMushafAudioRepeat(context: Context, mode: String) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_audio_repeat", mode).apply()
+    }
+
+    fun getMushafAudioReciter(context: Context): String =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("mushaf_audio_reciter", "alafasy") ?: "alafasy"
+
+    fun saveMushafAudioReciter(context: Context, reciterId: String) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_audio_reciter", reciterId).apply()
+    }
+
+    /**
+     * إظهار الترجمة الإنجليزية تحت آيات المصحف (خارطة المصحف — المرحلة 3):
+     * محلي فقط، مفتاحه غير مدرج في CLOUD_SYNCED_QABAS_KEYS فلا مزامنة
+     * سحابية. الترجمة نفسها لا تُحفظ محلياً — تُجلب من QuranEnc عند
+     * الطلب وتُخزَّن في ذاكرة QuranDataProvider فقط.
+     */
+    fun getMushafShowTranslation(context: Context): Boolean =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("mushaf_show_translation", false)
+
+    fun saveMushafShowTranslation(context: Context, show: Boolean) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean("mushaf_show_translation", show).apply()
+    }
+
+    /**
+     * عرض المصحف — المرحلة 5: ألوان التجويد، والرسم، والصفحتان.
+     * محلية فقط، مفاتيحها غير مدرجة في CLOUD_SYNCED_QABAS_KEYS فلا
+     * مزامنة سحابية. الرسم الافتراضي "uthmani" (نص التطبيق المحلي)؛
+     * والرسم البديل يُجلب من QF العام عند اختياره فقط.
+     */
+    fun getMushafTajweed(context: Context): Boolean =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("mushaf_tajweed", false)
+
+    fun saveMushafTajweed(context: Context, show: Boolean) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean("mushaf_tajweed", show).apply()
+    }
+
+    fun getMushafScript(context: Context): String =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("mushaf_script", "uthmani")
+            ?.takeIf { it in setOf("uthmani", "uthmani_simple", "imlaei") }
+            ?: "uthmani"
+
+    fun saveMushafScript(context: Context, script: String) {
+        val valid = script.takeIf { it in setOf("uthmani", "uthmani_simple", "imlaei") } ?: "uthmani"
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_script", valid).apply()
+    }
+
+    fun getMushafTwoPageSpread(context: Context): Boolean =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("mushaf_two_page_spread", false)
+
+    fun saveMushafTwoPageSpread(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean("mushaf_two_page_spread", enabled).apply()
+    }
+
+    /**
+     * خطة الختمة (خارطة المصحف — المرحلة 4): بداية الخطة وهدفها الزمني.
+     * تخزين محلي فقط (كائن JSON تحت مفتاح "mushaf_khatmah_plan") — المفتاح
+     * غير مدرج في CLOUD_SYNCED_QABAS_KEYS عمداً فلا مزامنة سحابية:
+     * التقدّم يُحسب دائماً من موضع القراءة الفعلي (last_read_*) لا من
+     * عدّاد مستقل، فلا يوجد ما يُزامَن أصلاً. startPage قد تكون null
+     * إن أُنشئت الخطة قبل تحميل خريطة الصفحات؛ عندها يُحسب التقدّم
+     * بعدد الآيات من startSurah/startAyah.
+     */
+    data class MushafKhatmahPlan(
+        val startSurah: Int,
+        val startAyah: Int,
+        val startPage: Int?,
+        val startMillis: Long,
+        val targetDays: Int,
+        val createdAtMillis: Long
+    )
+
+    fun getMushafKhatmahPlan(context: Context): MushafKhatmahPlan? {
+        val prefs = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString("mushaf_khatmah_plan", null) ?: return null
+        return try {
+            val obj = JSONObject(raw)
+            val startSurah = obj.optInt("ss", 0)
+            val startAyah = obj.optInt("sa", 0)
+            val maxAyah = QuranDataProvider.surahs
+                .firstOrNull { it.id == startSurah }?.versesCount ?: 0
+            val startPage = obj.optInt("sp", -1).takeIf { it in 1..MushafPageData.PAGE_COUNT }
+            val startMillis = obj.optLong("sm", 0L)
+            val targetDays = obj.optInt("td", 0)
+            if (startSurah !in 1..114 || startAyah !in 1..maxOf(1, maxAyah) ||
+                startMillis <= 0L || targetDays !in 1..3650
+            ) {
+                return null
+            }
+            MushafKhatmahPlan(
+                startSurah = startSurah,
+                startAyah = startAyah,
+                startPage = startPage,
+                startMillis = startMillis,
+                targetDays = targetDays,
+                createdAtMillis = obj.optLong("ct", startMillis)
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveMushafKhatmahPlan(context: Context, plan: MushafKhatmahPlan) {
+        if (plan.startSurah !in 1..114 || plan.startAyah < 1 ||
+            plan.startMillis <= 0L || plan.targetDays !in 1..3650
+        ) {
+            return
+        }
+        val obj = JSONObject()
+            .put("ss", plan.startSurah)
+            .put("sa", plan.startAyah)
+            .put("sp", plan.startPage ?: -1)
+            .put("sm", plan.startMillis)
+            .put("td", plan.targetDays)
+            .put("ct", plan.createdAtMillis)
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_khatmah_plan", obj.toString()).apply()
+    }
+
+    fun clearMushafKhatmahPlan(context: Context) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove("mushaf_khatmah_plan").apply()
+    }
+
+    /**
+     * وضع الحفظ (إخفاء نص الآيات للتسميع) — محلي فقط، مفتاحه غير مدرج
+     * في CLOUD_SYNCED_QABAS_KEYS فلا مزامنة سحابية. الإخفاء عرض فقط:
+     * النص نفسه لا يُغيَّر أبداً، والآيات المكشوفة في الجلسة تُحفظ في
+     * ذاكرة الشاشة لا هنا.
+     */
+    fun getMushafMemorizationMode(context: Context): Boolean =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("mushaf_memorization_mode", false)
+
+    fun saveMushafMemorizationMode(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean("mushaf_memorization_mode", enabled).apply()
+    }
+
     // Helper to resolve font family
     fun getResolvedFontFamily(key: String = _readingFontFamily.value): FontFamily {
         return when (key) {

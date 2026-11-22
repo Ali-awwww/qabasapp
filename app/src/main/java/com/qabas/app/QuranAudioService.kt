@@ -43,7 +43,19 @@ object QuranAudioService {
         QuranReciterInfo("minshawy", "الشيخ محمد صديق المنشاوي (مرتل)", "Minshawy_Murattal_128kbps"),
         QuranReciterInfo("husary", "الشيخ محمود خليل الحصري", "Husary_128kbps"),
         QuranReciterInfo("muaiqly", "الشيخ ماهر المعيقلي", "MaherAlMuaiqly128kbps"),
-        QuranReciterInfo("ghamadi", "الشيخ سعد الغامدي", "Ghamadi_40kbps")
+        QuranReciterInfo("ghamadi", "الشيخ سعد الغامدي", "Ghamadi_40kbps"),
+        // المرحلة 2 — 8 قراء إضافيين: كل مجلد تحقق منه برأس HTTP على
+        // EveryAyah (001001.mp3 + فحص موضعي داخل المصحف) فأعاد 200.
+        // المجلدات التي أعادت 404 لم تُضف (العجمي، الحصري مجوّد،
+        // عبد الباسط مجوّد، المعيقلي 64kbps).
+        QuranReciterInfo("shatri", "الشيخ أبو بكر الشاطري", "Abu_Bakr_Ash-Shaatree_128kbps"),
+        QuranReciterInfo("shuraym", "الشيخ سعود الشريم", "Saood_ash-Shuraym_128kbps"),
+        QuranReciterInfo("hudhaify", "الشيخ علي الحذيفي", "Hudhaify_32kbps"),
+        QuranReciterInfo("ayyoub", "الشيخ محمد أيوب", "Muhammad_Ayyoub_128kbps"),
+        QuranReciterInfo("akhdar", "الشيخ إبراهيم الأخضر", "Ibrahim_Akhdar_32kbps"),
+        QuranReciterInfo("basfar", "الشيخ عبد الله بصفر", "Abdullah_Basfar_32kbps"),
+        QuranReciterInfo("jibreel", "الشيخ محمد جبريل", "Muhammad_Jibreel_128kbps"),
+        QuranReciterInfo("parhizgar", "الشيخ شهريار برهيزكار", "Parhizgar_48kbps")
     )
 
     private val client = OkHttpClient()
@@ -69,6 +81,14 @@ object QuranAudioService {
         name.contains("الماهر المعيقلي") || name.contains("ماهر المعيقلي") -> "muaiqly"
         name.contains("مشاري") -> "alafasy"
         name.contains("سعد الغامدي") -> "ghamadi"
+        name.contains("الشاطري") -> "shatri"
+        name.contains("الشريم") -> "shuraym"
+        name.contains("الحذيفي") -> "hudhaify"
+        name.contains("محمد أيوب") -> "ayyoub"
+        name.contains("الأخضر") -> "akhdar"
+        name.contains("بصفر") -> "basfar"
+        name.contains("جبريل") -> "jibreel"
+        name.contains("برهيزكار") -> "parhizgar"
         else -> null
     }
 
@@ -197,36 +217,202 @@ object QuranAudioService {
 
         return@withContext emptyList()
     }
+
+    /**
+     * توقيت كلمة داخل آية — من Quran Foundation فقط، وحقيقي فقط عند وصوله.
+     * حقل `segments` في استجابة QF هو مصفوفة [?, position, startMs, endMs]
+     * (تحققنا منه على api.quran.com:‏ verses/by_chapter?audio=7&words=true
+     * يعيد `audio: {url, segments: [[0,1,60,610], ...]}`)؛ position رقم
+     * الكلمة داخل الآية بدءاً من 1.
+     */
+    data class QuranWordTiming(val position: Int, val startMs: Long, val endMs: Long)
+
+    /**
+     * آية صوتية مع توقيت كلماتها الاختياري. timings فارغة دائماً على مسار
+     * EveryAyah (ملفات mp3 بلا بيانات توقيت) — التمييز على مستوى الآية
+     * فقط هناك؛ أما تمييز الكلمة فيُفعَّل فقط عند وصول segments حقيقية.
+     */
+    data class QuranTimedAyahAudio(
+        val surah: Int,
+        val ayah: Int,
+        val url: String,
+        val timings: List<QuranWordTiming> = emptyList()
+    )
+
+    /**
+     * روابط صفحة مع توقيت كلماتها من Quran Foundation (words=true).
+     * يعمل فقط للعفاسي عند توفر مفاتيح QF؛ أي فشل (لا مفاتيح، خطأ شبكة،
+     * أو نطاق pre-live المحدود بالفاتحة والبقرة) يعيد null فيعود المتصل
+     * إلى getPageAudioUrls بلا توقيت — لا توقيت مخمّن ولا مزيف أبداً.
+     */
+    suspend fun getPageAudioWithTimings(context: Context, page: Int, reciterKey: String = "alafasy"): List<QuranTimedAyahAudio>? = withContext(Dispatchers.IO) {
+        if (!isConfigured() || reciterKey != "alafasy") return@withContext null
+        val token = ensureToken(context) ?: return@withContext null
+        try {
+            val url = "$API_BASE/verses/by_page/$page?words=true&audio=$RECITER_ALAFASY&mushaf=$MUSHAF_QCF_V2&per_page=all"
+            val req = Request.Builder().url(url)
+                .header("x-auth-token", token)
+                .header("x-client-id", clientId())
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val root = JSONObject(resp.body?.string() ?: return@withContext null)
+                val verses = root.optJSONArray("verses") ?: return@withContext null
+                val result = ArrayList<QuranTimedAyahAudio>(verses.length())
+                for (i in 0 until verses.length()) {
+                    val verse = verses.optJSONObject(i) ?: continue
+                    val key = verse.optString("verse_key") // "surah:ayah"
+                    val parts = key.split(":")
+                    if (parts.size != 2) continue
+                    val surah = parts[0].toIntOrNull() ?: continue
+                    val ayah = parts[1].toIntOrNull() ?: continue
+                    val audio = verse.optJSONObject("audio") ?: continue
+                    val rel = audio.optString("url")
+                    if (rel.isBlank()) continue
+                    val fullUrl = if (rel.startsWith("http")) rel else VERSE_AUDIO_BASE + rel
+                    val timings = ArrayList<QuranWordTiming>()
+                    val segments = audio.optJSONArray("segments")
+                    if (segments != null) {
+                        for (j in 0 until segments.length()) {
+                            val seg = segments.optJSONArray(j) ?: continue
+                            if (seg.length() < 4) continue
+                            val position = seg.optInt(1, 0)
+                            val start = seg.optLong(2, -1L)
+                            val end = seg.optLong(3, -1L)
+                            if (position >= 1 && start >= 0 && end > start) {
+                                timings += QuranWordTiming(position, start, end)
+                            }
+                        }
+                    }
+                    result += QuranTimedAyahAudio(surah, ayah, fullUrl, timings)
+                }
+                if (result.isEmpty()) null else result
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "QF timings failed, caller falls back: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * روابط آيات سورة كاملة (لتكرار السورة) من EveryAyah مباشرة.
+     * العدد من QuranDataProvider.surahs الحقيقي — لا رقم مخترع.
+     */
+    fun getSurahAudioUrls(surah: Int, reciterKey: String = "alafasy"): List<QuranTimedAyahAudio> {
+        val count = QuranDataProvider.surahs.firstOrNull { it.id == surah }?.versesCount
+            ?: return emptyList()
+        if (surah !in 1..114 || count < 1) return emptyList()
+        return (1..count).map { ayah ->
+            QuranTimedAyahAudio(surah, ayah, getAyahAudioUrl(surah, ayah, reciterKey))
+        }
+    }
+
+    /**
+     * إن كانت الآية منزّلة في مخزن التنزيلات الموحّد يعيد مسار ملفها
+     * المحلي، وإلا يعيد الرابط البعيد كما هو (تشغيل مختلط محلي/بعيد).
+     */
+    fun resolvePlaybackUri(context: Context, url: String): String {
+        val local = runCatching {
+            DownloadsHubManager.audioFileForUrl(context, url)
+        }.getOrNull()
+        return if (local != null && local.exists()) {
+            android.net.Uri.fromFile(local).toString()
+        } else {
+            url
+        }
+    }
 }
 
 /**
- * مشغّل قائمة آيات الصفحة (Media3 ExoPlayer).
+ * أوضاع تكرار التلاوة (المرحلة 2): تُطبَّق على مشغّل ExoPlayer نفسه،
+ * لا على مؤقّتات: الآية = REPEAT_MODE_ONE، والصفحة/السورة =
+ * REPEAT_MODE_ALL على قائمة التشغيل المبنية لها.
+ */
+enum class QuranRepeatMode { OFF, VERSE, PAGE, SURAH }
+
+/**
+ * مشغّل قائمة آيات (Media3 ExoPlayer) — المرحلة 2.
+ *
+ * - التمييز على مستوى الآية حقيقي دائماً: كل آية عنصر وسائط مستقل،
+ *   فيُبلَّغ onAyahChanged برقم العنصر الحالي عند كل انتقال فعلي.
+ * - تمييز الكلمة يأتي من onAyahChanged + currentPositionMs() الذي
+ *   تقرأه الشاشة وتطابقه مع QuranWordTiming — بلا أي تخمين زمني.
+ * - خطأ التشغيل (شبكة، ملف) يُبلَّغ عبر onError منفصلاً عن onEnded:
+ *   لا توقف صامت بعد اليوم.
+ * - السرعة 0.5–2.0 (نطاق ExoPlayer/Sonic نفسه، كما في
+ *   UnifiedVideoPlayerSettings)؛ مؤقت النوم يوقف التشغيل بعد المدة
+ *   المختارة ويُبلَّغ كنهاية طبيعية.
  */
 object QuranAudioPlayer {
 
     private var player: ExoPlayer? = null
-    private var onCompletionCallback: (() -> Unit)? = null
+    private var onEndedCallback: (() -> Unit)? = null
+    private var onErrorCallback: ((String) -> Unit)? = null
+    private var onAyahChangedCallback: ((Int) -> Unit)? = null
+    private var sleepHandler: android.os.Handler? = null
+    private var sleepRunnable: Runnable? = null
+    private var sleepDeadlineMs: Long = 0L
+    private var currentSpeed: Float = 1f
 
-    fun playUrls(context: Context, urls: List<String>, onEnded: (() -> Unit)? = null) {
+    fun playAyahs(
+        context: Context,
+        ayahs: List<QuranAudioService.QuranTimedAyahAudio>,
+        startIndex: Int = 0,
+        repeatMode: QuranRepeatMode = QuranRepeatMode.OFF,
+        speed: Float = 1f,
+        onAyahChanged: ((Int) -> Unit)? = null,
+        onEnded: (() -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
         stop()
-        if (urls.isEmpty()) return
-        onCompletionCallback = onEnded
+        if (ayahs.isEmpty()) return
+        onEndedCallback = onEnded
+        onErrorCallback = onError
+        onAyahChangedCallback = onAyahChanged
+        currentSpeed = speed.coerceIn(0.5f, 2f)
         val p = try {
             ExoPlayerFactory.createPlayer(context.applicationContext)
         } catch (_: Exception) {
             ExoPlayer.Builder(context.applicationContext).build()
         }
-        p.setMediaItems(urls.map { MediaItem.fromUri(it) })
+        val items = ayahs.map { ayah ->
+            MediaItem.Builder()
+                .setUri(QuranAudioService.resolvePlaybackUri(context, ayah.url))
+                .setMediaId("${ayah.surah}:${ayah.ayah}")
+                .build()
+        }
+        p.setMediaItems(items, startIndex.coerceIn(0, items.lastIndex), 0L)
+        p.repeatMode = when (repeatMode) {
+            QuranRepeatMode.VERSE -> Player.REPEAT_MODE_ONE
+            QuranRepeatMode.PAGE, QuranRepeatMode.SURAH -> Player.REPEAT_MODE_ALL
+            QuranRepeatMode.OFF -> Player.REPEAT_MODE_OFF
+        }
+        p.setPlaybackSpeed(currentSpeed)
         p.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val index = p.currentMediaItemIndex
+                if (index >= 0) onAyahChangedCallback?.invoke(index)
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
-                    onCompletionCallback?.invoke()
+                    val ended = onEndedCallback
+                    onEndedCallback = null
+                    ended?.invoke()
                 }
             }
+
             override fun onPlayerError(error: PlaybackException) {
-                android.util.Log.w("QuranAudioPlayer", "Audio playback error handled: ${error.message}")
-                onCompletionCallback?.invoke()
-                onCompletionCallback = null
+                android.util.Log.w("QuranAudioPlayer", "Audio playback error: ${error.message}")
+                val message = when (error.errorCode) {
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "تعذّر الاتصال بخادم التلاوة — تحقق من الإنترنت وحاول مجدداً."
+                    PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> "ملف التلاوة غير متوفر لهذه الآية."
+                    else -> "تعذّر تشغيل التلاوة — حاول مجدداً."
+                }
+                val report = onErrorCallback
+                onErrorCallback = null
+                report?.invoke(message)
             }
         })
         p.prepare()
@@ -244,13 +430,88 @@ object QuranAudioPlayer {
 
     fun hasPlayer(): Boolean = player != null
 
+    /** موضع التشغيل الحالي داخل الآية الجارية (مللي ثانية) — لتطابق الكلمة. */
+    fun currentPositionMs(): Long = try {
+        player?.currentPosition ?: 0L
+    } catch (_: Exception) {
+        0L
+    }
+
+    /** رقم الآية الجارية في قائمة التشغيل، أو -1 بلا تشغيل. */
+    fun currentAyahIndex(): Int = try {
+        player?.currentMediaItemIndex ?: -1
+    } catch (_: Exception) {
+        -1
+    }
+
+    fun setSpeed(rate: Float) {
+        currentSpeed = rate.coerceIn(0.5f, 2f)
+        try {
+            player?.setPlaybackSpeed(currentSpeed)
+        } catch (_: Exception) {
+        }
+    }
+
+    fun getSpeed(): Float = currentSpeed
+
+    fun setRepeatMode(mode: QuranRepeatMode) {
+        try {
+            player?.repeatMode = when (mode) {
+                QuranRepeatMode.VERSE -> Player.REPEAT_MODE_ONE
+                QuranRepeatMode.PAGE, QuranRepeatMode.SURAH -> Player.REPEAT_MODE_ALL
+                QuranRepeatMode.OFF -> Player.REPEAT_MODE_OFF
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * مؤقت النوم: يوقف التشغيل بعد minutes دقيقة ويُبلَّغ كنهاية طبيعية.
+     * null أو <= 0 يلغي المؤقت الجاري.
+     */
+    fun setSleepTimer(minutes: Int?) {
+        cancelSleepTimer()
+        if (minutes == null || minutes <= 0) return
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        sleepDeadlineMs = System.currentTimeMillis() + minutes * 60_000L
+        val runnable = Runnable {
+            sleepDeadlineMs = 0L
+            val ended = onEndedCallback
+            stop() // يصفّر onEndedCallback — لذا نلتقطه قبله.
+            ended?.invoke()
+        }
+        sleepHandler = handler
+        sleepRunnable = runnable
+        handler.postDelayed(runnable, minutes * 60_000L)
+    }
+
+    /** المللي ثانية المتبقية على مؤقت النوم، أو null بلا مؤقت. */
+    fun sleepRemainingMs(): Long? {
+        if (sleepDeadlineMs == 0L) return null
+        val remaining = sleepDeadlineMs - System.currentTimeMillis()
+        return if (remaining > 0) remaining else 0L
+    }
+
+    private fun cancelSleepTimer() {
+        try {
+            sleepRunnable?.let { sleepHandler?.removeCallbacks(it) }
+        } catch (_: Exception) {
+        }
+        sleepHandler = null
+        sleepRunnable = null
+        sleepDeadlineMs = 0L
+    }
+
     fun stop() {
+        cancelSleepTimer()
         try {
             player?.stop()
             player?.release()
         } catch (_: Exception) {
         }
         player = null
-        onCompletionCallback = null
+        onEndedCallback = null
+        onErrorCallback = null
+        onAyahChangedCallback = null
     }
 }
