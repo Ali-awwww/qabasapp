@@ -304,7 +304,7 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
         if (apiKey.isNotBlank() && provider != DetectedProvider.NONE) {
             when (provider) {
                 DetectedProvider.GEMINI -> {
-                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
                     val jsonBody = JSONObject().apply {
                         put("contents", JSONArray().put(JSONObject().apply {
                             put("parts", JSONArray().put(JSONObject().apply { put("text", prompt) }))
@@ -313,6 +313,7 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                     }
                     val request = Request.Builder()
                         .url(url)
+                        .header("x-goog-api-key", apiKey)
                         .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                         .build()
                     val response = client.newCall(request).execute()
