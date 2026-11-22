@@ -428,7 +428,7 @@ private fun ExploreReelThumb(
 
 @Composable
 private fun ExploreThumbImage(reel: SupabaseServices.ReelRow, modifier: Modifier = Modifier) {
-    val thumb = reel.thumbnailUrl?.trim().takeIf { it.isNotBlank() }
+    val thumb = reel.thumbnailUrl?.trim()?.takeIf { it.isNotBlank() }
     if (thumb != null) {
         AsyncImage(
             model = thumb,

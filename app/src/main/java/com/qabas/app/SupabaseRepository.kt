@@ -939,7 +939,7 @@ class SupabaseRepository(
                 function = "qabas-key-vault",
                 body = buildJsonObject {
                     put("action", "delete")
-                    put("services", buildJsonArray { add(vaultService) })
+                    put("services", buildJsonArray { add(JsonPrimitive(vaultService)) })
                 }
             )
             val result = response.body<KeySyncService.VaultResponse>()
