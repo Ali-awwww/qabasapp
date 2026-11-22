@@ -146,7 +146,7 @@ object QabasTipsRepository {
         QabasTipItem(
             id = "sg3",
             category = TipCategory.CREATIVE_STUDIO,
-            text = "استخدم MoneyPrinter Turbo لإعداد مقاطع قصيرة عبر مسار يجمع السكريبت والصوت ولقطات B-Roll والرندر.",
+            text = "استخدم أدوات دخل المبدعين لإعداد مقاطع قصيرة عبر مسار يجمع السكريبت والصوت ولقطات B-Roll والرندر.",
             sourceOrBadge = "إنتاج الريلز آلياً ⚡",
             actionableHint = "راجع النص والصوت واللقطات الناتجة قبل اعتماد الفيديو النهائي."
         ),

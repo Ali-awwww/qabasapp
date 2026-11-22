@@ -46,7 +46,7 @@ object AgentStreaming {
         onPartial: (String) -> Unit
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val m = model?.takeIf { it.isNotBlank() } ?: "gemini-2.5-flash"
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/$m:streamGenerateContent?alt=sse&key=$apiKey"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$m:streamGenerateContent?alt=sse"
         val body = JSONObject().apply {
             put("contents", org.json.JSONArray().apply {
                 put(JSONObject().apply {
@@ -63,6 +63,7 @@ object AgentStreaming {
             })
         }
         val req = Request.Builder().url(url)
+            .header("x-goog-api-key", apiKey)
             .post(body.toString().toRequestBody("application/json".toMediaType())).build()
         val resp = SharedHttpClient.instance.newCall(req).execute()
         try {
