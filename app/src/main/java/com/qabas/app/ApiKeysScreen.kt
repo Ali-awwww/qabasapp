@@ -1708,9 +1708,9 @@ private fun KeyPoolSection(
     }
 }
 
+/** لا يكشف المفتاح أبداً: •••• + آخر 4 أحرف فقط (عبر AgentPrefs.maskSecret). */
 private fun maskKey(key: String): String {
-    val t = key.trim()
-    return if (t.length <= 12) "••••••" else "${t.take(6)}…${t.takeLast(4)}"
+    return AgentPrefs.maskSecret(key)
 }
 
 @Composable

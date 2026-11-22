@@ -98,24 +98,8 @@ object AgentConnectivityEngine {
             return Triple(DetectedProvider.OPENCODE, opencodePrefs, KeySource.KEY_VAULT)
         }
 
-        // 2. فحص BuildConfig إذا لم يقم المستخدم بإدخال مفتاح في الواجهة
-        val geminiBuild = runCatching {
-            BuildConfig::class.java.getField("GEMINI_API_KEY").get(null) as? String
-        }.getOrNull()?.let(::usableApiKey).orEmpty()
-        if (geminiBuild.isNotEmpty() && !geminiBuild.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.GEMINI, geminiBuild, KeySource.BUILD_CONFIG)
-        }
-
-        val groqBuild = runCatching { usableApiKey(BuildConfig.GROQ_API_KEY) }.getOrDefault("")
-        if (groqBuild.isNotEmpty() && !groqBuild.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.GROQ, groqBuild, KeySource.BUILD_CONFIG)
-        }
-
-        val openrouterBuild = runCatching { usableApiKey(BuildConfig.OPENROUTER_API_KEY) }.getOrDefault("")
-        if (openrouterBuild.isNotEmpty() && !openrouterBuild.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.OPENROUTER, openrouterBuild, KeySource.BUILD_CONFIG)
-        }
-
+        // لا يقبل إلا المفاتيح المدخلة من المستخدم — لا قراءة لمفاتيح المزودين
+        // من BuildConfig أبداً (أمان الدفعة 1: مفاتيح .env لا تُولَّد في BuildConfig).
         return Triple(DetectedProvider.NONE, "", KeySource.NONE)
     }
 
@@ -391,10 +375,11 @@ object AgentConnectivityEngine {
         val startTime = System.currentTimeMillis()
         try {
             // استعلام خفيف لمعلومات النموذج gemini-2.5-flash
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key=$apiKey"
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash"
             val request = Request.Builder()
                 .url(url)
                 .get()
+                .header("x-goog-api-key", apiKey)
                 .header("User-Agent", "Qabas-Studio")
                 .build()
 

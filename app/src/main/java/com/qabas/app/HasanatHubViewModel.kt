@@ -201,6 +201,20 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HijriDateInfo())
 
     val sections = listOf(
+        // قارئ المصحف (الدفعة 5 — الجزء C): يفتح عند آخر قراءة محفوظة،
+        // ويسجّل موضع القراءة عند التمرير والمغادرة.
+        HasanatSectionItem(
+            id = "mushaf",
+            titleKey = "المصحف الشريف",
+            subtitleKey = "قراءة السور مع تتبّع آخر صفحة",
+            descKey = "المصحف كاملاً بسوره الـ 114 مع التفسير الميسر، ويتذكر آخر صفحة قرأتها لتكمل منها.",
+            badgeKey = "قراءة • تتبّع الصفحة",
+            categoryKey = "العبادات والمواقيت",
+            icon = Icons.Default.MenuBook,
+            accentColor = Color(0xFF10B981),
+            secondaryAccent = Color(0xFF34D399),
+            route = AppState.MUSHAF_READER
+        ),
         HasanatSectionItem(
             id = "prayer",
             titleKey = "محراب الصلاة والمواقيت",
