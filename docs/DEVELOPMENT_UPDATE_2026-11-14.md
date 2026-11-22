@@ -88,6 +88,14 @@ git diff --check
 - أُعيد دفع الفرع بأمان باستخدام `--force-with-lease` إلى commit `1eb76bf43cf24833076f19988adca0272efe5636`.
 - بعد الدفع أصبحت حالة PR `MERGEABLE`، وبدأت فحوص Build وCodeQL وSecret Scan الجديدة؛ لا تُعد نتائجها ناجحة قبل اكتمالها.
 
+## معالجة تقدم main — 2026-11-23
+
+- تقدم `main` إلى `066cbe9f` بعد دمج تحديثات Mushaf، فظهر تعارض جديد في PR #89 رغم نجاح فحوص commit السابق.
+- أُعيد تأسيس الفرع مرة ثانية على هذا الرأس، مع دمج إضافات `main` الجديدة في بوابة Studio: `Studio Agent` و`My Keys` و`Studio Library`.
+- حُفظ مسار `onNavigateToHiggsfield` وتوافقه مع `AppNavigation`، كما بقيت إصلاحات Photo Studio ومهلات تنزيل التلاوة.
+- تم الدفع الآمن باستخدام `--force-with-lease`، وآخر رأس للفرع هو `4e8de9bf8203e29ece5f3a4cf17e319104ff2aa8`.
+- ستبدأ فحوص GitHub دورة جديدة لهذا الرأس؛ فحوص commit السابق كانت ناجحة باستثناء Mintlify الخارجي.
+
 ## جولة تحسين التشغيل — 2026-11-15
 
 - أضيف `Job` مملوك للشاشة لمسار توليد Higgsfield.
