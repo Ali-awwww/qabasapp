@@ -197,7 +197,7 @@ object VideoProcessor {
     }
 
     suspend fun mergeAmbientAudio(context: Context, videoPath: String, ambientAudioPath: String, outputPath: String): Boolean {
-        // ثورة مساعد المسلم (Audio Ducking): خفض صوت الخلفية تلقائياً عند حديث المعلق الصوتي
+        // ثورة خادم المسلم (Audio Ducking): خفض صوت الخلفية تلقائياً عند حديث المعلق الصوتي
         val command = "-y -i \"$videoPath\" -i \"$ambientAudioPath\" -filter_complex \"[1:a]volume=0.4[bg];[bg][0:a]sidechaincompress=threshold=0.05:ratio=4:attack=5:release=500[ducked_bg];[0:a][ducked_bg]amix=inputs=2:duration=first:dropout_transition=2[a]\" -map 0:v -map \"[a]\" -c:v copy -c:a aac -b:a ${currentQualityPreset.audioBitrate} \"$outputPath\""
         val success = executeCommand(command, "خلط الصوت المحيطي مع Audio Ducking")
         if (success && isValidVideoFile(outputPath, minSizeBytes = MIN_SCENE_SIZE)) return true
@@ -255,7 +255,7 @@ object VideoProcessor {
                 styleAnalysis.movementPatterns
             ).lowercase(Locale.ROOT)
 
-        // ثورة مساعد المسلم (Kinetic Typography): تفعيل دائماً للكابشن الحركي (كلمة بكلمة)
+        // ثورة خادم المسلم (Kinetic Typography): تفعيل دائماً للكابشن الحركي (كلمة بكلمة)
         val ok = addWordByWordOverlay(context, videoPath, text, styleAnalysis ?: VideoStyleAnalysis(), outputPath)
         if (ok) return true
         // سقوط آمن إلى كابشن ثابت
@@ -915,7 +915,7 @@ object VideoProcessor {
     ): Boolean {
         val lower = templateName.lowercase()
         val eqFilter = when {
-            // ثورة مساعد المسلم (Mood Color Grading) - Dynamic mappings from Gemini
+            // ثورة خادم المسلم (Mood Color Grading) - Dynamic mappings from Gemini
             lower.contains("warm") || lower.contains("golden") || lower.contains("hope") || lower.contains("mercy") ->
                 "eq=contrast=1.15:brightness=0.03:saturation=1.25,colorchannelmixer=1.1:0:0:0:0:0.95:0:0:0:0:0.8:0" // Warm, golden, hopeful
             lower.contains("cool") || lower.contains("teal") || lower.contains("sad") || lower.contains("trial") || lower.contains("dark") ->

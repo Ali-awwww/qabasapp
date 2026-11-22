@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cold-start splash background: solid emerald with the lantern splash artwork centred.
+     Used as the windowBackground of Theme.Khadim.Splash (minSdk 24, so the
+     item width/height attributes below are supported). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#004E37" />
+        </shape>
+    </item>
+    <item
+        android:drawable="@drawable/ic_khadim_splash"
+        android:width="360dp"
+        android:height="640dp"
+        android:gravity="center" />
+</layer-list>

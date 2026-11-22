@@ -160,7 +160,7 @@ class UpdateDownloadService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val builder = QabasNotificationHelper.createProgressBuilder(
-            this, QabasNotificationHelper.CHANNEL_UPDATES, "تحديث مساعد المسلم", text
+            this, QabasNotificationHelper.CHANNEL_UPDATES, "تحديث خادم المسلم", text
         )
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إلغاء", cancelIntent)
         if (percent != null) {

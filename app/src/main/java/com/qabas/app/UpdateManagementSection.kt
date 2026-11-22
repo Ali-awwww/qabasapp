@@ -113,7 +113,7 @@ fun UpdateManagementSection() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("إدارة إصدارات مساعد المسلم", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("إدارة إصدارات خادم المسلم", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text("GitHub للتخزين وSupabase لاعتماد الإصدار وسياسة التحديث", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
                 }
                 IconButton(onClick = { scope.launch { refresh() } }, enabled = !isLoading, modifier = Modifier.size(48.dp)) {

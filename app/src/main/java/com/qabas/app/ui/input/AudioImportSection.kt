@@ -205,7 +205,7 @@ fun AudioImportSection(
                             Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                Translator.tr("مكتبة مساعد المسلم 🎙️"),
+                                Translator.tr("مكتبة خادم المسلم 🎙️"),
                                 color = GoldPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

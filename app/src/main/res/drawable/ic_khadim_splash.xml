@@ -1,0 +1,97 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="640dp"
+    android:viewportWidth="360"
+    android:viewportHeight="640">
+    <!-- Splash artwork for خادم المسلم / Muslim AI Assistant (9:16).
+         Hanging lantern in the upper half, empty emerald below for the
+         Compose splash text. Vector replacement for the former raster
+         artwork (img_khadim_splash.png). The lantern is the same geometric
+         emblem as ic_khadim_logo.xml, scaled 2.2x and centred; the Compose
+         splash screen adds the pulsing golden glow and the app name. -->
+    <path
+        android:fillColor="#004E37"
+        android:pathData="M0,0h360v640H0z" />
+    <!-- Hanging chain and ring -->
+    <path
+        android:strokeColor="#C9A24A"
+        android:strokeWidth="2"
+        android:pathData="M180,0L180,97" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#E3C878"
+        android:strokeWidth="2.5"
+        android:pathData="M180,97m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path
+        android:strokeColor="#E3C878"
+        android:strokeWidth="2.5"
+        android:pathData="M180,111L180,131" />
+    <!-- Lantern emblem, scaled 2.2x, centred (viewport 108 -> 237.6 wide). -->
+    <group
+        android:translateX="61.2"
+        android:translateY="96"
+        android:scaleX="2.2"
+        android:scaleY="2.2">
+        <!-- Radiating light rays -->
+        <path
+            android:strokeColor="#C9A24A"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:pathData="M71,30.6L77,20M83.4,43L94,37M88,60L100,60M83.4,77L94,83M71,89.4L77,100M54,94L54,106M37,89.4L31,100M24.6,77L14,83M20,60L8,60M24.6,43L14,37M37,30.6L31,20" />
+        <!-- Finial ball -->
+        <path
+            android:fillColor="#E3C878"
+            android:pathData="M54,18.5m-2.6,0a2.6,2.6 0,1 1,5.2 0a2.6,2.6 0,1 1,-5.2 0" />
+        <path
+            android:strokeColor="#E3C878"
+            android:strokeWidth="1.6"
+            android:pathData="M54,21.5L54,25" />
+        <!-- Dome -->
+        <path
+            android:fillColor="#E3C878"
+            android:pathData="M38,44Q54,25 70,44Z" />
+        <!-- Dome lattice: chevron and diamond cut in emerald -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#004E37"
+            android:strokeWidth="1.2"
+            android:pathData="M43,41L54,31L65,41" />
+        <path
+            android:fillColor="#004E37"
+            android:pathData="M54,34.5L56.5,37L54,39.5L51.5,37Z" />
+        <!-- Body frame -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#E3C878"
+            android:strokeWidth="2.4"
+            android:pathData="M40,44H68V78H40Z" />
+        <!-- Lattice bars (drawn before the flame so the flame sits in front) -->
+        <path
+            android:strokeColor="#E3C878"
+            android:strokeWidth="1.6"
+            android:pathData="M46,44V78M62,44V78" />
+        <path
+            android:strokeColor="#E3C878"
+            android:strokeWidth="1.2"
+            android:pathData="M40,58H68M40,68H68" />
+        <!-- Side-panel lattice diamonds -->
+        <path
+            android:fillColor="#E3C878"
+            android:pathData="M43,48L45.5,51L43,54L40.5,51ZM43,69L45.5,72L43,75L40.5,72ZM65,48L67.5,51L65,54L62.5,51ZM65,69L67.5,72L65,75L62.5,72Z" />
+        <!-- Small diamond above the flame -->
+        <path
+            android:fillColor="#E3C878"
+            android:pathData="M54,45.5L56,48L54,50.5L52,48Z" />
+        <!-- Flame -->
+        <path
+            android:fillColor="#E3C878"
+            android:pathData="M54,52L60,64L54,76L48,64Z" />
+        <path
+            android:fillColor="#FFF7D6"
+            android:pathData="M54,58L57,64L54,70L51,64Z" />
+        <!-- Base -->
+        <path
+            android:fillColor="#E3C878"
+            android:pathData="M42,78H66L62,84H46Z" />
+    </group>
+</vector>

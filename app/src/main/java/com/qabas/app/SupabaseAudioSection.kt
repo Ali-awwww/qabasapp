@@ -711,7 +711,7 @@ fun SupabaseAudioSection(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "رفع وإدارة التسجيلات الصوتية السحابية مخصص للمطور وإدارة تطبيق مساعد المسلم فقط لضمان الجودة ونقاء المحتوى الصوتي.",
+                        "رفع وإدارة التسجيلات الصوتية السحابية مخصص للمطور وإدارة تطبيق خادم المسلم فقط لضمان الجودة ونقاء المحتوى الصوتي.",
                         fontFamily = NotoSansFont,
                         color = TextSecondary,
                         fontSize = 13.sp
@@ -1035,7 +1035,7 @@ fun AddAudioTrackDialog(
                                 audioUrl = finalAudioUrl,
                                 duration = duration,
                                 badge = "سحابي",
-                                author = artist.ifBlank { "مستخدم مساعد المسلم" },
+                                author = artist.ifBlank { "مستخدم خادم المسلم" },
                                 isActive = true
                             )
 

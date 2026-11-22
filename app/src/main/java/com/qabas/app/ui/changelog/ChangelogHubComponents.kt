@@ -733,7 +733,7 @@ fun EnhancedChangelogCardItem(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                val textToShare = "🚀 سجل تحديثات تطبيق «مساعد المسلم» v${item.versionName}\n${item.title}\nالتاريخ: ${item.releaseDate}\n\nأهم التحديثات:\n${item.highlights}"
+                                val textToShare = "🚀 سجل تحديثات تطبيق «خادم المسلم» v${item.versionName}\n${item.title}\nالتاريخ: ${item.releaseDate}\n\nأهم التحديثات:\n${item.highlights}"
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_TEXT, textToShare)
@@ -765,7 +765,7 @@ fun EnhancedChangelogCardItem(
 
                         OutlinedButton(
                             onClick = {
-                                clipboardManager.setText(AnnotatedString("مساعد المسلم v${item.versionName} - ${item.title}\n${item.highlights}"))
+                                clipboardManager.setText(AnnotatedString("خادم المسلم v${item.versionName} - ${item.title}\n${item.highlights}"))
                                 Toast.makeText(context, "تم نسخ تفاصيل الإصدار v${item.versionName} للحافظة 📋", Toast.LENGTH_SHORT).show()
                             },
                             border = BorderStroke(0.9.dp, Color(0xFF2E3D56)),

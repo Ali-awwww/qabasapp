@@ -95,7 +95,7 @@ fun VoiceStudioScreen(
 
     // حالة الدبلجة
     var dubbingVideoUri by remember { mutableStateOf<Uri?>(null) }
-    var dubbingScript by remember { mutableStateOf("مرحباً بكم في مساعد المسلم، المنصة الرائدة في إنتاج الفيديوهات السينمائية.") }
+    var dubbingScript by remember { mutableStateOf("مرحباً بكم في خادم المسلم، المنصة الرائدة في إنتاج الفيديوهات السينمائية.") }
     var isDubbing by remember { mutableStateOf(false) }
     var dubbedVideoPath by remember { mutableStateOf<String?>(null) }
 
@@ -640,7 +640,7 @@ fun VoiceStudioScreen(
                                             Spacer(Modifier.width(6.dp))
                                             Column {
                                                 Text("تم التوليد بنجاح ✓", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                                Text("جاهز للاستخدام في مشاريع مساعد المسلم", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
+                                                Text("جاهز للاستخدام في مشاريع خادم المسلم", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
                                             }
                                         }
 

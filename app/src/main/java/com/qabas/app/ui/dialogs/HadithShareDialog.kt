@@ -70,11 +70,11 @@ fun HadithShareDialog(
                 append("📚 المصدر: $hadithSource\n")
             }
             append("────────────────────\n")
-            append("✨ تم التوثيق والتصميم عبر تطبيق مساعد المسلم")
+            append("✨ تم التوثيق والتصميم عبر تطبيق خادم المسلم")
             if (userHandle.isNotBlank()) {
                 append(" ($userHandle)")
             }
-            append("\n#حديث_شريف #السنة_النبوية #مساعد_المسلم #حديث")
+            append("\n#حديث_شريف #السنة_النبوية #خادم_المسلم #حديث")
         }
     }
 
@@ -84,7 +84,7 @@ fun HadithShareDialog(
             if (hadithSource.isNotBlank()) {
                 append("[$hadithSource]\n")
             }
-            append("عبر تطبيق مساعد المسلم ✨")
+            append("عبر تطبيق خادم المسلم ✨")
         }
     }
 

@@ -56,7 +56,7 @@ private data class IdentifierLoginResponse(
 sealed class AuthState {
     object Loading : AuthState()
     object Unauthenticated : AuthState()
-    data class Guest(val displayName: String = "ضيف مساعد المسلم") : AuthState()
+    data class Guest(val displayName: String = "ضيف خادم المسلم") : AuthState()
     data class Authenticated(
         val userRow: SupabaseServices.UserRow,
         val session: UserSession? = null,
@@ -218,7 +218,7 @@ class SupabaseRepository(
     /**
      * Explicitly sets the reactive auth state to Guest Mode (unauthenticated browsing session).
      */
-    fun emitGuestMode(displayName: String = "ضيف مساعد المسلم") {
+    fun emitGuestMode(displayName: String = "ضيف خادم المسلم") {
         publishAuthState(AuthState.Guest(displayName))
     }
 
@@ -229,7 +229,7 @@ class SupabaseRepository(
         }.getOrNull()
         val isGuest = prefs?.getBoolean("is_guest", false) ?: false
         if (isGuest) {
-            val name = prefs?.getString("user_name", "ضيف مساعد المسلم") ?: "ضيف مساعد المسلم"
+            val name = prefs?.getString("user_name", "ضيف خادم المسلم") ?: "ضيف خادم المسلم"
             emitGuestMode(name)
         } else {
             // Local flags and cached email are presentation data, never proof of authentication.
