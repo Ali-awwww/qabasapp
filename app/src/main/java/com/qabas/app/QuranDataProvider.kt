@@ -80,6 +80,8 @@ object QuranDataProvider {
     /**
      * نقطة الدخول الموحدة لتحميل النص. تمنع قارئ السور وقارئ الصفحات من
      * بدء تنزيلين متزامنين للبيانات نفسها عند فتحهما بسرعة.
+     * الترتيب مقصود: الملف المضمّن أولاً ليعمل القرآن دون إنترنت في أول
+     * تشغيل، ثم الذاكرة المؤقتة المنزّلة، ثم الشبكة كملاذ أخير فقط.
      */
     suspend fun ensureQuranLoaded(context: Context): Boolean =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -91,6 +93,16 @@ object QuranDataProvider {
         }
 
     private const val TAG = "QuranDataProvider"
+
+    /**
+     * نسبة النص العثماني المضمّن إلى مصدره. الملف المشحون `quran/uthmani.json`
+     * لا يحمل حقل إشعار أصلاً — جذره يحوي مصفوفة `quran` فقط — فلا تُنسب إليه
+     * هنا أي صيغة ترخيص لا يحملها. النص العثماني نفسه مأخوذ من مشروع Tanzil،
+     * والنسخة نفسها عند جلبها من الشبكة تحمل إشعار Tanzil الكامل الذي ما زال
+     * مسار التنزيل يتحقق منه أدناه. تُعرض هذه النسبة في السجلات، ويمكن لأي
+     * واجهة عرضها للمستخدم من هذا الثابت.
+     */
+    const val QURAN_TEXT_ATTRIBUTION = "Quran text from Tanzil.net, Uthmani script"
 
     // ذاكرة التخزين المؤقت للآيات المحملة مقسمة حسب رقم السورة
     @Volatile
@@ -234,7 +246,12 @@ object QuranDataProvider {
         }
     }
 
-    /** لا نعتمد نسخة نصية إلا إذا حملت إشعار Tanzil المطلوب كاملاً. */
+    /**
+     * يتحقق من إشعار Tanzil الكامل في النسخ المجلوبة من الشبكة (التنزيل والذاكرة
+     * المؤقتة المكتوبة منه). لا يُستخدم كبوابة للملف المضمّن، لأن
+     * `quran/uthmani.json` لا يحمل حقل إشعار أصلاً؛ قبول الملف المضمّن يعتمد
+     * على التحقق البنيوي الصارم ([isCompleteQuran]) مع نسبة المصدر أعلاه.
+     */
     private fun hasTanzilNotice(jsonText: String): Boolean {
         return try {
             val root = JSONObject(jsonText)
@@ -381,7 +398,12 @@ object QuranDataProvider {
 
     /**
      * دالة تحميل آمنة من assets للقرآن الكريم كاملاً بالرسم العثماني.
-     * تفحص المسارات المحتملة: "quran/uthmani.json" ثم "quran/quran.json"
+     * تفحص المسارات المحتملة: "quran/uthmani.json" ثم "quran/quran.json".
+     * البوابة هنا هي التحقق البنيوي الصارم ([isCompleteQuran]): 6,236 آية
+     * بالضبط، وسور 1–114 متسلسلة بأرقام آيات مكتملة ونص غير فارغ. الملف
+     * المضمّن لا يحمل حقل إشعار Tanzil، فاشتراط الإشعار كان يرفضه دائماً
+     * ويُسقط أول تشغيل على الشبكة؛ الملف الذي يجتاز التحقق البنيوي يُقبل
+     * وتُسجَّل نسبة مصدره، والذي يفشل يُتخطى ولا يُوثق به أبداً.
      */
     fun loadFromAssets(context: Context): Boolean {
         if (versesMap?.values?.flatten()?.let { isCompleteQuran(it) } == true) {
@@ -395,15 +417,13 @@ object QuranDataProvider {
                     inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 }
                 if (jsonString.isNotBlank()) {
-                    if (!hasTanzilNotice(jsonString)) {
-                        Log.w(TAG, "Skipping Quran asset without the required Tanzil notice: $path")
-                        continue
-                    }
                     val parsed = parseQuranJson(jsonString)
                     if (isCompleteQuran(parsed)) {
                         versesMap = parsed.groupBy { it.surah }
-                        Log.i(TAG, "Successfully loaded ${parsed.size} ayahs from asset: $path")
+                        Log.i(TAG, "Successfully loaded ${parsed.size} ayahs from asset: $path ($QURAN_TEXT_ATTRIBUTION)")
                         return true
+                    } else {
+                        Log.w(TAG, "Skipping Quran asset that failed structural validation: $path")
                     }
                 }
             } catch (_: java.io.FileNotFoundException) {

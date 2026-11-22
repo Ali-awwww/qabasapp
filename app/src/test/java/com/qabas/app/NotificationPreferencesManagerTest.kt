@@ -77,7 +77,7 @@ class NotificationPreferencesManagerTest {
             prayerKey = "fajr",
             enabled = false,
             soundMode = NotificationPreferencesManager.SOUND_TAKBEER_ONLY,
-            voiceId = "makkah_mulla"
+            voiceId = MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID
         )
 
         val (enabled, soundMode) =

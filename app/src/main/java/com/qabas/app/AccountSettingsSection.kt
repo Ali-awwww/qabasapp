@@ -44,7 +44,10 @@ fun AccountSettingsSection(context: Context) {
     var confirmPassword by remember { mutableStateOf("") }
     var showNewPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember { mutableStateOf(false) }
-    var is2FAEnabled by remember { mutableStateOf(prefs.getBoolean("dev_2fa_enabled", true)) }
+    // Batch 6 Priority 3: the "2FA" switch was removed entirely. It was only
+    // a local boolean preference that admitted it was just a reminder — a
+    // fake security control. No MFA is claimed anywhere now.
+    // Real Supabase TOTP enrolment is a separate follow-up, not half-built here.
     var isTransactionNotificationsEnabled by remember {
         mutableStateOf(prefs.getBoolean("dev_transaction_notifications", false))
     }
@@ -201,35 +204,6 @@ fun AccountSettingsSection(context: Context) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "المصادقة الثنائية (2FA)",
-                        color = theme.textPrimary,
-                        fontFamily = TajawalFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        text = "تذكير محلي بتفعيل المصادقة الثنائية على حساب السحابة والبريد.",
-                        color = theme.textSecondary,
-                        fontFamily = NotoSansFont,
-                        fontSize = 12.sp
-                    )
-                }
-                Switch(
-                    checked = is2FAEnabled,
-                    onCheckedChange = {
-                        is2FAEnabled = it
-                        prefs.edit().putBoolean("dev_2fa_enabled", it).apply()
-                    }
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
                         text = "إشعارات العمليات الجديدة",
                         color = theme.textPrimary,
                         fontFamily = TajawalFont,
@@ -348,6 +322,13 @@ fun AccountSettingsSection(context: Context) {
                     ).show()
                 }
             )
+
+            HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.5f))
+
+            // Batch 6 Priority 3 — real account deletion (export-first,
+            // confirmation, server-side Auth-user deletion). The About screen
+            // claim now matches this: deletion is implemented, not asserted.
+            AccountDeletionCard()
         }
     }
 }

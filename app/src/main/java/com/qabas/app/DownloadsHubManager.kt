@@ -2,9 +2,10 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Environment
 import android.os.StatFs
 import android.util.Log
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,6 +23,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -132,6 +136,17 @@ data class ReelDownloadProgress(
 )
 
 /**
+ * نتيجة تنزيل قابل للاستئناف عبر HTTP Range.
+ * totalBytes = 0 تعني أن السيرفر لم يرسل حجماً معروفاً (تقدّم غير محدد، لا رقم مخمّن).
+ */
+data class ResumableDownloadResult(
+    val success: Boolean,
+    val downloadedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val errorMessage: String? = null
+)
+
+/**
  * عنصر وسائط أو مقطع صوتي منزّل
  */
 data class DownloadedMediaItem(
@@ -154,11 +169,12 @@ data class DownloadedMediaItem(
  */
 object DownloadsHubManager {
     private const val TAG = "DownloadsHubManager"
-    private const val MAX_REEL_DOWNLOAD_BYTES = 250L * 1024L * 1024L
     private const val MIN_FREE_SPACE_FOR_REEL_BYTES = 60L * 1024L * 1024L
     private const val PREFS_NAME = "qabas_downloads_hub_prefs"
     private const val KEY_DOWNLOADED_REELS = "downloaded_reels_json"
     private const val KEY_DOWNLOADED_MEDIA = "downloaded_media_json"
+    private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
+    private const val KEY_RESUME_META_PREFIX = "resume_meta_"
     private const val REELS_DIR_NAME = "downloads/reels"
     private const val MEDIA_DIR_NAME = "downloads/media"
 
@@ -195,11 +211,13 @@ object DownloadsHubManager {
 
     private val activeDownloadJobs = ConcurrentHashMap<String, Job>()
     private var isListeningToUpdateManager = false
+    private var appContextRef: Context? = null
 
     /**
      * تهيئة المدير وتحميل قائمة الملفات وتحديث حسابات الذاكرة ومراقبة التحديثات
      */
     fun init(context: Context) {
+        appContextRef = context.applicationContext
         loadSavedDownloads(context)
         refreshStorageMetrics(context)
         setupUpdateObserver(context.applicationContext)
@@ -355,6 +373,284 @@ object DownloadsHubManager {
     }
 
     /**
+     * خيار «التنزيل عبر Wi-Fi فقط» للتنزيلات الخلفية (WorkManager).
+     * لا يوجد إعداد سابق له في التطبيق، فيُحفظ هنا افتراضياً على «إيقاف»
+     * (أي شبكة) ويحترمه عامل التنزيل عند تفعيله.
+     */
+    fun isWifiOnlyDownloads(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_WIFI_ONLY_DOWNLOADS, false)
+    }
+
+    fun setWifiOnlyDownloads(context: Context, wifiOnly: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_WIFI_ONLY_DOWNLOADS, wifiOnly).apply()
+    }
+
+    /** ملف الوسائط الموحّد لمعرّف ما — نفس المفتاح لكل مسارات تنزيل الصوت. */
+    internal fun mediaFileForId(context: Context, mediaId: String, extension: String): File {
+        val safeId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        return File(getMediaDirectory(context), "media_$safeId.$extension")
+    }
+
+    /**
+     * مفتاح إزالة التكرار للصوت: نفس الرابط يعطي دائماً نفس المعرّف ونفس الملف،
+     * فلا يمكن «تنزيل» الصوت نفسه مرتين في مكانين مختلفين.
+     */
+    fun audioMediaIdForUrl(url: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(url.trim().toByteArray(Charsets.UTF_8))
+        return "audio_" + digest.take(8).joinToString("") { "%02x".format(it) }
+    }
+
+    /** الملف الموحّد لصوت ما في مخزن التطبيق الداخلي (أو null إن لم يكن منزّلاً). */
+    fun audioFileForUrl(context: Context, url: String): File? {
+        val file = File(getMediaDirectory(context), "media_${audioMediaIdForUrl(url)}.mp3")
+        return file.takeIf { it.exists() && it.length() > 0 }
+    }
+
+    /** هل الصوت منزّل فعلاً في المخزن الداخلي الموحّد؟ (مصدر شارة «منزّل»). */
+    fun isAudioDownloaded(context: Context, url: String): Boolean {
+        if (audioFileForUrl(context, url) != null) return true
+        return _downloadedMedia.value.any { it.sourceUrl == url.trim() && it.fileExists }
+    }
+
+    /** هل ملف وسائط بهذا الرابط منزّل فعلاً؟ (إزالة تكرار قبل أي تنزيل صوت). */
+    fun isMediaDownloadedByUrl(context: Context, url: String): Boolean = isAudioDownloaded(context, url)
+
+    // ---- حالة الاستئناف المحفوظة للملفات الجزئية (تبقى بعد موت العملية) ----
+
+    private data class ResumeMeta(
+        val downloadedBytes: Long,
+        val totalBytes: Long,
+        val url: String,
+        val etag: String?,
+        val lastModified: String?
+    )
+
+    private fun loadResumeMeta(context: Context, fileKey: String): ResumeMeta? {
+        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_RESUME_META_PREFIX + fileKey, null) ?: return null
+        return runCatching {
+            val obj = JSONObject(raw)
+            ResumeMeta(
+                downloadedBytes = obj.optLong("downloadedBytes", 0L),
+                totalBytes = obj.optLong("totalBytes", 0L),
+                url = obj.optString("url", ""),
+                etag = obj.optString("etag").takeIf { it.isNotBlank() },
+                lastModified = obj.optString("lastModified").takeIf { it.isNotBlank() }
+            )
+        }.getOrNull()
+    }
+
+    private fun saveResumeMeta(context: Context, fileKey: String, meta: ResumeMeta) {
+        val obj = JSONObject().apply {
+            put("downloadedBytes", meta.downloadedBytes)
+            put("totalBytes", meta.totalBytes)
+            put("url", meta.url)
+            put("etag", meta.etag ?: "")
+            put("lastModified", meta.lastModified ?: "")
+        }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_RESUME_META_PREFIX + fileKey, obj.toString()).apply()
+    }
+
+    private fun clearResumeMeta(context: Context, fileKey: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(KEY_RESUME_META_PREFIX + fileKey).apply()
+    }
+
+    /**
+     * محرك التنزيل القابل للاستئناف المشترك للريلز والوسائط (يستخدمه عامل
+     * WorkManager والمسار المباشر معاً):
+     * - يرسل `Range: bytes=<المنزّل>-` عند وجود ملف جزئي `.tmp`، ولا يستخدم
+     *   `skip()` على مجرى الشبكة إطلاقاً.
+     * - لا يُقبل الاستئناف إلا بردّ `206 Partial Content` مع `Content-Range`
+     *   يبدأ من الإزاحة المطلوبة وبصمات مطابقة؛ وعند رفض السيرفر للنطاق
+     *   (ردّ 200 أو غياب `Content-Range` أو تغيّر الملف) يعيد التنزيل كاملاً
+     *   من الصفر بعد حذف الجزئي — إعادة صادقة، لا تخطٍّ صامت.
+     * - التقدّم من (المنزّل سابقاً + المقروء) على الحجم الحقيقي؛ وإن غاب
+     *   الحجم فالتقدّم غير محدد (total = 0) دون أي رقم مخمّن.
+     * - الإلغاء أو الخطأ يُبقي الملف الجزئي وحالة الاستئناف؛ الحذف يتم فقط
+     *   بإجراء حذف صريح من المستخدم.
+     */
+    internal suspend fun downloadFileResumable(
+        context: Context,
+        fileUrl: String,
+        destFile: File,
+        maxBytes: Long = Long.MAX_VALUE,
+        onProgress: (suspend (downloaded: Long, total: Long) -> Unit)? = null
+    ): ResumableDownloadResult = withContext(Dispatchers.IO) {
+        if (!fileUrl.startsWith("https://", ignoreCase = true) &&
+            !fileUrl.startsWith("http://", ignoreCase = true)
+        ) {
+            return@withContext ResumableDownloadResult(false, errorMessage = "رابط غير صالح")
+        }
+        val appContext = context.applicationContext
+        val tmpFile = File(destFile.parentFile, "${destFile.name}.tmp")
+        val fileKey = destFile.name
+        val savedMeta = loadResumeMeta(appContext, fileKey)
+
+        var resumeBytes = if (tmpFile.exists()) tmpFile.length() else 0L
+        if (resumeBytes > 0 && savedMeta != null && savedMeta.url.isNotBlank() && savedMeta.url != fileUrl) {
+            resumeBytes = 0L
+        }
+        if (resumeBytes > 0 && savedMeta != null && savedMeta.downloadedBytes > 0) {
+            resumeBytes = minOf(resumeBytes, savedMeta.downloadedBytes)
+        }
+        var expectedTotal = savedMeta?.totalBytes ?: 0L
+
+        // ملف جزئي مكتمل فعلاً — ثبّته دون إعادة تنزيل.
+        if (resumeBytes > 0 && expectedTotal > 0 && resumeBytes >= expectedTotal && tmpFile.length() == expectedTotal) {
+            if (destFile.exists()) destFile.delete()
+            if (tmpFile.renameTo(destFile)) {
+                clearResumeMeta(appContext, fileKey)
+                return@withContext ResumableDownloadResult(true, destFile.length(), destFile.length())
+            }
+            resumeBytes = 0L
+        }
+
+        var downloadedBytes = resumeBytes
+        var totalBytes = expectedTotal
+        var responseEtag: String? = null
+        var responseLastModified: String? = null
+        try {
+            val remaining = (expectedTotal - resumeBytes).coerceAtLeast(0L)
+            if (expectedTotal > 0) {
+                val available = StatFs(destFile.parentFile?.absolutePath ?: appContext.filesDir.absolutePath).availableBytes
+                if (available < remaining + 16L * 1024L * 1024L) {
+                    return@withContext ResumableDownloadResult(false, resumeBytes, expectedTotal, "المساحة الحرة لا تكفي لهذا الملف")
+                }
+            }
+
+            val requestBuilder = Request.Builder().url(fileUrl)
+            if (resumeBytes > 0) requestBuilder.header("Range", "bytes=$resumeBytes-")
+            val response = httpClient.newCall(requestBuilder.build()).execute()
+            if (!response.isSuccessful) {
+                saveResumeMeta(appContext, fileKey, ResumeMeta(resumeBytes, expectedTotal, fileUrl, savedMeta?.etag, savedMeta?.lastModified))
+                return@withContext ResumableDownloadResult(false, resumeBytes, expectedTotal, "فشل التنزيل: كود ${response.code}")
+            }
+            val body = response.body ?: run {
+                saveResumeMeta(appContext, fileKey, ResumeMeta(resumeBytes, expectedTotal, fileUrl, savedMeta?.etag, savedMeta?.lastModified))
+                return@withContext ResumableDownloadResult(false, resumeBytes, expectedTotal, "المحتوى فارغ")
+            }
+
+            responseEtag = response.header("ETag")
+            responseLastModified = response.header("Last-Modified")
+            val contentRange = response.header("Content-Range")
+            var appendMode = false
+            downloadedBytes = resumeBytes
+            if (resumeBytes > 0) {
+                val rangeAccepted = response.code == 206 &&
+                    contentRange != null &&
+                    contentRange.startsWith("bytes $resumeBytes-") &&
+                    (savedMeta?.etag == null || responseEtag == null || responseEtag == savedMeta.etag) &&
+                    (savedMeta?.lastModified == null || responseLastModified == null || responseLastModified == savedMeta.lastModified)
+                if (rangeAccepted) {
+                    appendMode = true
+                    totalBytes = contentRange.substringAfterLast('/').toLongOrNull()?.takeIf { it > 0 }
+                        ?: (body.contentLength().takeIf { it > 0 }?.plus(resumeBytes) ?: expectedTotal)
+                } else {
+                    // السيرفر رفض النطاق — إعادة كاملة صادقة من الصفر بعد حذف الجزئي.
+                    Log.w(TAG, "Server refused Range resume for ${destFile.name} (code ${response.code}); restarting full download from 0")
+                    tmpFile.delete()
+                    resumeBytes = 0L
+                    downloadedBytes = 0L
+                    totalBytes = body.contentLength().takeIf { it > 0 } ?: 0L
+                }
+            } else {
+                totalBytes = body.contentLength().takeIf { it > 0 } ?: 0L
+            }
+
+            val startTime = System.currentTimeMillis()
+            var lastUpdate = startTime
+            try {
+                body.byteStream().use { input ->
+                    FileOutputStream(tmpFile, appendMode).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            downloadedBytes += read
+                            if (downloadedBytes > maxBytes) {
+                                throw IllegalStateException("حجم الملف يتجاوز الحد المسموح")
+                            }
+                            val now = System.currentTimeMillis()
+                            if (now - lastUpdate >= 250) {
+                                onProgress?.invoke(downloadedBytes, totalBytes)
+                                lastUpdate = now
+                            }
+                        }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // الإلغاء يُبقي الملف الجزئي وحالة الاستئناف — يُعاد رميه ليتوقف العمل نظيفاً.
+                saveResumeMeta(appContext, fileKey, ResumeMeta(downloadedBytes, totalBytes, fileUrl, responseEtag, responseLastModified))
+                throw e
+            }
+            onProgress?.invoke(downloadedBytes, totalBytes)
+
+            // مجرى منقطع قبل اكتمال الحجم المعلن: لا يُثبَّت ملف ناقص على أنه
+            // مكتمل — يُحفظ التقدم ويُعاد كفشل قابل للاستئناف/إعادة المحاولة.
+            if (totalBytes > 0 && downloadedBytes < totalBytes) {
+                saveResumeMeta(appContext, fileKey, ResumeMeta(downloadedBytes, totalBytes, fileUrl, responseEtag, responseLastModified))
+                return@withContext ResumableDownloadResult(false, downloadedBytes, totalBytes, "اكتمل التنزيل ناقصاً — سيُستأنف تلقائياً")
+            }
+
+            if (tmpFile.exists() && tmpFile.length() > 0) {
+                if (destFile.exists()) destFile.delete()
+                tmpFile.renameTo(destFile)
+                clearResumeMeta(appContext, fileKey)
+                ResumableDownloadResult(true, destFile.length(), totalBytes.takeIf { it > 0 } ?: destFile.length())
+            } else {
+                ResumableDownloadResult(false, downloadedBytes, totalBytes, "فشل حفظ الملف")
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Resumable download failed: ${e.message}", e)
+            // يُحفظ التقدم أيضاً عند خطأ مجرى مفاجئ (لا الإلغاء فقط).
+            saveResumeMeta(
+                appContext, fileKey,
+                ResumeMeta(if (tmpFile.exists()) tmpFile.length() else downloadedBytes, totalBytes, fileUrl, responseEtag, responseLastModified)
+            )
+            ResumableDownloadResult(false, if (tmpFile.exists()) tmpFile.length() else 0L, totalBytes.takeIf { it > 0 } ?: expectedTotal, e.localizedMessage ?: "حدث خطأ أثناء التنزيل")
+        }
+    }
+
+    // ---- تقارير تقدّم عامل WorkManager إلى تدفقات الواجهة الحالية ----
+
+    internal fun reportWorkerProgress(kind: String, id: String, title: String, downloaded: Long, total: Long, speedKbps: Long = 0L) {
+        val progress = ReelDownloadProgress(
+            reelId = id, title = title,
+            progress = if (total > 0) (downloaded.toFloat() / total).coerceIn(0f, 1f) else 0f,
+            downloadedBytes = downloaded, totalBytes = total, speedKbps = speedKbps
+        )
+        if (kind == DownloadWorker.KIND_MEDIA) {
+            _activeMediaDownloads.value = _activeMediaDownloads.value + (id to progress)
+        } else {
+            _activeReelDownloads.value = _activeReelDownloads.value + (id to progress)
+        }
+    }
+
+    internal fun reportWorkerError(kind: String, id: String, title: String, message: String) {
+        val progress = ReelDownloadProgress(reelId = id, title = title, isError = true, errorMessage = message)
+        if (kind == DownloadWorker.KIND_MEDIA) {
+            _activeMediaDownloads.value = _activeMediaDownloads.value + (id to progress)
+        } else {
+            _activeReelDownloads.value = _activeReelDownloads.value + (id to progress)
+        }
+    }
+
+    internal fun clearWorkerProgress(kind: String, id: String) {
+        if (kind == DownloadWorker.KIND_MEDIA) {
+            _activeMediaDownloads.value = _activeMediaDownloads.value - id
+        } else {
+            _activeReelDownloads.value = _activeReelDownloads.value - id
+        }
+    }
+
+    /**
      * تحديث مقاييس وسعة الذاكرة الحقيقية
      */
     fun refreshStorageMetrics(context: Context) {
@@ -484,47 +780,13 @@ object DownloadsHubManager {
         return _downloadedReels.value.any { it.id == reelId && it.fileExists }
     }
 
-    /** تنزيل الريل مع إعادة المحاولة تلقائيًا عند فشل الشبكة. */
-    fun downloadReel(
-        context: Context,
-        reelId: String,
-        title: String,
-        videoUrl: String,
-        thumbnailUrl: String? = null,
-        author: String = "صانع محتوى",
-        onComplete: ((Boolean) -> Unit)? = null
-    ) {
-        var attempt = 0
-        lateinit var startAttempt: () -> Unit
-        startAttempt = {
-            downloadReelOnce(
-                context = context,
-                reelId = reelId,
-                title = title,
-                videoUrl = videoUrl,
-                thumbnailUrl = thumbnailUrl,
-                author = author,
-                onComplete = { success ->
-                    if (success || attempt >= 2) {
-                        onComplete?.invoke(success)
-                    } else {
-                        attempt++
-                        Log.w(TAG, "Reel download failed; retry $attempt/2 for $reelId")
-                        scope.launch {
-                            delay(if (attempt == 1) 2_000L else 5_000L)
-                            startAttempt()
-                        }
-                    }
-                }
-            )
-        }
-        startAttempt()
-    }
-
     /**
-     * تنزيل فيديو ريل حقيقي مع تتبع البايتات وحفظه في الذاكرة
+     * تنزيل الريل عبر عامل WorkManager ([DownloadWorker]) بدل كوروتين في الذاكرة:
+     * يبقى التنزيل حياً بعد موت العملية وإعادة تشغيل التطبيق، ويحترم قيود الشبكة
+     * (Wi-Fi فقط عند تفعيل الخيار)، ويُستأنف عبر HTTP Range من الملف الجزئي.
+     * إعادة المحاولة عند فشل الشبكة يتولاها WorkManager (تراجع خطي، 3 محاولات).
      */
-    private fun downloadReelOnce(
+    fun downloadReel(
         context: Context,
         reelId: String,
         title: String,
@@ -538,143 +800,86 @@ object DownloadsHubManager {
             return
         }
 
-        // إلغاء أي مهمة سابقة لنفس المعرّف
-        activeDownloadJobs[reelId]?.cancel()
-
-        val job = scope.launch {
-            val safeFileName = "reel_${reelId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.mp4"
-            val destFile = File(getReelsDirectory(context), safeFileName)
-            val tempFile = File(getReelsDirectory(context), "${safeFileName}.tmp")
-
-            if (StatFs(getReelsDirectory(context).path).availableBytes < MIN_FREE_SPACE_FOR_REEL_BYTES) {
-                updateDownloadError(reelId, title, "المساحة الحرة غير كافية لتنزيل الريل")
-                withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                return@launch
-            }
-
-            _activeReelDownloads.value = _activeReelDownloads.value + (reelId to ReelDownloadProgress(
-                reelId = reelId,
-                title = title,
-                progress = 0f
-            ))
-
-            try {
-                // فحص أمني: يُمنع جلب الملفات المحلية عبر رابط التحميل (منع ثغرات LFI / Path Traversal)
-                if (videoUrl.startsWith("file://") || videoUrl.startsWith("/") || videoUrl.startsWith("content://")) {
-                    val err = "تم رفض المصدر: لا يمكن تحميل ملفات محلية كروابط ريلز. يجب استخدام روابط https آمنة حصراً."
-                    updateDownloadError(reelId, title, err)
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                    return@launch
-                }
-
-                // الروابط الشبكية: يُشترط أن تبدأ بـ https:// حصراً لضمان التشفير والنقل الآمن
-                if (!videoUrl.startsWith("https://", ignoreCase = true)) {
-                    val err = "تم حظر الرابط: يُشترط استخدام رابط مشفر وآمن (HTTPS)."
-                    updateDownloadError(reelId, title, err)
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                    return@launch
-                }
-
-                val request = Request.Builder().url(videoUrl).build()
-                val response = httpClient.newCall(request).execute()
-
-                if (!response.isSuccessful) {
-                    val err = "فشل التنزيل: كود ${response.code}"
-                    updateDownloadError(reelId, title, err)
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                    return@launch
-                }
-
-                val body = response.body ?: run {
-                    updateDownloadError(reelId, title, "المحتوى فارغ")
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                    return@launch
-                }
-
-                if (body.contentLength() > MAX_REEL_DOWNLOAD_BYTES) {
-                    response.close()
-                    updateDownloadError(reelId, title, "حجم الريل يتجاوز الحد المسموح (250MB)")
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                    return@launch
-                }
-
-                val reelLength = body.contentLength()
-                val reelAvailableBytes = StatFs(getReelsDirectory(context).path).availableBytes
-                if (reelLength > 0 && reelAvailableBytes < reelLength + 32L * 1024L * 1024L) {
-                    response.close()
-                    updateDownloadError(reelId, title, "المساحة الحرة لا تكفي لهذا الريل مع هامش أمان")
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                    return@launch
-                }
-
-                val totalBytes = body.contentLength().takeIf { it > 0 } ?: 15_000_000L
-                var downloadedBytes = 0L
-                val startTime = System.currentTimeMillis()
-                var lastUpdate = startTime
-
-                body.byteStream().use { input ->
-                    FileOutputStream(tempFile).use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var read: Int
-                        while (input.read(buffer).also { read = it } != -1) {
-                            output.write(buffer, 0, read)
-                            downloadedBytes += read
-                            if (downloadedBytes > MAX_REEL_DOWNLOAD_BYTES) {
-                                throw IllegalStateException("حجم الريل يتجاوز الحد المسموح (250MB)")
-                            }
-
-                            val now = System.currentTimeMillis()
-                            if (now - lastUpdate >= 200) {
-                                val progress = (downloadedBytes.toFloat() / totalBytes).coerceIn(0f, 1f)
-                                val elapsedSec = (now - startTime) / 1000.0
-                                val speed = if (elapsedSec > 0) ((downloadedBytes / 1024) / elapsedSec).toLong() else 0L
-
-                                _activeReelDownloads.value = _activeReelDownloads.value + (reelId to ReelDownloadProgress(
-                                    reelId = reelId,
-                                    title = title,
-                                    progress = progress,
-                                    downloadedBytes = downloadedBytes,
-                                    totalBytes = totalBytes,
-                                    speedKbps = speed
-                                ))
-                                lastUpdate = now
-                            }
-                        }
-                    }
-                }
-
-                if (tempFile.exists() && tempFile.length() > 0) {
-                    if (destFile.exists()) destFile.delete()
-                    tempFile.renameTo(destFile)
-
-                    val item = DownloadedReelItem(
-                        id = reelId,
-                        title = title,
-                        author = author,
-                        videoUrl = videoUrl,
-                        localFilePath = destFile.absolutePath,
-                        thumbnailUrl = thumbnailUrl,
-                        fileSizeBytes = destFile.length()
-                    )
-                    addDownloadedReel(context, item)
-                    _activeReelDownloads.value = _activeReelDownloads.value - reelId
-                    refreshStorageMetrics(context)
-                    withContext(Dispatchers.Main) { onComplete?.invoke(true) }
-                } else {
-                    updateDownloadError(reelId, title, "فشل حفظ الملف")
-                    withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Reel download failed: ${e.message}", e)
-                if (tempFile.exists()) tempFile.delete()
-                updateDownloadError(reelId, title, e.localizedMessage ?: "حدث خطأ أثناء التنزيل")
-                withContext(Dispatchers.Main) { onComplete?.invoke(false) }
-            } finally {
-                activeDownloadJobs.remove(reelId)
-            }
+        // فحص أمني: يُمنع جلب الملفات المحلية عبر رابط التحميل (منع ثغرات LFI / Path Traversal)
+        if (videoUrl.startsWith("file://") || videoUrl.startsWith("/") || videoUrl.startsWith("content://")) {
+            val err = "تم رفض المصدر: لا يمكن تحميل ملفات محلية كروابط ريلز. يجب استخدام روابط https آمنة حصراً."
+            updateDownloadError(reelId, title, err)
+            onComplete?.invoke(false)
+            return
         }
 
-        activeDownloadJobs[reelId] = job
+        // الروابط الشبكية: يُشترط أن تبدأ بـ https:// حصراً لضمان التشفير والنقل الآمن
+        if (!videoUrl.startsWith("https://", ignoreCase = true)) {
+            val err = "تم حظر الرابط: يُشترط استخدام رابط مشفر وآمن (HTTPS)."
+            updateDownloadError(reelId, title, err)
+            onComplete?.invoke(false)
+            return
+        }
+
+        if (StatFs(getReelsDirectory(context).path).availableBytes < MIN_FREE_SPACE_FOR_REEL_BYTES) {
+            updateDownloadError(reelId, title, "المساحة الحرة غير كافية لتنزيل الريل")
+            onComplete?.invoke(false)
+            return
+        }
+
+        _activeReelDownloads.value = _activeReelDownloads.value + (reelId to ReelDownloadProgress(
+            reelId = reelId,
+            title = title,
+            progress = 0f
+        ))
+        val workId = DownloadWorker.enqueueReel(context, reelId, title, videoUrl, thumbnailUrl, author)
+        observeWorkCompletion(context, DownloadWorker.reelWorkName(reelId), workId, onComplete)
+    }
+
+    /**
+     * تنزيل ملف وسائط عبر عامل WorkManager (مسار واجهة المركز) — نفس ضمانات
+     * [downloadReel]: بقاء بعد موت العملية، قيود شبكة، واستئناف عبر Range.
+     * المسار المتزامن [downloadMedia] يبقى للمنادين الذين يحتاجون المسار فوراً
+     * (محلّل صوت الأذان)، وهو يستخدم محرك الاستئناف نفسه.
+     */
+    fun enqueueMediaDownload(
+        context: Context,
+        mediaId: String,
+        title: String,
+        fileUrl: String,
+        extension: String = "mp3",
+        subtitle: String = "",
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        val existing = mediaFileForId(context, mediaId, extension)
+        if (existing.exists() && existing.length() > 0) {
+            onComplete?.invoke(true)
+            return
+        }
+        val byUrl = _downloadedMedia.value.firstOrNull { it.sourceUrl == fileUrl && it.fileExists }
+        if (byUrl != null) {
+            onComplete?.invoke(true)
+            return
+        }
+        _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+            reelId = mediaId, title = title, progress = 0f
+        ))
+        val workId = DownloadWorker.enqueueMedia(context, mediaId, title, fileUrl, extension, subtitle)
+        observeWorkCompletion(context, DownloadWorker.mediaWorkName(mediaId), workId, onComplete)
+    }
+
+    /** مراقبة اكتمال عمل WorkManager مرة واحدة واستدعاء onComplete بنتيجته. */
+    private fun observeWorkCompletion(
+        context: Context,
+        workName: String,
+        workId: UUID,
+        onComplete: ((Boolean) -> Unit)?
+    ) {
+        if (onComplete == null) return
+        scope.launch {
+            val finished = WorkManager.getInstance(context.applicationContext)
+                .getWorkInfosForUniqueWorkFlow(workName)
+                .first { infos -> infos.any { it.id == workId && it.state.isFinished } }
+            val info = finished.firstOrNull { it.id == workId }
+            withContext(Dispatchers.Main) {
+                onComplete.invoke(info?.state == WorkInfo.State.SUCCEEDED)
+            }
+        }
     }
 
     private fun updateDownloadError(reelId: String, title: String, message: String) {
@@ -686,19 +891,29 @@ object DownloadsHubManager {
         ))
     }
 
-    private fun addDownloadedReel(context: Context, item: DownloadedReelItem) {
+    internal fun addDownloadedReel(context: Context, item: DownloadedReelItem) {
         val updated = _downloadedReels.value.filterNot { it.id == item.id } + item
         _downloadedReels.value = updated
         persistReelsList(context)
     }
 
     /**
-     * إلغاء تنزيل ريل جاري
+     * إلغاء تنزيل ريل جاري (عامل WorkManager) مع الإبقاء على الملف الجزئي
+     * ليُستأنف لاحقاً — الإلغاء لا يحذف التقدم أبداً.
      */
     fun cancelReelDownload(reelId: String) {
+        appContextRef?.let { DownloadWorker.cancelReel(it, reelId) }
         activeDownloadJobs[reelId]?.cancel()
         activeDownloadJobs.remove(reelId)
         _activeReelDownloads.value = _activeReelDownloads.value - reelId
+    }
+
+    /**
+     * إيقاف مؤقت لتنزيل ريل: WorkManager لا يملك إيقافاً أصلياً، فيُلغى العمل
+     * مع الإبقاء على الملف الجزئي، وإعادة التنزيل تستأنفه عبر HTTP Range.
+     */
+    fun pauseReelDownload(reelId: String) {
+        cancelReelDownload(reelId)
     }
 
     /**
@@ -742,8 +957,8 @@ object DownloadsHubManager {
         onProgress: ((sent: Long, total: Long) -> Unit)? = null
     ): String? = withContext(Dispatchers.IO) {
         try {
-            // كاش موجود؟ أعده فوراً
-            val existing = File(getMediaDirectory(context), "media_${mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.$extension")
+            // كاش موجود؟ أعده فوراً — نفس مفتاح الملف الموحّد لكل مسارات الصوت.
+            val existing = mediaFileForId(context, mediaId, extension)
             if (existing.exists() && existing.length() > 0) {
                 addDownloadedMedia(
                     context,
@@ -758,62 +973,32 @@ object DownloadsHubManager {
                 )
                 return@withContext existing.absolutePath
             }
+            // إزالة تكرار: نفس الرابط منزّل فعلاً تحت معرّف آخر؟ أعده بدل تنزيل ثانٍ.
+            val byUrl = _downloadedMedia.value.firstOrNull { it.sourceUrl == fileUrl && it.fileExists }
+            if (byUrl != null) return@withContext byUrl.localFilePath
             // ملف محلي أصلاً (file://) — لا تنزيل needed
             if (fileUrl.startsWith("file://") || fileUrl.startsWith("/")) return@withContext fileUrl
 
             _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
                 reelId = mediaId, title = title, progress = 0f
             ))
-            val tmp = File(getMediaDirectory(context), "${existing.name}.tmp")
-            val request = Request.Builder().url(fileUrl).build()
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-                    reelId = mediaId, title = title, isError = true, errorMessage = "كود ${response.code}"
-                ))
-                return@withContext null
-            }
-            val body = response.body ?: return@withContext null
-            val mediaLength = body.contentLength()
-            val mediaAvailableBytes = StatFs(getMediaDirectory(context).path).availableBytes
-            if (mediaLength > 0 && mediaAvailableBytes < mediaLength + 16L * 1024L * 1024L) {
-                response.close()
-                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-                    reelId = mediaId,
-                    title = title,
-                    isError = true,
-                    errorMessage = "المساحة الحرة لا تكفي لهذا الملف الصوتي"
-                ))
-                return@withContext null
-            }
-            val total = body.contentLength().takeIf { it > 0 } ?: 5_000_000L
-            var done = 0L
-            var last = System.currentTimeMillis()
-            val start = last
-            body.byteStream().use { input ->
-                FileOutputStream(tmp).use { output ->
-                    val buf = ByteArray(32 * 1024)
-                    var r: Int
-                    while (input.read(buf).also { r = it } != -1) {
-                        output.write(buf, 0, r)
-                        done += r
-                        onProgress?.invoke(done, total)
-                        val now = System.currentTimeMillis()
-                        if (now - last >= 250) {
-                            val speed = if (now > start) ((done / 1024) / ((now - start) / 1000.0)).toLong() else 0L
-                            _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-                                reelId = mediaId, title = title,
-                                progress = (done.toFloat() / total).coerceIn(0f, 1f),
-                                downloadedBytes = done, totalBytes = total, speedKbps = speed
-                            ))
-                            last = now
-                        }
-                    }
+            var lastStateUpdate = System.currentTimeMillis()
+            val start = lastStateUpdate
+            // محرك الاستئناف المشترك: Range + تقدّم حقيقي (أو غير محدد عند غياب الحجم).
+            val result = downloadFileResumable(context, fileUrl, existing) { done, total ->
+                onProgress?.invoke(done, total)
+                val now = System.currentTimeMillis()
+                if (now - lastStateUpdate >= 250) {
+                    val speed = if (now > start) ((done / 1024) / ((now - start) / 1000.0)).toLong() else 0L
+                    _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                        reelId = mediaId, title = title,
+                        progress = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f,
+                        downloadedBytes = done, totalBytes = total, speedKbps = speed
+                    ))
+                    lastStateUpdate = now
                 }
             }
-            if (tmp.exists() && tmp.length() > 0) {
-                if (existing.exists()) existing.delete()
-                tmp.renameTo(existing)
+            if (result.success) {
                 addDownloadedMedia(
                     context,
                     DownloadedMediaItem(
@@ -828,10 +1013,21 @@ object DownloadsHubManager {
                 _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
                 refreshStorageMetrics(context)
                 existing.absolutePath
-            } else null
+            } else {
+                // الخطأ يُبقي الملف الجزئي ليُستأنف لاحقاً — لا حذف للتقدم.
+                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                    reelId = mediaId, title = title, isError = true,
+                    errorMessage = result.errorMessage, downloadedBytes = result.downloadedBytes,
+                    totalBytes = result.totalBytes
+                ))
+                null
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // الإلغاء يُبقي الملف الجزئي ليُستأنف لاحقاً.
+            _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Media download failed: ${e.message}")
-            File(getMediaDirectory(context), "media_${mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")}.$extension.tmp").delete()
             _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
                 reelId = mediaId, title = title, isError = true, errorMessage = e.localizedMessage
             ))
@@ -839,17 +1035,33 @@ object DownloadsHubManager {
         }
     }
 
+    /**
+     * إلغاء تنزيل وسائط جارٍ (عامل WorkManager أو المسار المباشر) مع الإبقاء
+     * على الملف الجزئي ليُستأنف لاحقاً — الإلغاء لا يحذف التقدم أبداً.
+     */
     fun cancelMediaDownload(mediaId: String) {
+        appContextRef?.let { DownloadWorker.cancelMedia(it, mediaId) }
         _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
     }
 
     /**
-     * حذف ريل منزّل من الذاكرة المحلية
+     * إيقاف مؤقت لتنزيل وسائط: يُلغى العمل مع الإبقاء على الملف الجزئي،
+     * وإعادة التنزيل تستأنفه عبر HTTP Range (لا إيقاف أصلي في WorkManager).
+     */
+    fun pauseMediaDownload(mediaId: String) {
+        cancelMediaDownload(mediaId)
+    }
+
+    /**
+     * حذف ريل منزّل من الذاكرة المحلية — إجراء حذف صريح من المستخدم، فيحذف
+     * معه الملف الجزئي (.tmp) وحالة الاستئناف إن وُجدا.
      */
     fun deleteDownloadedReel(context: Context, reelId: String): Boolean {
         val item = _downloadedReels.value.find { it.id == reelId } ?: return false
         val file = File(item.localFilePath)
         if (file.exists()) file.delete()
+        File(file.parentFile, "${file.name}.tmp").delete()
+        clearResumeMeta(context.applicationContext, file.name)
         _downloadedReels.value = _downloadedReels.value.filterNot { it.id == reelId }
         persistReelsList(context)
         refreshStorageMetrics(context)
@@ -859,7 +1071,7 @@ object DownloadsHubManager {
     /**
      * إضافة مقطع وسائط منزّل
      */
-    fun addDownloadedMedia(context: Context, item: DownloadedMediaItem) {
+    internal fun addDownloadedMedia(context: Context, item: DownloadedMediaItem) {
         val updated = _downloadedMedia.value.filterNot { it.id == item.id } + item
         _downloadedMedia.value = updated
         persistMediaList(context)
@@ -886,12 +1098,15 @@ object DownloadsHubManager {
     }
 
     /**
-     * حذف مقطع وسائط
+     * حذف مقطع وسائط — إجراء حذف صريح من المستخدم، فيحذف معه الملف الجزئي
+     * (.tmp) وحالة الاستئناف إن وُجدا.
      */
     fun deleteDownloadedMedia(context: Context, mediaId: String): Boolean {
         val item = _downloadedMedia.value.find { it.id == mediaId } ?: return false
         val file = File(item.localFilePath)
         if (file.exists()) file.delete()
+        File(file.parentFile, "${file.name}.tmp").delete()
+        clearResumeMeta(context.applicationContext, file.name)
         _downloadedMedia.value = _downloadedMedia.value.filterNot { it.id == mediaId }
         persistMediaList(context)
         refreshStorageMetrics(context)

@@ -48,12 +48,12 @@ import kotlinx.coroutines.delay
 import java.util.UUID
 
 /**
- * شاشة مراجعة الموارد v2 — تصميم زجاجي مهندس:
+ * شاشة اعتماد موارد الوسائط قبل التوليد (ليست مراجعة مجتمع):
  * جلب B-Roll + مراجعة + قبول/رفض + شريط إنتاج ثابت.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ResourceReviewScreen(
+fun MediaResourceApprovalScreen(
     ideaText: String,
     mediaResources: List<MediaResource>,
     onAddResource: (MediaResource) -> Unit,

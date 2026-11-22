@@ -7,7 +7,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * يضمن وجود مسار صوت قابل للتشغيل وقت الأذان.
- * الأولوية: الاختيار المحفوظ، ثم الصوت الافتراضي للحساب، ثم أول صوت مطور سحابي فعال.
+ * الأولوية: الاختيار المحفوظ، ثم الصوت الافتراضي للحساب، ثم أول صوت مطور سحابي فعال،
+ * ثم أول صوت منزّل / مسجّل من المستخدم — وبعدها حالة صادقة فارغة (null) لا معرّف متدلٍّ.
  */
 object AzanVoiceResolver {
     private const val TAG = "AzanVoiceResolver"
@@ -35,6 +36,14 @@ object AzanVoiceResolver {
                 MuezzinVoiceManager.cacheCloudVoices(context, cloud)
                 return@withContext cloud.first()
             }
+
+            // الملاذ الأخير قبل الحالة الصادقة الفارغة: صوت منزّل أو مسجّل
+            // من المستخدم له مصدر تشغيل حقيقي.
+            val localVoice = MuezzinVoiceManager.getCustomVoices(context)
+                .firstOrNull(::hasPotentialSource)
+                ?: MuezzinVoiceManager.getPersonalCloudVoices(context)
+                    .firstOrNull(::hasPotentialSource)
+            if (localVoice != null) return@withContext localVoice
 
             Log.e(TAG, "No requested, default, cached, or cloud adhan voice is available")
             null

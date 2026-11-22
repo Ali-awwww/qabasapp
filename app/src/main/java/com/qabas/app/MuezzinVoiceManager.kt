@@ -65,6 +65,15 @@ object MuezzinVoiceManager {
     }
 
     /**
+     * الصوت الافتراضي الحقيقي الوحيد للأذان: الصف الوحيد في جدول Supabase
+     * `azan_voices` (عبد العزيز شوقي)، تم التحقق منه في 2026-11-22. معرّف
+     * التطبيق هو "cloud_" + معرّف الصف، كما يبنيه [AzanCloudRepository]
+     * (الصوت يُجلب من السحابة ويُحفظ في الكاش المحلي؛ لا يوجد أي تسجيل
+     * مضمّن في التطبيق، ولا يُستخدم معرّف مختلق أبداً).
+     */
+    const val DEFAULT_ADHAN_VOICE_ID = "cloud_822d70ef-693f-47d7-996b-96ac92030525"
+
+    /**
      * أصوات المؤذنين الحصرية والمعتمدة حالياً
      */
     // No bundled/sample recordings: the library starts empty until real voices are added.
@@ -232,12 +241,23 @@ object MuezzinVoiceManager {
     }
 
     /**
-     * جلب الصوت الافتراضي المحدد
+     * الصوت الافتراضي الفعّال، بسلسلة احتياط صريحة — لا معرّف متدلٍّ أبداً:
+     * 1. اختيار المستخدم المحفوظ، إن كان ما زال يشير إلى صوت حقيقي.
+     * 2. الصوت الحقيقي في جدول `azan_voices` ([DEFAULT_ADHAN_VOICE_ID])،
+     *    متى كان في الأصوات المتاحة بعد مزامنة السحابة.
+     * 3. أول صوت منزّل / مسجّل من المستخدم (محلي ثم سحابي خاص).
+     * 4. "" — حالة صادقة: لا صوت أذان متاح بعد، وعلى الواجهة والمنبّه إظهار
+     *    ذلك بدل تشغيل معرّف غير موجود.
      */
     fun getDefaultVoiceId(context: Context): String {
         val prefs = customPrefs(context)
         val savedId = prefs.getString(KEY_DEFAULT_VOICE_ID, "").orEmpty()
-        return savedId.takeIf { id -> getAllVoices(context).any { it.id == id } }.orEmpty()
+        val all = getAllVoices(context)
+        if (savedId.isNotBlank() && all.any { it.id == savedId }) return savedId
+        if (all.any { it.id == DEFAULT_ADHAN_VOICE_ID }) return DEFAULT_ADHAN_VOICE_ID
+        getCustomVoices(context).firstOrNull()?.let { return it.id }
+        getPersonalCloudVoices(context).firstOrNull()?.let { return it.id }
+        return ""
     }
 
     /**

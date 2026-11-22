@@ -38,9 +38,13 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * شاشة اعتماد مشاهد الفيديو المولّدة قبل التصدير (ليست مراجعة مجتمع):
+ * معاينة المشاهد والموافقة عليها أو تعديلها.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(
+fun VideoSceneApprovalScreen(
     state: ProjectState = ProjectState(),
     onBack: () -> Unit,
     onUpdateScenes: (List<Scene>) -> Unit = {},

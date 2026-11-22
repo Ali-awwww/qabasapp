@@ -192,7 +192,7 @@ private fun SpatialControlDeck(
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                } else if (DownloadCategory.Updates !in visibleCategories) {
+                } else if (!isUpdateActive) {
                     IconButton(
                         onClick = onCheckUpdates,
                         modifier = Modifier
@@ -595,7 +595,9 @@ fun DownloadsHubScreen(
         DownloadCategory.Reels to (downloadedReels.map { it.id } + activeReelDownloads.keys).toSet().size,
         DownloadCategory.Media to (downloadedMedia.map { it.id } + activeMediaDownloads.keys).toSet().size
     )
-    val visibleCategories = DownloadCategory.entries.filter { (categoryCounts[it] ?: 0) > 0 }
+    // كل التصنيفات الأربعة ظاهرة دائماً مع حالات فراغ صادقة تشرح إضافة أول عنصر،
+    // فلا يختفي «نماذج الذكاء» عن مستخدم جديد لم يثبّت نموذجاً بعد.
+    val visibleCategories = DownloadCategory.entries
 
     val normalizedQuery = searchQuery.trim()
     val matchingModels = installedModels
@@ -1128,14 +1130,13 @@ fun DownloadsHubScreen(
                                         val sourceUrl = media.sourceUrl
                                         if (!sourceUrl.isNullOrBlank()) {
                                             startAfterSpaceCheck(media.title, media.fileSizeBytes) {
-                                                scope.launch {
-                                                    val localPath = DownloadsHubManager.downloadMedia(
-                                                        context = context,
-                                                        mediaId = media.id,
-                                                        title = media.title,
-                                                        fileUrl = sourceUrl
-                                                    )
-                                                    if (localPath.isNullOrBlank()) {
+                                                DownloadsHubManager.enqueueMediaDownload(
+                                                    context = context,
+                                                    mediaId = media.id,
+                                                    title = media.title,
+                                                    fileUrl = sourceUrl
+                                                ) { success ->
+                                                    if (!success) {
                                                         Toast.makeText(context, "تعذرت إعادة تنزيل الملف الصوتي", Toast.LENGTH_SHORT).show()
                                                     }
                                                 }

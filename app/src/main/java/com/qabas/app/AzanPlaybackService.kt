@@ -129,7 +129,7 @@ class AzanPlaybackService : Service() {
         }
 
         if (action == ACTION_START_AZAN) {
-            val voiceId = intent.getStringExtra("voice_id") ?: "makkah_mulla"
+            val voiceId = intent.getStringExtra("voice_id") ?: MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID
             val prayerName = intent.getStringExtra("prayer_name") ?: "الصلاة"
             // نرفع الخدمة فورًا قبل أي اتصال أو تنزيل حتى لا يقتل النظام الخدمة أثناء التجهيز.
             startForegroundForAzan(prayerName, "جاري تجهيز صوت الأذان")

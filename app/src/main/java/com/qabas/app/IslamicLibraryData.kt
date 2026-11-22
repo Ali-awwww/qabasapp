@@ -17,8 +17,10 @@ data class IslamicAuthor(
     val title: String,
     val era: String,
     val bio: String,
-    val bookCount: Int,
     val focusArea: String // "الفقه المقارن", "تزكية القلوب", "تحقيق العقيدة", "الحديث والآداب"
+    // لا حقل bookCount هنا: عدد كتب المؤلف يُحسب وقت التشغيل من قائمة الكتب
+    // الفعلية عبر IslamicLibraryRepository.bookCountForAuthor حتى لا يعود
+    // الرقم المعروض مخالفاً للمكتبة كما كان (ابن قدامة 6 مقابل 4، وغيرها).
 )
 
 @Immutable
@@ -54,7 +56,12 @@ data class IslamicBook(
     val hookTitle: String, // عنوان تشويقي جذاب (مثلاً: "كيف تُشفى القلوب من أدواء المعاصي؟")
     val progressionStep: Int? = null,
     val totalEstimatedMinutes: Int = 15,
-    val chapters: List<BookChapter>
+    val chapters: List<BookChapter>,
+    /**
+     * مقتطفات لا كتاب كامل: الكتب التسعة المُطلَقة من `archivedBooks` فصلٌ واحد
+     * ومقطع أو مقطعان فقط، فتُعرض بشارة «مقتطفات» ولا تُقدَّم أبداً ككتاب كامل.
+     */
+    val isExcerpt: Boolean = false
 )
 
 object IslamicLibraryRepository {
@@ -66,7 +73,6 @@ object IslamicLibraryRepository {
             title = "إمام أئمة المحدثين وصاحب أصح كتاب بعد القرآن (ت: 256 هـ)",
             era = "194 - 256 هـ / بخارى وبغداد ونيسابور",
             bio = "أبو عبد الله محمد بن إسماعيل بن إبراهيم الجعفي البخاري. أمير المؤمنين في الحديث النبوي، صاحب كتاب «الجامع الصحيح المسند» أصح كتاب بعد كتاب الله عز وجل بإجماع سلف الأمة وخلفها.",
-            bookCount = 1,
             focusArea = "صحيح السنة النبوية وفقه التراجم"
         ),
         IslamicAuthor(
@@ -75,7 +81,6 @@ object IslamicLibraryRepository {
             title = "إمام المحدثين وناقد السنن وصاحب الصحيح (ت: 261 هـ)",
             era = "204 - 261 هـ / نيسابور",
             bio = "أبو الحسين مسلم بن الحجاج القشيري النيسابوري. تلميذ الإمام البخاري وأحد أساطين علم الحديث. تميز صحيحه بحسن الترتيب وجمع أسانيد الحديث في موضع واحد دون تقطيع.",
-            bookCount = 1,
             focusArea = "صحيح السنن وصنعة الإسناد"
         ),
         IslamicAuthor(
@@ -84,7 +89,6 @@ object IslamicLibraryRepository {
             title = "طبيب القلوب وشيخ السلوك والتحقيق (ت: 751 هـ)",
             era = "691 - 751 هـ / دمشق",
             bio = "محمد بن أبي بكر الزرعي الدمشقي، أبو عبد الله. صاحب أعظم مؤلفات في تهذيب النفوس ومعالجة أمراض القلوب وتقرير التوحيد والسنن النبوية بأسلوب بليغ جذاب.",
-            bookCount = 4,
             focusArea = "تزكية القلوب والفقه النبوي"
         ),
         IslamicAuthor(
@@ -93,7 +97,6 @@ object IslamicLibraryRepository {
             title = "شيخ الإسلام وإمام الفقهاء الحنابلة (ت: 620 هـ)",
             era = "541 - 620 هـ / دمشق",
             bio = "عبد الله بن أحمد بن محمد بن قدامة الجماعيلي المقدسي. صاحب السلسلة الفقهية التدرجية الأربع الفريدة (العمدة، المقنع، الكافي، المغني) التي تبني الفقيه من المبتدئ إلى المجتهد المطلق.",
-            bookCount = 6,
             focusArea = "الفقه المقارن والأصول"
         ),
         IslamicAuthor(
@@ -102,7 +105,6 @@ object IslamicLibraryRepository {
             title = "شيخ الإسلام وبحر العلوم والمجدد (ت: 728 هـ)",
             era = "661 - 728 هـ / دمشق",
             bio = "أحمد بن عبد الحليم بن عبد السلام الحراني الدمشقي. الإمام المجدد والفقيه المجتهد، صاحب المصنفات الرصينة في العقيدة والمنهج والرد على الفرق المنحرفة وبيان محاسن الشريعة.",
-            bookCount = 3,
             focusArea = "تحقيق العقيدة والمنهج"
         ),
         IslamicAuthor(
@@ -111,7 +113,6 @@ object IslamicLibraryRepository {
             title = "حافظ الشام والمحدث الزاهد (ت: 795 هـ)",
             era = "736 - 795 هـ / دمشق",
             bio = "عبد الرحمن بن أحمد بن رجب السلمي البغدادي ثم الدمشقي. من أئمة الحديث والفقه والزهد، مؤلفاته تمتاز بنبرة إيمانية رقيقة وتحقيق حديثي نادر.",
-            bookCount = 2,
             focusArea = "شروح الحديث والرقائق"
         ),
         IslamicAuthor(
@@ -120,7 +121,6 @@ object IslamicLibraryRepository {
             title = "إمام الحفاظ وشيخ الشافعية (ت: 676 هـ)",
             era = "631 - 676 هـ / الشام",
             bio = "أبو زكريا يحيى بن شرف الحزامي النووي. صاحب الكتب المباركة المنتشرة في كل أرجاء العالم الإسلامي كرياض الصالحين والأربعين النووية.",
-            bookCount = 2,
             focusArea = "الحديث النبوي والآداب"
         ),
         IslamicAuthor(
@@ -129,7 +129,6 @@ object IslamicLibraryRepository {
             title = "العلامة المفسر والفقيه المحقق (ت: 1376 هـ)",
             era = "1307 - 1376 هـ / القصيم",
             bio = "عبد الرحمن بن ناصر بن عبد الله السعدي. تميزت مؤلفاته بالسهولة والوضوح وحسن الترتيب وتوجيه الفروع إلى القواعد الكلية الجامعة.",
-            bookCount = 1,
             focusArea = "التفسير والقواعد الفقهية"
         )
     )
@@ -143,13 +142,13 @@ object IslamicLibraryRepository {
     // لا تُضف كتاباً بلا تصنيف؛ فالتصنيف جزء أساسي ومطلوب لكل كتاب.
     // ════════════════════════════════════════════════════════════════════════
 
-    // المكتبة الإسلامية الجامعة — تُملأ بالكتب المعتمدة (كل كتاب بتصنيفه).
-    val books: List<IslamicBook> = listOf(
-        SahihHadithsRepository.createIslamicBookForSahih(SahihBookType.BUKHARI),
-        SahihHadithsRepository.createIslamicBookForSahih(SahihBookType.MUSLIM)
-    )
-
-    @Suppress("unused")
+    // الكتب التسعة التي كانت مخفية ككود ميت في `archivedBooks`:
+    // الداء والدواء، الفوائد، جامع العلوم والحكم، الفرقان، عمدة الفقه،
+    // المقنع، الكافي، المغني، رياض الصالحين. كل كتاب فصل واحد و1–2 مقطع
+    // قصير — مقتطفات لا كتب كاملة — وتُطلق هنا إلى القائمة الحية مع
+    // وسمها كمقتطفات (انظر `excerptBooks` و`books` أسفل القائمة).
+    // النسختان المكررتان من الصحيحين داخل هذه القائمة تُستبعدان عند
+    // بناء `books` لأن الصحيحين موجودان أصلاً في رأس القائمة.
     val archivedBooks: List<IslamicBook> = listOf(
         // ==========================================
         // 🌟 الصحيحان: درة كتب السنة النبوية المطهرة (مكتملان)
@@ -556,4 +555,140 @@ object IslamicLibraryRepository {
             )
         )
     )
+
+    /**
+     * الكتب التسعة المُطلَقة من `archivedBooks`، موسومة كمقتطفات.
+     * تُستبعد نسختا الصحيحين المكررتان داخل `archivedBooks` لأن الصحيحين
+     * يتصدران `books` أصلاً؛ فيبقى هنا 9 كتب فقط.
+     */
+    val excerptBooks: List<IslamicBook>
+        get() = archivedBooks
+            .filter { it.id != SahihBookType.BUKHARI.id && it.id != SahihBookType.MUSLIM.id }
+            .map { it.copy(isExcerpt = true) }
+
+    // المكتبة الإسلامية الجامعة — تُملأ بالكتب المعتمدة (كل كتاب بتصنيفه):
+    // الصحيحان أولاً، ثم الكتب التسعة المُطلَقة كمقتطفات.
+    val books: List<IslamicBook> = listOf(
+        SahihHadithsRepository.createIslamicBookForSahih(SahihBookType.BUKHARI),
+        SahihHadithsRepository.createIslamicBookForSahih(SahihBookType.MUSLIM)
+    ) + excerptBooks
+
+    /** عدد كتب المؤلف الفعلي في القائمة الحية — يُحسب وقت التشغيل لا كتابةً. */
+    fun bookCountForAuthor(authorId: String): Int = books.count { it.authorId == authorId }
+
+    fun findBook(bookId: String): IslamicBook? = books.find { it.id == bookId }
+
+    /** إجمالي مقاطع الكتاب (عبر كل فصوله) — مقام نسبة التقدم في القراءة. */
+    fun totalSections(book: IslamicBook): Int = book.chapters.sumOf { it.sections.size }
+
+    /** الموضع العام للمقطع داخل الكتاب (0-based) عبر كل الفصول. */
+    fun sectionGlobalIndex(book: IslamicBook, chapterIndex: Int, sectionIndex: Int): Int {
+        var index = 0
+        book.chapters.forEachIndexed { chIdx, chapter ->
+            if (chIdx < chapterIndex) index += chapter.sections.size
+            else if (chIdx == chapterIndex) index += sectionIndex.coerceIn(0, chapter.sections.size)
+        }
+        return index
+    }
+
+    /** نسبة إتمام القراءة (0–100) حتى المقطع المحدد ضمناً. */
+    fun progressPercent(book: IslamicBook, chapterIndex: Int, sectionIndex: Int): Int {
+        val total = totalSections(book)
+        if (total <= 0) return 0
+        val read = (sectionGlobalIndex(book, chapterIndex, sectionIndex) + 1).coerceAtMost(total)
+        return (read * 100 / total).coerceIn(0, 100)
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // البحث النصي الكامل داخل نص الكتب (لا العناوين فقط)
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * نتيجة مطابقة واحدة: الكتاب + موضع المقطع المطابق + معاينة نصية قصيرة
+     * من موضع المطابقة، ليفتح القارئ على المقطع نفسه لا على أول الكتاب.
+     */
+    data class LibrarySearchResult(
+        val book: IslamicBook,
+        val chapterIndex: Int,
+        val sectionIndex: Int,
+        val matchPreview: String
+    )
+
+    /**
+     * بحث نصي كامل في الذاكرة فوق الكتب المحملة فقط (لا اعتماديات جديدة).
+     * يطابق العنوان والمؤلف والوصف والعنوان التشويقي، ونص كل مقطع:
+     * عنوان المقطع والمحتوى وكبسولة الفائدة والقاعدة والمراجع والوسوم.
+     *
+     * التطبيع: يعيد استخدام `HadithSearchNormalizer` الموجود في المستودع
+     * (إزالة التشكيل وتوحيد الألف والهمزة والتطويل)، مع مطابقة ثانية
+     * بفكّ «ال» التعريف على نمط `QuranDataProvider.searchVerses`
+     * (مثلاً «الكرسي» يجد «كرسيه») — لا مهيّئ تطبيع ثانٍ مخترَع هنا.
+     * يُشترط حرفان على الأقل، وتُعاد أقرب المطابقات أولاً بترتيب الكتب.
+     */
+    fun searchBooks(query: String, limit: Int = 50): List<LibrarySearchResult> {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return emptyList()
+        val needle = HadithSearchNormalizer.normalize(trimmed)
+        if (needle.isBlank()) return emptyList()
+        val strippedNeedle =
+            if (needle.length > 3 && needle.startsWith("ال")) needle.substring(2) else null
+
+        fun matches(haystack: String): Boolean {
+            val hay = HadithSearchNormalizer.normalize(haystack)
+            return hay.contains(needle) || (strippedNeedle != null && hay.contains(strippedNeedle))
+        }
+        fun previewOf(vararg fields: String): String {
+            val field = fields.firstOrNull { matches(it) } ?: return ""
+            val clean = field.replace(Regex("\\s+"), " ").trim()
+            return if (clean.length > 120) clean.take(120) + "…" else clean
+        }
+
+        val results = ArrayList<LibrarySearchResult>()
+        for (book in books) {
+            var bookMatched = false
+            book.chapters.forEachIndexed { chapterIndex, chapter ->
+                chapter.sections.forEachIndexed { sectionIndex, section ->
+                    if (results.size >= limit) return results
+                    val sectionFields = listOf(
+                        section.sectionTitle,
+                        section.content,
+                        section.wisdomCapsule,
+                        section.keyRuleOrBenefit,
+                        section.references
+                    ) + section.tags
+                    if (sectionFields.any { matches(it) }) {
+                        bookMatched = true
+                        results.add(
+                            LibrarySearchResult(
+                                book = book,
+                                chapterIndex = chapterIndex,
+                                sectionIndex = sectionIndex,
+                                matchPreview = previewOf(
+                                    section.sectionTitle,
+                                    section.wisdomCapsule,
+                                    section.content,
+                                    section.keyRuleOrBenefit
+                                )
+                            )
+                        )
+                    }
+                }
+            }
+            // لا مقطع مطابق لكن حقول الكتاب نفسها طابقت: نتيجة واحدة على أول مقطع.
+            if (!bookMatched && results.size < limit &&
+                (matches(book.title) || matches(book.authorName) ||
+                    matches(book.description) || matches(book.hookTitle))
+            ) {
+                results.add(
+                    LibrarySearchResult(
+                        book = book,
+                        chapterIndex = 0,
+                        sectionIndex = 0,
+                        matchPreview = previewOf(book.hookTitle, book.description)
+                    )
+                )
+            }
+        }
+        return results
+    }
 }

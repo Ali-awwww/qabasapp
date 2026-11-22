@@ -1465,10 +1465,46 @@ data class PrayerRowItem(
 )
 
 // --- Tab 2: Prayer Habit & Sunan Tracker ---
+
+// مفاتيح الصلوات الخمس كما تُسجَّل يومياً في التتبّع ("${date}_fajr" ...).
+private val PRAYER_STREAK_DAY_KEYS = listOf("fajr", "dhuhr", "asr", "maghrib", "isha")
+
+/**
+ * يحسب سلسلة المحافظة على الصلاة من سجلات الإكمال الحقيقية فقط: يوم يُحتسب
+ * إذا سُجّلت صلواته الخمس كلها كمؤداة في ذلك اليوم. السلسلة لا تُزرع أبداً
+ * ولا تبدأ من أي رقم افتراضي — مستخدم جديد بلا سجل يرى صفراً. اليوم الحالي
+ * قد يكون ما زال جارياً، فعدم اكتماله لا يقطع سلسلة انتهت أمس؛ والفحص يتوقف
+ * عند أول يوم غير مكتمل قبل بدء السلسلة، وبحد أقصى سنة للوراء.
+ */
+fun computePrayerStreakCount(prefs: android.content.SharedPreferences): Int {
+    val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val calendar = Calendar.getInstance()
+    var streak = 0
+    var runStarted = false
+    var daysBack = 0
+    while (daysBack <= 365) {
+        calendar.time = Date()
+        calendar.add(Calendar.DAY_OF_YEAR, -daysBack)
+        val dayKey = dayFormat.format(calendar.time)
+        val dayComplete = PRAYER_STREAK_DAY_KEYS.all { prayerKey ->
+            prefs.getBoolean("${dayKey}_$prayerKey", false)
+        }
+        if (dayComplete) {
+            streak++
+            runStarted = true
+        } else if (runStarted || daysBack > 0) {
+            break
+        }
+        daysBack++
+    }
+    return streak
+}
+
 @Composable
 fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
     val todayDateKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
-    var streakCount by remember { mutableIntStateOf(prefs.getInt("prayer_streak_count", 7)) }
+    // السلسلة تُحسب عند كل عرض من سجلات الإكمال الحقيقية فقط — لا رقم مزروع.
+    val streakCount = computePrayerStreakCount(prefs)
 
     var fajrDone by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_fajr", false)) }
     var fajrJamaah by remember { mutableStateOf(prefs.getBoolean("${todayDateKey}_fajr_jamaah", false)) }
@@ -2073,6 +2109,11 @@ fun QiblaAndKhushooTab(
     cityName: String,
     onShareTopic: (SpiritualTopic) -> Unit
 ) {
+    // بوصلة حية من حساس الدوران؛ عند غياب الحساس يُعرض الاتجاه الثابت فقط
+    // بالتسمية الصادقة «اتجاه القبلة» دون ادعاء بوصلة.
+    val compass = rememberQiblaCompassState()
+    val needleRotation = qiblaNeedleRotationDeg(prayerTimes.qiblaDirectionDeg, compass.azimuthDeg)
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -2105,7 +2146,7 @@ fun QiblaAndKhushooTab(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "اتجاه القبلة",
+                                text = if (compass.isSensorAvailable) "بوصلة القبلة" else "اتجاه القبلة",
                                 color = GeoColor.textPrimary(),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -2173,14 +2214,15 @@ fun QiblaAndKhushooTab(
                             }
                         }
 
-                        // سهم القبلة
+                        // سهم القبلة — يدور حياً (الاتجاه − سمت الجهاز) عند توفر
+                        // قراءة حساس، وإلا يبقى على الاتجاه الثابت من الشمال.
                         Icon(
                             imageVector = Icons.Default.Navigation,
                             contentDescription = "اتجاه القبلة",
                             tint = GoldPrimary,
                             modifier = Modifier
                                 .size(60.dp)
-                                .rotate(prayerTimes.qiblaDirectionDeg)
+                                .rotate(needleRotation)
                         )
 
                         // رمز الكعبة — أيقونة بدل الإيموجي
@@ -2200,6 +2242,24 @@ fun QiblaAndKhushooTab(
                             )
                         }
                     }
+
+                    // ── حالة البوصلة: معايرة أو انتظار قراءة أو غياب حساس ──
+                    Spacer(Modifier.height(Geo.S_SM))
+                    Text(
+                        text = when {
+                            !compass.isSensorAvailable -> "هذا الجهاز بلا حساس بوصلة — يُعرض اتجاه القبلة الثابت من الشمال."
+                            compass.azimuthDeg == null -> "جارٍ قراءة البوصلة… وجّه أعلى الهاتف نحو الأمام."
+                            compass.isCalibrationNeeded -> "دقّة البوصلة منخفضة — حرّك الهاتف على شكل رقم 8 لمعايرتها."
+                            else -> "بوصلة حية — أدر الهاتف حتى تستقيم الإبرة للأعلى."
+                        },
+                        color = GeoColor.textMuted(),
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.5.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(Modifier.height(Geo.S_MD))
 

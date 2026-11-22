@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleGroupedSection
 import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.components.AppleSecondaryButton
@@ -109,6 +111,9 @@ fun SettingsScreen(
     onNavigateToAboutUs: () -> Unit = {},
     onNavigateToRules: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
+    // Batch 6 Priority 3 — guest upgrade entry point. Defaults to onLogout,
+    // which already returns a guest to the login screen.
+    onNavigateToRegister: () -> Unit = onLogout,
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -153,7 +158,7 @@ fun SettingsScreen(
         mutableStateOf(
             prefs.getString("user_display_name", null)
                 ?: CloudServices.Auth.currentUser.value?.displayName
-                ?: "مستخدم مساعد المسلم"
+                ?: "مستخدم قبس"
         )
     }
     var avatarUriString by remember {
@@ -195,6 +200,16 @@ fun SettingsScreen(
             CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail())
     }
     val isRelative = prefs.getBoolean("is_relative_user", false)
+
+    // Batch 6 Priority 3 — email verification state for the banner below.
+    // Defaults to true (unknown = no banner) and is refreshed from the real
+    // Auth user whenever a signed-in account is shown.
+    var emailConfirmed by remember { mutableStateOf(prefs.getBoolean("email_confirmed", true)) }
+    LaunchedEffect(isLoggedInAccount) {
+        if (isLoggedInAccount) {
+            emailConfirmed = SupabaseServices.Auth.refreshEmailConfirmationState() ?: true
+        }
+    }
 
     val isDeveloperAccount = remember(accountAuthState, verifiedRole) {
         AdminGuard.isDashboardAccessAllowed(context)
@@ -461,6 +476,70 @@ fun SettingsScreen(
                             onAvatarClick = { showAvatarPicker = true },
                             context = context
                         )
+
+                        // Batch 6 Priority 3 — guest upgrade entry point.
+                        // There is no guest banner on the home screen, so
+                        // Settings is where a guest is offered to keep their
+                        // local data by creating an account. The flag makes
+                        // the registration/login flow migrate guest data to
+                        // the new account id (see GuestUpgradeManager).
+                        if (isGuest) {
+                            AppleCard(
+                                onClick = {
+                                    GuestUpgradeManager.markGuestUpgradePending(context)
+                                    onNavigateToRegister()
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(theme.primary.copy(alpha = 0.14f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.PersonAdd, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = "أنشئ حساباً للاحتفاظ ببياناتك",
+                                                color = theme.textPrimary,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                            Text(
+                                                text = "إشاراتك ومواضع قراءتك وإعداداتك ستنتقل إلى حسابك الجديد",
+                                                color = theme.textSecondary,
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = theme.textSecondary)
+                                }
+                            }
+                        }
+
+                        // Batch 6 Priority 3 — honest email-verification
+                        // banner for signed-in users whose address is still
+                        // unconfirmed (local use continues; cloud sync is
+                        // blocked until confirmation).
+                        if (isLoggedInAccount && !emailConfirmed) {
+                            EmailVerificationBanner(email = userEmail)
+                        }
+
+                        // Batch 6 Priority 3 — real account deletion, for
+                        // signed-in users (guests have no account to delete).
+                        if (isLoggedInAccount) {
+                            AccountDeletionCard()
+                        }
 
                         SettingsSearchBar(
                             query = settingsSearchQuery,

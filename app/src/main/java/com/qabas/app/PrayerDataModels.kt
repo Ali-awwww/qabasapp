@@ -17,7 +17,7 @@ data class PrayerControlConfig(
     val nameAr: String,
     val isNotificationEnabled: Boolean = true,
     val soundMode: String = "FULL_AZAN", // FULL_AZAN, TAKBEER_ONLY, BEEP, SILENT
-    val selectedVoiceId: String = "makkah_mulla",
+    val selectedVoiceId: String = MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID,
     val preReminderMinutes: Int = 10, // 0, 5, 10, 15
     val iqamahReminderMinutes: Int = 15 // 10, 15, 20
 )

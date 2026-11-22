@@ -726,6 +726,8 @@ fun AppNavigation(
                     updateHistoryReturnToSettings = true
                     viewModel.updateState { copy(appState = AppState.UPDATE_HISTORY) }
                 },
+                // Batch 6 Priority 3 — guest upgrade entry point in Settings.
+                onNavigateToRegister = { viewModel.updateState { copy(appState = AppState.REGISTER) } },
                 bottomBar = bottomNav
             )
         }
@@ -1458,7 +1460,7 @@ fun AppNavigation(
             )
         }
         AppState.RESOURCES -> {
-            ResourceReviewScreen(
+            MediaResourceApprovalScreen(
                 ideaText = state.inputText,
                 mediaResources = state.mediaResources,
                 onAddResource = { resource ->

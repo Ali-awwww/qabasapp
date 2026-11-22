@@ -258,19 +258,36 @@ object CloudServices {
             }
         }
 
-        // جلب لوحة المتصدرين (Leaderboard)
-        suspend fun getLeaderboard(): List<CreatorStats> {
-            val list = SupabaseServices.Database.getLeaderboard()
+        // جلب لوحة شرف نقاط المجتمع (الأولوية 5): من `user_points` /
+        // `points_ledger` بنافذة زمنية حقيقية، لا من عمود `strikes` القديم.
+        // `views` تُترك فارغة عمداً: لا توجد مشاهدات حقيقية لكل متصدر،
+        // فلا تُخترع أرقام مشاهدات. `movement` سهم حراك الأسبوع السابق
+        // فقط، وnull تعني "لا بيانات سابقة" فلا يظهر سهم.
+        suspend fun getLeaderboard(window: String = "الأسبوع"): List<CreatorStats> {
+            val pointsWindow = when (window) {
+                "الأسبوع الماضي" -> SupabaseServices.PointsWindow.LAST_WEEK
+                "الشهر" -> SupabaseServices.PointsWindow.MONTH
+                "الكل" -> SupabaseServices.PointsWindow.ALL_TIME
+                else -> SupabaseServices.PointsWindow.WEEK
+            }
+            val currentUserId = Auth.getCurrentUserId()
+            val list = SupabaseServices.Database.getCommunityPointsLeaderboard(pointsWindow)
             return list.mapIndexed { idx, row ->
                 CreatorStats(
                     name = row.name,
                     rank = idx + 1,
                     points = row.points.toInt(),
-                    views = "${row.points / 10}K",
-                    badge = if (idx == 0) "👑" else if (idx == 1) "🥈" else if (idx == 2) "🥉" else "⭐"
+                    views = "",
+                    badge = if (idx == 0) "👑" else if (idx == 1) "🥈" else if (idx == 2) "🥉" else "⭐",
+                    isCurrentUser = currentUserId != null && row.userId == currentUserId,
+                    userId = row.userId,
+                    movement = row.previousRank?.let { prevRank -> prevRank - (idx + 1) }
                 )
             }
         }
+
+        /** توافق: الافتراضي نافذة الأسبوع الحالي. */
+        suspend fun getLeaderboard(): List<CreatorStats> = getLeaderboard("الأسبوع")
 
         // تسجيل عملية شراء
         suspend fun recordPurchase(productId: String, purchaseToken: String) {

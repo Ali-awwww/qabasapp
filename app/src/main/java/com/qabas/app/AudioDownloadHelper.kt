@@ -1,21 +1,12 @@
 package com.qabas.app
 
-import android.app.DownloadManager
-import android.content.ContentValues
 import android.content.Context
-import android.media.MediaScannerConnection
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 data class DownloadProgress(
     val downloadedBytes: Long = 0L,
@@ -24,9 +15,20 @@ data class DownloadProgress(
     val speedBytesPerSec: Long = 0L,
     val isCompleted: Boolean = false,
     val isError: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** true عندما لم يرسل السيرفر حجماً معروفاً — التقدّم غير محدد («الحجم غير معروف»). */
+    val isTotalUnknown: Boolean = false
 )
 
+/**
+ * مساعد تنزيل الصوت — يفوّض إلى المخزن الداخلي الموحّد في [DownloadsHubManager]
+ * (مجلد ملفات التطبيق `downloads/media`): نفس الدليل ونفس مفتاح إزالة التكرار
+ * (الرابط نفسه يعطي الملف نفسه) ونفس مصدر شارة «منزّل».
+ *
+ * لا يوجد هنا أي مسار كتابة ثانٍ (حُذف مسار MediaStore العام): لا يمكن تنزيل
+ * الصوت نفسه مرتين في مكانين مختلفين. التقدّم من `Content-Length` الحقيقي،
+ * وإن غاب الحجم فالتقدّم غير محدد — لا رقم مخمّن.
+ */
 object AudioDownloadHelper {
 
     /**
@@ -44,7 +46,8 @@ object AudioDownloadHelper {
     }
 
     /**
-     * Downloads an audio track with live, byte-level progress reporting.
+     * Downloads an audio track with live, byte-level progress reporting,
+     * into the single internal audio store owned by [DownloadsHubManager].
      */
     suspend fun downloadAudioWithProgress(
         context: Context,
@@ -54,39 +57,98 @@ object AudioDownloadHelper {
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val cleanTitle = title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "qabas_audio" }
-                val fileName = "${cleanTitle}.mp3"
+                // إزالة تكرار أولاً: نفس الرابط منزّل فعلاً في المخزن الموحّد؟
+                val alreadyDownloaded = DownloadsHubManager.audioFileForUrl(context, audioUrl)
+                if (alreadyDownloaded != null) {
+                    val size = alreadyDownloaded.length()
+                    onProgress(
+                        DownloadProgress(
+                            downloadedBytes = size,
+                            totalBytes = size,
+                            percent = 1f,
+                            speedBytesPerSec = 0L,
+                            isCompleted = true
+                        )
+                    )
+                    return@withContext true
+                }
 
+                val mediaId = DownloadsHubManager.audioMediaIdForUrl(audioUrl)
                 when {
                     audioUrl.startsWith("assets/") -> {
                         val assetPath = audioUrl.removePrefix("assets/")
                         val fd = runCatching { context.assets.openFd(assetPath) }.getOrNull()
-                        val total = fd?.length ?: 5_000_000L
+                        val total = fd?.length ?: 0L
                         fd?.close()
-
+                        val destFile = DownloadsHubManager.mediaFileForId(context, mediaId, "mp3")
                         context.assets.open(assetPath).use { input ->
-                            saveStreamWithProgress(context, input, fileName, total, onProgress)
+                            copyStreamToHubFile(context, input, destFile, mediaId, title, audioUrl, total, onProgress)
                         }
                     }
                     audioUrl.startsWith("http://") || audioUrl.startsWith("https://") -> {
-                        val url = URL(audioUrl)
-                        val conn = url.openConnection() as HttpURLConnection
-                        conn.connectTimeout = 15000
-                        conn.readTimeout = 30000
-                        conn.setRequestProperty("User-Agent", "Qabas-App/1.0")
-                        conn.connect()
-
-                        val total = conn.contentLengthLong.takeIf { it > 0 } ?: 8_000_000L
-                        conn.inputStream.use { input ->
-                            saveStreamWithProgress(context, input, fileName, total, onProgress)
+                        val startTime = System.currentTimeMillis()
+                        var lastSpeedBytes = 0L
+                        var lastSpeedAt = startTime
+                        val localPath = DownloadsHubManager.downloadMedia(
+                            context = context,
+                            mediaId = mediaId,
+                            title = title,
+                            fileUrl = audioUrl,
+                            extension = "mp3"
+                        ) { sent, total ->
+                            val now = System.currentTimeMillis()
+                            val speed = if (now > lastSpeedAt) {
+                                ((sent - lastSpeedBytes) * 1000L / (now - lastSpeedAt)).coerceAtLeast(0L)
+                            } else 0L
+                            lastSpeedBytes = sent
+                            lastSpeedAt = now
+                            onProgress(
+                                DownloadProgress(
+                                    downloadedBytes = sent,
+                                    totalBytes = total,
+                                    percent = if (total > 0) (sent.toFloat() / total).coerceIn(0f, 1f) else 0f,
+                                    speedBytesPerSec = speed,
+                                    isCompleted = false,
+                                    isTotalUnknown = total <= 0
+                                )
+                            )
+                        }
+                        if (!localPath.isNullOrBlank()) {
+                            val size = File(localPath).length()
+                            onProgress(
+                                DownloadProgress(
+                                    downloadedBytes = size,
+                                    totalBytes = size,
+                                    percent = 1f,
+                                    speedBytesPerSec = 0L,
+                                    isCompleted = true
+                                )
+                            )
+                            true
+                        } else {
+                            onProgress(DownloadProgress(isError = true, errorMessage = "تعذر التنزيل — تحقق من الاتصال"))
+                            false
                         }
                     }
                     audioUrl.startsWith("/") -> {
                         val file = File(audioUrl)
                         if (file.exists()) {
-                            val total = file.length()
-                            file.inputStream().use { input ->
-                                saveStreamWithProgress(context, input, fileName, total, onProgress)
+                            val destFile = DownloadsHubManager.mediaFileForId(context, mediaId, "mp3")
+                            if (file.canonicalPath == destFile.canonicalPath) {
+                                onProgress(
+                                    DownloadProgress(
+                                        downloadedBytes = file.length(),
+                                        totalBytes = file.length(),
+                                        percent = 1f,
+                                        speedBytesPerSec = 0L,
+                                        isCompleted = true
+                                    )
+                                )
+                                true
+                            } else {
+                                file.inputStream().use { input ->
+                                    copyStreamToHubFile(context, input, destFile, mediaId, title, audioUrl, file.length(), onProgress)
+                                }
                             }
                         } else {
                             onProgress(DownloadProgress(isError = true, errorMessage = "الملف غير موجود"))
@@ -108,35 +170,17 @@ object AudioDownloadHelper {
         }
     }
 
-    /** Returns titles whose MP3 files are already present in the app's existing Downloads location. */
+    /**
+     * عناوين الصوتيات المنزّلة فعلاً — تُقرأ من المخزن الداخلي الموحّد وحده
+     * (سجل [DownloadsHubManager] + وجود الملف)، لا من أي مخزن ثانٍ.
+     */
     fun getDownloadedAudioTitles(context: Context, titles: Collection<String>): Set<String> {
         if (titles.isEmpty()) return emptySet()
-        val expectedNames = titles.associateBy { title ->
-            title.map { if (it in "\\/:*?\"<>|") '_' else it }.joinToString("").trim().ifBlank { "qabas_audio" } + ".mp3"
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            return expectedNames.filterKeys { File(downloadsDir, it).isFile }.values.toSet()
-        }
-
-        val foundNames = mutableSetOf<String>()
-        val projection = arrayOf(MediaStore.Downloads.DISPLAY_NAME)
-        context.contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            projection,
-            MediaStore.Downloads.MIME_TYPE + " = ?",
-            arrayOf("audio/mpeg"),
-            null
-        )?.use { cursor ->
-            val nameColumn = cursor.getColumnIndex(MediaStore.Downloads.DISPLAY_NAME)
-            if (nameColumn >= 0) {
-                while (cursor.moveToNext()) {
-                    val displayName = cursor.getString(nameColumn)
-                    if (displayName in expectedNames) foundNames.add(displayName)
-                }
-            }
-        }
-        return foundNames.mapNotNull(expectedNames::get).toSet()
+        DownloadsHubManager.init(context.applicationContext)
+        return DownloadsHubManager.downloadedMedia.value
+            .filter { it.title in titles && it.fileExists }
+            .map { it.title }
+            .toSet()
     }
 
     /**
@@ -146,37 +190,25 @@ object AudioDownloadHelper {
         return downloadAudioWithProgress(context, audioUrl, title) {}
     }
 
-    private fun saveStreamWithProgress(
+    /**
+     * نسخ مجرى (أصل أو ملف محلي) إلى ملف المخزن الداخلي الموحّد مع تقدّم
+     * حقيقي؛ الحجم المجهول (total = 0) يُبلَّغ غير محدد لا برقم مخمّن.
+     * يُسجَّل الملف في سجل الوسائط الموحّد لتظهر شارة «منزّل» من المصدر نفسه.
+     */
+    private fun copyStreamToHubFile(
         context: Context,
         inputStream: InputStream,
-        fileName: String,
+        destFile: File,
+        mediaId: String,
+        title: String,
+        sourceUrl: String,
         totalBytes: Long,
         onProgress: (DownloadProgress) -> Unit
     ): Boolean {
+        val tmpFile = File(destFile.parentFile, "${destFile.name}.tmp")
         var outputStream: OutputStream? = null
-        var uri: Uri? = null
-        var targetFile: File? = null
-        val resolver = context.contentResolver
-
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                    put(MediaStore.Downloads.MIME_TYPE, "audio/mpeg")
-                    put(MediaStore.Downloads.IS_PENDING, 1)
-                }
-                uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                if (uri == null) return false
-                outputStream = resolver.openOutputStream(uri)
-            } else {
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                targetFile = File(downloadsDir, fileName)
-                outputStream = FileOutputStream(targetFile!!)
-            }
-
-            if (outputStream == null) return false
-
+            outputStream = FileOutputStream(tmpFile)
             val buffer = ByteArray(8192)
             var bytesRead: Int
             var totalRead = 0L
@@ -192,14 +224,14 @@ object AudioDownloadHelper {
                 val diffTime = now - lastTime
                 if (diffTime >= 100) {
                     val speed = if (diffTime > 0) (bytesSinceLastTime * 1000L) / diffTime else 0L
-                    val percent = if (totalBytes > 0) (totalRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f) else 0.5f
                     onProgress(
                         DownloadProgress(
                             downloadedBytes = totalRead,
                             totalBytes = totalBytes,
-                            percent = percent,
+                            percent = if (totalBytes > 0) (totalRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f) else 0f,
                             speedBytesPerSec = speed,
-                            isCompleted = false
+                            isCompleted = false,
+                            isTotalUnknown = totalBytes <= 0
                         )
                     )
                     lastTime = now
@@ -211,12 +243,20 @@ object AudioDownloadHelper {
             outputStream.close()
             outputStream = null
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.Downloads.IS_PENDING, 0)
-                }
-                resolver.update(uri, contentValues, null, null)
-            }
+            if (destFile.exists()) destFile.delete()
+            tmpFile.renameTo(destFile)
+            DownloadsHubManager.addDownloadedMedia(
+                context,
+                DownloadedMediaItem(
+                    id = mediaId,
+                    title = title,
+                    subtitle = "صوت",
+                    localFilePath = destFile.absolutePath,
+                    fileSizeBytes = destFile.length(),
+                    sourceUrl = sourceUrl
+                )
+            )
+            DownloadsHubManager.refreshStorageMetrics(context)
 
             onProgress(
                 DownloadProgress(
@@ -230,19 +270,10 @@ object AudioDownloadHelper {
             true
         } catch (e: kotlinx.coroutines.CancellationException) {
             runCatching { outputStream?.close() }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
-                runCatching { resolver.delete(uri!!, null, null) }
-            } else {
-                runCatching { targetFile?.delete() }
-            }
             throw e
         } catch (e: Exception) {
             runCatching { outputStream?.close() }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
-                runCatching { resolver.delete(uri!!, null, null) }
-            } else {
-                runCatching { targetFile?.delete() }
-            }
+            runCatching { tmpFile.delete() }
             onProgress(DownloadProgress(isError = true, errorMessage = e.message))
             false
         }

@@ -54,6 +54,72 @@ fun RegisterScreen(
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    // Batch 6 Priority 3 — Google one-tap sign-up (same shared flow as the
+    // login screen) and the post-registration email-verification state.
+    var isGoogleLoading by remember { mutableStateOf(false) }
+    var showGoogleSetupDialog by remember { mutableStateOf(false) }
+    var pendingVerificationEmail by remember { mutableStateOf<String?>(null) }
+
+    val submitGoogleRegister: () -> Unit = {
+        if (!isGoogleLoading) {
+            if (!GoogleAuthHelper.isWebClientIdConfigured(context)) {
+                Toast.makeText(context, GoogleSignInFlow.NOT_CONFIGURED_MESSAGE, Toast.LENGTH_LONG).show()
+                showGoogleSetupDialog = true
+            } else {
+                isGoogleLoading = true
+                val authRepository = SupabaseRepository.getInstance()
+                authRepository.beginInteractiveAuthFlow()
+                var authFlowAccepted = false
+                val googleJob = coroutineScope.launch {
+                    when (val outcome = GoogleSignInFlow.signIn(context)) {
+                        is GoogleSignInFlow.Outcome.Success -> {
+                            Toast.makeText(
+                                context,
+                                "تم إنشاء حسابك عبر Google بنجاح!" +
+                                    if (outcome.guestMigrated) " — نُقلت بيانات الضيف إلى حسابك" else "",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            onRegisterSuccess()
+                            authFlowAccepted = true
+                        }
+                        GoogleSignInFlow.Outcome.NotConfigured -> {
+                            Toast.makeText(context, GoogleSignInFlow.NOT_CONFIGURED_MESSAGE, Toast.LENGTH_LONG).show()
+                            showGoogleSetupDialog = true
+                        }
+                        GoogleSignInFlow.Outcome.Cancelled -> Unit
+                        is GoogleSignInFlow.Outcome.Failed -> {
+                            Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    isGoogleLoading = false
+                }
+                googleJob.invokeOnCompletion {
+                    authRepository.completeInteractiveAuthFlow(accepted = authFlowAccepted)
+                }
+            }
+        }
+    }
+
+    if (showGoogleSetupDialog) {
+        GoogleSupabaseSetupDialog(
+            onDismiss = { showGoogleSetupDialog = false },
+            onTestSignIn = {
+                showGoogleSetupDialog = false
+                submitGoogleRegister()
+            }
+        )
+    }
+
+    pendingVerificationEmail?.let { verificationEmail ->
+        EmailVerificationPromptDialog(
+            email = verificationEmail,
+            onDismiss = { pendingVerificationEmail = null },
+            onGoToLogin = {
+                pendingVerificationEmail = null
+                onNavigateToLogin()
+            }
+        )
+    }
 
     var isCustomIdTaken by remember { mutableStateOf<Boolean?>(null) }
     var isCheckingAvailability by remember { mutableStateOf(false) }
@@ -134,7 +200,7 @@ fun RegisterScreen(
             )
 
             Text(
-                text = "سجل انضمامك لمجتمع مساعد المسلم الرقمي",
+                text = "سجل انضمامك لمجتمع قبس الرقمي",
                 color = theme.textSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 13.sp,
@@ -142,6 +208,33 @@ fun RegisterScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Batch 6 Priority 3 — one-tap Google sign-up, above the email form.
+            GoogleSignInButton(
+                isLoading = isGoogleLoading,
+                onClick = submitGoogleRegister,
+                onConfigureClick = { showGoogleSetupDialog = true },
+                text = "متابعة مع Google"
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = theme.separator.copy(alpha = 0.5f))
+                Text(
+                    text = "أو أنشئ حساباً بالبريد",
+                    color = theme.textSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = theme.separator.copy(alpha = 0.5f))
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             AppleCard(cornerRadius = 18.dp) {
                 Column(
@@ -363,8 +456,8 @@ fun RegisterScreen(
                                 Toast.makeText(context, "كلمتا المرور غير متطابقتين", Toast.LENGTH_SHORT).show()
                                 return@ApplePrimaryButton
                             }
-                            if (password.length < 6) {
-                                Toast.makeText(context, "كلمة المرور يجب أن تكون 6 أحرف على الأقل", Toast.LENGTH_SHORT).show()
+                            if (password.length < 8) {
+                                Toast.makeText(context, "كلمة المرور يجب أن تكون 8 أحرف على الأقل", Toast.LENGTH_SHORT).show()
                                 return@ApplePrimaryButton
                             }
 
@@ -506,6 +599,30 @@ fun RegisterScreen(
                                         putString("user_name_with_account", nameWithAccount)
                                         apply()
                                     }
+                                    // Batch 6 Priority 3: record the real email
+                                    // confirmation state (gates cloud sync) and,
+                                    // if this user arrived as a guest, migrate
+                                    // their local data to the new account id.
+                                    // If the address is still unconfirmed, stay
+                                    // here and show the verification dialog
+                                    // instead of entering as if verified.
+                                    val emailConfirmedAfterRegister =
+                                        SupabaseServices.Auth.refreshEmailConfirmationState()
+                                    if (GuestUpgradeManager.shouldMigrate(context)) {
+                                        runCatching {
+                                            GuestUpgradeManager.migrateGuestDataToAccount(
+                                                context = context,
+                                                newUserId = authUid,
+                                                newEmail = lowerEmail,
+                                                emailConfirmed = emailConfirmedAfterRegister ?: true
+                                            )
+                                        }
+                                    }
+                                    if (emailConfirmedAfterRegister == false) {
+                                        pendingVerificationEmail = lowerEmail
+                                        isLoading = false
+                                        return@launch
+                                    }
                                     val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل)" else ""
                                     Toast.makeText(
                                         context,
@@ -518,8 +635,14 @@ fun RegisterScreen(
                                     val state = SupabaseRepository.getInstance().authState.value
                                     val errorText = (state as? AuthState.Error)?.message.orEmpty()
                                     val message = when {
-                                        errorText.contains("EMAIL_CONFIRMATION_REQUIRED", ignoreCase = true) ->
-                                            "تم إنشاء طلب الحساب. تحقق من بريدك الإلكتروني وأكمل تأكيده، ثم سجّل الدخول."
+                                        errorText.contains("EMAIL_CONFIRMATION_REQUIRED", ignoreCase = true) -> {
+                                            // Registration was requested but no
+                                            // session was issued until the
+                                            // address is confirmed: show the
+                                            // verification state, not just a toast.
+                                            pendingVerificationEmail = trimmedEmail
+                                            null
+                                        }
                                         errorText.contains("users_custom_id_lower_unique", ignoreCase = true) ||
                                             errorText.contains("duplicate key", ignoreCase = true) ->
                                             "هذا اليوزر مستخدم بالفعل. اختر يوزراً آخر."
@@ -527,7 +650,9 @@ fun RegisterScreen(
                                             "الخدمات السحابية غير متاحة. لا يمكن إنشاء حساب دون اتصال بالسحابة."
                                         else -> "تعذر إنشاء الحساب أو حفظ هويته السحابية. حاول مجدداً."
                                     }
-                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                    if (message != null) {
+                                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                    }
                                 }
                                 isLoading = false
                             }
@@ -542,7 +667,7 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(12.dp))
             TextButton(onClick = onNavigateToRules) {
                 Text(
-                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام مساعد المسلم",
+                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
                     color = theme.primary,
                     fontFamily = CairoFont,
                     fontSize = 11.5.sp,
@@ -738,8 +863,8 @@ fun ForgotPasswordScreen(
                             isLoading = isLoading,
                             onClick = {
                                 val pass = newPassword
-                                if (pass.length < 6) {
-                                    Toast.makeText(context, "يجب أن تكون كلمة المرور 6 أحرف/أرقام على الأقل", Toast.LENGTH_SHORT).show()
+                                if (pass.length < 8) {
+                                    Toast.makeText(context, "يجب أن تكون كلمة المرور 8 أحرف/أرقام على الأقل", Toast.LENGTH_SHORT).show()
                                     return@ApplePrimaryButton
                                 }
                                 if (pass != confirmPassword) {
@@ -790,7 +915,7 @@ fun ForgotPasswordScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق مساعد المسلم، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
+                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق قبس، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.5.sp,

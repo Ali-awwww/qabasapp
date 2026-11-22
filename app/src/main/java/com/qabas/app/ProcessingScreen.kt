@@ -568,7 +568,7 @@ fun ProcessingScreen(
                 notificationService.showErrorNotification()
                 try { QabasUx.warnHaptic(context) } catch (_: Exception) {}
                 elapsedJobRef.value?.cancel()
-                // Do not navigate to ReviewScreen on failure
+                // Do not navigate to VideoSceneApprovalScreen on failure
             }
         } catch (e: Throwable) {
             if (e is CancellationException) {
@@ -582,7 +582,7 @@ fun ProcessingScreen(
             notificationService.showErrorNotification()
             try { QabasUx.warnHaptic(context) } catch (_: Exception) {}
             elapsedJobRef.value?.cancel()
-            // Do not pass empty or invalid scenes to ReviewScreen
+            // Do not pass empty or invalid scenes to VideoSceneApprovalScreen
         } finally {
             // Aggressive cleanup on exit (success, failure, or cancellation)
             try {

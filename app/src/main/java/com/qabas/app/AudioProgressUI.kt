@@ -141,7 +141,7 @@ fun RealDownloadProgressDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${(animatedPercent * 100).toInt()}%",
+                        text = if (progress.isTotalUnknown && !progress.isCompleted) "…" else "${(animatedPercent * 100).toInt()}%",
                         color = theme.primary,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
@@ -149,9 +149,13 @@ fun RealDownloadProgressDialog(
                     )
 
                     val downloadedFormatted = AudioDownloadHelper.formatFileSize(progress.downloadedBytes)
-                    val totalFormatted = AudioDownloadHelper.formatFileSize(progress.totalBytes.takeIf { it > 0 } ?: progress.downloadedBytes)
+                    val totalText = if (progress.isTotalUnknown && !progress.isCompleted) {
+                        "الحجم غير معروف"
+                    } else {
+                        AudioDownloadHelper.formatFileSize(progress.totalBytes.takeIf { it > 0 } ?: progress.downloadedBytes)
+                    }
                     Text(
-                        text = "$downloadedFormatted / $totalFormatted",
+                        text = "$downloadedFormatted / $totalText",
                         color = theme.textSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.sp

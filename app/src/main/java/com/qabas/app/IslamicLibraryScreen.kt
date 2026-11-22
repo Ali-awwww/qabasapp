@@ -48,14 +48,47 @@ fun IslamicLibraryScreen(
     initialHadithId: String? = null
 ) {
     val theme = QabasTheme.current
+    val context = LocalContext.current
 
     var selectedAuthorId by remember { mutableStateOf<String?>(null) }
     var selectedCategory by remember { mutableStateOf("الكل") }
     var searchQuery by remember { mutableStateOf("") }
     var activeBookForReading by remember { mutableStateOf<IslamicBook?>(null) }
+    var activeBookReadingPosition by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var activeSahihBookType by remember { mutableStateOf<SahihBookType?>(null) }
     var openFullSahihBook by remember { mutableStateOf(false) }
     var showProgressionDialog by remember { mutableStateOf(false) }
+    var authorBio by remember { mutableStateOf<IslamicAuthor?>(null) }
+
+    // حالة القراءة المحلية (آخر موضع + نسبة + إشارات)؛ تُعاد قراءتها كلما
+    // أُغلق القارئ حتى تنعكس «أكمل القراءة» ونسب البطاقات فوراً.
+    var readingStatesVersion by remember { mutableIntStateOf(0) }
+    var readingStates by remember { mutableStateOf<List<LibraryReadingState>>(emptyList()) }
+    LaunchedEffect(readingStatesVersion) {
+        readingStates = LibraryReadingStateStore.fetchAndMergeCloudStates(context)
+    }
+    val readingStateByBookId = remember(readingStates) {
+        readingStates.associateBy { it.bookId }
+    }
+
+    // رابط عميق لمرة واحدة: كتاب → قارئه، حديث → قارئ الصحيحين عنده.
+    LaunchedEffect(initialBookId, initialHadithId) {
+        if (initialHadithId != null) {
+            SahihHadithsRepository.getHadithById(initialHadithId)?.let { item ->
+                activeSahihBookType = item.bookType
+            }
+        } else if (initialBookId != null) {
+            IslamicLibraryRepository.books.firstOrNull { it.id == initialBookId }?.let { book ->
+                if (book.id == "sahih_al_bukhari") {
+                    activeSahihBookType = SahihBookType.BUKHARI
+                } else if (book.id == "sahih_muslim") {
+                    activeSahihBookType = SahihBookType.MUSLIM
+                } else {
+                    activeBookForReading = book
+                }
+            }
+        }
+    }
 
     // رابط عميق لمرة واحدة: كتاب → قارئه، حديث → قارئ الصحيحين عنده.
     LaunchedEffect(initialBookId, initialHadithId) {
@@ -81,6 +114,8 @@ fun IslamicLibraryScreen(
             activeSahihBookType = null
         } else if (activeBookForReading != null) {
             activeBookForReading = null
+            activeBookReadingPosition = null
+            readingStatesVersion++
         }
     }
 
@@ -120,6 +155,27 @@ fun IslamicLibraryScreen(
                 book.hookTitle.contains(searchQuery, ignoreCase = true)
             matchAuthor && matchCategory && matchQuery
         }
+    }
+
+    // بحث نصي كامل داخل نص الكتب (لا العناوين فقط): يطابق نص المقاطع
+    // أيضاً، وكل نتيجة تفتح القارئ على المقطع المطابق نفسه. يُحترم
+    // فلترا المؤلف والتصنيف المختاران كما في قائمة الكتب.
+    val fullTextResults = remember(searchQuery, selectedAuthorId, selectedCategory) {
+        if (searchQuery.isBlank()) emptyList()
+        else IslamicLibraryRepository.searchBooks(searchQuery).filter { result ->
+            val matchAuthor = selectedAuthorId == null || result.book.authorId == selectedAuthorId
+            val matchCategory = selectedCategory == "الكل" || result.book.category == selectedCategory
+            matchAuthor && matchCategory
+        }
+    }
+
+    // كتب «أكمل القراءة»: لها موضع محفوظ وتقدم أكبر من صفر، الأحدث أولاً.
+    val continueReading = remember(readingStates) {
+        readingStates.filter { it.progressPercent > 0 }
+            .mapNotNull { state -> IslamicLibraryRepository.findBook(state.bookId)?.let { it to state } }
+    }
+    val bookmarkedBookIds = remember(readingStates) {
+        readingStates.filter { it.bookmarked }.map { it.bookId }.toSet()
     }
 
     Scaffold(
@@ -375,7 +431,7 @@ fun IslamicLibraryScreen(
                                 ) {
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                                         Text(
-                                            "كافة الأئمة (${IslamicLibraryRepository.books.size})",
+                                            "كافة الأئمة (${IslamicLibraryRepository.authors.size})",
                                             color = if (isAll) theme.onPrimary else theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
@@ -386,30 +442,45 @@ fun IslamicLibraryScreen(
                             }
                             items(IslamicLibraryRepository.authors) { author ->
                                 val isSelected = selectedAuthorId == author.id
-                                Surface(
-                                    onClick = { selectedAuthorId = author.id },
-                                    modifier = Modifier.defaultMinSize(minHeight = 42.dp),
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = if (isSelected) theme.primary else theme.cardSurface,
-                                    border = BorderStroke(0.75.dp, if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f))
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        onClick = { selectedAuthorId = author.id },
+                                        modifier = Modifier.defaultMinSize(minHeight = 42.dp),
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = if (isSelected) theme.primary else theme.cardSurface,
+                                        border = BorderStroke(0.75.dp, if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f))
                                     ) {
-                                        Text(
-                                            author.name,
-                                            color = if (isSelected) theme.onPrimary else theme.textPrimary,
-                                            fontFamily = CairoFont,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            "(${author.bookCount})",
-                                            color = if (isSelected) theme.onPrimary.copy(alpha = 0.85f) else theme.primary,
-                                            fontFamily = NotoSansFont,
-                                            fontSize = 11.sp
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                author.name,
+                                                color = if (isSelected) theme.onPrimary else theme.textPrimary,
+                                                fontFamily = CairoFont,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                "(${IslamicLibraryRepository.bookCountForAuthor(author.id)})",
+                                                color = if (isSelected) theme.onPrimary.copy(alpha = 0.85f) else theme.primary,
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                    // السيرة المكتوبة أصلاً (النبذة والعصر ومجال الاهتمام)
+                                    // كانت لا تُعرض في أي مكان؛ زر المعلومات يفتحها الآن.
+                                    IconButton(
+                                        onClick = { authorBio = author },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Info,
+                                            contentDescription = "سيرة ${author.name}",
+                                            tint = theme.primary,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -418,41 +489,219 @@ fun IslamicLibraryScreen(
                     }
                 }
 
-                // Books Header
+                // «أكمل القراءة»: كتب بدأت قراءتها ولها موضع محفوظ.
+                // يظهر فقط بلا بحث، ويفتح كل كتاب على آخر موضع وصل إليه القارئ.
+                if (searchQuery.isBlank() && continueReading.isNotEmpty()) {
+                    item {
+                        AppleCard(cornerRadius = 16.dp) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.History, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "أكمل القراءة",
+                                        color = theme.textPrimary,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                continueReading.take(3).forEach { (book, state) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                book.title,
+                                                color = theme.textPrimary,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                LinearProgressIndicator(
+                                                    progress = { state.progressPercent / 100f },
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(6.dp)
+                                                        .clip(RoundedCornerShape(3.dp)),
+                                                    color = theme.primary,
+                                                    trackColor = theme.separator.copy(alpha = 0.4f)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    "${state.progressPercent}٪",
+                                                    color = theme.textSecondary,
+                                                    fontFamily = NotoSansFont,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Button(
+                                            onClick = {
+                                                if (book.id == "sahih_al_bukhari") {
+                                                    activeSahihBookType = SahihBookType.BUKHARI
+                                                } else if (book.id == "sahih_muslim") {
+                                                    activeSahihBookType = SahihBookType.MUSLIM
+                                                } else {
+                                                    activeBookReadingPosition =
+                                                        state.lastChapterIndex to state.lastSectionIndex
+                                                    activeBookForReading = book
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                            modifier = Modifier.heightIn(min = 40.dp)
+                                        ) {
+                                            Text("متابعة", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Books Header — بلا نص «استماع صوتي» الزخرفي: كان أيقونة
+                // وتسمية بلا معالج نقر. الاستماع الحقيقي زر TTS داخل القارئ.
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("المصنفات المحققة (${filteredBooks.size})", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VolumeUp, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("استماع صوتي", color = theme.primary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
-                        }
+                        Text(
+                            if (searchQuery.isBlank()) "المصنفات المحققة (${filteredBooks.size})"
+                            else "نتائج البحث النصي (${fullTextResults.size})",
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.5.sp
+                        )
                     }
                 }
 
-                // Books Cards
-                items(filteredBooks, key = { it.id }) { book ->
-                    IslamicBookCard(
-                        book = book,
-                        onOpenReader = {
-                            if (book.id == "sahih_al_bukhari") {
-                                activeSahihBookType = SahihBookType.BUKHARI
-                            } else if (book.id == "sahih_muslim") {
-                                activeSahihBookType = SahihBookType.MUSLIM
-                            } else {
-                                activeBookForReading = book
+                // نتائج البحث النصي الكامل: كل نتيجة تفتح القارئ على
+                // المقطع المطابق نفسه، مع معاينة من موضع المطابقة.
+                if (searchQuery.isNotBlank()) {
+                    if (fullTextResults.isEmpty()) {
+                        item {
+                            AppleCard(cornerRadius = 16.dp) {
+                                Text(
+                                    "لا نتائج مطابقة في نص الكتب لهذا البحث.",
+                                    color = theme.textSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.5.sp,
+                                    modifier = Modifier.padding(16.dp)
+                                )
                             }
-                        },
-                        onReelDirect = {
-                            val firstSection = book.chapters.firstOrNull()?.sections?.firstOrNull()
-                            val quote = firstSection?.wisdomCapsule?.ifBlank { firstSection.keyRuleOrBenefit } ?: book.description
-                            onNavigateToVideoCreation(quote)
                         }
-                    )
+                    } else {
+                        items(fullTextResults, key = { "${it.book.id}:${it.chapterIndex}:${it.sectionIndex}" }) { result ->
+                            AppleCard(
+                                onClick = {
+                                    activeBookReadingPosition = result.chapterIndex to result.sectionIndex
+                                    activeBookForReading = result.book
+                                }
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            result.book.title,
+                                            color = theme.textPrimary,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (result.book.isExcerpt) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Surface(
+                                                color = theme.warning.copy(alpha = 0.14f),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Text(
+                                                    "مقتطفات",
+                                                    color = theme.warning,
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "${result.book.authorName} • ${result.book.chapters.getOrNull(result.chapterIndex)?.sections?.getOrNull(result.sectionIndex)?.sectionTitle ?: ""}",
+                                        color = theme.primary,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                    if (result.matchPreview.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            result.matchPreview,
+                                            color = theme.textSecondary,
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 12.sp,
+                                            lineHeight = 18.sp,
+                                            maxLines = 3,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Books Cards
+                    items(filteredBooks, key = { it.id }) { book ->
+                        IslamicBookCard(
+                            book = book,
+                            progressPercent = readingStateByBookId[book.id]?.progressPercent ?: 0,
+                            isBookmarked = bookmarkedBookIds.contains(book.id),
+                            onToggleBookmark = {
+                                LibraryReadingStateStore.toggleBookmark(context, book.id)
+                                readingStatesVersion++
+                            },
+                            onOpenReader = {
+                                if (book.id == "sahih_al_bukhari") {
+                                    activeSahihBookType = SahihBookType.BUKHARI
+                                } else if (book.id == "sahih_muslim") {
+                                    activeSahihBookType = SahihBookType.MUSLIM
+                                } else {
+                                    val state = readingStateByBookId[book.id]
+                                    activeBookReadingPosition =
+                                        if (state != null) state.lastChapterIndex to state.lastSectionIndex
+                                        else null
+                                    activeBookForReading = book
+                                }
+                            },
+                            onReelDirect = {
+                                val firstSection = book.chapters.firstOrNull()?.sections?.firstOrNull()
+                                val quote = firstSection?.wisdomCapsule?.ifBlank { firstSection.keyRuleOrBenefit } ?: book.description
+                                onNavigateToVideoCreation(quote)
+                            }
+                        )
+                    }
                 }
 
                 item { Spacer(modifier = Modifier.height(32.dp)) }
@@ -463,15 +712,87 @@ fun IslamicLibraryScreen(
     activeBookForReading?.let { book ->
         InteractiveBookReaderDialog(
             book = book,
-            onDismiss = { activeBookForReading = null },
+            initialChapterIndex = activeBookReadingPosition?.first ?: 0,
+            initialSectionIndex = activeBookReadingPosition?.second ?: 0,
+            onPositionChanged = { chapterIndex, sectionIndex ->
+                LibraryReadingStateStore.savePosition(
+                    context = context,
+                    bookId = book.id,
+                    chapterIndex = chapterIndex,
+                    sectionIndex = sectionIndex,
+                    progressPercent = IslamicLibraryRepository.progressPercent(book, chapterIndex, sectionIndex)
+                )
+            },
+            onDismiss = {
+                activeBookForReading = null
+                activeBookReadingPosition = null
+                readingStatesVersion++
+            },
             onConvertToReel = { quote ->
                 activeBookForReading = null
+                activeBookReadingPosition = null
+                readingStatesVersion++
                 onNavigateToVideoCreation(quote)
             }
         )
     }
 
+    // سيرة المؤلف: النبذة والعصر ومجال الاهتمام المكتوبة أصلاً في
+    // IslamicLibraryRepository.authors — كانت لا تُعرض في أي مكان.
+    authorBio?.let { author ->
+        AlertDialog(
+            onDismissRequest = { authorBio = null },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(18.dp),
+            title = {
+                Text(author.name, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = theme.textPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(author.title, fontFamily = CairoFont, fontWeight = FontWeight.Medium, fontSize = 12.5.sp, color = theme.primary)
+                    Text("العصر: ${author.era}", fontFamily = NotoSansFont, fontSize = 12.sp, color = theme.textSecondary)
+                    Text("مجال الاهتمام: ${author.focusArea}", fontFamily = NotoSansFont, fontSize = 12.sp, color = theme.textSecondary)
+                    Text(
+                        "كتب المؤلف في المكتبة: ${IslamicLibraryRepository.bookCountForAuthor(author.id)}",
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        color = theme.textSecondary
+                    )
+                    Text(author.bio, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 19.sp, color = theme.textPrimary)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedAuthorId = author.id
+                        authorBio = null
+                    },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                ) {
+                    Text("عرض كتبه", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { authorBio = null },
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                ) {
+                    Text("إغلاق", color = theme.textSecondary, fontFamily = CairoFont)
+                }
+            }
+        )
+    }
+
     if (showProgressionDialog) {
+        // الكتب الأربعة كانت كلها في `archivedBooks` لا يفتحها شيء؛
+        // بعد إطلاقها يفتح كل عنصر كتابه مباشرة من هذا الحوار.
+        val openProgressionBook: (String) -> Unit = { bookId ->
+            IslamicLibraryRepository.findBook(bookId)?.let { book ->
+                showProgressionDialog = false
+                activeBookReadingPosition = null
+                activeBookForReading = book
+            }
+        }
         AlertDialog(
             onDismissRequest = { showProgressionDialog = false },
             containerColor = theme.cardSurface,
@@ -494,10 +815,10 @@ fun IslamicLibraryScreen(
                         color = theme.textSecondary,
                         fontSize = 12.sp
                     )
-                    ProgressionExplainerItem("1. «عمدة الفقه» (للمبتدئين)", "يقتصر على قول واحد معتمد في المذهب، بلا تفريع ولا ذكر أدلة، لتثبيت الفروع في ذهن المبتدئ.", theme.primary)
-                    ProgressionExplainerItem("2. «المقنع» (للمتوسطين)", "يذكر فيه الروايات والأوجه في المذهب لتدريب الطالب على الخلاف المذهبي وملكة الترجيح.", theme.accent)
-                    ProgressionExplainerItem("3. «الكافي» (للمتقدمين)", "يقرن المسائل الفقهية بأدلتها التفصيلية من الكتاب والسنة مع بسط العلل الشرعية.", theme.success)
-                    ProgressionExplainerItem("4. «المغني» (للمجتهدين والمتخصصين)", "موسوعة الفقه المقارن الكبرى، يورد أدلة المذاهب الأربعة وأقوال الصحابة والتابعين والترجيح المنصف.", Color(0xFFAF52DE))
+                    ProgressionExplainerItem("1. «عمدة الفقه» (للمبتدئين)", "يقتصر على قول واحد معتمد في المذهب، بلا تفريع ولا ذكر أدلة، لتثبيت الفروع في ذهن المبتدئ.", theme.primary, onClick = { openProgressionBook("umdat_al_fiqh") })
+                    ProgressionExplainerItem("2. «المقنع» (للمتوسطين)", "يذكر فيه الروايات والأوجه في المذهب لتدريب الطالب على الخلاف المذهبي وملكة الترجيح.", theme.accent, onClick = { openProgressionBook("al_muqni") })
+                    ProgressionExplainerItem("3. «الكافي» (للمتقدمين)", "يقرن المسائل الفقهية بأدلتها التفصيلية من الكتاب والسنة مع بسط العلل الشرعية.", theme.success, onClick = { openProgressionBook("al_kafi") })
+                    ProgressionExplainerItem("4. «المغني» (للمجتهدين والمتخصصين)", "موسوعة الفقه المقارن الكبرى، يورد أدلة المذاهب الأربعة وأقوال الصحابة والتابعين والترجيح المنصف.", Color(0xFFAF52DE), onClick = { openProgressionBook("al_mughni") })
                 }
             },
             confirmButton = {
@@ -515,6 +836,9 @@ fun IslamicLibraryScreen(
 @Composable
 fun InteractiveBookReaderDialog(
     book: IslamicBook,
+    initialChapterIndex: Int = 0,
+    initialSectionIndex: Int = 0,
+    onPositionChanged: ((chapterIndex: Int, sectionIndex: Int) -> Unit)? = null,
     onDismiss: () -> Unit,
     onConvertToReel: (quoteText: String) -> Unit
 ) {
@@ -522,13 +846,26 @@ fun InteractiveBookReaderDialog(
     val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
 
-    var selectedChapterIndex by remember { mutableIntStateOf(0) }
-    var selectedSectionIndex by remember { mutableIntStateOf(0) }
+    // تُعاد التهيئة لكل كتاب وموضع افتتاح (نتائج البحث تفتح على المقطع
+    // المطابق، و«أكمل القراءة» على آخر موضع)، لا على أول الكتاب دائماً.
+    var selectedChapterIndex by remember(book.id, initialChapterIndex) {
+        mutableIntStateOf(initialChapterIndex.coerceIn(0, (book.chapters.size - 1).coerceAtLeast(0)))
+    }
+    var selectedSectionIndex by remember(book.id, initialChapterIndex, initialSectionIndex) {
+        val maxSection =
+            (book.chapters.getOrNull(initialChapterIndex)?.sections?.size ?: 1) - 1
+        mutableIntStateOf(initialSectionIndex.coerceIn(0, maxSection.coerceAtLeast(0)))
+    }
     var fontSizeSp by remember { mutableFloatStateOf(15.5f) }
 
     var isSpeaking by remember { mutableStateOf(false) }
     val ttsRate by remember { mutableFloatStateOf(1.0f) }
     var ttsEngine by remember { mutableStateOf<TextToSpeech?>(null) }
+
+    // إشارة مرجعية على مستوى الكتاب (لا الأحاديث فقط).
+    var bookmarked by remember(book.id) {
+        mutableStateOf(LibraryReadingStateStore.isBookmarked(context, book.id))
+    }
 
     val currentChapter = book.chapters.getOrNull(selectedChapterIndex) ?: book.chapters.first()
     val currentSection = currentChapter.sections.getOrNull(selectedSectionIndex) ?: currentChapter.sections.first()
@@ -541,6 +878,8 @@ fun InteractiveBookReaderDialog(
         isQuizAnswered = false
         ttsEngine?.stop()
         isSpeaking = false
+        // حفظ آخر موضع قراءة عند كل انتقال بين المقاطع.
+        onPositionChanged?.invoke(selectedChapterIndex, selectedSectionIndex)
     }
 
     DisposableEffect(Unit) {
@@ -617,6 +956,19 @@ fun InteractiveBookReaderDialog(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        bookmarked = LibraryReadingStateStore.toggleBookmark(context, book.id)
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                        contentDescription = if (bookmarked) "إزالة الإشارة المرجعية" else "إشارة مرجعية",
+                                        tint = if (bookmarked) theme.primary else theme.textSecondary
+                                    )
+                                }
+
                                 IconButton(
                                     onClick = {
                                         val fullReadingText = "${currentSection.sectionTitle}. ${currentSection.wisdomCapsule}. ${currentSection.content}. ${currentSection.keyRuleOrBenefit}"
@@ -931,10 +1283,12 @@ fun InteractiveBookReaderDialog(
 fun ProgressionExplainerItem(
     stage: String,
     desc: String,
-    color: Color
+    color: Color,
+    onClick: () -> Unit = {}
 ) {
     val theme = QabasTheme.current
     Surface(
+        onClick = onClick,
         color = theme.secondarySurface.copy(alpha = 0.55f),
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth()
@@ -950,6 +1304,9 @@ fun ProgressionExplainerItem(
 @Composable
 fun IslamicBookCard(
     book: IslamicBook,
+    progressPercent: Int = 0,
+    isBookmarked: Boolean = false,
+    onToggleBookmark: (() -> Unit)? = null,
     onOpenReader: () -> Unit,
     onReelDirect: () -> Unit
 ) {
@@ -977,18 +1334,37 @@ fun IslamicBookCard(
                     )
                 }
 
-                Surface(
-                    color = theme.primary.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        book.levelBadge,
-                        color = theme.primary,
-                        fontFamily = CairoFont,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Surface(
+                        color = theme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            book.levelBadge,
+                            color = theme.primary,
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    // الكتب التسعة المُطلَقة مقتطفات (فصل واحد ومقطع أو مقطعان)
+                    // لا كتب كاملة: شارة صريحة على كل بطاقة منها.
+                    if (book.isExcerpt) {
+                        Surface(
+                            color = theme.warning.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "مقتطفات",
+                                color = theme.warning,
+                                fontFamily = CairoFont,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -1014,6 +1390,30 @@ fun IslamicBookCard(
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
+
+            // نسبة إتمام القراءة المحفوظة محلياً (ومزامَنة عند الدخول).
+            if (progressPercent > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = { progressPercent / 100f },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = theme.primary,
+                        trackColor = theme.separator.copy(alpha = 0.4f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "أكملت $progressPercent٪",
+                        color = theme.primary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             if (book.scholarQuote.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1049,6 +1449,19 @@ fun IslamicBookCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onToggleBookmark != null) {
+                        IconButton(
+                            onClick = onToggleBookmark,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = if (isBookmarked) "إزالة الإشارة المرجعية" else "إشارة مرجعية",
+                                tint = if (isBookmarked) theme.primary else theme.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                     Icon(Icons.Default.Timer, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
