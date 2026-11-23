@@ -1266,6 +1266,22 @@ object Translator {
         "سورة {0} • آية {1}" to "Surah {0} • Verse {1}",
         "المصدر: quranpedia.net — {0} — {1}" to "Source: quranpedia.net — {0} — {1}",
         "المصدر: quranpedia.net — {0} — {1}؛ كتاب كامل يُجلب شبكياً عند الطلب ولا يُضمَّن نصه في التطبيق. تجميع المقاطع في الفصول يتبع ترتيب الكتاب حيث لا يسمّي المصدر الفصل بدقة." to "Source: quranpedia.net — {0} — {1}; a full book fetched online on demand, its text is not included in the app. Grouping sections into chapters follows the book order, as the source does not name the chapter precisely.",
+        "نقاطي" to "My points",
+        "من سجل التدقيق السحابي" to "From the cloud audit log",
+        "ترتيبي" to "My rank",
+        "بلا نقاط في هذه النافذة" to "No points in this window",
+        "سجل نقاطي" to "My points log",
+        "لا توجد نقاط مسجلة بعد — تُكتسب النقاط من إنشاء فيديو أو إكمال اختبار أو الدخول اليومي." to "No points recorded yet — points are earned by creating a video, completing a quiz, or signing in daily.",
+        "منح نقاط" to "Grant points",
+        "الأسبوع الماضي" to "Last week",
+        "فرسان الصدارة للأسبوع الماضي" to "Last week's top leaders",
+        "الشهر" to "Month",
+        "فرسان الصدارة لهذا الشهر" to "This month's top leaders",
+        "فرسان الصدارة لكل الأوقات" to "All-time top leaders",
+        "عُرضت أول 20 نتيجة — ضيّق البحث لرؤية المزيد." to "Showing the first 20 results — narrow your search to see more.",
+        "حذف العلامة؟" to "Delete the bookmark?",
+        "انقر أي آية مشابهة لفتح لوحة دراستها" to "Tap any similar ayah to open its study panel",
+        "تصفير العدّاد؟" to "Reset the counter?",
     )
     
     fun tr(text: String): String {
