@@ -119,12 +119,16 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- ق159: بلا هذين كان تذكير مجدول يرن بوقت جدار خاطئ بعد السفر/ضبط الساعة -->
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.Khadim.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -143,7 +147,21 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="qabas" android:host="auth" />
             </intent-filter>
-            <!-- Official Qabas Web Hub Deep Linking -->
+            <!-- Official Qabas Web Hub Deep Linking: the official site is
+                 alippappa7-maker.github.io/Website-/ (QabasWebConfig) — the
+                 old run.app preview host below is kept only as a legacy
+                 fallback. Note: autoVerify needs assetlinks.json on the
+                 host; github.io has none yet, so these links open via the
+                 app chooser until the Website repo hosts it. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="alippappa7-maker.github.io"
+                    android:pathPrefix="/Website-/" />
+            </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

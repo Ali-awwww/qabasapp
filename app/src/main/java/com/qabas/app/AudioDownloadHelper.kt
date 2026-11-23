@@ -53,6 +53,9 @@ object AudioDownloadHelper {
         context: Context,
         audioUrl: String,
         title: String,
+        /** ق119: تسمية العنصر المكتمل في لوحة التنزيلات — كانت «صوت أذان»
+         * مثبّتة لكل الوسائط؛ قارئ المصحف يمرّر «تلاوة قرآنية». */
+        subtitle: String = "صوت",
         onProgress: (DownloadProgress) -> Unit
     ): Boolean {
         return withContext(Dispatchers.IO) {
@@ -82,7 +85,7 @@ object AudioDownloadHelper {
                         fd?.close()
                         val destFile = DownloadsHubManager.mediaFileForId(context, mediaId, "mp3")
                         context.assets.open(assetPath).use { input ->
-                            copyStreamToHubFile(context, input, destFile, mediaId, title, audioUrl, total, onProgress)
+                            copyStreamToHubFile(context, input, destFile, mediaId, title, audioUrl, total, onProgress, subtitle)
                         }
                     }
                     audioUrl.startsWith("http://") || audioUrl.startsWith("https://") -> {
@@ -94,7 +97,8 @@ object AudioDownloadHelper {
                             mediaId = mediaId,
                             title = title,
                             fileUrl = audioUrl,
-                            extension = "mp3"
+                            extension = "mp3",
+                            subtitle = subtitle
                         ) { sent, total ->
                             val now = System.currentTimeMillis()
                             val speed = if (now > lastSpeedAt) {
@@ -147,7 +151,7 @@ object AudioDownloadHelper {
                                 true
                             } else {
                                 file.inputStream().use { input ->
-                                    copyStreamToHubFile(context, input, destFile, mediaId, title, audioUrl, file.length(), onProgress)
+                                    copyStreamToHubFile(context, input, destFile, mediaId, title, audioUrl, file.length(), onProgress, subtitle)
                                 }
                             }
                         } else {
@@ -186,8 +190,8 @@ object AudioDownloadHelper {
     /**
      * Backward-compatible simple download method.
      */
-    suspend fun downloadAudio(context: Context, audioUrl: String, title: String): Boolean {
-        return downloadAudioWithProgress(context, audioUrl, title) {}
+    suspend fun downloadAudio(context: Context, audioUrl: String, title: String, subtitle: String = "صوت"): Boolean {
+        return downloadAudioWithProgress(context, audioUrl, title, subtitle) {}
     }
 
     /**
@@ -203,7 +207,8 @@ object AudioDownloadHelper {
         title: String,
         sourceUrl: String,
         totalBytes: Long,
-        onProgress: (DownloadProgress) -> Unit
+        onProgress: (DownloadProgress) -> Unit,
+        subtitle: String = "صوت"
     ): Boolean {
         val tmpFile = File(destFile.parentFile, "${destFile.name}.tmp")
         var outputStream: OutputStream? = null
@@ -250,7 +255,7 @@ object AudioDownloadHelper {
                 DownloadedMediaItem(
                     id = mediaId,
                     title = title,
-                    subtitle = "صوت",
+                    subtitle = subtitle,
                     localFilePath = destFile.absolutePath,
                     fileSizeBytes = destFile.length(),
                     sourceUrl = sourceUrl

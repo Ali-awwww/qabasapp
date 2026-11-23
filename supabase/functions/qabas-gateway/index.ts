@@ -41,12 +41,12 @@ async function identity(req: Request) {
   if (error) return null;
   return data.user;
 }
-async function getKeys() {
-  const { data, error } = await admin.from("platform_api_keys").select("service,ciphertext,nonce,updated_at");
+async function getKey(service: string): Promise<string | null> {
+  const { data, error } = await admin.from("platform_api_keys")
+    .select("ciphertext,nonce").eq("service", service).maybeSingle();
   if (error) throw error;
-  const result: Record<string, string> = {};
-  for (const row of data || []) result[row.service] = await decrypt(row.ciphertext, row.nonce);
-  return result;
+  if (!data) return null;
+  return await decrypt(data.ciphertext, data.nonce);
 }
 const errorResponse = (error: string, status: number) =>
   Response.json({ error }, { status, headers: jsonHeaders });
@@ -113,7 +113,12 @@ async function proxyHiggsfield(payload: Record<string, unknown>, apiKey: string)
     if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) return errorResponse("invalid_content_type", 400);
     if (!encoded || encoded.length > 16_000_000) return errorResponse("image_payload_too_large_or_empty", 413);
 
-    const imageBytes = bytes(encoded);
+    let imageBytes: Uint8Array;
+    try {
+      imageBytes = bytes(encoded);
+    } catch {
+      return errorResponse("invalid_image_data", 400);
+    }
     const signedResponse = await fetch("https://api.higgsfield.ai/files/generate-upload-url", {
       method: "POST",
       headers,
@@ -152,16 +157,20 @@ Deno.serve(async req => {
     const user = await identity(req);
     if (!user) return errorResponse("authentication_required", 401);
     const body = await req.json();
+    // (ق38) سقف حجم الطلب: الرفع الشرعي الوحيد الكبير هو صورة Higgsfield
+    // (حتى 16MB base64) — ما فوق 20MB لا يمرَّر لأي مزود أبداً.
+    if (JSON.stringify(body).length > 20_000_000) return errorResponse("payload_too_large", 413);
     const action = String(body.action || "proxy");
     const isOwner = (user.email || "").toLowerCase() === owner;
 
     if (action === "save") {
       if (!isOwner) return errorResponse("owner_only", 403);
       const entries = body.keys && typeof body.keys === "object" ? body.keys : {};
+      let saved = 0;
       for (const [service, rawValue] of Object.entries(entries)) {
         if (!services.has(service) || typeof rawValue !== "string") continue;
         const value = rawValue.trim();
-        if (!value) continue;
+        if (!value || value.length > 4096) continue;
         const encrypted = await encrypt(value);
         const { error } = await admin.from("platform_api_keys").upsert({
           service,
@@ -170,8 +179,12 @@ Deno.serve(async req => {
           updated_at: new Date().toISOString(),
         });
         if (error) throw error;
+        saved++;
       }
-      return Response.json({ ok: true }, { headers: jsonHeaders });
+      // (ق38) نجاح كاذب سابقاً: كان يرجع ok:true ولو تُخطّيت كل المدخلات
+      // (خدمة غير مدعومة/قيمة فارغة) فيظن العميل أن المفتاح حُفظ.
+      if (saved === 0) return errorResponse("no_valid_keys", 400);
+      return Response.json({ ok: true, count: saved }, { headers: jsonHeaders });
     }
 
     if (action === "delete") {
@@ -203,31 +216,17 @@ Deno.serve(async req => {
 
     if (action !== "proxy") return errorResponse("unknown_action", 400);
 
+    // (ق38) الوكيل بروكسي Higgsfield فقط — وهو المسار الوحيد المستعمل من
+    // التطبيق (HiggsfieldVideoService عبر proxyHiggsfieldSuspend). الفرع العام
+    // السابق (gemini/groq/openrouter) كان يمرر أي حمولة بأي نموذج عبر مفاتيح
+    // المنصة المدفوعة لأي مستخدم مسجّل دخول، بلا أي مستدعٍ له في التطبيق
+    // كله — ثغرة استنزاف كلفة، فقُتل الفرع لا قُيّد.
     const provider = String(body.provider || "");
-    const keys = await getKeys();
     const payload = body.payload && typeof body.payload === "object" ? body.payload as Record<string, unknown> : {};
-
-    if (provider === "higgsfield") {
-      if (!keys.higgsfield) return errorResponse("provider_not_configured", 503);
-      return await proxyHiggsfield(payload, keys.higgsfield);
-    }
-
-    let url = "";
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (provider === "gemini" && keys.gemini) {
-      url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${keys.gemini}`;
-    } else if (provider === "groq" && keys.groq) {
-      url = "https://api.groq.com/openai/v1/chat/completions";
-      headers.Authorization = `Bearer ${keys.groq}`;
-    } else if (provider === "openrouter" && keys.openrouter) {
-      url = "https://openrouter.ai/api/v1/chat/completions";
-      headers.Authorization = `Bearer ${keys.openrouter}`;
-    } else {
-      return errorResponse("provider_not_configured", 503);
-    }
-
-    const upstream = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
-    return new Response(await upstream.text(), { status: upstream.status, headers: jsonHeaders });
+    if (provider !== "higgsfield") return errorResponse("unsupported_provider", 400);
+    const higgsfieldKey = await getKey("higgsfield");
+    if (!higgsfieldKey) return errorResponse("provider_not_configured", 503);
+    return await proxyHiggsfield(payload, higgsfieldKey);
   } catch (error) {
     console.error("Qabas gateway request failed", error instanceof Error ? error.message : "unknown_error");
     return errorResponse("gateway_error", 500);

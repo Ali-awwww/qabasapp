@@ -56,7 +56,9 @@ fun CloudIntegrationMonitorPanel(
                 SupabaseServices.Database.ping()
             }
             supabaseLatency = System.currentTimeMillis() - sbStart
-            supabaseConnected = sbOk || supabaseConfigured
+            // ق94: الاتصال يعني نجاح الاختبار الحي فقط — كان «مهيأ»
+            // يكفي ليُعرض «حصري ومعتمد» و«نشط» رغم فشل الاختبار.
+            supabaseConnected = sbOk
             supabaseDetail = when {
                 sbOk -> "سحابة PostgreSQL متصلة بنجاح وتستجيب للبيانات."
                 supabaseConfigured -> "المفاتيح مهيأة محلياً؛ تعذر اختبار الاستعلام حالياً."
@@ -109,7 +111,15 @@ fun CloudIntegrationMonitorPanel(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = if (supabaseConnected == true) "حصري ومعتمد" else "يحتاج إعداد",
+                                // ق94: ثلاث حالات صادقة — متصل / يفحص /
+                                // مهيأ بلا اتصال مؤكد / غير مهيأ. كان
+                                // الفشل يظهر «يحتاج إعداد» رغم التهيئة.
+                                text = when {
+                                    supabaseConnected == true -> "حصري ومعتمد"
+                                    isChecking -> "جارٍ الفحص..."
+                                    supabaseConfigured -> "مهيأ — تعذر الاتصال"
+                                    else -> "يحتاج إعداد"
+                                },
                                 color = if (supabaseConnected == true) theme.success else theme.warning,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

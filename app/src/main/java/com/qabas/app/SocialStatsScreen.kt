@@ -36,6 +36,10 @@ fun SocialStatsScreen(
     val scope = rememberCoroutineScope()
     var accounts by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
     var isSyncing by remember { mutableStateOf(false) }
+    // حوار إدخال المعرّف الحقيقي — كان زر «ربط الآن» يكتب معرّفاً
+    // مخترعاً «@qabas_user» ويُظهر «تم ربط الحساب بنجاح!» بلا أي ربط.
+    var editAccount by remember { mutableStateOf<SocialPlatformAccount?>(null) }
+    var editHandleText by remember { mutableStateOf("") }
 
     Scaffold(
         containerColor = DeepSlate,
@@ -117,7 +121,11 @@ fun SocialStatsScreen(
             }
 
             items(accounts) { account ->
-                AccountStatCard(account)
+                AccountStatCard(
+                    account = account,
+                    onAccountsChanged = { accounts = SocialAccountManager.getAccounts(context) },
+                    onEditHandle = { editAccount = it; editHandleText = "" }
+                )
             }
 
             item {
@@ -130,6 +138,26 @@ fun SocialStatsScreen(
                 AiGrowthSuggestions()
             }
         }
+    }
+
+    editAccount?.let { account ->
+        SocialHandleEditDialog(
+            account = account,
+            handleText = editHandleText,
+            onHandleChange = { editHandleText = it },
+            onSave = {
+                val handle = editHandleText.trim()
+                if (handle.isBlank()) {
+                    android.widget.Toast.makeText(context, "أدخل معرّف حسابك على ${account.name} أولاً", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    SocialAccountManager.toggleConnection(context, account.id, isConnected = true, handle = handle)
+                    accounts = SocialAccountManager.getAccounts(context)
+                    editAccount = null
+                    android.widget.Toast.makeText(context, "تم حفظ الحساب بنجاح", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { editAccount = null }
+        )
     }
 }
 
@@ -193,7 +221,11 @@ fun StatMiniBox(label: String, value: String, icon: ImageVector) {
 }
 
 @Composable
-fun AccountStatCard(account: SocialPlatformAccount) {
+fun AccountStatCard(
+    account: SocialPlatformAccount,
+    onAccountsChanged: () -> Unit = {},
+    onEditHandle: (SocialPlatformAccount) -> Unit = {}
+) {
     val context = LocalContext.current
     val platformColor = when (account.id) {
         "youtube" -> Color(0xFFFF0000)
@@ -253,9 +285,9 @@ fun AccountStatCard(account: SocialPlatformAccount) {
                         fontFamily = NotoSansFont
                     )
                     TextButton(
-                        onClick = { 
+                        onClick = {
                             SocialAccountManager.toggleConnection(context, account.id, false)
-                            // In a real app we'd refresh the list, but here we'll just show a toast for feedback
+                            onAccountsChanged()
                             android.widget.Toast.makeText(context, Translator.tr("تم قطع الاتصال بـ") + " " + account.name, android.widget.Toast.LENGTH_SHORT).show()
                         },
                         contentPadding = PaddingValues(0.dp),
@@ -266,10 +298,7 @@ fun AccountStatCard(account: SocialPlatformAccount) {
                 }
             } else {
                 Button(
-                    onClick = {
-                        SocialAccountManager.toggleConnection(context, account.id, true, handle = "@qabas_user")
-                        android.widget.Toast.makeText(context, Translator.tr("تم ربط الحساب بنجاح! 🎉"), android.widget.Toast.LENGTH_SHORT).show()
-                    },
+                    onClick = { onEditHandle(account) },
                     colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary.copy(alpha = 0.1f), contentColor = PresetPrimary),
                     border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f)),
                     shape = RoundedCornerShape(8.dp),

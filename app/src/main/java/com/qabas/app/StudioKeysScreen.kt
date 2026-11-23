@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PermMedia
@@ -124,6 +123,14 @@ private val PROVIDER_SPECS = listOf(
         keyUrl = "https://pixabay.com/api/docs/",
         costHint = "مجاني بمفتاح بسيط — تقريبي",
         detectedProvider = null
+    ),
+    ProviderSpec(
+        id = "higgsfield", displayName = "Higgsfield", capability = "فيديو",
+        icon = Icons.Default.Movie, prefsKey = "", vaultService = null,
+        keyUrl = null,
+        costHint = "على حساب المنصة وبحصص محدودة — بلا مفتاح شخصي",
+        detectedProvider = null,
+        gatewayManaged = true
     )
 )
 
@@ -375,8 +382,12 @@ private fun ProviderKeyCard(
                             }
                             scope.launch {
                                 busy = true
-                                message = saveAndTestKey(context, spec, key, region)
-                                if (message.startsWith("تم الحفظ")) {
+                                // ق54: النجاح علم لا نص — كان المنادي يشمّ
+                                // بادئة «تم الحفظ» من الرسالة فينكسر مسح
+                                // الحقل والتحديث مع أي إعادة صياغة للنص.
+                                val (saved, msg) = saveAndTestKey(context, spec, key)
+                                message = msg
+                                if (saved) {
                                     input = ""
                                     onChanged()
                                 }
@@ -414,7 +425,7 @@ private fun ProviderKeyCard(
                                         SupabaseRepository.getInstance().deleteApiKey(spec.id)
                                     }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                                     cloudNote = if (deleted) " وحُذف من السحابة."
-                                    else " (تعذّر حذف نسخة السحابة — أعد المحاولة)."
+                                    else " (تعذّر حذف نسخة السحابة — ستعود عند التنزيل من السحابة؛ أعد المحاولة)."
                                 } else {
                                     cloudNote = " (محلي فقط أصلاً)."
                                 }
@@ -460,9 +471,8 @@ val MY_KEYS_PROVIDER_LINKS: List<Pair<String, String?>>
 private suspend fun saveAndTestKey(
     context: Context,
     spec: ProviderSpec,
-    key: String,
-    region: String
-): String {
+    key: String
+): Pair<Boolean, String> {
     val detected = spec.detectedProvider
     if (detected != null) {
         return when (val res = UniversalKeyBrain.saveKeyIfLive(context, key, detected)) {
@@ -477,18 +487,18 @@ private suspend fun saveAndTestKey(
                 } else {
                     note = " (محلي فقط — ليس في قائمة الخزنة المسموحة)."
                 }
-                "تم الحفظ — متصل (${res.latencyMs}ms).$note"
+                true to "تم الحفظ — متصل (${res.latencyMs}ms).$note"
             }
             is UniversalKeyBrain.SmartSaveResult.Failed ->
-                "فشل الفحص الحي: ${res.reason} — لم يُحفظ المفتاح."
+                false to "فشل الفحص الحي: ${res.reason} — لم يُحفظ المفتاح."
             is UniversalKeyBrain.SmartSaveResult.Unsupported ->
-                "تعذّر الحفظ: ${res.reason}"
+                false to "تعذّر الحفظ: ${res.reason}"
         }
     }
     val result = ApiKeyValidator.validateKey(
         context, spec.id, key
     )
-    if (!result.isValid) return "فشل الفحص الحي: ${result.summary} — لم يُحفظ المفتاح."
+    if (!result.isValid) return false to "فشل الفحص الحي: ${result.summary} — لم يُحفظ المفتاح."
     KeyPoolManager.setSingleKey(spec.prefsKey, key)
     var note = ""
     if (spec.vaultService != null) {
@@ -500,5 +510,5 @@ private suspend fun saveAndTestKey(
     } else {
         note = " (محلي فقط — ليس في قائمة الخزنة المسموحة)."
     }
-    return "تم الحفظ — متصل.$note"
+    return true to "تم الحفظ — متصل.$note"
 }

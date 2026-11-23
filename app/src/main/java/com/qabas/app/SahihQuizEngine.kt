@@ -171,11 +171,45 @@ fun SahihQuizDialog(
     var pointsAwarded by remember { mutableStateOf(quizPrefs.getBoolean(awardedKey, false)) }
     var roundPaid by remember { mutableStateOf(false) }
     var best by remember { mutableIntStateOf(quizPrefs.getInt(prefsKey, 0)) }
+    // ق141: (أ) مفتاح الجولة — كان زر «جولة جديدة» يصفّر المؤشر
+    // والنتيجة وحدهما بينما الأسئلة نفس القائمة، فتعيد الجولة «الجديدة»
+    // الأسئلة الـ 100 نفسها بالترتيب نفسه. (ب) علم الرقم القياسي يُضبط
+    // في أثر النتيجة لا في التركيب (كان يُحسب من best قبل أن يحدّثه الأثر).
+    var roundNumber by remember { mutableIntStateOf(0) }
+    var isNewRecord by remember { mutableStateOf(false) }
 
-    LaunchedEffect(bookType) {
+    LaunchedEffect(bookType, roundNumber) {
         questions = withContext(Dispatchers.Default) {
             val book = FullSahihHadithRepository.loadBook(context, bookType)
             book?.let { SahihQuizEngine.generateRound(it) }
+        }
+    }
+
+    // ق141: النتيجة أثر لا تركيب — كان فرع النتيجة يكتب في التفضيلات
+    // ويحدّث best وroundPaid وpointsAwarded ويستدعي
+    // PointsManager.awardCustomPoints (كتابة محلية + سجل سحابي) داخل
+    // تركيب AlertDialog نفسه، فالأثر الجانبي يعتمد على حارس يُكتب هو
+    // الآخر أثناء التركيب. الآن الأثر مرة واحدة عند دخول حالة النتيجة.
+    val resultShown = questions != null && index >= (questions?.size ?: 0)
+    LaunchedEffect(resultShown) {
+        if (!resultShown) return@LaunchedEffect
+        val qs = questions ?: return@LaunchedEffect
+        if (score > best) {
+            isNewRecord = true
+            best = score
+            quizPrefs.edit().putInt(prefsKey, score).apply()
+        }
+        val isPerfect = score == qs.size
+        val roundPoints = score * 2 + (if (isPerfect) 50 else 0)
+        if (!pointsAwarded && roundPoints > 0) {
+            pointsAwarded = true
+            roundPaid = true
+            quizPrefs.edit().putBoolean(awardedKey, true).apply()
+            PointsManager.awardCustomPoints(
+                context,
+                roundPoints,
+                "اختبار $bookName: $score/${qs.size}"
+            )
         }
     }
 
@@ -199,28 +233,17 @@ fun SahihQuizDialog(
                     Text("تعذّر تجهيز الأسئلة — أعد فتح الكتاب ثم حاول مجدداً.", fontSize = 13.sp)
                 }
                 index >= qs.size -> {
-                    // النتيجة النهائية — صرف النقاط مرة واحدة فقط لأول جولة مكتملة
-                    val isRecord = score > best
-                    if (isRecord) {
-                        best = score
-                        quizPrefs.edit().putInt(prefsKey, score).apply()
-                    }
+                    // ق141: فرع عرض خالص — الكتابة والنقاط في أثر
+                    // resultShown أعلاه لا هنا؛ والعتبات نسبية (كان 80/50
+                    // مطلقاً بينما الجولة قد ترجع أقل من 100 سؤال فيجعل
+                    // «ممتاز» مستحيلاً رغم الإتقان).
+                    val percent = score * 100 / qs.size
                     val isPerfect = score == qs.size
                     val roundPoints = score * 2 + (if (isPerfect) 50 else 0)
-                    if (!pointsAwarded && !roundPaid && roundPoints > 0) {
-                        roundPaid = true
-                        pointsAwarded = true
-                        quizPrefs.edit().putBoolean(awardedKey, true).apply()
-                        PointsManager.awardCustomPoints(
-                            context,
-                            roundPoints,
-                            "اختبار $bookName: $score/${qs.size}"
-                        )
-                    }
                     Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            if (score >= 80) "🏆 ممتاز! حافظ متقن"
-                            else if (score >= 50) "🌟 جيد — واصل المراجعة"
+                            if (percent >= 80) "🏆 ممتاز! حافظ متقن"
+                            else if (percent >= 50) "🌟 جيد — واصل المراجعة"
                             else "📖 راجع الأبواب وحاول مجدداً",
                             fontWeight = FontWeight.Bold, fontSize = 15.sp, textAlign = TextAlign.Center
                         )
@@ -232,12 +255,19 @@ fun SahihQuizDialog(
                             Text("وضع مراجعة — النقاط صُرفت سابقاً لأول جولة", fontSize = 12.sp, color = Color.Gray)
                         }
                         Text("أفضل درجة: $best / ${qs.size}", fontSize = 12.sp, color = Color.Gray)
-                        if (isRecord) Text("🎉 رقم قياسي جديد!", color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                        if (isNewRecord) Text("🎉 رقم قياسي جديد!", color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
                         if (isPerfect) Text("💯 علامة كاملة — اسمك يصعد في الصدارة!", color = goldColor, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Button(
                             onClick = {
+                                // ق141: جولة جديدة فعلاً — كان الزر يصفّر
+                                // المؤشر وحده فتعاد الأسئلة نفسها؛ الآن
+                                // تُفرَّغ القائمة ويزيد مفتاح الجولة فيعيد
+                                // الأثر توليد 100 سؤال جديدة.
                                 index = 0; score = 0; picked = -1; roundPaid = false
+                                isNewRecord = false
+                                questions = null
+                                roundNumber++
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = goldColor)
                         ) { Text("جولة جديدة 🔄", color = Color.Black, fontWeight = FontWeight.Bold) }

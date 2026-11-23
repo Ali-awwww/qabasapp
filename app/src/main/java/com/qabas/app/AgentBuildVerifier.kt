@@ -142,10 +142,18 @@ object AgentBuildVerifier {
             runCatching { JSONObject(raw).optString("sha").takeIf { it.isNotBlank() } }.getOrNull()
         }
 
-    /** آخر تشغيلات سير العمل (يُفكّك عبر parseRuns النقية). */
-    suspend fun fetchRuns(owner: String, repo: String, token: String, perPage: Int = 20): List<BuildRunSnapshot> =
+    /** آخر تشغيلات سير البناء نفسه (يُفكّك عبر parseRuns النقية).
+     * كان يجلب /actions/runs — كل سير عمل المستودع (CodeQL وغيره) —
+     * فيختلط سجل البناء بسير لا علاقة له باختبار الكود المولد. */
+    suspend fun fetchRuns(
+        owner: String,
+        repo: String,
+        token: String,
+        perPage: Int = 20,
+        workflowFile: String = DEFAULT_WORKFLOW
+    ): List<BuildRunSnapshot> =
         withContext(Dispatchers.IO) {
-            val raw = authGet(owner, repo, token, "/actions/runs?per_page=$perPage") ?: return@withContext emptyList()
+            val raw = authGet(owner, repo, token, "/actions/workflows/$workflowFile/runs?per_page=$perPage") ?: return@withContext emptyList()
             parseRuns(raw)
         }
 
@@ -218,10 +226,28 @@ object AgentBuildVerifier {
 
         val shaBefore = fetchHeadCommitSha(owner, repo, token, b).orEmpty()
 
+        // لقطة ما قبل الإطلاق: التشغيل الجديد وحده هو الدليل على الكود
+        // الحالي. بلا هذه اللقطة كان الاستطلاع يلتقط أحدث تشغيل على
+        // الكوميت نفسه — وهو غالباً تشغيل قديم منطلق قبل التعديل —
+        // فيُبلَّغ نجاحه/فشله كأنه تحقق للكود المولد (نتيجة كاذبة).
+        val runsBefore = fetchRuns(owner, repo, token, workflowFile = workflowFile)
+        // كل معرفات ما قبل الإطلاق — لا الأحدث وحده: استبعاد الأحدث
+        // فقط كان يترك تشغيلاً أقدم على الكوميت نفسه فيُنتقى
+        // pickRunForCommit به فيُبلَّغ كأنه الجديد.
+        val beforeIds = runsBefore.map { it.id }.toSet()
+
         val triggered = triggerWorkflow(owner, repo, token, b, workflowFile)
         onTick(null)
         if (!triggered) {
+            // كان الرفض يُسجَّل تحذيراً فقط ثم يُستطلع 8 دقائق كاملة
+            // لينتهي بنتيجة تشغيل قديم — الآن فشل صريح فوري.
             Log.w(TAG, "workflow_dispatch rejected (missing workflow or actions:write scope)")
+            return@withContext BuildVerification(
+                BuildRunOutcome.UNKNOWN,
+                runsBefore.firstOrNull(),
+                shaBefore,
+                "تعذر إطلاق البناء: تحقق من وجود ملف $workflowFile ومن صلاحية actions:write للرمز."
+            )
         }
 
         val deadline = System.currentTimeMillis() + timeoutMs
@@ -229,8 +255,11 @@ object AgentBuildVerifier {
 
         while (System.currentTimeMillis() < deadline) {
             delay(pollIntervalMs)
-            val runs = fetchRuns(owner, repo, token)
-            val run = pickRunForCommit(runs, shaBefore) ?: runs.firstOrNull()
+            val runs = fetchRuns(owner, repo, token, workflowFile = workflowFile)
+            // التشغيلات الجديدة فقط: كل ما كان موجوداً قبل الإطلاق
+            // (بمعرفاته) لا يُحتسب — وإلا عاد التشغيل القديم.
+            val freshRuns = runs.filter { it.id !in beforeIds }
+            val run = pickRunForCommit(freshRuns, shaBefore) ?: freshRuns.firstOrNull()
             if (run != null) {
                 lastRun = run
                 onTick(run)
@@ -256,7 +285,7 @@ object AgentBuildVerifier {
             run = lastRun,
             commitSha = shaBefore,
             message = if (lastRun != null) "${describe(lastRun)} — لم ينتهِ خلال المهلة المحددة."
-            else "لم يبدأ أي تشغيل خلال المهلة — تحقق من وجود ملف $workflowFile وصلاحية actions:write.",
+            else "لم يبدأ أي تشغيل جديد خلال المهلة — تحقق من وجود ملف $workflowFile وصلاحية actions:write.",
             timedOut = true
         )
     }

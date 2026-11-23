@@ -72,9 +72,15 @@ object LlamaCppService {
         } else {
             File(File(context.filesDir, MODEL_SUBDIR), modelName)
         }
-        if (target.exists() && target.length() >= 100_000_000L) return@withContext target
+        // (ق40) أرضية 100MB نفسها هنا: ملف مبتور 150MB كان يمرّ فيفشل
+        // llamaInit بخطأ مبهم. للنموذج المعروف: الطول لا يقل عن حجمه
+        // المعلن؛ ولاسم غير معروف في الكتالوج تبقى أرضية 100MB (لا حجم معلن).
+        val complete = if (match != null) target.length() >= match.sizeBytes
+        else target.length() >= 100_000_000L
+        if (target.exists() && complete) return@withContext target
         val detail = when {
             !target.exists() -> "الملف غير موجود في ${target.absolutePath} — أعد التنزيل من مركز النماذج"
+            match != null -> "الملف ناقص: الموجود ${target.length() / 1_048_576}MB من ${match.sizeBytes / 1_048_576}MB المتوقعة في ${target.absolutePath} — أعد التنزيل أو الاستيراد"
             else -> "الملف ناقص: الموجود ${target.length() / 1_048_576}MB في ${target.absolutePath} — أعد التنزيل أو الاستيراد"
         }
         fail(detail)

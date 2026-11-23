@@ -41,7 +41,7 @@ class PrayerAzanReceiver : BroadcastReceiver() {
                 // الخيار): لا صوت تكبير مستقل خلفها، فتُشغّل الأذان الكامل.
                 "FULL_AZAN", "TAKBEER_ONLY" -> {
                     // تشغيل خدمة الأذان المباشرة
-                    AzanPlaybackService.startAzan(context, voiceId, prayerName)
+                    AzanPlaybackService.startAzan(context, voiceId, prayerName, prayerKey)
                     showPrayerNotification(
                         context, prayerKey, prayerName,
                         "استمع للأذان الآن — تقبل الله صلاتكم",

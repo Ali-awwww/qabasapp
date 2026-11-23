@@ -7,9 +7,11 @@ import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.retryWhen
 import java.time.Instant
 
 /**
@@ -38,6 +40,16 @@ class SavedItemsRepository(
         } finally {
             client.realtime.removeChannel(channel)
         }
+    }.retryWhen { cause, attempt ->
+        // ق69: بلا إعادة محاولة كان أي انقطاع عابر (اشتراك أو جلب)
+        // ينهي التدفق نهائياً فيتحول ViewModel إلى حالة خطأ بلا زر
+        // إعادة محاولة؛ فتموت التحديثات الحية لبقية الجلسة بينما
+        // محادثة المطور (قناة اللحظي الأخرى) تعيد الاتصال تلقائياً.
+        // الإلغاء وخطأ البرمجة (معرّف فارغ) لا يُعادان أبداً.
+        if (cause is kotlinx.coroutines.CancellationException) return@retryWhen false
+        if (cause is IllegalArgumentException) return@retryWhen false
+        delay(minOf(2_000L * (1L shl attempt.coerceAtMost(4).toInt()), 30_000L))
+        true
     }
 
     suspend fun fetchSavedItems(userId: String): List<SavedItem> {

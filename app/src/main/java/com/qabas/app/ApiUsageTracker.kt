@@ -20,9 +20,23 @@ object ApiUsageTracker {
     private const val LOGS_JSON_KEY = "api_recent_logs_json_v1"
     private const val MAX_LOGS = 60
 
+    // ق136: كل اسم قابل للتسجيل — كان «Leonardo.ai» و«Supabase» و«Google Auth»
+    // و«Higgsfield» تُسجَّل (عبر فحص المفاتيح) بلا عمود في الرسم، فتختفي
+    // استدعاءاتها بينما يعدّها إجمالي الشارة فيُخالف مجموع الأعمدة.
     val SUPPORTED: List<String> = listOf(
-        "Gemini", "Groq", "OpenRouter", "Pixabay", "Firebase", "Quran Foundation"
+        "Gemini", "Groq", "OpenRouter", "Pixabay", "Firebase", "Quran Foundation",
+        "Leonardo.ai", "Supabase", "Google Auth", "Higgsfield"
     )
+
+    // ق136: توحيد الأسماء القديمة/المتباينة على الاسم القياسي الواحد —
+    // «Qf» كان يشتّت إحصاءات Quran Foundation عن استدعاءات التشغيل،
+    // و«Google_auth» اسم آلي، و«Leonardo» اسم قراءة لا تسجيل.
+    fun canonicalApiName(name: String): String = when (name) {
+        "Qf" -> "Quran Foundation"
+        "Google_auth" -> "Google Auth"
+        "Leonardo" -> "Leonardo.ai"
+        else -> name
+    }
 
     data class ApiStat(
         val totalCalls: Long = 0L,
@@ -76,7 +90,10 @@ object ApiUsageTracker {
                     val o = arr.optJSONObject(i) ?: continue
                     val name = o.optString("name")
                     if (name.isBlank()) continue
-                    map[name] = ApiStat(
+                    // ق136: توحيد الاسم القديم عند القراءة ودمجه في
+                    // القياسي — فدفعة «Qf» المحفوظة لا تبقى يتيمة.
+                    val canonical = canonicalApiName(name)
+                    val stat = ApiStat(
                         totalCalls = o.optLong("totalCalls"),
                         successCalls = o.optLong("successCalls"),
                         totalLatencyMs = o.optLong("totalLatencyMs"),
@@ -87,6 +104,8 @@ object ApiUsageTracker {
                         lastFailureReason = o.optString("lastFailureReason", null),
                         lastTimestamp = o.optLong("lastTimestamp", 0L)
                     )
+                    val prev = map[canonical]
+                    map[canonical] = if (prev == null) stat else mergeStats(prev, stat)
                 }
                 _stats = defaultEmptyStats() + map
             }
@@ -121,6 +140,23 @@ object ApiUsageTracker {
 
     private fun defaultEmptyStats(): Map<String, ApiStat> =
         LinkedHashMap<String, ApiStat>().apply { SUPPORTED.forEach { put(it, ApiStat()) } }
+
+    // ق136: دمج دفعتين لاسم واحد بعد التوحيد (عدّادات تُجمع، وآخر
+    // حالة من الأحدث زمناً).
+    private fun mergeStats(a: ApiStat, b: ApiStat): ApiStat {
+        val latest = if (a.lastTimestamp >= b.lastTimestamp) a else b
+        return ApiStat(
+            totalCalls = a.totalCalls + b.totalCalls,
+            successCalls = a.successCalls + b.successCalls,
+            totalLatencyMs = a.totalLatencyMs + b.totalLatencyMs,
+            lastLatencyMs = latest.lastLatencyMs,
+            lastStatusCode = latest.lastStatusCode,
+            lastStatusText = latest.lastStatusText,
+            lastSuccessReason = latest.lastSuccessReason ?: a.lastSuccessReason ?: b.lastSuccessReason,
+            lastFailureReason = latest.lastFailureReason ?: a.lastFailureReason ?: b.lastFailureReason,
+            lastTimestamp = maxOf(a.lastTimestamp, b.lastTimestamp)
+        )
+    }
 
     @Synchronized
     private fun persist(context: Context) {
@@ -179,7 +215,10 @@ object ApiUsageTracker {
     ) {
         load(context)
         val now = System.currentTimeMillis()
-        val current = _stats[apiName] ?: ApiStat()
+        // ق136: توحيد الاسم عند التسجيل — فلا ينشئ أي منادٍ مستقبلي
+        // دفعة يتيمة خارج SUPPORTED.
+        val name = canonicalApiName(apiName)
+        val current = _stats[name] ?: ApiStat()
         val effStatusText = statusText ?: (if (success) "200 OK" else (statusCode?.toString() ?: "Error"))
         val effReason = reason ?: if (success) "تم استقبال الاستجابة بنجاح" else "فشل الطلب"
 
@@ -195,10 +234,10 @@ object ApiUsageTracker {
             lastTimestamp = now
         )
 
-        _stats = _stats + (apiName to updated)
+        _stats = _stats + (name to updated)
 
         val logItem = RequestLogItem(
-            apiName = apiName,
+            apiName = name,
             timestamp = now,
             latencyMs = latencyMs,
             isSuccess = success,
@@ -219,7 +258,9 @@ object ApiUsageTracker {
     @Synchronized
     fun recordCall(context: Context, apiName: String, latencyMs: Long, success: Boolean) {
         val defaultCode = if (success) 200 else null
-        val defaultReason = if (success) "استجابة ناجحة (200 OK) وسريعة" else "فشل إكمال الطلب"
+        // ق136: بلا «وسريعة» — كان الوصف يثبت سرعة بلا قياس، فيظهر
+        // في سجل الطلبات لجلب توكن بطيء كأنه سريع.
+        val defaultReason = if (success) "استجابة ناجحة (200 OK)" else "فشل إكمال الطلب"
         recordCall(context, apiName, latencyMs, success, defaultCode, null, defaultReason, null)
     }
 
@@ -306,6 +347,10 @@ object ApiUsageTracker {
                 diagnostic = diag
             )
             result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // ق136: الإلغاء ليس فشل شبكة — كان يُسجَّل فشلاً (Network Error)
+            // فيضخّم عدّاد الفشل وسجل الأخطاء عند مغادرة الشاشة أثناء طلب.
+            throw e
         } catch (e: Exception) {
             val latencyMs = (System.nanoTime() - start) / 1_000_000L
             val netErr = e.localizedMessage ?: e.message ?: "خطأ انقطاع الشبكة"

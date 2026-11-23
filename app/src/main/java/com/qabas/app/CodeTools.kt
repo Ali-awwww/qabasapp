@@ -281,8 +281,9 @@ object CodeTools {
             },
             AiTools.ToolDef(
                 "search_code_symbols",
-                "البحث الدلالي السريع عن الدوال والكلاسات والعناصر البرمجية في شجرة المشروع.",
-                JSONObject().put("query", strProp("اسم الدالة، الكلاس، أو العنصر المراد البحث عنه")),
+                "بحث في أسماء ملفات المشروع (لا بحث دلالي في المحتوى): يطابق " +
+                    "الاستعلام مسارات الملفات في شجرة الفرع فقط.",
+                JSONObject().put("query", strProp("جزء من اسم ملف أو مسار، مثال: MainActivity")),
                 listOf("query")
             ) { args ->
                 withContext(Dispatchers.IO) {
@@ -306,26 +307,64 @@ object CodeTools {
                         log.contains("Unresolved reference", true) -> "تشخيص: دالة أو مكتبة مفقودة (Missing Import). الحل: إضافة استيراد الحزمة أو تعريف الدالة."
                         log.contains("Type mismatch", true) -> "تشخيص: عدم تطابق في الأنواع (Type Mismatch). الحل: تحويل النوع أو مراجعة المعاملات."
                         log.contains("Out of memory", true) -> "تشخيص: استهلاك ذاكرة زائد. الحل: تحسين أوزان الصور وزيادة gradle heap."
-                        else -> "تشخيص هندسي: تم فحص السجل وتحديد تعارض محتمل في معايير البناء. الحل: مراجعة دالة البناء وتصحيح التبعية."
+                        else -> "لم يطابق السجل أي نمط خطأ معروف (مرجع مفقود/نوع/ذاكرة) — لا تشخيص محدد هنا. راجع أول سطر خطأ في السجل الكامل وتحقق من الاستيرادات والتبعيات."
                     }
                 }
             },
             AiTools.ToolDef(
                 "run_linter_check",
-                "فحص سلامة الكود النحوية (Static Linting) والتأكد من خلوه من الأقواس المفتوحة والأخطاء القاتلة.",
+                "فحص توازن الأقواس فقط ({} و() و[]) وتوازن علامات السلاسل النصية — " +
+                    "لا تحليل نحوي كامل ولا كشف أخطاء الأنواع؛ النجاح هنا يعني التوازن فقط.",
                 JSONObject().put("code", strProp("الكود المراد تدقيقه")),
                 listOf("code")
             ) { args ->
                 withContext(Dispatchers.IO) {
                     val code = args.optString("code")
-                    val openBraces = code.count { it == '{' }
-                    val closeBraces = code.count { it == '}' }
-                    val openParens = code.count { it == '(' }
-                    val closeParens = code.count { it == ')' }
-                    if (openBraces == closeBraces && openParens == closeParens) {
-                        "✅ الكود سليم نحوياً: الأقواس متوازنة تماماً ({}: $openBraces, (): $openParens)."
+                    // توازن الأقواس بأنواعها الثلاثة + علامات السلاسل النصية
+                    // (مع تجاهل المهرّبة \" والتعليقات السطرية // — تقريبي
+                    // وصريح بذلك، لا ادعاء تدقيق نحوي كامل).
+                    var unclosedString = false
+                    val stripped = buildString {
+                        var inString = false
+                        var inLineComment = false
+                        var i = 0
+                        while (i < code.length) {
+                            val c = code[i]
+                            if (inLineComment) {
+                                if (c == '\n') inLineComment = false
+                                i++
+                                continue
+                            }
+                            if (inString) {
+                                if (c == '\\') { i += 2; continue }
+                                if (c == '"') inString = false
+                                i++
+                                continue
+                            }
+                            if (c == '/' && i + 1 < code.length && code[i + 1] == '/') {
+                                inLineComment = true
+                                i += 2
+                                continue
+                            }
+                            if (c == '"') { inString = true; i++; continue }
+                            append(c)
+                            i++
+                        }
+                        unclosedString = inString
+                    }
+                    val openBraces = stripped.count { it == '{' }
+                    val closeBraces = stripped.count { it == '}' }
+                    val openParens = stripped.count { it == '(' }
+                    val closeParens = stripped.count { it == ')' }
+                    val openBrackets = stripped.count { it == '[' }
+                    val closeBrackets = stripped.count { it == ']' }
+                    if (openBraces == closeBraces && openParens == closeParens &&
+                        openBrackets == closeBrackets && !unclosedString
+                    ) {
+                        "✅ الأقواس متوازنة ({}: $openBraces, (): $openParens, []: $openBrackets) وعلامات السلاسل مغلقة — هذا فحص توازن فقط، لا ضمان سلامة نحوية كاملة."
                     } else {
-                        "⚠️ خطأ نحوي مكتشف: عدم توازن في الأقواس ({}: $openBraces/$closeBraces, (): $openParens/$closeParens)."
+                        "⚠️ عدم توازن: {}: $openBraces/$closeBraces, (): $openParens/$closeParens, []: $openBrackets/$closeBrackets" +
+                            if (unclosedString) "، سلسلة نصية بلا علامة إغلاق." else "."
                     }
                 }
             },
@@ -341,13 +380,16 @@ object CodeTools {
             },
             AiTools.ToolDef(
                 "refactor_and_optimize",
-                "فحص أداء واجهات Jetpack Compose واقتراح تحسينات للذاكرة وتفادي إعادة الرسم غير الضرورية.",
+                "إرشادات إعادة هيكلة عامة لواجهات Jetpack Compose — إرشادات نصية " +
+                    "فقط، لا تقرأ شيفرة المكوّن ولا تتحقق من تطبيقه.",
                 JSONObject().put("composable_name", strProp("اسم واجهة Compose المراد تحسينها")),
                 listOf("composable_name")
             ) { args ->
                 withContext(Dispatchers.IO) {
                     val comp = args.optString("composable_name").ifBlank { "MyScreen" }
-                    "تحسينات $comp: تم التحقق من استخدام remember{} للحالات المحلية، وتقديم Modifier كمعامل افتراضي، وتفادي تخصيص كائنات داخل حلقة الرسم."
+                    "إرشادات عامة لتحسين «$comp» (لم تُقرأ الشيفرة هنا — طبّقها يدوياً وتحقق بنفسك): " +
+                        "استخدم remember{} للحالات المحلية بدل إعادة التوليد، وقدّم Modifier كمعامل افتراضي، " +
+                        "وتفادَ تخصيص كائنات داخل حلقة الرسم، واستخرج الحالات الثقيلة إلى ViewModel إن أمكن."
                 }
             }
         )
@@ -358,11 +400,18 @@ object CodeTools {
      * الاختبار. التشغيل عبر CI البعيد في تبويب المعاينة.
      */
     fun generateUnitTestSnippet(functionName: String): String {
-        val fn = functionName.ifBlank { "targetFunction" }
+        val fn = functionName.trim().ifBlank { "targetFunction" }
+        // معرّف الاختبار يجب أن يكون اسم Kotlin صالحاً: اسم مثل
+        // com.example.foo() كان يولّد test_com.example.foo()_execution()
+        // وهو غير صالح للتجميع — تنظيف كل ما ليس حرفاً/رقماً/شرطة سفلية.
+        val safeName = fn.replace(Regex("[^A-Za-z0-9_]"), "_").trim('_').ifBlank { "function" }
+        // الاستدعاء: الاسم كما هو (قد يكون مؤهلاً بنقطة) بلا أقواس مُمررة.
+        val call = fn.substringBefore("(").trim().ifBlank { "targetFunction" }
         return """
             @Test
-            fun test_${fn}_execution() {
-                val result = $fn()
+            fun test_${safeName}_execution() {
+                // عدّل الاستدعاء بمعاملات الدالة إن كانت تأخذ معاملات.
+                val result = $call()
                 assertNotNull(result)
             }
         """.trimIndent()

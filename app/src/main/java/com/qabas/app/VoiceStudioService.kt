@@ -14,7 +14,9 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * نموذج يمثل صوتاً مستنسخاً أو قالباً صوتياً محفوظاً
+ * نموذج يمثل نمطاً صوتياً محفوظاً (صوت Edge-Neural أساسي + نبرة + سرعة).
+ * حقل sampleAudioPath قديم: كان يحفظ مسار عينة لم تُستعمل في التوليد أبداً،
+ * ويُبقى لقراءة الأنماط المحفوظة قديماً دون كسر.
  */
 data class ClonedVoiceProfile(
     val id: String = UUID.randomUUID().toString(),
@@ -22,7 +24,7 @@ data class ClonedVoiceProfile(
     val description: String = "",
     val sampleAudioPath: String = "",
     val referenceText: String = "",
-    val baseEngine: String = "F5-TTS / Edge-Neural",
+    val baseEngine: String = "Edge-Neural",
     val pitchShift: Float = 0f,
     val speedRate: Float = 1.0f,
     val createdAt: Long = System.currentTimeMillis()
@@ -46,7 +48,7 @@ data class ClonedVoiceProfile(
             description = json.optString("description", ""),
             sampleAudioPath = json.optString("sampleAudioPath", ""),
             referenceText = json.optString("referenceText", ""),
-            baseEngine = json.optString("baseEngine", "F5-TTS / Edge-Neural"),
+            baseEngine = json.optString("baseEngine", "Edge-Neural"),
             pitchShift = json.optDouble("pitchShift", 0.0).toFloat(),
             speedRate = json.optDouble("speedRate", 1.0).toFloat(),
             createdAt = json.optLong("createdAt", System.currentTimeMillis())
@@ -58,17 +60,19 @@ data class VoiceStudioServerStatus(
     val isOnline: Boolean,
     val serverUrl: String,
     val latencyMs: Long = 0L,
-    val enginesCount: Int = 16,
+    val enginesCount: Int = -1,
     val message: String = ""
 )
 
 /**
- * 🎙️ محرك وخدمة VoiceStudio (بديل ElevenLabs المفتوح المصدر)
+ * 🎙️ محرك وخدمة VoiceStudio
  * يقدم:
- * 1) استنساخ الأصوات (Voice Cloning) من عينة صوتية مسجلة 5-10 ثوانٍ.
- * 2) واجهة OpenAI Audio API المتوافقة (/v1/audio/speech).
- * 3) الدبلجة الذكية (Video Dubbing) وتزامن الصوت مع حركة الشفاه.
- * 4) العمل بنمطين: سحابي عبر خادم VoiceStudio أو محلي هجين عبر FFmpeg + Edge-TTS.
+ * 1) أنماطاً صوتية مخصصة: صوت Edge-Neural أساسي + تعديل النبرة
+ *    والسرعة عبر FFmpeg — النمط يختار صوتاً جاهزاً فقط ولا ينسخ
+ *    بصمة صوتية؛ العينة المسجلة سابقاً لم تكن تُستعمل أبداً.
+ * 2) الدبلجة: توليد تعليق بنمط صوتي واستبدال مسار صوت الفيديو به.
+ * 3) العمل بنمطين: سحابي عبر خادم VoiceStudio (إن وُجد وردّ على
+ *    ping) أو محلي هجين عبر FFmpeg + Edge-TTS.
  */
 object VoiceStudioService {
     private const val TAG = "VoiceStudioService"
@@ -93,7 +97,7 @@ object VoiceStudioService {
     }
 
     /**
-     * حفظ واسترجاع الملفات الصوتية المستنسخة محلياً
+     * حفظ واسترجاع الأنماط الصوتية محلياً
      */
     fun getClonedProfiles(context: Context): List<ClonedVoiceProfile> {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -132,8 +136,8 @@ object VoiceStudioService {
         ClonedVoiceProfile(
             id = "starter_doc_voice",
             name = "صوت وثائقي ملحمي (Epic Documentary)",
-            description = "مستنسخ بنبرة وقورة عميقة مناسبة للسير التاريخية وقصص القرآن.",
-            baseEngine = "XTTS-v2 / HamedNeural",
+            description = "نبرة وقورة عميقة مناسبة للسير التاريخية وقصص القرآن.",
+            baseEngine = "Edge-Neural / HamedNeural",
             pitchShift = -1.2f,
             speedRate = 0.95f
         ),
@@ -141,7 +145,7 @@ object VoiceStudioService {
             id = "starter_warm_reflection",
             name = "نبرة التدبر والسكينة (Spiritual Serenity)",
             description = "صوت ناعم متأمل مناسب للأذكار والخواطر القرآنية الهادئة.",
-            baseEngine = "F5-TTS / SalmaNeural",
+            baseEngine = "Edge-Neural / SalmaNeural",
             pitchShift = 0.4f,
             speedRate = 0.92f
         ),
@@ -149,7 +153,7 @@ object VoiceStudioService {
             id = "starter_enthusiastic",
             name = "الراوي الحماسي (Inspiring Narrator)",
             description = "نبرة سريعة وجذابة للريلز والتيك توك ولفت الانتباه في الثواني الأولى.",
-            baseEngine = "OmniVoice / ShakirNeural",
+            baseEngine = "Edge-Neural / ShakirNeural",
             pitchShift = 0.8f,
             speedRate = 1.08f
         )
@@ -210,8 +214,24 @@ object VoiceStudioService {
     }
 
     /**
-     * التوليد المستقل الهجين عند غياب السيرفر (Edge-TTS + تعديل الترددات و Pitch عبر FFmpeg)
-     * يتيح تطبيق خصائص الصوت المستنسخ (النبرة والسرعة والخامة) مباشرة على الهاتف!
+     * الصوت الأساسي Edge-Neural من وسم المحرك المحفوظ في النمط.
+     * دالة نقية قابلة للاختبار: كان «Naayf» يسقط في فرع الافتراضي
+     * فيُركَّب بصوت حامد صامتاً رغم اختيار نايف.
+     */
+    fun baseVoiceForEngine(baseEngine: String): String = when {
+        baseEngine.contains("Salma") -> "ar-EG-SalmaNeural"
+        baseEngine.contains("Zariyah") -> "ar-SA-ZariyahNeural"
+        baseEngine.contains("Shakir") -> "ar-EG-ShakirNeural"
+        baseEngine.contains("Hamdan") -> "ar-AE-HamdanNeural"
+        baseEngine.contains("Naayf") -> "ar-SA-NaayfNeural"
+        else -> "ar-SA-HamedNeural"
+    }
+
+    /**
+     * التوليد المحلي الهجين عند غياب السيرفر (Edge-TTS + تعديل الترددات و Pitch عبر FFmpeg)
+     * يتيح تطبيق خصائص النمط الصوتي (النبرة والسرعة) مباشرة على الهاتف.
+     * صراحة: هذا ليس نسخ بصمة صوتية — العينة المسجلة سابقاً لم
+     * تكن تُستعمل في التوليد أبداً، فأُزيلت من الواجهة.
      */
     suspend fun synthesizeLocallyWithProfile(
         context: Context,
@@ -219,13 +239,7 @@ object VoiceStudioService {
         profile: ClonedVoiceProfile
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
-            val baseVoice = when {
-                profile.baseEngine.contains("Salma") -> "ar-EG-SalmaNeural"
-                profile.baseEngine.contains("Zariyah") -> "ar-SA-ZariyahNeural"
-                profile.baseEngine.contains("Shakir") -> "ar-EG-ShakirNeural"
-                profile.baseEngine.contains("Hamdan") -> "ar-AE-HamdanNeural"
-                else -> "ar-SA-HamedNeural"
-            }
+            val baseVoice = baseVoiceForEngine(profile.baseEngine)
 
             val tempBaseAudio = File(context.cacheDir, "vs_raw_${System.currentTimeMillis()}.mp3")
             val generated = EdgeTtsService.synthesizeSpeech(
@@ -240,7 +254,7 @@ object VoiceStudioService {
                 return@withContext Result.failure(Exception("تعذر توليد الصوت الأساسي"))
             }
 
-            // تعديل النبرة الصوتية والبصمة عبر مرشحات FFmpeg المتطورة (Pitch + Equalizer)
+            // تعديل النبرة الصوتية عبر مرشحات FFmpeg المتطورة (Pitch + Equalizer)
             val finalClonedAudio = File(context.cacheDir, "vs_cloned_${System.currentTimeMillis()}.mp3")
             val pitchVal = 1.0 + (profile.pitchShift * 0.15)
             val audioFilter = "asetrate=24000*$pitchVal,aresample=24000,atempo=${1.0 / pitchVal},equalizer=f=120:width_type=h:width=100:g=2"
@@ -260,7 +274,7 @@ object VoiceStudioService {
     }
 
     /**
-     * دبلجة مقطع فيديو واستبدال مساره الصوتي بالصوت المستنسخ الجديد
+     * دبلجة مقطع فيديو واستبدال مساره الصوتي بالنمط الصوتي المختار
      */
     suspend fun dubVideoTrack(
         videoFile: File,

@@ -15,6 +15,7 @@ object KeyPoolManager {
     private const val TAG = "KeyPoolManager"
     private const val POOL_SUFFIX = "_pool"
     private const val ACTIVE_SUFFIX = "_active_idx"
+    private const val UPDATED_SUFFIX = "_updated_at"
 
     private fun prefsKey(prefsKey: String) = prefsKey
 
@@ -99,15 +100,30 @@ object KeyPoolManager {
         return keys[getActiveIndex(prefsKey)]
     }
 
+    /**
+     * لحظة آخر حفظ للمفتاح (epoch millis) — أساس دمج «الأحدث يفوز» في
+     * مزامنة المفاتيح: بلا طابع محلي لا يمكن تمييز الأحدث من الأقدم،
+     * فكان السحب السحابي يمحو المفاتيح المحلية الأحدث بصمت.
+     * 0 تعني «مفتاح سابق للتتبع» (يُعامل كنسخة محلية محفوظة، انظر الدمج).
+     */
+    fun getUpdatedAtMillis(prefsKey: String): Long =
+        prefs().getLong(prefsKey + UPDATED_SUFFIX, 0L)
+
+    fun setUpdatedAtMillis(prefsKey: String, epochMillis: Long) {
+        prefs().edit().putLong(prefsKey + UPDATED_SUFFIX, epochMillis).apply()
+    }
+
     /** تعيين المفرد (حفظ/لصق/استيراد): يكتب الإرثي ويعيد ضبط المسبح عليه. */
-    fun setSingleKey(prefsKey: String, value: String) {
+    fun setSingleKey(prefsKey: String, value: String, updatedAtMillis: Long? = null) {
         val p = prefs()
         val clean = value.trim()
         p.edit().putString(prefsKey, clean).apply()
         if (isReal(clean)) {
             savePool(prefsKey, listOf(clean), 0)
+            setUpdatedAtMillis(prefsKey, updatedAtMillis ?: System.currentTimeMillis())
         } else {
-            p.edit().remove(prefsKey + POOL_SUFFIX).remove(prefsKey + ACTIVE_SUFFIX).apply()
+            p.edit().remove(prefsKey + POOL_SUFFIX).remove(prefsKey + ACTIVE_SUFFIX)
+                .remove(prefsKey + UPDATED_SUFFIX).apply()
         }
     }
 
@@ -116,6 +132,7 @@ object KeyPoolManager {
             .remove(prefsKey)
             .remove(prefsKey + POOL_SUFFIX)
             .remove(prefsKey + ACTIVE_SUFFIX)
+            .remove(prefsKey + UPDATED_SUFFIX)
             .apply()
     }
 
@@ -127,6 +144,7 @@ object KeyPoolManager {
         if (keys.any { it == clean }) return false
         keys.add(clean)
         savePool(prefsKey, keys, getActiveIndex(prefsKey))
+        setUpdatedAtMillis(prefsKey, System.currentTimeMillis())
         return true
     }
 
@@ -139,7 +157,7 @@ object KeyPoolManager {
         // انعكاس النشط الجديد على المفرد
         val p = prefs()
         if (keys.isEmpty()) {
-            p.edit().remove(prefsKey).apply()
+            p.edit().remove(prefsKey).remove(prefsKey + UPDATED_SUFFIX).apply()
         } else {
             p.edit().putString(prefsKey, keys[active.coerceIn(keys.indices)]).apply()
         }

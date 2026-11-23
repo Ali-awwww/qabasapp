@@ -399,7 +399,12 @@ object DevChatRepository {
                     if (match != null) unmatchedLocal.remove(match)
                     fromCloudMessage(row, match)
                 }
-                val merged = (remote + unmatchedLocal.filter { it.status == "pending" })
+                // (ق65) إعادة إرسال تلقائية للمعلّقة (ومنها ردود المطور
+                // المعلّقة): تُرسل قبل الدمج، والناجح منها يبقى في القائمة
+                // بحالته الجديدة حتى يظهر في قراءة سحابية لاحقة.
+                val flushedPending = unmatchedLocal.filter { it.status == "pending" }
+                    .map { retryPendingMessage(context, it) }
+                val merged = (remote + flushedPending)
                     .sortedBy { it.createdAt }
                 if (merged.isEmpty()) result.remove(email) else result[email] = merged
             }
@@ -430,6 +435,11 @@ object DevChatRepository {
                 fromCloudMessage(row, match)
             }
             val pending = unmatchedLocal.filter { it.status == "pending" }
+                // (ق65) إعادة إرسال تلقائية للمعلّقة عند عودة الاتصال:
+                // وعد توست الإرسال («سنحاول مزامنتها عند عودة الاتصال»)
+                // لم يكن يتحقق أبداً — retryPendingMessage لم يكن لها
+                // منادٍ إلا زر يدوي لكل فقاعة على حدة.
+                .map { retryPendingMessage(context, it) }
             val firstRunWelcome = if (remote.isEmpty() && !hadPersistedSnapshot) {
                 local.filter { it.id.startsWith("welcome_") }
             } else {

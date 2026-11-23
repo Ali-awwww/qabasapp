@@ -19,6 +19,51 @@ object AgentChatSessionManager {
     private const val ACTIVE_SESSION_ID_KEY = "active_agent_session_id"
     private const val SESSION_FILES_DIR = "agent_sessions"
 
+    /**
+     * حدود الاحتفاظ: بلا حد كانت الجلسة تنمو بلا سقف (والملف كاملاً
+     * يُعاد كتابته عند كل رسالة)، فتثقل الكتابة والقراءة مع طول المحادثة.
+     */
+    const val MAX_SESSION_MESSAGES = 200
+    const val MAX_SESSIONS = 50
+
+    /**
+     * كتلة سياق من آخر تبادلات الجلسة تُلحق بموجه النموذج — فالاستدعاءات
+     * كانت بلا أي سجل محادثة (كل دور منفصل تماماً) فينسى الوكيل ما قيل
+     * قبله في الجلسة نفسها. محدودة الحجم (آخر 12 رسالة، حتى 6000 محرف،
+     * والأحدث أولاً عند الاقتطاع)، وبلا نصوص الفروقات الكاملة (يُذكر
+     * مسار الملف وعدد الأسطر فقط). رسالة الطلب الحالية لا تُدرج هنا؛
+     * مواضع الاستدعاء تمرر السجل السابق لها.
+     */
+    fun historyBlock(
+        messages: List<AgentChatMessage>,
+        maxChars: Int = 6000,
+        maxMessages: Int = 12
+    ): String {
+        if (messages.isEmpty()) return ""
+        val picked = mutableListOf<String>()
+        var used = 0
+        for (m in messages.takeLast(maxMessages).asReversed()) {
+            val who = when (m.sender) {
+                AgentChatSender.USER -> "المستخدم"
+                AgentChatSender.AGENT -> "الوكيل"
+                AgentChatSender.TOOL_SYSTEM -> "النظام"
+            }
+            val diffNote = m.diff?.let {
+                " [تعديل مقترح: ${it.filePath} (+${it.additions}/−${it.deletions})]"
+            }.orEmpty()
+            val line = "$who: ${m.text.take(800)}$diffNote"
+            if (picked.isNotEmpty() && used + line.length > maxChars) break
+            picked.add(line)
+            used += line.length
+        }
+        if (picked.isEmpty()) return ""
+        return buildString {
+            append("— سجل المحادثة الأخيرة في هذه الجلسة (للسياق فقط) —\n")
+            picked.asReversed().forEach { append(it).append('\n') }
+            append("— نهاية السجل —")
+        }
+    }
+
     data class SessionMeta(
         val id: String,
         val title: String,
@@ -44,15 +89,20 @@ object AgentChatSessionManager {
             try {
                 val arr = JSONArray(raw)
                 for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    list.add(
-                        SessionMeta(
-                            id = obj.getString("id"),
-                            title = obj.getString("title"),
-                            timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
-                            messageCount = obj.optInt("count", 0)
+                    // إدخال تالف واحد كان يُسقط قائمة الجلسات كلها؛ يُتخطى وحده.
+                    runCatching {
+                        val obj = arr.getJSONObject(i)
+                        val id = obj.optString("id", "")
+                        if (id.isBlank()) return@runCatching
+                        list.add(
+                            SessionMeta(
+                                id = id,
+                                title = obj.optString("title", "محادثة سابقة").ifBlank { "محادثة سابقة" },
+                                timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                                messageCount = obj.optInt("count", 0)
+                            )
                         )
-                    )
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -86,8 +136,11 @@ object AgentChatSessionManager {
     fun saveSessionMessages(context: Context, sessionId: String, messages: List<AgentChatMessage>) {
         if (sessionId.isBlank()) return
         val prefs = AgentPrefs.instance(context)
+        // يُحفظ آخر 200 رسالة فقط — بلا حد كان الملف كاملاً يُعاد
+        // كتابته عند كل رسالة فيكبر بلا سقف (مع نصوص فروقات ضخمة).
+        val capped = messages.takeLast(MAX_SESSION_MESSAGES)
         val arr = JSONArray()
-        messages.forEach { msg ->
+        capped.forEach { msg ->
             val obj = JSONObject()
             obj.put("id", msg.id)
             obj.put("sender", msg.sender.name)
@@ -109,12 +162,12 @@ object AgentChatSessionManager {
         }
 
         // تحديث عنوان الجلسة بناءً على أول رسالة للمستخدم
-        val firstUserMsg = messages.firstOrNull { it.sender == AgentChatSender.USER }?.text?.take(30)
+        val firstUserMsg = capped.firstOrNull { it.sender == AgentChatSender.USER }?.text?.take(30)
         val currentTitle = if (!firstUserMsg.isNullOrBlank()) firstUserMsg else "محادثة سابقة"
 
         val updatedMetas = _sessions.value.map {
             if (it.id == sessionId) {
-                it.copy(title = currentTitle, messageCount = messages.size, timestamp = System.currentTimeMillis())
+                it.copy(title = currentTitle, messageCount = capped.size, timestamp = System.currentTimeMillis())
             } else it
         }
         saveSessionMetas(context, updatedMetas)
@@ -137,26 +190,35 @@ object AgentChatSessionManager {
         try {
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val diff = if (obj.has("diff")) {
-                    val dObj = obj.getJSONObject("diff")
-                    FileDiff(
-                        filePath = dObj.getString("file"),
-                        additions = dObj.optInt("add", 0),
-                        deletions = dObj.optInt("del", 0),
-                        diffText = dObj.getString("diff")
-                    )
-                } else null
+                // رسالة تالفة واحدة (مرسل مجهول بعد تحديث، أو نص مفقود)
+                // كانت تُسقط الجلسة كلها بإرجاع قائمة فارغة؛ تُتخطى وحدها.
+                runCatching {
+                    val obj = arr.getJSONObject(i)
+                    val sender = runCatching {
+                        AgentChatSender.valueOf(obj.optString("sender", ""))
+                    }.getOrNull() ?: return@runCatching
+                    val text = obj.optString("text", "")
+                    if (text.isBlank()) return@runCatching
+                    val diff = if (obj.has("diff")) {
+                        val dObj = obj.getJSONObject("diff")
+                        FileDiff(
+                            filePath = dObj.optString("file", ""),
+                            additions = dObj.optInt("add", 0),
+                            deletions = dObj.optInt("del", 0),
+                            diffText = dObj.optString("diff", "")
+                        )
+                    } else null
 
-                list.add(
-                    AgentChatMessage(
-                        id = obj.optString("id", UUID.randomUUID().toString()),
-                        sender = AgentChatSender.valueOf(obj.getString("sender")),
-                        text = obj.getString("text"),
-                        diff = diff,
-                        timestamp = obj.optLong("time", System.currentTimeMillis())
+                    list.add(
+                        AgentChatMessage(
+                            id = obj.optString("id", UUID.randomUUID().toString()),
+                            sender = sender,
+                            text = text,
+                            diff = diff,
+                            timestamp = obj.optLong("time", System.currentTimeMillis())
+                        )
                     )
-                )
+                }
             }
         } catch (_: Exception) {}
         return list
@@ -176,8 +238,22 @@ object AgentChatSessionManager {
 
     private fun saveSessionMetas(context: Context, list: List<SessionMeta>) {
         val prefs = AgentPrefs.instance(context)
+        // أحدث 50 جلسة فقط؛ ملفات الجلسات المسقَطة تُحذف حتى لا تتراكم
+        // يتيمة على القرص. الجلسة النشطة لا تُسقَط أبداً (قد تكون قديمة
+        // التاريخ بعد تبديل إليها) وإلا صار المعرّف النشط يشير لملف محذوف.
+        val sorted = list.sortedByDescending { it.timestamp }
+        val trimmed = sorted.take(MAX_SESSIONS).toMutableList()
+        val activeId = _activeSessionId.value
+        if (activeId != null && trimmed.none { it.id == activeId }) {
+            sorted.firstOrNull { it.id == activeId }?.let { trimmed.add(it) }
+        }
+        val keptIds = trimmed.map { it.id }.toSet()
+        list.filter { it.id !in keptIds }.forEach { dropped ->
+            runCatching { sessionFile(context, dropped.id).delete() }
+            prefs.edit().remove("agent_session_messages_${dropped.id}").apply()
+        }
         val arr = JSONArray()
-        list.forEach {
+        trimmed.forEach {
             val o = JSONObject()
             o.put("id", it.id)
             o.put("title", it.title)
@@ -186,7 +262,7 @@ object AgentChatSessionManager {
             arr.put(o)
         }
         prefs.edit().putString(PREFS_KEY, arr.toString()).apply()
-        _sessions.value = list.sortedByDescending { it.timestamp }
+        _sessions.value = trimmed
     }
 
     private fun sessionFile(context: Context, sessionId: String): File {

@@ -381,7 +381,9 @@ object MontageDirector {
             sp.copy(
                 visualQuery = qEn,
                 visualQueryAr = qAr,
-                transition = transition,
+                // الانتقال يُحفظ كما بُني لكل مشهد (خطاف = انتقال الخطة،
+                // ولب = Dissolve، وخاتمة = Fade) — ق25: نسخة سابقة كانت
+                // تستبدل انتقال كل المشاهد بانتقال الخطة فتمحو التنويع.
                 tempo = tempo,
                 primaryColorHex = primary,
                 backgroundColorHex = bg,

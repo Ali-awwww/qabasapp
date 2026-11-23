@@ -46,12 +46,18 @@ object HadithSearchNormalizer {
     /**
      * البحث: يُطبع النص والاستعلام ثم يقارن contains.
      * يُستخدم للفهرسة فقط؛ النص الأصلي يُعرض كما هو.
+     *
+     * ق82: الاستعلام متعدد الكلمات كان عبارةً واحدة (contains على النص
+     * كاملاً) — «الأعمال هجرته» لا يجد حديث النية رغم وجود الكلمتين
+     * فيه غير متجاورتين. صار الاستعلام AND على الكلمات: كل كلمة يجب
+     * أن تظهر في النص، بأي موضع. كلمة واحدة تعمل كما قبل تماماً.
      */
     fun matches(haystackArabic: String, needle: String): Boolean {
         if (needle.isBlank()) return false
         val normHay = normalize(haystackArabic)
-        val normNeedle = normalize(needle)
-        return normHay.contains(normNeedle)
+        val tokens = normalize(needle).split(" ").filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return false
+        return tokens.all { normHay.contains(it) }
     }
 
     /**
@@ -64,13 +70,14 @@ object HadithSearchNormalizer {
 
     /**
      * البحث عبر فهرس مُطبّع مسبقًا — أسرع بكثير من normalize() لكل حديث كل مرة.
+     * ق82: AND على كلمات الاستعلام (انظر matches) بدل العبارة الواحدة.
      */
     fun searchWithIndex(index: Map<Int, String>, query: String, limit: Int = 50): List<Int> {
         if (query.isBlank()) return emptyList()
-        val normQuery = normalize(query)
-        if (normQuery.isBlank()) return emptyList()
+        val tokens = normalize(query).split(" ").filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return emptyList()
         return index.entries.asSequence()
-            .filter { it.value.contains(normQuery) }
+            .filter { (_, text) -> tokens.all { token -> text.contains(token) } }
             .take(limit)
             .map { it.key }
             .toList()

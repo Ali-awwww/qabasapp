@@ -58,12 +58,19 @@ fun AppDoctorSection(context: Context, onNavigateToKeys: () -> Unit) {
                     onClick = {
                         isDiagnosing = true
                         coroutineScope.launch {
-                            val newReports = AppSelfDoctor.runFullDiagnosis(context)
-                            reports = newReports
-                            currentTab = 0
-                            isDiagnosing = false
+                            try {
+                                val newReports = AppSelfDoctor.runFullDiagnosis(context)
+                                reports = newReports
+                                currentTab = 0
+                            } finally {
+                                // بلا finally كان أي استثناء يترك الزر
+                                // يدور للأبد؛ وبلا تعطيل كان النقر المزدوج
+                                // يطلق تشخيصين متوازيين بسجل مكرر.
+                                isDiagnosing = false
+                            }
                         }
                     },
+                    enabled = !isDiagnosing,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(12.dp)

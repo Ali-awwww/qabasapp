@@ -39,6 +39,14 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
         }
         if (!typeEnabled) return
 
+        // ساعات الهدوء (ق75): يُكتم التذكير الإيماني هذه الليلة ويُعاد
+        // جدولته للغد كالمعتاد — والأذان نفسه لا يمرّ من هنا أصلاً،
+        // والتأجيل اليدوي (snooze) معفى لأنه طلب صريح من المستخدم.
+        if (NotificationPreferencesManager.isQuietNow()) {
+            SpiritualNotificationManager.scheduleNotification(context, type)
+            return
+        }
+
         // منع التكرار: إن كان أذان الصلاة المقابل قد أُطلق قبل قليل، فالآية/الفضل
         // موجودة أصلاً داخل إشعار الأذان — لا نضيف صفّاً مكرّراً في شريط الإشعارات
         val matchingAzanKey = when (type) {
@@ -114,7 +122,8 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
             builder = builder,
             context = context,
             notifId = notifId,
-            confirmationMessage = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد الإيماني بنجاح"
+            confirmationMessage = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد الإيماني بنجاح",
+            countsAsWird = true
         )
 
         // أداة 4: تأجيل التنبيه (يُمرَّر المحتوى ليُعرض كما هو بعد 15 دقيقة — ر22)

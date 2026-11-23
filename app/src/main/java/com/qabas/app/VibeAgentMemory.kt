@@ -71,18 +71,27 @@ object VibeAgentMemoryStore {
             project.memory.takeIf { !it.isEmpty }
         }
 
-    /** كتلة سياق تُلحق بموجه المهمة قبل إرساله للنموذج؛ فارغة إن لا ذاكرة. */
+    /** كتلة سياق تُلحق بموجه المهمة قبل إرساله للنموذج؛ فارغة إن لا ذاكرة.
+     * محدودة الحجم: الملخص حتى 2000 محرف، وأول 20 قراراً و20 ملفاً —
+     * بلا حد كان الملخص (بلا حد أقصى في المحرر) يضخّم الموجه بلا سقف. */
     fun contextBlock(memory: VibeAgentMemory): String {
         if (memory.isEmpty) return ""
         return buildString {
             append("— سياق المشروع المحفوظ (ذاكرة الوكيل) —\n")
-            if (memory.summary.isNotBlank()) append("ملخص الجلسة: ${memory.summary}\n")
+            if (memory.summary.isNotBlank()) {
+                append("ملخص الجلسة: ${memory.summary.take(2000)}")
+                if (memory.summary.length > 2000) append("…")
+                append("\n")
+            }
             if (memory.decisions.isNotEmpty()) {
                 append("قرارات المشروع:\n")
-                memory.decisions.forEach { append("• $it\n") }
+                memory.decisions.take(20).forEach { append("• $it\n") }
+                if (memory.decisions.size > 20) append("… (و${memory.decisions.size - 20} قرارات إضافية)\n")
             }
             if (memory.importantFiles.isNotEmpty()) {
-                append("ملفات مهمة: ${memory.importantFiles.joinToString(", ")}\n")
+                append("ملفات مهمة: ${memory.importantFiles.take(20).joinToString(", ")}")
+                if (memory.importantFiles.size > 20) append(" (و${memory.importantFiles.size - 20} ملفات إضافية)")
+                append("\n")
             }
             append("— نهاية السياق المحفوظ —")
         }

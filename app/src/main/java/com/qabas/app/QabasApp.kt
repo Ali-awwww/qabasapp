@@ -53,9 +53,9 @@ fun QabasApp() {
             modifier = Modifier.testTag("bottom_navigation"),
             currentRoute = state.appState,
             onNavigate = { newState ->
-                if (newState != state.appState) {
-                    AppSoundManager.playTab()
-                }
+                // ق103: صوت النقرة يأتي من playTabRouteSound داخل عنصر
+                // التبويب نفسه؛ كان playTab() هنا يعزف نغمة ثانية فوقها
+                // (cyber_toggle/luxury_click/...) عند كل تبديل تبويب.
                 viewModel.updateState { copy(appState = newState) }
             }
         )
@@ -102,12 +102,6 @@ fun QabasApp() {
     LaunchedEffect(Unit) {
         AppNavigator.pendingInputText.collect { text ->
             viewModel.updateState { copy(inputText = text, appState = AppState.INPUT) }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        AppNavigator.pendingChatInfo.collect { (_, _) ->
-            viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) }
         }
     }
 

@@ -8,20 +8,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.AppleCard
-import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
@@ -37,17 +32,13 @@ import kotlinx.coroutines.launch
 fun AccountSettingsSection(context: Context) {
     val theme = QabasTheme.current
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    var email by remember {
-        mutableStateOf(prefs.getString("user_email", "") ?: "")
-    }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var showNewPassword by remember { mutableStateOf(false) }
-    var showConfirmPassword by remember { mutableStateOf(false) }
     // Batch 6 Priority 3: the "2FA" switch was removed entirely. It was only
     // a local boolean preference that admitted it was just a reminder — a
     // fake security control. No MFA is claimed anywhere now.
     // Real Supabase TOTP enrolment is a separate follow-up, not half-built here.
+    // ق20: وحُذف معها حقل البريد (كان يكتب أي بريد في مفتاح الهوية العام
+    // user_email بلا لمس الجلسة فينشطر الهوية) وحقلا «رمز القفل المحلي»
+    // (كانا يحفظان تجزئة لا يقرؤها شيء في الريبو كله — ضبط أمني بلا أثر).
     var isTransactionNotificationsEnabled by remember {
         mutableStateOf(prefs.getBoolean("dev_transaction_notifications", false))
     }
@@ -56,15 +47,6 @@ fun AccountSettingsSection(context: Context) {
     val isAdmin = cloudUser?.isAdmin == true
     val syncCtx = LocalContext.current
     val syncScope = rememberCoroutineScope()
-
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = theme.primary,
-        unfocusedBorderColor = theme.separator,
-        focusedTextColor = theme.textPrimary,
-        unfocusedTextColor = theme.textPrimary,
-        focusedLabelColor = theme.primary,
-        unfocusedLabelColor = theme.textSecondary
-    )
 
     AppleCard(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -114,78 +96,6 @@ fun AccountSettingsSection(context: Context) {
                     }
                 }
             }
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("البريد الإلكتروني للمطور", fontFamily = CairoFont) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = fieldColors,
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            Text(
-                text = "تغيير رمز القفل المحلي (اختياري)",
-                color = theme.primary,
-                fontFamily = TajawalFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            Text(
-                text = "اترك الحقول فارغة إذا لم ترد تغيير الرمز. الحد الأدنى 8 أحرف.",
-                color = theme.textSecondary,
-                fontFamily = NotoSansFont,
-                fontSize = 12.sp
-            )
-
-            OutlinedTextField(
-                value = newPassword,
-                onValueChange = { newPassword = it },
-                label = { Text("الرمز الجديد", fontFamily = CairoFont) },
-                visualTransformation = if (showNewPassword) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    IconButton(onClick = { showNewPassword = !showNewPassword }) {
-                        Icon(
-                            if (showNewPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "إظهار أو إخفاء الرمز",
-                            tint = theme.textSecondary
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = fieldColors,
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = { confirmPassword = it },
-                label = { Text("تأكيد الرمز الجديد", fontFamily = CairoFont) },
-                visualTransformation = if (showConfirmPassword) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
-                        Icon(
-                            if (showConfirmPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "إظهار أو إخفاء التأكيد",
-                            tint = theme.textSecondary
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = fieldColors,
-                shape = RoundedCornerShape(12.dp)
-            )
 
             HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.5f))
 
@@ -281,54 +191,17 @@ fun AccountSettingsSection(context: Context) {
                 }
             )
 
-            ApplePrimaryButton(
-                text = "حفظ التغييرات",
-                onClick = {
-                    val emailTrim = email.trim()
-                    if (emailTrim.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(emailTrim).matches()) {
-                        Toast.makeText(context, "صيغة البريد الإلكتروني غير صحيحة", Toast.LENGTH_SHORT).show()
-                        return@ApplePrimaryButton
-                    }
-
-                    val wantsPasswordChange = newPassword.isNotEmpty() || confirmPassword.isNotEmpty()
-                    if (wantsPasswordChange) {
-                        when {
-                            newPassword.length < 8 -> {
-                                Toast.makeText(context, "الرمز يجب أن يكون 8 أحرف على الأقل", Toast.LENGTH_SHORT).show()
-                                return@ApplePrimaryButton
-                            }
-                            newPassword != confirmPassword -> {
-                                Toast.makeText(context, "الرمزان غير متطابقين", Toast.LENGTH_SHORT).show()
-                                return@ApplePrimaryButton
-                            }
-                        }
-                        val salt = java.util.UUID.randomUUID().toString().take(16)
-                        val digest = java.security.MessageDigest.getInstance("SHA-256")
-                        val hashBytes = digest.digest((salt + newPassword).toByteArray(Charsets.UTF_8))
-                        val hashHex = hashBytes.joinToString("") { "%02x".format(it) }
-                        prefs.edit()
-                            .putString("dev_password_salt", salt)
-                            .putString("dev_password_hash", hashHex)
-                            .apply()
-                        newPassword = ""
-                        confirmPassword = ""
-                    }
-
-                    prefs.edit().putString("user_email", emailTrim).apply()
-                    Toast.makeText(
-                        context,
-                        if (wantsPasswordChange) "تم حفظ البريد وتحديث الرمز محلياً" else "تم حفظ بيانات الحساب",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            )
 
             HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.5f))
 
             // Batch 6 Priority 3 — real account deletion (export-first,
             // confirmation, server-side Auth-user deletion). The About screen
             // claim now matches this: deletion is implemented, not asserted.
-            AccountDeletionCard()
+            // ق20: تُعرض للمسجَّلين فقط (عقد البطاقة نفسها) — كما في
+            // SettingsScreen؛ ولوحة المطور إدارية أصلاً لكن البوابة هنا صريحة.
+            if (SupabaseServices.Auth.getCurrentUserId() != null) {
+                AccountDeletionCard()
+            }
         }
     }
 }

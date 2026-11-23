@@ -14,6 +14,7 @@ import kotlin.math.floor
  * Handles computational logic and local persistence for 15+ Islamic tools.
  */
 class MuslimToolsEngine(context: Context) {
+    private val appContext: Context = context.applicationContext
     private val prefs: SharedPreferences = context.getSharedPreferences("muslim_tools_prefs", Context.MODE_PRIVATE)
 
     // --- Zakat Calculator Logic ---
@@ -90,47 +91,34 @@ class MuslimToolsEngine(context: Context) {
         return false
     }
 
-    // --- Quran Khatma Planner Logic ---
-    @Serializable
-    data class KhatmaPlan(val days: Int, val pagesPerDay: Double, val portionsPerDay: String)
-
-    private companion object {
-        const val KEY_SAVED_KHATMA_PLAN = "saved_khatma_plan"
-    }
-
-    fun generateKhatmaPlan(days: Int): KhatmaPlan {
-        val safeDays = days.coerceAtLeast(1)
-        val totalPages = 604.0
-        val pagesPerDay = totalPages / safeDays
-        val completeJuz = (pagesPerDay / 20.0).toInt()
-        val remainingPages = pagesPerDay - (completeJuz * 20.0)
-        val portions = when {
-            completeJuz > 0 && remainingPages >= 0.05 ->
-                "$completeJuz جزء و ${String.format(Locale.US, "%.1f", remainingPages)} صفحة"
-            completeJuz > 0 -> "$completeJuz جزء"
-            else -> "${String.format(Locale.US, "%.1f", pagesPerDay)} صفحة"
-        }
-        return KhatmaPlan(safeDays, pagesPerDay, portions)
-    }
-
-    /** Persist the user's chosen plan locally; no reading progress is implied by saving it. */
-    fun saveKhatmaPlan(days: Int): Boolean {
-        val plan = generateKhatmaPlan(days)
-        val encoded = Json.encodeToString(plan)
-        return prefs.edit().putString(KEY_SAVED_KHATMA_PLAN, encoded).commit()
-    }
-
-    fun getSavedKhatmaPlan(): KhatmaPlan? {
-        val raw = prefs.getString(KEY_SAVED_KHATMA_PLAN, null) ?: return null
-        return runCatching { Json.decodeFromString<KhatmaPlan>(raw) }
-            .getOrNull()
-            ?.takeIf { it.days > 0 && it.pagesPerDay.isFinite() && it.pagesPerDay > 0.0 && it.portionsPerDay.isNotBlank() }
+    // --- Worship Stats ---
+    data class WorshipStats(val totalTasbeeh: Int, val fastingProgress: Float, val khatmaProgress: Float, val totalHasanat: Long)
+    fun getWorshipStats(): WorshipStats {
+        val totalTasbeeh = prefs.getInt("total_tasbeeh", 0)
+        val fTotal = getMissedFastingDays()
+        val fDone = getCompletedFastingDays()
+        val fProgress = if (fTotal > 0) (fDone.toFloat() / fTotal).coerceIn(0f, 1f) else 0f
+        // تقدّم الختمة من الخطة الموحّدة في المصحف وآخر قراءة فعلية —
+        // لا رقم مختلق: 0 عند غياب الخطة.
+        val khatmaProgress = UserPreferencesManager.getKhatmahProgress(appContext)?.fraction ?: 0f
+        return WorshipStats(totalTasbeeh, fProgress, khatmaProgress, prefs.getLong("total_hasanat_earned", 0))
     }
 
     // --- Smart Tasbeeh Logic ---
-    fun getTasbeehCount(type: String): Int = prefs.getInt("tasbeeh_$type", 0)
+    // ق144: حارس سالب — قيمة تالفة في التفضيلات كانت تُعرض عدّاداً سالباً.
+    fun getTasbeehCount(type: String): Int = prefs.getInt("tasbeeh_$type", 0).coerceAtLeast(0)
     fun incrementTasbeeh(type: String) {
         prefs.edit().putInt("tasbeeh_$type", getTasbeehCount(type) + 1).apply()
+        prefs.edit().putInt("total_tasbeeh", prefs.getInt("total_tasbeeh", 0) + 1).apply()
+    }
+
+    /**
+     * تسجيل نقرة تسبيح واحدة من عدّاد خارجي (مشكاة/بطاقة اليوم) في الإجمالي
+     * التراكمي الذي تعرضه إحصائيات العبادة. قبل هذا كانت «إجمالي التسبيح»
+     * تعدّ نقرات المسبحة الذكية وحدها، فتتجاهل العدّاد الذي يستعمله الناس
+     * فعلاً. تُستدعى للنقرات الحقيقية فقط، لا لقفزة «إكمال الهدف» إلى 33.
+     */
+    fun recordExternalTasbeehTap() {
         prefs.edit().putInt("total_tasbeeh", prefs.getInt("total_tasbeeh", 0) + 1).apply()
     }
     fun resetTasbeeh(type: String) { prefs.edit().putInt("tasbeeh_$type", 0).apply() }
@@ -267,16 +255,5 @@ class MuslimToolsEngine(context: Context) {
 
             IslamicEvent(name, offset, "$targetDay $targetMonth")
         }.sortedBy { it.daysRemaining }
-    }
-
-    // --- Worship Stats ---
-    data class WorshipStats(val totalTasbeeh: Int, val fastingProgress: Float, val khatmaProgress: Float, val totalHasanat: Long)
-    fun getWorshipStats(): WorshipStats {
-        val totalTasbeeh = prefs.getInt("total_tasbeeh", 0)
-        val fTotal = getMissedFastingDays()
-        val fDone = getCompletedFastingDays()
-        val fProgress = if (fTotal > 0) (fDone.toFloat() / fTotal).coerceIn(0f, 1f) else 0f
-        // No khatma reading-progress source is connected yet; report neutral progress, not a fabricated 45%.
-        return WorshipStats(totalTasbeeh, fProgress, 0f, prefs.getLong("total_hasanat_earned", 0))
     }
 }

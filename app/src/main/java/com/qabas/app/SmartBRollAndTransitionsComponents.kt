@@ -225,7 +225,7 @@ fun LiveTemplateCustomizerDialog(
     var selectedTemplate by remember { 
         mutableStateOf(AppServices.templates.find { it.name == currentTemplateName } ?: AppServices.templates.first()) 
     }
-    var selectedTransition by remember { mutableStateOf("Dissolve") }
+    var selectedTransition by remember { mutableStateOf("dissolve") }
     var transitionSpeed by remember { mutableFloatStateOf(0.8f) }
     var brollDensity by remember { mutableFloatStateOf(0.75f) }
 

@@ -16,6 +16,20 @@ import org.json.JSONObject
  */
 object AgentStreaming {
 
+    // ق161: سياق تتبع الاستخدام — البثّ بلا سياق ممرَّر، فيُقرأ سياق
+    // التطبيق كمسار Groq؛ وبلاه يبقى السلوك القديم بلا تتبع.
+    private fun appCtx(): android.content.Context? =
+        runCatching { AppServices.appContext }.getOrNull()
+
+    private suspend fun trackedCall(
+        apiName: String,
+        request: Request
+    ): okhttp3.Response {
+        val ctx = appCtx()
+        return if (ctx != null) ApiUsageTracker.track(ctx, apiName) { SharedHttpClient.instance.newCall(request).execute() }
+        else SharedHttpClient.instance.newCall(request).execute()
+    }
+
     suspend fun stream(
         provider: DetectedProvider,
         apiKey: String,
@@ -65,13 +79,20 @@ object AgentStreaming {
         val req = Request.Builder().url(url)
             .header("x-goog-api-key", apiKey)
             .post(body.toString().toRequestBody("application/json".toMediaType())).build()
-        val resp = SharedHttpClient.instance.newCall(req).execute()
+        // ق161: بثّ Gemini كان يمر بلا ApiUsageTracker.track فيغيب عن لوحة المطور.
+        val resp = trackedCall("Gemini", req)
         try {
             if (!resp.isSuccessful) {
                 val err = resp.body?.string().orEmpty()
                 return@withContext Result.failure(Exception("خطأ Gemini (HTTP ${resp.code}): ${err.take(200)}"))
             }
             val acc = StringBuilder()
+            // ق44: تفصيل الرموز الحقيقي من usageMetadata في مقاطع SSE
+            // (المقطع الأخير يحمله عادةً) — بلا ذلك يبقى كل بث Gemini
+            // «غير مقاس» رغم أن الخادم يرسل الأعداد.
+            var promptTokens = 0
+            var completionTokens = 0
+            var totalTokens = 0
             resp.body?.byteStream()?.bufferedReader()?.useLines { lines ->
                 lines.forEach { line ->
                     ensureActive()
@@ -81,6 +102,11 @@ object AgentStreaming {
                     if (payload.isBlank() || payload == "[DONE]") return@forEach
                     val chunk = runCatching {
                         val j = JSONObject(payload)
+                        j.optJSONObject("usageMetadata")?.let { usage ->
+                            usage.optInt("totalTokenCount", 0).takeIf { it > 0 }?.let { totalTokens = it }
+                            promptTokens = usage.optInt("promptTokenCount", promptTokens)
+                            completionTokens = usage.optInt("candidatesTokenCount", completionTokens)
+                        }
                         val cands = j.optJSONArray("candidates") ?: return@runCatching null
                         if (cands.length() == 0) return@runCatching null
                         val parts = cands.getJSONObject(0).optJSONObject("content")?.optJSONArray("parts")
@@ -100,8 +126,18 @@ object AgentStreaming {
             }
             val full = acc.toString()
             if (full.isBlank()) return@withContext Result.failure(Exception("استجابة بثّ فارغة من Gemini"))
-            // (12.14) البثّ هنا بلا usageMetadata — الرموز تقدير طول/4 دائماً.
-            Result.success(RealAgentResponse(full, (full.length / 4).coerceAtLeast(150), tokensEstimated = true))
+            // ق44: صار usageMetadata يُقرأ من المقاطع عند إرساله، فالبثّ
+            // المقاس يُحسب بتكلفته الحقيقية؛ وبلاه يبقى تقديرياً (طول/4).
+            val estimated = totalTokens <= 0
+            Result.success(
+                RealAgentResponse(
+                    full,
+                    totalTokens.takeIf { it > 0 } ?: (full.length / 4).coerceAtLeast(150),
+                    promptTokens = promptTokens,
+                    completionTokens = completionTokens,
+                    tokensEstimated = estimated
+                )
+            )
         } finally {
             resp.close()
         }
@@ -122,6 +158,9 @@ object AgentStreaming {
         val body = JSONObject().apply {
             put("model", model?.takeIf { it.isNotBlank() } ?: defaultModel)
             put("stream", true)
+            // ق44: طلب usage في المقطع الأخير — بلا هذا الخيار لا يرسل
+            // المزود تفصيل الرموز في البثّ فيبقى كل بثّ «غير مقاس».
+            put("stream_options", JSONObject().apply { put("include_usage", true) })
             put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
                 put(JSONObject().apply { put("role", "user"); put("content", prompt) })
@@ -131,7 +170,8 @@ object AgentStreaming {
             .header("Authorization", "Bearer $apiKey")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
         if (provider == DetectedProvider.OPENROUTER) builder.header("HTTP-Referer", "https://qabas.app")
-        val resp = SharedHttpClient.instance.newCall(builder.build()).execute()
+        // ق161: بثّ Groq/OpenRouter كان يمر بلا ApiUsageTracker.track فيغيب عن لوحة المطور.
+        val resp = trackedCall(if (provider == DetectedProvider.OPENROUTER) "OpenRouter" else "Groq", builder.build())
         try {
             if (!resp.isSuccessful) {
                 val err = resp.body?.string().orEmpty()

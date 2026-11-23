@@ -24,6 +24,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val EXTRA_AUDIO_TITLE = "extra_audio_title"
         const val EXTRA_SNOOZE_TITLE = "extra_snooze_title"
         const val EXTRA_SNOOZE_MESSAGE = "extra_snooze_message"
+        const val EXTRA_COUNTS_AS_WIRD = "extra_counts_as_wird"
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -39,20 +40,29 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 val msg = intent.getStringExtra(EXTRA_MESSAGE)
                     ?: "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد اليومي بنجاح"
                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                NotificationPreferencesManager.recordWirdCompleted(context)
+                // سلسلة الورد تُسجَّل من تذكيرات الورد الإيمانية وحدها:
+                // بلا هذا كانت «تمت القراءة» على أي إشعار (حديث/تنبيه
+                // نظام/أذان) تسجّل ورداً قرآنياً لم يُقرأ.
+                if (intent.getBooleanExtra(EXTRA_COUNTS_AS_WIRD, false)) {
+                    NotificationPreferencesManager.recordWirdCompleted(context)
+                }
                 if (notifId != -1) notifManager?.cancel(notifId)
             }
 
             ACTION_LISTEN -> {
-                val title = intent.getStringExtra(EXTRA_AUDIO_TITLE) ?: "تلاوة خاشعة مباركة"
                 val url = intent.getStringExtra(EXTRA_AUDIO_URL)
-                    ?: "https://server8.mp3quran.net/afs/001.mp3"
+                // بلا رابط يُشغَّل احتياطياً صوت الفاتحة: عنوان المسار
+                // حينها «سورة الفاتحة» لا عنوان الإشعار (ورد/حديث)،
+                // حتى لا يعرض المشغّل اسماً غير ما يُسمَع فعلاً.
+                val title = if (url == null) "سورة الفاتحة"
+                    else intent.getStringExtra(EXTRA_AUDIO_TITLE) ?: "تلاوة خاشعة مباركة"
+                val audioUrl = url ?: "https://server8.mp3quran.net/afs/001.mp3"
                 Toast.makeText(context, "جاري تشغيل الاستماع في الخلفية 🎧...", Toast.LENGTH_SHORT).show()
                 val track = PlayableAudioTrack(
                     id = "notif_track_${System.currentTimeMillis()}",
                     title = title,
                     artist = "استوديو خادم المسلم",
-                    audioUrl = url,
+                    audioUrl = audioUrl,
                     category = "تلاوة تفاعلية"
                 )
                 AudioPlaybackManager.playTrack(context, track)

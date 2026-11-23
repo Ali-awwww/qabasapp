@@ -21,6 +21,13 @@ object HiggsfieldVideoService {
     private const val MAX_POLL_ATTEMPTS = 120
     private const val POLL_INTERVAL_MS = 3_000L
 
+    /**
+     * (ق41) سبب آخر فشل لتوليد الفيديو — كان التوليد يرجع null بلا سبب
+     * فيُسجَّل في طابور الاستوديو رسالة عامة. يُصفَّر مع كل بداية توليد.
+     */
+    var lastError: String? = null
+        private set
+
     suspend fun isConfigured(context: Context): Boolean =
         PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
 
@@ -30,7 +37,10 @@ object HiggsfieldVideoService {
         return if (configured) {
             true to "مفتاح Higgsfield محفوظ في الخادم. صلاحية المفتاح الفعلية تُثبت عند أول طلب توليد."
         } else {
-            false to "لا يوجد مفتاح Higgsfield محفوظ في بوابة الخادم، أو تعذر الوصول إليها."
+            // ق71: سبب الفشل الحقيقي (شبكة/جلسة/خادم) بدل التخمين
+            // «لا يوجد مفتاح أو تعذر الوصول» في كل الحالات.
+            false to (PlatformGatewayClient.lastError
+                ?: "لا يوجد مفتاح Higgsfield محفوظ في بوابة الخادم، أو تعذر الوصول إليها.")
         }
     }
 
@@ -42,6 +52,7 @@ object HiggsfieldVideoService {
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): File? = withContext(Dispatchers.IO) {
         if (prompt.isBlank()) return@withContext null
+        lastError = null
 
         val enrichedPrompt = buildString {
             append(prompt.trim())
@@ -60,6 +71,7 @@ object HiggsfieldVideoService {
                 ?: return@withContext gatewayUnavailable()
             if (!response.isSuccessful) {
                 Log.w(TAG, "Kling 4.0 submission rejected with HTTP ${response.statusCode}")
+                lastError = "رفضت بوابة Higgsfield طلب التوليد (HTTP ${response.statusCode})"
                 SystemLogsManager.addLog("WARN", "رفضت بوابة Higgsfield طلب التوليد (HTTP ${response.statusCode}).", Color(0xFFEF4444))
                 return@withContext null
             }
@@ -67,6 +79,7 @@ object HiggsfieldVideoService {
             val requestId = response.body?.let(::extractRequestId).orEmpty()
             if (requestId.isBlank()) {
                 Log.w(TAG, "Kling 4.0 response did not include request_id")
+                lastError = "لم يُرجع Kling 4.0 معرّف الطلب المتوقع"
                 SystemLogsManager.addLog("WARN", "لم يُرجع Kling 4.0 معرّف الطلب المتوقع.", Color(0xFFEF4444))
                 return@withContext null
             }
@@ -74,6 +87,8 @@ object HiggsfieldVideoService {
             pollRequestUntilFinished(context, requestId, onProgress)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Kling 4.0 text-to-video failed", e)
+            lastError = "تعذّر إكمال توليد الفيديو عبر Kling 4.0" +
+                (e.message?.take(120)?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")
             SystemLogsManager.addLog("WARN", "تعذر إكمال توليد الفيديو عبر Kling 4.0.", Color(0xFFEF4444))
             null
         }
@@ -148,6 +163,11 @@ object HiggsfieldVideoService {
         requestId: String,
         onProgress: (Float, String) -> Unit
     ): File? {
+        // ق71: فشل استطلاع عابر واحد كان يُجهض توليداً استغرق دقائق
+        // (طلب قائم على الخادم أصلاً) — يُحتمل حتى 3 إخفاقات عابرة
+        // متتالية (بلا رد/5xx/429) قبل الاستسلام، و4xx تفشل فوراً
+        // لأن إعادة المحاولة لن تصلحها.
+        var consecutiveFailures = 0
         repeat(MAX_POLL_ATTEMPTS) { attempt ->
             delay(POLL_INTERVAL_MS)
             onProgress(
@@ -157,12 +177,23 @@ object HiggsfieldVideoService {
 
             val response = PlatformGatewayClient.proxyHiggsfieldSuspend(
                 JSONObject().put("operation", "status").put("request_id", requestId)
-            ) ?: return null
-
-            if (!response.isSuccessful || response.body == null) {
-                Log.w(TAG, "Kling 4.0 status request returned HTTP ${response.statusCode}")
+            )
+            if (response == null || !response.isSuccessful || response.body == null) {
+                val transient = response == null ||
+                    response.statusCode >= 500 || response.statusCode == 429
+                if (transient && ++consecutiveFailures < 3) {
+                    Log.w(TAG, "Kling 4.0 status poll failed transiently ($consecutiveFailures/3); retrying")
+                    return@repeat
+                }
+                Log.w(TAG, "Kling 4.0 status request failed (HTTP ${response?.statusCode})")
+                lastError = if (response == null) {
+                    "تعذّر الاستعلام عن حالة طلب Kling 4.0 بعد محاولات متكررة"
+                } else {
+                    "فشل الاستعلام عن حالة الطلب (HTTP ${response.statusCode})"
+                }
                 return null
             }
+            consecutiveFailures = 0
 
             val statusJson = response.body
             val status = statusJson.optString("status").lowercase()
@@ -171,27 +202,35 @@ object HiggsfieldVideoService {
                     val videoUrl = extractVideoUrl(statusJson)
                     if (!videoUrl.startsWith("https://")) {
                         Log.w(TAG, "Completed Kling 4.0 request did not include video.url")
+                        lastError = "اكتمل طلب Kling 4.0 لكن بلا رابط فيديو"
                         return null
                     }
                     onProgress(0.93f, "اكتمل التوليد. جارٍ تنزيل ملف الفيديو...")
-                    val file = downloadVideoToCache(context, videoUrl) ?: return null
+                    val file = downloadVideoToCache(context, videoUrl)
+                    if (file == null) {
+                        lastError = "تعذّر تنزيل ملف الفيديو المكتمل"
+                        return null
+                    }
                     onProgress(1f, "اكتمل تنزيل فيديو Kling 4.0.")
                     SystemLogsManager.addLog("SUCCESS", "اكتمل توليد وتنزيل الفيديو عبر Kling 4.0.", Color(0xFF10B981))
                     return file
                 }
                 isTerminalStatus(status) -> {
                     Log.w(TAG, "Kling 4.0 request ended with status: $status")
+                    lastError = "انتهى طلب Kling 4.0 بالحالة: $status"
                     SystemLogsManager.addLog("WARN", "انتهى طلب Kling 4.0 بالحالة: $status.", Color(0xFFEF4444))
                     return null
                 }
                 status !in setOf("queued", "in_progress") -> {
                     Log.w(TAG, "Kling 4.0 returned an unknown request status")
+                    lastError = "حالة غير معروفة من Kling 4.0: $status"
                     return null
                 }
             }
         }
 
         SystemLogsManager.addLog("WARN", "انتهت مهلة انتظار Kling 4.0 قبل اكتمال الطلب.", Color(0xFFF59E0B))
+        lastError = "انتهت مهلة انتظار Kling 4.0 قبل اكتمال الطلب"
         return null
     }
 
@@ -217,7 +256,11 @@ object HiggsfieldVideoService {
     }
 
     private fun gatewayUnavailable(): File? {
-        SystemLogsManager.addLog("WARN", "بوابة Higgsfield غير متاحة أو لم يُضبط مفتاح المزود على الخادم.", Color(0xFFF59E0B))
+        // ق71: السبب الحقيقي من العميل (شبكة/جلسة/إعداد) بدل التخمين
+        // «غير متاحة أو لم يُضبط مفتاح» في كل الحالات.
+        lastError = PlatformGatewayClient.lastError
+            ?: "بوابة Higgsfield غير متاحة أو لم يُضبط مفتاح المزود على الخادم"
+        SystemLogsManager.addLog("WARN", "بوابة Higgsfield غير متاحة: $lastError.", Color(0xFFF59E0B))
         return null
     }
 

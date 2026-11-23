@@ -30,7 +30,7 @@ enum class CentralMediaType(val label: String, val icon: String) {
  */
 enum class CentralMediaSource(val label: String, val badgeColorHex: String) {
     SUPABASE_CLOUD("Supabase Cloud", "#10B981"),
-    AI_FLUX("FLUX 8K AI", "#F59E0B"),
+    AI_FLUX("FLUX AI", "#F59E0B"),
     AI_VOICE("Edge-TTS Voice", "#EC4899"),
     LOCAL_RENDER("رندرة محلية", "#38BDF8"),
     USER_UPLOAD("مرفوع من جهازي", "#8B5CF6")
@@ -104,6 +104,12 @@ object CentralMediaManager {
                     val remoteFiles = SupabaseServices.Storage.listFiles(bucket)
                     for (file in remoteFiles) {
                         val mType = deduceTypeFromFileName(file.name)
+                        // الحجم غير معروف من listFiles (يعيد 0 دائماً) فلا
+                        // يُدَّعى «0 KB»؛ والتاريخ الحقيقي من createdAt لا «الآن»
+                        // (كان كل سحابي يُختم بالآن فيتصدّر الترتيب دائماً).
+                        val createdMillis = file.createdAt?.let {
+                            runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
+                        } ?: System.currentTimeMillis()
                         val asset = CentralMediaAsset(
                             id = "supabase_${bucket}_${file.name}",
                             title = file.name,
@@ -112,9 +118,9 @@ object CentralMediaManager {
                             type = mType,
                             source = CentralMediaSource.SUPABASE_CLOUD,
                             sizeBytes = file.sizeBytes,
-                            formattedSize = formatFileSize(file.sizeBytes),
-                            dateAdded = System.currentTimeMillis(),
-                            formattedDate = file.createdAt ?: dateFormat.format(Date()),
+                            formattedSize = if (file.sizeBytes > 0) formatFileSize(file.sizeBytes) else "—",
+                            dateAdded = createdMillis,
+                            formattedDate = dateFormat.format(Date(createdMillis)),
                             bucketName = bucket,
                             isUploadedToCloud = true,
                             mimeType = deduceMimeType(file.name),
@@ -166,21 +172,24 @@ object CentralMediaManager {
                             formattedDate = dateFormat.format(Date(file.lastModified())),
                             bucketName = "ai-generated",
                             isUploadedToCloud = false,
-                            mimeType = "image/jpeg",
-                            promptOrNote = "صورة 8K مولدة بالذكاء الاصطناعي"
+                            mimeType = deduceMimeType(file.name),
+                            promptOrNote = "صورة مولدة بالذكاء الاصطناعي"
                         )
                     )
                 }
             }
         }
 
-        // 2. ملفات الصوت والتسجيلات
+        // 2. ملفات الصوت والتسجيلات — لكل مجلد مصدره ووصفه الحقيقيان:
+        // edge_tts تعليق Edge-TTS، أما تسجيلات الجهاز فليست «تعليقاً عصبياً».
+        // مجلد audio_clones حُذف من المسح: بقايا ميزة الاستنساخ المقتولة (ق19).
         val audioDirs = listOf(
-            File(context.cacheDir, "edge_tts"),
-            File(context.cacheDir, "audio_clones"),
-            File(context.filesDir, "recordings")
+            File(context.cacheDir, "edge_tts") to
+                (CentralMediaSource.AI_VOICE to "تعليق صوتي Edge-TTS"),
+            File(context.filesDir, "recordings") to
+                (CentralMediaSource.USER_UPLOAD to "تسجيل صوتي من الجهاز")
         )
-        for (dir in audioDirs) {
+        for ((dir, audioLabel) in audioDirs) {
             if (dir.exists()) {
                 dir.listFiles()?.forEach { file ->
                     if (file.isFile && file.length() > 500) {
@@ -191,15 +200,15 @@ object CentralMediaManager {
                                 localPath = file.absolutePath,
                                 remoteUrl = null,
                                 type = CentralMediaType.AUDIO,
-                                source = CentralMediaSource.AI_VOICE,
+                                source = audioLabel.first,
                                 sizeBytes = file.length(),
                                 formattedSize = formatFileSize(file.length()),
                                 dateAdded = file.lastModified(),
                                 formattedDate = dateFormat.format(Date(file.lastModified())),
                                 bucketName = "audio-tracks",
                                 isUploadedToCloud = false,
-                                mimeType = "audio/mpeg",
-                                promptOrNote = "تعليق صوتي عصبي"
+                                mimeType = deduceMimeType(file.name),
+                                promptOrNote = audioLabel.second
                             )
                         )
                     }
@@ -262,12 +271,14 @@ object CentralMediaManager {
         val bucket = targetBucket ?: asset.bucketName ?: "media-assets"
         val cloudPath = "$userId/${UUID.randomUUID().toString().take(8)}_${file.name}"
 
-        try {
-            val bytes = file.readBytes()
-            val publicUrl = SupabaseServices.Storage.uploadFile(
+        // رفع متدفق من الملف نفسه بنوعه الحقيقي: كان readBytes() يحمل
+        // الفيديو كاملاً في الذاكرة (خطر OOM) وبلا content-type.
+        return@withContext try {
+            val publicUrl = SupabaseServices.Storage.uploadFileWithProgress(
                 bucketName = bucket,
                 path = cloudPath,
-                data = bytes
+                file = file,
+                contentType = asset.mimeType.ifBlank { "application/octet-stream" }
             )
 
             if (publicUrl != null) {
@@ -301,7 +312,27 @@ object CentralMediaManager {
         type: CentralMediaType
     ): CentralMediaAsset? = withContext(Dispatchers.IO) {
         try {
-            val ext = when (type) {
+            // الامتداد الحقيقي من اسم المصدر أو نوعه — لا فرض «mp3» على كل
+            // صوت (كان ملف wav يُحفظ بامتداد mp3 فيتعذّر تشغيله لاحقاً).
+            val sourceName = uri.lastPathSegment?.substringAfterLast('/', "")
+            val extFromName = sourceName?.substringAfterLast('.', "")
+                ?.takeIf { it.isNotBlank() && it.length <= 5 && it.all { c -> c.isLetterOrDigit() } }
+                ?.lowercase()
+            val mime = context.contentResolver.getType(uri).orEmpty()
+            val extFromMime = when {
+                mime.contains("png") -> "png"
+                mime.contains("webp") -> "webp"
+                mime.contains("quicktime") -> "mov"
+                mime.contains("webm") -> "webm"
+                mime.contains("wav") || mime.contains("x-wav") -> "wav"
+                mime.contains("aac") -> "aac"
+                mime.contains("ogg") -> "ogg"
+                mime.startsWith("audio/") -> "mp3"
+                mime.startsWith("video/") -> "mp4"
+                mime.startsWith("image/") -> "jpg"
+                else -> null
+            }
+            val ext = extFromName ?: extFromMime ?: when (type) {
                 CentralMediaType.IMAGE -> "jpg"
                 CentralMediaType.VIDEO -> "mp4"
                 CentralMediaType.AUDIO -> "mp3"
@@ -311,10 +342,18 @@ object CentralMediaManager {
             val fileName = "upload_${System.currentTimeMillis()}.$ext"
             val targetFile = File(targetDir, fileName)
 
-            context.contentResolver.openInputStream(uri)?.use { input ->
+            // دفق null أو نسخ 0 بايت كان يمرّ صامتاً فيُضاف أصل وهمي فارغ.
+            val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
+            var copied = 0L
+            input.use { inputStream ->
                 FileOutputStream(targetFile).use { output ->
-                    input.copyTo(output)
+                    copied = inputStream.copyTo(output)
                 }
+            }
+            if (copied <= 0L || !targetFile.exists() || targetFile.length() <= 0L) {
+                runCatching { targetFile.delete() }
+                Log.w(TAG, "Import from $uri copied $copied bytes; discarding empty file")
+                return@withContext null
             }
 
             val newAsset = CentralMediaAsset(
@@ -343,45 +382,55 @@ object CentralMediaManager {
     }
 
     /**
-     * حذف ملف من الذاكرة المحلية أو من سحابة Supabase
+     * حذف ملف من الذاكرة المحلية أو من سحابة Supabase.
+     * يُرجع نجاحاً حقيقياً فقط: كان يُرجع true دائماً (حتى عند فشل الحذف)
+     * فتُحذف البطاقة من القائمة ويبقى الملف — والواجهة تشهد «نجاحاً».
+     * عند الفشل يبقى العنصر في القائمة لإعادة المحاولة.
      */
     suspend fun deleteAsset(
         context: Context,
         asset: CentralMediaAsset
     ): Boolean = withContext(Dispatchers.IO) {
-        var localDeleted = false
-        var remoteDeleted = false
+        var ok = true
 
         // 1. حذف محلي
         if (asset.localPath != null) {
             try {
                 val f = File(asset.localPath)
-                if (f.exists()) {
-                    localDeleted = f.delete()
-                }
-            } catch (_: Exception) {}
+                if (f.exists() && !f.delete()) ok = false
+            } catch (_: Exception) {
+                ok = false
+            }
         }
 
         // 2. حذف سحابي إن كان مخزناً في Supabase
         if (asset.bucketName != null && asset.remoteUrl != null && SupabaseServices.isSupabaseAvailable) {
             try {
                 // استخراج المسار الحقيقي للملف السحابي من الرابط
+                // (ق171: الرابط العام مرمّز — حذف بمسار مرمّز يفشل على
+                // أسماء فيها مسافات أو عربية؛ ويُقطع الاستعلام `?token=`
+                // إن كان الرابط موقّعاً). معرّف الاحتياط ليس رابطاً
+                // فلا يُفك ترميزه.
                 val rawUrl = asset.remoteUrl
                 val bucketPrefix = "/storage/v1/object/public/${asset.bucketName}/"
                 val cloudPath = if (rawUrl.contains(bucketPrefix)) {
-                    rawUrl.substringAfter(bucketPrefix)
+                    SupabaseServices.Storage.decodeObjectPath(rawUrl.substringAfter(bucketPrefix).substringBefore("?"))
                 } else if (rawUrl.contains("/${asset.bucketName}/")) {
-                    rawUrl.substringAfter("/${asset.bucketName}/")
+                    SupabaseServices.Storage.decodeObjectPath(rawUrl.substringAfter("/${asset.bucketName}/").substringBefore("?"))
                 } else {
                     asset.id.removePrefix("supabase_${asset.bucketName}_")
                 }
-                remoteDeleted = SupabaseServices.Storage.deleteFiles(asset.bucketName, listOf(cloudPath))
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
+                if (!SupabaseServices.Storage.deleteFiles(asset.bucketName, listOf(cloudPath))) ok = false
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
+                ok = false
+            }
         }
 
-        // إزالة العنصر من القائمة النشطة
-        _assets.value = _assets.value.filterNot { it.id == asset.id }
-        true
+        // إزالة العنصر من القائمة النشطة عند النجاح فقط
+        if (ok) {
+            _assets.value = _assets.value.filterNot { it.id == asset.id }
+        }
+        ok
     }
 
     // --- توابع مساعدة ---
@@ -401,8 +450,15 @@ object CentralMediaManager {
         return when {
             lower.endsWith(".jpg") || lower.endsWith(".jpeg") -> "image/jpeg"
             lower.endsWith(".png") -> "image/png"
+            lower.endsWith(".webp") -> "image/webp"
             lower.endsWith(".mp4") -> "video/mp4"
+            lower.endsWith(".mov") -> "video/quicktime"
+            lower.endsWith(".webm") -> "video/webm"
             lower.endsWith(".mp3") -> "audio/mpeg"
+            lower.endsWith(".wav") -> "audio/wav"
+            lower.endsWith(".aac") -> "audio/aac"
+            lower.endsWith(".m4a") -> "audio/mp4"
+            lower.endsWith(".ogg") -> "audio/ogg"
             else -> "application/octet-stream"
         }
     }

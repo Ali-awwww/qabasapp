@@ -50,7 +50,4 @@ object AppNavigator {
         _notificationDestination.value = null
     }
 
-    private val _pendingChatInfo = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 4)
-    val pendingChatInfo: SharedFlow<Pair<String, String>> = _pendingChatInfo.asSharedFlow()
-
 }

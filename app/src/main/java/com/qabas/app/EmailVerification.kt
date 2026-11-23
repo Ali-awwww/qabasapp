@@ -42,10 +42,6 @@ import kotlinx.coroutines.launch
  * the gate in `UserPreferencesManager.isCloudSyncBlockedByUnconfirmedEmail`,
  * and this banner/dialog is the only place that talks about verification.
  */
-sealed interface EmailVerificationState {
-    data object Unknown : EmailVerificationState
-}
-
 /**
  * Honest "your email is not confirmed yet" banner. Shown to signed-in users
  * with an unconfirmed address (e.g. in Settings). Local use continues;
@@ -218,7 +214,14 @@ fun EmailVerificationPromptDialog(
         },
         confirmButton = {
             ApplePrimaryButton(
-                text = if (isResending) "جاري الإرسال..." else "إعادة إرسال رسالة التحقق",
+                // ق85: أثناء مهلة الـ 60 ثانية كان الزر معطلاً بلافتة
+                // «إعادة إرسال» نفسها — بلا أي تفسير للتعطيل؛ اللافتة
+                // الآن كالبانر («أُرسلت — أعد المحاولة بعد دقيقة»).
+                text = when {
+                    isResending -> "جاري الإرسال..."
+                    resendCooldownActive -> "أُرسلت — أعد المحاولة بعد دقيقة"
+                    else -> "إعادة إرسال رسالة التحقق"
+                },
                 isLoading = isResending,
                 enabled = !isResending && !resendCooldownActive,
                 onClick = {

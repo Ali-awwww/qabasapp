@@ -162,14 +162,6 @@ object UserIdentifierManager {
         }
     }
 
-    /**
-     * (ملغى) كان يستخدم للتنبؤ برقم الحساب محلياً.
-     * تم إيقافه لضمان أن رقم الحساب يأتي من السحابة فقط بعد نجاح العملية.
-     */
-    fun peekNextAccountNumber(context: Context): String {
-        return "يُنشأ بعد التسجيل"
-    }
-
     sealed class CustomIdAvailabilityResult {
         object Available : CustomIdAvailabilityResult()
         object CurrentUserOwnsIt : CustomIdAvailabilityResult()

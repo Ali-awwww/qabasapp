@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class QabasApplication : Application() {
@@ -47,9 +48,19 @@ class QabasApplication : Application() {
             runCatching { LocalAccountRegistry.init(this@QabasApplication) }
                 .onFailure { recordStartupFailure("LocalAccountRegistry.init", it) }
 
+            // ق78: استعادة الجلسة شبكية وقد تنتظر ثواني على شبكة
+            // بطيئة (مهلة 8ث لانتظار التهيئة + تحديث بلا مهلة صريحة)
+            // — وكانت في سلسلة متتابعة واحدة تحجب كل التهيئات
+            // المحلية بعدها (التفضيلات، المزامنة الصامتة، التحديث،
+            // الإعدادات المحلية، الفاحص، التنزيلات). الآن تُطلق
+            // بالتوازي عبر async وتمضي التهيئات المحلية فوراً،
+            // ولا تُنتظر إلا قبل الخطوات التي تقرأ الجلسة فعلاً
+            // (الهوية، رمز الدفع، صندوق البث) فيحافظ ترتيبها.
             QabasCrashGuard.markStartupStage(this@QabasApplication, "SupabaseRepository.ensureAuthenticatedSession")
-            runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                .onFailure { recordStartupFailure("SupabaseRepository.ensureAuthenticatedSession", it) }
+            val authSession = async {
+                runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    .onFailure { recordStartupFailure("SupabaseRepository.ensureAuthenticatedSession", it) }
+            }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "OfflineReels.init")
             runCatching { UserPreferencesManager.init(this@QabasApplication) }
@@ -57,25 +68,13 @@ class QabasApplication : Application() {
             runCatching { SilentReelPrefetcher.startSync(this@QabasApplication) }
                 .onFailure { recordStartupFailure("SilentReelPrefetcher.startSync", it) }
 
-            QabasCrashGuard.markStartupStage(this@QabasApplication, "AccountIdentityManager.refresh")
-            runCatching { AccountIdentityManager.refresh(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                .onFailure { recordStartupFailure("AccountIdentityManager.refresh", it) }
-
-            QabasCrashGuard.markStartupStage(this@QabasApplication, "PushTokenManager.captureAndSync")
-            runCatching { PushTokenManager.captureAndSync(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                .onFailure { recordStartupFailure("PushTokenManager.captureAndSync", it) }
-
             QabasCrashGuard.markStartupStage(this@QabasApplication, "UpdateManager.reconcilePendingInstall")
             runCatching { UpdateManager.reconcilePendingInstall(this@QabasApplication) }
                 .onFailure { recordStartupFailure("UpdateManager.reconcilePendingInstall", it) }
 
-            QabasCrashGuard.markStartupStage(this@QabasApplication, "AppRemoteConfig.refreshFromCloud")
-            runCatching { AppRemoteConfig.refreshFromCloud(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                .onFailure { recordStartupFailure("AppRemoteConfig.refreshFromCloud", it) }
-
-            QabasCrashGuard.markStartupStage(this@QabasApplication, "RemoteNotificationsManager.startInbox")
-            runCatching { RemoteNotificationsManager.startInbox(this@QabasApplication) }
-                .onFailure { recordStartupFailure("RemoteNotificationsManager.startInbox", it) }
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "AppRemoteConfig.reloadLocal")
+            runCatching { AppRemoteConfig.reloadLocal(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .onFailure { recordStartupFailure("AppRemoteConfig.reloadLocal", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "DoctorMonitor.maybeRun")
             runCatching { DoctorMonitor.maybeRun(this@QabasApplication) }
@@ -88,6 +87,23 @@ class QabasApplication : Application() {
             }.onFailure {
                 recordStartupFailure("DownloadsHubManager", it)
             }
+
+            // انتظار الجلسة هنا فقط: ما بعدها يقرأ المستخدم الحالي
+            // (الهوية من بيانات الجلسة، ومزامنة الرمز تتوقف على
+            // المعرّف، وصندوق البث يقيّم الاستهداف بالدور).
+            authSession.await()
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "AccountIdentityManager.refresh")
+            runCatching { AccountIdentityManager.refresh(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .onFailure { recordStartupFailure("AccountIdentityManager.refresh", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "PushTokenManager.captureAndSync")
+            runCatching { PushTokenManager.captureAndSync(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .onFailure { recordStartupFailure("PushTokenManager.captureAndSync", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "RemoteNotificationsManager.startInbox")
+            runCatching { RemoteNotificationsManager.startInbox(this@QabasApplication) }
+                .onFailure { recordStartupFailure("RemoteNotificationsManager.startInbox", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "startup.completed")
             QabasCrashGuard.schedulePendingUploads(this@QabasApplication)

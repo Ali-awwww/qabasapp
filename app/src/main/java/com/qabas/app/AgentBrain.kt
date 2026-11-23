@@ -161,7 +161,7 @@ object UniversalKeyBrain {
             val res = if (stream && onPartial != null) {
                 AgentStreaming.stream(provider, k, model, prompt, systemInstruction, onPartial)
             } else {
-                executeRealAgentStep(provider, k, prompt, systemInstruction, model)
+                executeRealAgentStep(provider, k, prompt, systemInstruction, model, context)
             }
             val ms = System.currentTimeMillis() - start
             if (res.isSuccess) {
@@ -192,9 +192,19 @@ object UniversalKeyBrain {
         apiKey: String,
         prompt: String,
         systemInstruction: String,
-        model: String? = null
+        model: String? = null,
+        // ق161: سياق تتبع الاستخدام — بلا Context لا ApiUsageTracker
+        // (ولوحة المطور تعرض متوسط الزمن ونسبة النجاح من سجله وحده).
+        context: Context? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val client = SharedHttpClient.instance
+        // ق161: استدعاءات نواة الوكيل (Gemini/OpenRouter/Groq) كانت تمر
+        // بلا ApiUsageTracker.track فتغيب عن لوحة المطور رغم أنها حركة
+        // النماذج الرئيسية؛ والتكلفة وحدها كانت تُسجَّل عند المنادي.
+        // التغليف هنا في المصدر نفسه؛ وبلا سياق يبقى السلوك القديم.
+        suspend fun trackedCall(apiName: String, request: Request): okhttp3.Response =
+            if (context != null) ApiUsageTracker.track(context, apiName) { client.newCall(request).execute() }
+            else client.newCall(request).execute()
         try {
             when (provider) {
                 DetectedProvider.GEMINI -> {
@@ -220,7 +230,7 @@ object UniversalKeyBrain {
                         .header("x-goog-api-key", apiKey)
                         .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                         .build()
-                    val response = client.newCall(request).execute()
+                    val response = trackedCall("Gemini", request)
                     val bodyString = response.body?.string() ?: ""
                     if (!response.isSuccessful) {
                         val errorDetail = try {
@@ -238,7 +248,12 @@ object UniversalKeyBrain {
                     val promptTokens = usageMeta?.optInt("promptTokenCount", 0) ?: 0
                     val candidateTokens = usageMeta?.optInt("candidatesTokenCount", 0) ?: 0
                     val totalTokens = usageMeta?.optInt("totalTokenCount", 0)?.takeIf { it > 0 } ?: (promptTokens + candidateTokens)
-                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(150), promptTokens, candidateTokens))
+                    // ق170: الحد الأدنى 150 كان يُسجَّل «مقاساً» حين يغيب
+                    // تفصيل الرموز (total = 0) — رقم مختلق في تتبع التكلفة؛
+                    // وكذا كان يرفع إجمالياً حقيقياً صغيراً (5 مثلاً) إلى 150.
+                    // الآن: الإجمالي الحقيقي كما هو بلا رفع، والغياب تقديري
+                    // مُعلَم (كمساري البثّ) فيُسجَّل «غير مقاس» للتكلفة.
+                    Result.success(RealAgentResponse(text, totalTokens.takeIf { it > 0 } ?: 150, promptTokens, candidateTokens, tokensEstimated = totalTokens <= 0))
                 }
                 DetectedProvider.OPENROUTER -> {
                     val url = "https://openrouter.ai/api/v1/chat/completions"
@@ -255,7 +270,7 @@ object UniversalKeyBrain {
                         .header("HTTP-Referer", "https://qabas.app")
                         .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                         .build()
-                    val response = client.newCall(request).execute()
+                    val response = trackedCall("OpenRouter", request)
                     val bodyString = response.body?.string() ?: ""
                     if (!response.isSuccessful) {
                         return@withContext Result.failure(Exception("خطأ من سيرفر OpenRouter (HTTP ${response.code}): $bodyString"))
@@ -269,7 +284,8 @@ object UniversalKeyBrain {
                     val promptTokens = usageObj?.optInt("prompt_tokens", 0) ?: 0
                     val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
                     val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
-                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(120), promptTokens, completionTokens))
+                    // ق170: كـ Gemini أعلاه — الغياب تقديري مُعلَم لا مقاس.
+                    Result.success(RealAgentResponse(text, totalTokens.takeIf { it > 0 } ?: 120, promptTokens, completionTokens, tokensEstimated = totalTokens <= 0))
                 }
                 DetectedProvider.GROQ -> {
                     val gatewayName = "Groq"
@@ -287,7 +303,7 @@ object UniversalKeyBrain {
                         .header("Authorization", "Bearer $apiKey")
                         .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                         .build()
-                    val response = client.newCall(request).execute()
+                    val response = trackedCall("Groq", request)
                     val bodyString = response.body?.string() ?: ""
                     if (!response.isSuccessful) {
                         return@withContext Result.failure(Exception("خطأ من سيرفر $gatewayName (HTTP ${response.code}): $bodyString"))
@@ -301,7 +317,8 @@ object UniversalKeyBrain {
                     val promptTokens = usageObj?.optInt("prompt_tokens", 0) ?: 0
                     val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
                     val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
-                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(100), promptTokens, completionTokens))
+                    // ق170: كـ Gemini أعلاه — الغياب تقديري مُعلَم لا مقاس.
+                    Result.success(RealAgentResponse(text, totalTokens.takeIf { it > 0 } ?: 100, promptTokens, completionTokens, tokensEstimated = totalTokens <= 0))
                 }
                 else -> {
                     Result.failure(
@@ -311,6 +328,10 @@ object UniversalKeyBrain {
                     )
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // ق161: track() يعيد رمي الإلغاء — ولا يُبتلَع هنا كفشل شبكة
+            // (نمط الجولة 119/122 في الكود كله).
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("فشل الشبكة أثناء الاتصال بالسيرفر: ${e.localizedMessage ?: e.message}"))
         }

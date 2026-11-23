@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,8 +49,11 @@ fun QabasRulesScreen(
     val theme = QabasTheme.current
     val prefs = remember { context.getSharedPreferences("qabas_rules_prefs", Context.MODE_PRIVATE) }
 
-    var selectedCategory by remember { mutableStateOf("ALL") }
-    var searchQuery by remember { mutableStateOf("") }
+    // ق95: المرشح والبحث يُحفظان عبر تدوير الشاشة — كانا remember
+    // عاديين فيضيع موضع المستخدم في القائمة عند التدوير (والإقرارات
+    // نفسها محفوظة في التفضيلات فلا تضيع).
+    var selectedCategory by rememberSaveable { mutableStateOf("ALL") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var acknowledgedRules by remember {
         mutableStateOf(prefs.getStringSet("acknowledged_rules_set", emptySet()) ?: emptySet())
     }

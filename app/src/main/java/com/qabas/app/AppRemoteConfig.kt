@@ -1,17 +1,24 @@
 package com.qabas.app
 
-import android.os.Build
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * إعدادات التحكم البعيد (Remote Config) — قلب «لوحة التحكم الكاملة».
  *
- * - المصدر الحاسم: مستند Firestore `app_config/config` إن وُجد Firebase.
- *   (قابل للتوسيع لاحقاً إلى جدول Supabase app_config بنفس المفاتيح.)
- * - كاش محلي: `qabas_prefs` (يعمل دون اتصال ولا يكسر البناء بلا سحابة).
- * - أي زر في شاشة المطور يكتب سحابياً ثم يحدّث الكاش حتى تتأثر كل الأجهزة.
+ * حقيقة التنفيذ الحالية (موثقة هنا لأن الأسماء القديمة كانت تكذب):
+ * التخزين محلي فقط في `qabas_prefs` — لا يوجد مستند Firestore
+ * `app_config/config` ولا جدول Supabase app_config، فلا مزامنة سحابية
+ * إطلاقاً: زر المطور يحفظ على هذا الجهاز وحده، ولا تتأثر الأجهزة
+ * الأخرى. المزامنة السحابية تحتاج جدول app_config أولاً.
+ * - كاش محلي: `qabas_prefs` (يعمل دون اتصال).
+ * - القواعد المشروطة (تجارب A/B) محفوظة محلياً كـ JSON وتُقيَّم في
+ *   current() عند كل قراءة (الأعلى أولوية أولاً).
  */
 object AppRemoteConfig {
     private const val TAG = "AppRemoteConfig"
@@ -54,7 +61,8 @@ object AppRemoteConfig {
         )
     }
 
-    fun current(context: Context): ConfigData = cached ?: readLocal(context)
+    /** اللقطة الفعالة: القيم العامة بعد تطبيق القواعد المشروطة المطابقة. */
+    fun current(context: Context): ConfigData = cached ?: resolve(context)
 
     private fun writeLocal(context: Context, data: ConfigData) {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -66,20 +74,21 @@ object AppRemoteConfig {
             .putInt(KEY_MIN_VERSION, data.minVersionCode)
             .putLong(KEY_LAST_SYNC, data.lastSyncMs)
             .apply()
-        cached = data
+        // لا يُخزَّن الخام في الكاش: القراءة التالية تعيد الحساب مع القواعد.
+        cached = null
     }
 
-    /** جلب الإعدادات من التخزين المحلي. */
-    suspend fun refreshFromCloud(context: Context): Boolean {
+    /** إعادة تحميل الإعدادات من التخزين المحلي (لا جلب سحابي — لا مصدر سحابي). */
+    suspend fun reloadLocal(context: Context): Boolean {
         return withContext(Dispatchers.IO) {
-            val data = readLocal(context)
-            cached = data
+            cached = null
+            resolve(context)
             true
         }
     }
 
-    /** حفظ الإعدادات محلياً وسحابياً مع تسجيل وقت المزامنة. */
-    suspend fun pushToCloud(context: Context, data: ConfigData): Boolean {
+    /** حفظ الإعدادات محلياً على هذا الجهاز فقط (لا مزامنة سحابية — لا مصدر سحابي). */
+    suspend fun saveLocal(context: Context, data: ConfigData): Boolean {
         val timestamp = System.currentTimeMillis()
         val updated = data.copy(lastSyncMs = timestamp)
         writeLocal(context, updated)
@@ -120,28 +129,152 @@ object AppRemoteConfig {
         }.getOrDefault(0)
     }
 
-    /** جلب القواعد (من كاش الذاكرة أو فارغة). */
+    private const val KEY_OVERRIDES_JSON = "sys_config_overrides_json"
+
+    /** جلب القواعد المحفوظة محلياً (من كاش الذاكرة أو من التخزين المحلي). */
     suspend fun fetchOverrides(context: Context): List<OverrideRule> {
-        return cachedOverrides ?: emptyList()
+        cachedOverrides?.let { return it }
+        val loaded = loadOverridesFromPrefs(context)
+        cachedOverrides = loaded
+        return loaded
     }
 
     fun invalidateOverrides() {
         cachedOverrides = null
+        cached = null
     }
 
-    /** إضافة/تحديث قاعدة من لوحة المطور. */
+    private fun loadOverridesFromPrefs(context: Context): List<OverrideRule> {
+        val raw = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getString(KEY_OVERRIDES_JSON, null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { i ->
+                val o = array.optJSONObject(i) ?: return@mapNotNull null
+                OverrideRule(
+                    id = o.optString("id", ""),
+                    key = o.optString("key", KEY_MAINTENANCE),
+                    value = o.optString("value", "true"),
+                    userType = o.optString("userType", "all"),
+                    minVersion = o.optInt("minVersion", 0),
+                    percent = o.optInt("percent", 100),
+                    enabled = o.optBoolean("enabled", true),
+                    priority = o.optInt("priority", 0)
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun persistOverrides(context: Context, rules: List<OverrideRule>) {
+        val array = JSONArray()
+        rules.forEach { rule ->
+            array.put(JSONObject().apply {
+                put("id", rule.id)
+                put("key", rule.key)
+                put("value", rule.value)
+                put("userType", rule.userType)
+                put("minVersion", rule.minVersion)
+                put("percent", rule.percent)
+                put("enabled", rule.enabled)
+                put("priority", rule.priority)
+            })
+        }
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
+            .putString(KEY_OVERRIDES_JSON, array.toString()).apply()
+    }
+
+    /** إضافة/تحديث قاعدة من لوحة المطور — تُحفظ محلياً فتنجو من إعادة التشغيل. */
     suspend fun saveOverride(context: Context, rule: OverrideRule): Boolean {
-        val currentList = (cachedOverrides ?: emptyList()).filterNot { it.id == rule.id }.toMutableList()
+        val currentList = loadOverridesFromPrefs(context).filterNot { it.id == rule.id }.toMutableList()
         val ruleToSave = if (rule.id.isBlank()) rule.copy(id = java.util.UUID.randomUUID().toString()) else rule
         currentList.add(ruleToSave)
         cachedOverrides = currentList
+        persistOverrides(context, currentList)
+        cached = null
         AuditLogger.log(context, "config_override_save", "${rule.key}=${rule.value} (${rule.userType} ${rule.percent}٪)")
         return true
     }
 
-    /** حذف قاعدة. */
-    suspend fun deleteOverride(ruleId: String): Boolean {
-        cachedOverrides = (cachedOverrides ?: emptyList()).filterNot { it.id == ruleId }
+    /** حذف قاعدة — يُحفظ الحذف محلياً أيضاً. */
+    suspend fun deleteOverride(context: Context, ruleId: String): Boolean {
+        val currentList = loadOverridesFromPrefs(context).filterNot { it.id == ruleId }
+        cachedOverrides = currentList
+        persistOverrides(context, currentList)
+        cached = null
         return true
+    }
+
+    /**
+     * اللقطة الفعالة: القيم العامة ثم القواعد المطابقة مرتبة بالأولوية
+     * تنازلياً — أول قاعدة مطابقة لكل مفتاح تفوز. المطابقة: مفعّلة،
+     * والشريحة (الكل أو نوع المستخدم الحالي)، وأدنى إصدار، ونسبة
+     * الطرح بدلو ثابت لكل جهاز.
+     */
+    private fun resolve(context: Context): ConfigData {
+        val base = readLocal(context)
+        val rules = loadOverridesFromPrefs(context)
+            .filter { it.enabled }
+            .sortedByDescending { it.priority }
+        if (rules.isEmpty()) {
+            cached = base
+            return base
+        }
+        val userType = currentUserType(context)
+        val version = currentVersionCode(context)
+        val deviceBucket = stableBucket(context)
+        var maintenance = base.maintenanceMode
+        var accept = base.acceptRequests
+        var aiReply = base.autoAiReply
+        var message = base.maintenanceMessage
+        var minVersion = base.minVersionCode
+        val overriddenKeys = mutableSetOf<String>()
+        for (rule in rules) {
+            if (rule.key in overriddenKeys) continue
+            if (rule.userType != "all" && rule.userType != userType) continue
+            if (rule.minVersion > version) continue
+            if (rule.percent < 100) {
+                val bucket = (deviceBucket + rule.id.hashCode()) and 0x7FFFFFFF
+                if (bucket % 100 >= rule.percent.coerceIn(0, 100)) continue
+            }
+            when (rule.key) {
+                KEY_MAINTENANCE -> rule.value.toBooleanStrictOrNull()?.let { maintenance = it }
+                KEY_ACCEPT_REQUESTS -> rule.value.toBooleanStrictOrNull()?.let { accept = it }
+                KEY_AUTO_AI_REPLY -> rule.value.toBooleanStrictOrNull()?.let { aiReply = it }
+                KEY_MAINTENANCE_MESSAGE -> message = rule.value
+                KEY_MIN_VERSION -> rule.value.toIntOrNull()?.let { minVersion = it }
+                else -> continue
+            }
+            overriddenKeys.add(rule.key)
+        }
+        val resolved = base.copy(
+            maintenanceMode = maintenance,
+            acceptRequests = accept,
+            autoAiReply = aiReply,
+            maintenanceMessage = message,
+            minVersionCode = minVersion
+        )
+        cached = resolved
+        return resolved
+    }
+
+    /** نوع المستخدم الحالي لشريحة القواعد (مطور/مميز/مجاني) — من المصادر المحلية نفسها. */
+    private fun currentUserType(context: Context): String {
+        return runCatching {
+            val role = SupabaseServices.Auth.getUserRoleFromMetadata()
+            val email = SupabaseServices.Auth.getCurrentUserEmail()
+            val isDev = SupabaseServices.Auth.isAdminRole(role) ||
+                (email != null && CloudServices.isOwnerAccount(email))
+            if (isDev) return "developers"
+            val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("is_premium", false)) "premium" else "free"
+        }.getOrDefault("free")
+    }
+
+    /** دلو ثابت 0..99 لهذا الجهاز لنسب الطرح (ANDROID_ID). */
+    private fun stableBucket(context: Context): Int {
+        val androidId = runCatching {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+        }.getOrNull().orEmpty()
+        return (androidId.hashCode() and 0x7FFFFFFF) % 100
     }
 }

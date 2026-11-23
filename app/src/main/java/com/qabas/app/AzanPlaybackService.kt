@@ -32,12 +32,16 @@ class AzanPlaybackService : Service() {
         const val ACTION_STOP_AZAN = "com.qabas.app.ACTION_STOP_AZAN"
         const val CHANNEL_ID = "qabas_azan_playback_channel"
         const val NOTIFICATION_ID = 8844
+        const val FAILURE_NOTIFICATION_ID = 8845
+        // معرّف مستقل لإشعار فشل الصوت: إشعار المقدمة (8844) يُزال عند
+        // التوقف، فلو أُعيد استعماله لاختفى تنبيه الفشل معه.
 
-        fun startAzan(context: Context, voiceId: String, prayerName: String) {
+        fun startAzan(context: Context, voiceId: String, prayerName: String, prayerKey: String? = null) {
             val intent = Intent(context, AzanPlaybackService::class.java).apply {
                 action = ACTION_START_AZAN
                 putExtra("voice_id", voiceId)
                 putExtra("prayer_name", prayerName)
+                putExtra("prayer_key", prayerKey)
             }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -129,19 +133,24 @@ class AzanPlaybackService : Service() {
         if (action == ACTION_START_AZAN) {
             val voiceId = intent.getStringExtra("voice_id") ?: MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID
             val prayerName = intent.getStringExtra("prayer_name") ?: "الصلاة"
+            val prayerKey = intent.getStringExtra("prayer_key")
             // نرفع الخدمة فورًا قبل أي اتصال أو تنزيل حتى لا يقتل النظام الخدمة أثناء التجهيز.
             startForegroundForAzan(prayerName, "جاري تجهيز صوت الأذان")
-            playAzanAudio(voiceId, prayerName)
+            playAzanAudio(voiceId, prayerName, prayerKey)
         }
 
         return START_NOT_STICKY
     }
 
-    private fun playAzanAudio(voiceId: String, prayerName: String) {
+    private fun playAzanAudio(voiceId: String, prayerName: String, prayerKey: String? = null) {
         serviceScope.launch {
-            val selectedVoice = AzanVoiceResolver.resolveVoice(applicationContext, voiceId)
+            val selectedVoice = AzanVoiceResolver.resolveVoice(applicationContext, voiceId, prayerKey)
             if (selectedVoice == null) {
                 Log.w(TAG, "No adhan voice is available for id=$voiceId")
+                // ق179: كان الفشل صامتاً — المستقبل أظهر أصلاً «استمع
+                // للأذان الآن» ثم اختفى إشعار «جاري تجهيز صوت الأذان» بلا
+                // أي تفسير، فيظن المستخدم أن الأذان عُزف. تنبيه صريح بدل الصمت.
+                showVoiceFailureNotification(prayerName)
                 stopPlayingAndSelf()
                 return@launch
             }
@@ -157,10 +166,49 @@ class AzanPlaybackService : Service() {
 
             if (source.isNullOrBlank()) {
                 Log.e(TAG, "No playable source for adhan voice ${selectedVoice.id}")
+                // ق179: كالحالة أعلاه — بلا مصدر قابل للتشغيل لا صوت،
+                // فيُعلَن الفشل بدل اختفاء الإشعار بصمت.
+                showVoiceFailureNotification(prayerName)
                 stopPlayingAndSelf()
             } else {
                 playAzanAudioResolved(selectedVoice, prayerName, source)
             }
+        }
+    }
+
+    /**
+     * ق179: تنبيه عادي (لا مقدمة) يبقى بعد توقف الخدمة: «تعذّر تشغيل صوت
+     * الأذان» مع فتح شاشة مواقيت الصلاة عند النقر، فيعرف المستخدم أن
+     * الأذان لم يُعزف وأن عليه مراجعة الأصوات المحفوظة — بدل إشعار
+     * المستقبل «استمع للأذان الآن» الذي يبقى كاذباً عند فشل التشغيل.
+     */
+    private fun showVoiceFailureNotification(prayerName: String) {
+        try {
+            val notificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                    ?: return
+            val openAppIntent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("navigate_to", "prayer_times")
+            }
+            val openPendingIntent = PendingIntent.getActivity(
+                this, 8845, openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_qabas)
+                .setLargeIcon(QabasNotificationHelper.getAppIconBitmap(this))
+                .setColor(QabasNotificationHelper.BRAND_COLOR)
+                .setContentTitle("🕌 حان الآن وقت $prayerName")
+                .setContentText("تعذّر تشغيل صوت الأذان — لا صوت متاح؛ افتح مواقيت الصلاة للتحقق من الأصوات المحفوظة.")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setAutoCancel(true)
+                .setContentIntent(openPendingIntent)
+                .build()
+            notificationManager.notify(FAILURE_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post adhan failure notification: ${e.message}")
         }
     }
 
@@ -206,6 +254,9 @@ class AzanPlaybackService : Service() {
                 setOnCompletionListener { stopPlayingAndSelf() }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
+                    // ق179: خطأ المشغّل أثناء التشغيل كان صامتاً أيضاً —
+                    // الأذان ينقطع بلا تفسير. التنبيه نفسه قبل التوقف.
+                    showVoiceFailureNotification(prayerName)
                     stopPlayingAndSelf()
                     true
                 }
@@ -213,6 +264,8 @@ class AzanPlaybackService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error playing azan: ${e.message}", e)
+            // ق179: فشل إعداد المشغّل (مصدر تالف مثلاً) كان صامتاً أيضاً.
+            showVoiceFailureNotification(prayerName)
             stopPlayingAndSelf()
         }
     }

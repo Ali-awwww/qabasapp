@@ -16,15 +16,17 @@ data class ReadinessReport(
     val statusDescription: String,
     val activeServicesCount: Int,
     val totalServicesCount: Int,
-    val services: List<ServiceReadiness>,
-    val lastError: String? = null
+    val services: List<ServiceReadiness>
+    // (قُتل في ق60: lastError كان null دائماً بلا قارئ — انظر
+    // OperationalReadinessManager أدناه.)
 )
 
 object OperationalReadinessManager {
 
-    private var lastRecordedError: String? = null
-
-    fun getLastError(): String? = lastRecordedError
+    // (قُتل في ق60: lastRecordedError/getLastError كانا وهماً — المتغير
+    // لا يسنده أحد فـ getLastError() ‏null‏ دائماً، وقسم «أخطاء مسجلة»
+    // في الطبيب لم يظهر أبداً. المصدر الحقيقي الآن
+    // QabasCrashGuard.lastCrashSummary.)
 
     fun calculateReadiness(context: Context, customKeys: Map<String, String>? = null): ReadinessReport {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -58,7 +60,7 @@ object OperationalReadinessManager {
                 weight = 30,
                 isConfigured = hasGemini,
                 description = "المساعد الدعوي، صياغة السكريبتات، وتحليل الأفكار الإسلامية، والرؤية البصرية",
-                activeFeature = if (hasGemini) "متصل حقيقي مباشر (Gemini Flash Live)" else "يتطلب إدخال مفتاح Gemini للتشغيل السحابي"
+                activeFeature = if (hasGemini) "مفتاح مهيأ — يُفحص حياً في طبيب التطبيق" else "يتطلب إدخال مفتاح Gemini للتشغيل السحابي"
             ),
             ServiceReadiness(
                 name = "Higgsfield AI Video Engine",
@@ -116,7 +118,10 @@ object OperationalReadinessManager {
 
         val (title, desc) = when {
             totalScore >= 95 -> Pair(
-                "جاهزية سينمائية متكاملة 100% 🌟",
+                // ق161: كان العنوان «متكاملة 100%» بينما العتبة 95 — نسبة
+                // لم تُقَس؛ والفرع نفسه بعيد المنال (Higgsfield 20 نقطة
+                // غير مقروءة محلياً فسقف النتيجة 80).
+                "جاهزية سينمائية متكاملة 🌟",
                 "التطبيق يعمل بكامل طاقته التشغيلية المباشرة. جميع المحركات والنماذج متصلة وتعمل بأعلى كفاءة."
             )
             totalScore >= 70 -> Pair(
@@ -139,8 +144,7 @@ object OperationalReadinessManager {
             statusDescription = desc,
             activeServicesCount = activeCount,
             totalServicesCount = services.size,
-            services = services,
-            lastError = lastRecordedError
+            services = services
         )
     }
 }

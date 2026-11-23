@@ -34,6 +34,10 @@ object AiModelLatencyRouter {
     private const val PREFS_NAME = "qabas_ai_router_prefs"
     private const val KEY_AUTO_FASTEST = "auto_fastest_enabled"
     private const val KEY_MANUAL_ENGINE = "manual_selected_engine"
+    // ق93: اختيار التوجيه التلقائي نفسه (لا اليدوي) — كان يُحفظ في
+    // الذاكرة فقط فيُنسى عند إعادة التشغيل فيعود المحرك لآخر اختيار
+    // يدوي حتى يكتمل فحص جديد.
+    private const val KEY_AUTO_ENGINE = "auto_routed_engine"
     private const val KEY_LAST_BENCHMARK_TIME = "last_benchmark_timestamp"
 
     private val client = SharedHttpClient.instance
@@ -55,9 +59,13 @@ object AiModelLatencyRouter {
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _isAutoFastest.value = prefs.getBoolean(KEY_AUTO_FASTEST, true)
+        val autoFastest = prefs.getBoolean(KEY_AUTO_FASTEST, true)
+        _isAutoFastest.value = autoFastest
         val savedEngine = prefs.getString(KEY_MANUAL_ENGINE, "Groq") ?: "Groq"
-        _activeEngine.value = savedEngine
+        // ق93: في الوضع التلقائي يُستعاد آخر محرك وجّهه الفحص نفسه لا
+        // آخر اختيار يدوي (كان يُنسى عند إعادة التشغيل).
+        val savedAutoEngine = prefs.getString(KEY_AUTO_ENGINE, null)
+        _activeEngine.value = if (autoFastest && !savedAutoEngine.isNullOrBlank()) savedAutoEngine else savedEngine
         _lastBenchmarkTime.value = prefs.getLong(KEY_LAST_BENCHMARK_TIME, 0L)
     }
 
@@ -69,7 +77,7 @@ object AiModelLatencyRouter {
             .apply()
 
         if (enabled) {
-            evaluateFastestEngine()
+            evaluateFastestEngine(context)
         }
         SystemLogsManager.addLog(
             "ROUTER",
@@ -99,16 +107,26 @@ object AiModelLatencyRouter {
         return _activeEngine.value
     }
 
-    private fun evaluateFastestEngine() {
+    // ق93: التوجيه يختار معرّف المحرك (مفتاح خريطة النتائج: Groq /
+    // Gemini / Pollinations) لا اسم العرض — كان يأخذ fastest.name
+    // فصار المحرك «Gemini 3.8 Flash (AI Logic)» عند فوز مسار Firebase،
+    // فلا تطابقه أي بطاقة (isActive) ويقع وصف البطل على فرع else
+    // «المحرك المجاني بلا مفتاح» مع أيقونة Public. ويُحفظ الاختيار
+    // التلقائي ليبقى بعد إعادة التشغيل.
+    private fun evaluateFastestEngine(context: Context) {
         val currentResults = _benchmarkResults.value
-        val successfulResults = currentResults.values
-            .filter { it.isSuccess && it.latencyMs > 0 }
-            .sortedBy { it.latencyMs }
+        val fastestEntry = currentResults.entries
+            .filter { it.value.isSuccess && it.value.latencyMs > 0 }
+            .minByOrNull { it.value.latencyMs }
 
-        if (successfulResults.isNotEmpty()) {
-            val fastest = successfulResults.first()
-            _activeEngine.value = fastest.name
-            SceneEngineMonitor.report(fastest.name)
+        if (fastestEntry != null) {
+            val fastest = fastestEntry.value
+            _activeEngine.value = fastestEntry.key
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_AUTO_ENGINE, fastestEntry.key)
+                .apply()
+            SceneEngineMonitor.report(fastestEntry.key)
             SystemLogsManager.addLog(
                 "ROUTER",
                 "التوجيه الذكي اختار المحرك الأسرع لحظياً: ${fastest.name} (${fastest.latencyMs}ms) 🚀",
@@ -129,7 +147,7 @@ object AiModelLatencyRouter {
             val groqResult = pingGroq()
             results["Groq"] = groqResult
 
-            // 2. فحص Google Gemini (Gemini 2.5 Flash / 2.0 Flash)
+            // 2. فحص Google Gemini (النموذج الافتراضي للمزود)
             val geminiResult = pingGemini()
             results["Gemini"] = geminiResult
 
@@ -147,7 +165,7 @@ object AiModelLatencyRouter {
                 .apply()
 
             if (_isAutoFastest.value) {
-                evaluateFastestEngine()
+                evaluateFastestEngine(context)
             }
         } finally {
             _isBenchmarking.value = false
@@ -205,29 +223,33 @@ object AiModelLatencyRouter {
             val response = client.newCall(request).execute()
             val latency = System.currentTimeMillis() - startTime
 
-            if (response.isSuccessful) {
-                val resObj = JSONObject(response.body?.string() ?: "")
-                val text = resObj.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content", "") ?: ""
-                ModelBenchmarkResult(
-                    id = "groq",
-                    name = "Groq",
-                    provider = "Groq Cloud (LPU)",
-                    modelSpec = modelName,
-                    latencyMs = latency,
-                    isSuccess = true,
-                    message = "استجابة سريعة جداً عبر رقاقات LPU",
-                    previewOutput = text.trim()
-                )
-            } else {
-                ModelBenchmarkResult(
-                    id = "groq",
-                    name = "Groq",
-                    provider = "Groq Cloud (LPU)",
-                    modelSpec = modelName,
-                    latencyMs = latency,
-                    isSuccess = false,
-                    message = "خطأ HTTP ${response.code}"
-                )
+            // ق93: الاستجابة تُغلق في كل المسارات (use) — كان مسار
+            // الخطأ HTTP يرجع دون إغلاق فيتسرب الاتصال مع كل فحص فاشل.
+            return response.use { resp ->
+                if (resp.isSuccessful) {
+                    val resObj = JSONObject(resp.body?.string() ?: "")
+                    val text = resObj.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content", "") ?: ""
+                    ModelBenchmarkResult(
+                        id = "groq",
+                        name = "Groq",
+                        provider = "Groq Cloud (LPU)",
+                        modelSpec = modelName,
+                        latencyMs = latency,
+                        isSuccess = true,
+                        message = "استجابة سريعة جداً عبر رقاقات LPU",
+                        previewOutput = text.trim()
+                    )
+                } else {
+                    ModelBenchmarkResult(
+                        id = "groq",
+                        name = "Groq",
+                        provider = "Groq Cloud (LPU)",
+                        modelSpec = modelName,
+                        latencyMs = latency,
+                        isSuccess = false,
+                        message = "خطأ HTTP ${resp.code}"
+                    )
+                }
             }
         } catch (e: Exception) {
             ModelBenchmarkResult(
@@ -287,6 +309,12 @@ object AiModelLatencyRouter {
     private fun tryPingGemini(apiKey: String): ModelBenchmarkResult {
 
         val startTime = System.currentTimeMillis()
+        // ق93: يُقاس النموذج الافتراضي للمزود (المصدر الوحيد
+        // DetectedProvider.GEMINI.defaultModel) — كان الفحص يطلب
+        // gemini-2.0-flash، نموذج لا يستعمله التطبيق أصلاً (ولا في
+        // قائمة المزود)، فزمن الاستجابة المقاس لم يكن زمن النموذج
+        // المستعمل فعلاً.
+        val modelName = DetectedProvider.GEMINI.defaultModel
         return try {
             val jsonBody = JSONObject().apply {
                 put("contents", JSONArray().apply {
@@ -304,7 +332,7 @@ object AiModelLatencyRouter {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
                 .header("x-goog-api-key", apiKey)
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
@@ -312,37 +340,48 @@ object AiModelLatencyRouter {
             val response = client.newCall(request).execute()
             val latency = System.currentTimeMillis() - startTime
 
-            if (response.isSuccessful) {
-                val resObj = JSONObject(response.body?.string() ?: "")
-                val text = resObj.optJSONArray("candidates")?.optJSONObject(0)
-                    ?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text", "") ?: ""
-                ModelBenchmarkResult(
-                    id = "gemini",
-                    name = "Gemini",
-                    provider = "Google AI Studio",
-                    modelSpec = "gemini-2.0-flash",
-                    latencyMs = latency,
-                    isSuccess = true,
-                    message = "استجابة ممتازة من خوادم Google",
-                    previewOutput = text.trim()
-                )
-            } else {
-                ModelBenchmarkResult(
-                    id = "gemini",
-                    name = "Gemini",
-                    provider = "Google AI Studio",
-                    modelSpec = "gemini-2.0-flash",
-                    latencyMs = latency,
-                    isSuccess = false,
-                    message = "خطأ HTTP ${response.code}"
-                )
+            // ق93: الاستجابة تُغلق في كل المسارات (use) — كان مسار
+            // الخطأ HTTP يرجع دون إغلاق فيتسرب الاتصال مع كل فحص فاشل.
+            return response.use { resp ->
+                if (resp.isSuccessful) {
+                    val resObj = JSONObject(resp.body?.string() ?: "")
+                    val text = resObj.optJSONArray("candidates")?.optJSONObject(0)
+                        ?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text", "") ?: ""
+                    // ق160: فحص زمن الاستجابة استدعاء مدفوع حقيقي (ولو 10 رموز
+                    // كحد أقصى) — كان يمر بلا أثر في تتبع التكلفة.
+                    runCatching {
+                        if (text.isNotBlank()) {
+                            VibeCostTracker.recordEstimated(AppServices.appContext, "gemini", modelName, "ping: قل كلمة واحدة فقط: جاهز", text, "قياس زمن الاستجابة")
+                        }
+                    }
+                    ModelBenchmarkResult(
+                        id = "gemini",
+                        name = "Gemini",
+                        provider = "Google AI Studio",
+                        modelSpec = modelName,
+                        latencyMs = latency,
+                        isSuccess = true,
+                        message = "استجابة ممتازة من خوادم Google",
+                        previewOutput = text.trim()
+                    )
+                } else {
+                    ModelBenchmarkResult(
+                        id = "gemini",
+                        name = "Gemini",
+                        provider = "Google AI Studio",
+                        modelSpec = modelName,
+                        latencyMs = latency,
+                        isSuccess = false,
+                        message = "خطأ HTTP ${resp.code}"
+                    )
+                }
             }
         } catch (e: Exception) {
             ModelBenchmarkResult(
                 id = "gemini",
                 name = "Gemini",
                 provider = "Google AI Studio",
-                modelSpec = "gemini-2.0-flash",
+                modelSpec = modelName,
                 latencyMs = System.currentTimeMillis() - startTime,
                 isSuccess = false,
                 message = "فشل الاتصال: ${e.message ?: "خطأ شبكة"}"
@@ -362,7 +401,7 @@ object AiModelLatencyRouter {
                     id = "pollinations",
                     name = "Pollinations",
                     provider = "مجاني بلا مفتاح (Free AI)",
-                    modelSpec = "mistral-large / free",
+                    modelSpec = "default / free", // ق93: الخدمة لا ترسل معامل نموذج أصلاً فيدّعي «mistral-large» نموذجاً لم يُطلب
                     latencyMs = latency,
                     isSuccess = true,
                     message = "يعمل بلا أي مفتاح API",
@@ -373,7 +412,7 @@ object AiModelLatencyRouter {
                     id = "pollinations",
                     name = "Pollinations",
                     provider = "مجاني بلا مفتاح",
-                    modelSpec = "mistral-large / free",
+                    modelSpec = "default / free", // ق93: الخدمة لا ترسل معامل نموذج أصلاً فيدّعي «mistral-large» نموذجاً لم يُطلب
                     latencyMs = latency,
                     isSuccess = false,
                     message = "لا يوجد رد متاح"
@@ -384,7 +423,7 @@ object AiModelLatencyRouter {
                 id = "pollinations",
                 name = "Pollinations",
                 provider = "مجاني بلا مفتاح",
-                modelSpec = "mistral-large / free",
+                modelSpec = "default / free", // ق93: الخدمة لا ترسل معامل نموذج أصلاً فيدّعي «mistral-large» نموذجاً لم يُطلب
                 latencyMs = System.currentTimeMillis() - startTime,
                 isSuccess = false,
                 message = "فشل الاتصال بالخادم المجاني"

@@ -1,6 +1,8 @@
 package com.qabas.app
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -77,6 +79,22 @@ object GoogleAuthHelper {
     }
 
     /**
+     * فكّ Context إلى الـ Activity الحاوية: التطبيق يغلّف LocalContext
+     * بسياق لغة (createConfigurationContext في MainActivity) فلا يكون
+     * Activity، ومدير بيانات الاعتماد يرفض غير الـ Activity فيرمي
+     * «Failed to launch the selector UI...» فينكسر دخول Google لكل
+     * المستخدمين. يُمشى سلسلة ContextWrapper حتى Activity.
+     */
+    private fun findActivity(context: Context): Activity? {
+        var current: Context? = context
+        while (current != null) {
+            if (current is Activity) return current
+            current = (current as? ContextWrapper)?.baseContext
+        }
+        return null
+    }
+
+    /**
      * تنفيذ طلب تسجيل الدخول بحساب Google عبر Credential Manager واستخراج ID Token
      */
     suspend fun signInWithGoogle(
@@ -89,8 +107,15 @@ object GoogleAuthHelper {
             )
         }
 
+        // Credential Manager يشترط Activity لإطلاق واجهة اختيار الحساب؛
+        // سياق اللغة المغلَّف من LocalContext ليس Activity فيُفكّ هنا.
+        val activity = findActivity(context)
+            ?: return@withContext Result.failure(
+                IllegalStateException("تعذّر فتح نافذة اختيار حساب Google — أعد فتح شاشة الدخول وحاول مجدداً.")
+            )
+
         try {
-            val credentialManager = CredentialManager.create(context)
+            val credentialManager = CredentialManager.create(activity)
 
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
@@ -104,7 +129,7 @@ object GoogleAuthHelper {
 
             val result = credentialManager.getCredential(
                 request = request,
-                context = context
+                context = activity
             )
 
             val credential = result.credential

@@ -17,13 +17,10 @@ import java.util.UUID
  *
  * [models] هو مصدر أسماء النماذج السحابية الوحيد (12.x): أُلغيت القائمة
  * المتوازية agentModelsFor من AiStudioAgentScreen ودُمجت هنا — النموذج
- * الافتراضي أولاً ثم أسماء القائمة القديمة. أسماء لم يُتحقق من وجودها
- * حياً في هذا الفحص تُبقى في القائمة لكنها غير موثّقة (انظر تقرير التسليم):
- * o1-preview، llama-3.3-70b-versatile،
- * llama-3.1-8b-instant، mixtral-8x7b، claude-3.5-sonnet، claude-3.5-haiku،
- * claude-3-5-sonnet-20241022، gemini-2.5-flash، gemini-3.5-pro،
- * Qwen/Qwen2.5-Coder-32B، meta-llama/Llama-3.3-70B-Instruct،
- * big-pickle، opencode/grok-code.
+ * الافتراضي أولاً ثم أسماء القائمة القديمة. أسماء في هذه القوائم لم
+ * يُتحقق من وجودها حياً في هذا الفحص فتبقى غير موثّقة (انظر تقرير
+ * التسليم): llama-3.3-70b-versatile، llama-3.1-8b-instant، mixtral-8x7b،
+ * gemini-2.5-flash، gemini-3.5-pro.
  * حُذفا من قائمة OpenRouter بعد فحص حي 2026-11-23 (القائمة العامة 476
  * نموذجاً لا تحويهما): anthropic/claude-3.5-sonnet وmeta-llama/llama-3.3-70b
  * (استُبدل الثاني بالصيغة الموثقة meta-llama/llama-3.3-70b-instruct).

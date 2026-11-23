@@ -231,6 +231,30 @@ object CloudServices {
         /** توافق: الافتراضي نافذة الأسبوع الحالي. */
         suspend fun getLeaderboard(): List<CreatorStats> = getLeaderboard("الأسبوع")
 
+        /** سجل نقاط المستخدم نفسه (الأحدث أولاً) — فارغ للزائر أو عند غياب السحابة. */
+        suspend fun getMyPointsLedger(limit: Long = 30L): List<SupabaseServices.Database.PointsLedgerRow> {
+            val userId = Auth.getCurrentUserId() ?: return emptyList()
+            return SupabaseServices.Database.getMyPointsLedger(userId, limit)
+        }
+
+        /** إجماليات نقاط المستخدم نفسه (أسبوع/شهر/كل الأوقات) — أصفار للزائر أو عند غياب السحابة. */
+        suspend fun getMyPointsTotals(): SupabaseServices.Database.MyPointsTotals {
+            val userId = Auth.getCurrentUserId() ?: return SupabaseServices.Database.MyPointsTotals()
+            return SupabaseServices.Database.getMyPointsTotals(userId)
+        }
+
+        /** ترتيب المستخدم نفسه في نافذة لوحة الشرف — null بلا نقاط فيها أو للزائر. */
+        suspend fun getMyLeaderboardRank(window: String = "الأسبوع"): Int? {
+            val userId = Auth.getCurrentUserId() ?: return null
+            val pointsWindow = when (window) {
+                "الأسبوع الماضي" -> SupabaseServices.PointsWindow.LAST_WEEK
+                "الشهر" -> SupabaseServices.PointsWindow.MONTH
+                "الكل" -> SupabaseServices.PointsWindow.ALL_TIME
+                else -> SupabaseServices.PointsWindow.WEEK
+            }
+            return SupabaseServices.Database.getMyLeaderboardRank(pointsWindow, userId)
+        }
+
         // تسجيل عملية شراء
         suspend fun recordPurchase(productId: String, purchaseToken: String) {
             SupabaseServices.Database.recordTransaction(

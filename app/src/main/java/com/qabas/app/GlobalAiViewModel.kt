@@ -10,27 +10,37 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class GlobalAiViewModel(private val context: Context) : ViewModel() {
-    private val _activeModelName = MutableStateFlow(AiModelRegistry.getActiveModel(context).name)
+    private val _activeModelName = MutableStateFlow(resolveActiveModelName())
     val activeModelName: StateFlow<String> = _activeModelName.asStateFlow()
 
     init {
         viewModelScope.launch {
-            AiModelRegistry.activeModelIdFlow.collect {
+            UniversalKeyBrain.keyUpdateTrigger.collect {
                 refreshActiveModel()
             }
         }
     }
 
     fun refreshActiveModel() {
-        _activeModelName.value = AiModelRegistry.getActiveModel(context).name
+        _activeModelName.value = resolveActiveModelName()
     }
 
     /**
-     * Update active model in registry and refresh local state
+     * اسم النموذج الفعلي لمسار التوليد الافتراضي — لا من سجل ميت:
+     * كان الاسم يأتي من AiModelRegistry («OpenRouter Auto Router») وهو سجل
+     * بلا أي كاتب (setActiveModel بلا مستدعٍ)، فعرض المؤشر اسماً لا ينفذه
+     * أي مسار. الآن يُشتق من المحرك النشط حياً (UniversalKeyBrain):
+     * - Gemini أو بلا مفتاح: Firebase AI Logic أولاً في AgentBrain،
+     *   ونموذجه gemini-3.8-flash (FirebaseAiService).
+     * - OpenRouter / Groq: النموذج الافتراضي للمزود (DetectedProvider).
      */
-    fun setActiveModel(modelId: String) {
-        AiModelRegistry.setActiveModel(context, modelId)
-        refreshActiveModel()
+    private fun resolveActiveModelName(): String {
+        val (provider, _) = UniversalKeyBrain.getActiveEngine()
+        return when (provider) {
+            DetectedProvider.OPENROUTER -> DetectedProvider.OPENROUTER.defaultModel
+            DetectedProvider.GROQ -> DetectedProvider.GROQ.defaultModel
+            DetectedProvider.GEMINI, DetectedProvider.NONE -> "gemini-3.8-flash"
+        }
     }
 }
 

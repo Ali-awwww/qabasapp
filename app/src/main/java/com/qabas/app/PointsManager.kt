@@ -22,6 +22,15 @@ enum class PointAction(val points: Int, val description: String) {
 object PointsManager {
     private const val TAG = "PointsManager"
 
+    /**
+     * نقاط كل مهمة من مهام الورد اليومي الثلاث في KnowledgeHubScreen
+     * (قراءة فائدة اليوم، تحدي الفرسان، إنشاء سيناريو) — قيمة واحدة
+     * موحّدة يستعملها المنح والعرض معاً، فلا يعود العنوان («×30»)
+     * ولا التنبيه («+10») ولا نتيجة الاختبار («+النتيجة») أرقاماً
+     * مخترعة لا تطابق المنح الفعلي.
+     */
+    const val DAILY_TASK_POINTS = 10
+
     fun awardPoints(context: Context, action: PointAction) {
         awardCustomPoints(context, action.points, action.name)
     }
@@ -116,33 +125,76 @@ object PointsManager {
         return missionsList[index].copy(weekNumber = weekOfYear)
     }
 
+    /**
+     * هل أُنجزت مهمة الأسبوع الحالية؟ يُخزَّن مفتاح أسبوع إنجازها
+     * (سنة×100 + رقم الأسبوع) لا رقم الأسبوع وحده — المعرّف نفسه يعود
+     * كل 4 أسابيع، ورقم الأسبوع وحده يتكرر كل سنة فيعيد إنجازاً قديماً
+     * لمهمة متجددة (ق26). القيم القديمة (رقم أسبوع 1..53) لا تطابق أي
+     * مفتاح سنة فتُعاد المهمة مرة واحدة بعد هذا الإصلاح.
+     */
     fun isWeeklyMissionCompleted(context: Context, missionId: String): Boolean {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        return prefs.getBoolean("completed_$missionId", false)
+        return prefs.getInt("completed_week_$missionId", -1) == currentWeekKey()
+    }
+
+    /** مفتاح أسبوع الإنجاز: سنة×100 + رقم الأسبوع في السنة. */
+    private fun currentWeekKey(): Int {
+        val calendar = java.util.Calendar.getInstance()
+        return calendar.get(java.util.Calendar.YEAR) * 100 +
+            calendar.get(java.util.Calendar.WEEK_OF_YEAR)
     }
 
     fun verifyAndAwardChallenge(context: Context, script: String) {
+        // ق26: بلا سكربت لا نقاط أصلاً — كان منح التصدير (50) يسبق
+        // فحص الفراغ فيُمنح على تصدير بلا نص.
+        if (script.isBlank()) return
         // نمنح نقاط الإنشاء الأساسية أولاً في جميع الأحوال
         awardPoints(context, PointAction.EXPORT_VIDEO)
-        
-        if (script.isBlank()) return
-        
+
+        // مهمة الأسبوع الحالية (تدور بين 4 مواضيع) — كان التوجيه
+        // مثبّتاً على موضوع الأسبوع الأول («فتنة المظاهر») فتُرفض
+        // سكربتات الأسابيع 2–4 المطابقة لمواضيعها فعلاً.
+        val mission = getCurrentWeeklyMission()
+        // ق169: مكافأة المهمة (100) مرة واحدة في الأسبوع — كان كل
+        // تصدير مطابق يمنحها من جديد بلا قيد، فتُحصد بتكرار التصدير.
+        // نقاط الإنشاء (50) أعلاه تبقى لكل تصدير؛ القيد هنا لمكافأة
+        // المهمة وحدها، ويُعاد فحصه بعد التحقق داخل القفل أدناه
+        // لتصديرين متزامنين.
+        if (isWeeklyMissionCompleted(context, mission.id)) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // التحقق من الذكاء الاصطناعي إذا كان المحتوى يتعلق بفتنة المظاهر والقناعة
+                // التحقق من الذكاء الاصطناعي إذا كان المحتوى يتعلق بموضوع مهمة هذا الأسبوع
                 val prompt = """
-                    أنت حكم في مسابقة لصناعة المحتوى الإسلامي. مهمة هذا الأسبوع هي: "محاربة فتنة المظاهر والمقارنات في السوشيال ميديا والدعوة للقناعة".
-                    اقرأ السكربت التالي، وأجب بكلمة "YES" فقط إذا كان السكربت يخدم هذه المهمة ويعالج هذه الفتنة، أو بكلمة "NO" إذا كان يتحدث عن موضوع آخر.
-                    
+                    أنت حكم في مسابقة لصناعة المحتوى الإسلامي. مهمة هذا الأسبوع هي: "${mission.topic}" — ${mission.description}.
+                    اقرأ السكربت التالي، وأجب بكلمة "YES" فقط إذا كان السكربت يخدم هذه المهمة ويعالج موضوعها، أو بكلمة "NO" إذا كان يتحدث عن موضوع آخر.
+
                     السكربت:
                     $script
                 """.trimIndent()
-                
+
                 val geminiResponse = AppServices.chatWithAssistant(listOf(Pair(true, prompt)))
-                
-                if (geminiResponse.contains("YES", ignoreCase = true)) {
-                    Log.d(TAG, "AI Verified Challenge Completion! Awarding 100 points.")
-                    awardPoints(context, PointAction.WEEKLY_CHALLENGE)
+
+                // «YES» حرفية وحدها بعد قصّ الفراغ وعلامة الترقيم —
+                // contains كان يقبل أي رد يحوي الكلمة عرضاً في شرح أو نفي.
+                val verdictYes = geminiResponse.trim().trimEnd('.', '!', '؟')
+                    .equals("YES", ignoreCase = true)
+                if (verdictYes) {
+                    // ق169: الفحص والمنح والتوثيق ذرّياً داخل قفل واحد —
+                    // تصديران متزامنان قد يجتازا فحص ما قبل الإطلاق معاً؛
+                    // الثاني يجد المهمة منجزة هنا فلا تُمنح مرتين.
+                    synchronized(PointsManager) {
+                        if (isWeeklyMissionCompleted(context, mission.id)) {
+                            Log.d(TAG, "Weekly challenge already completed this week; skipping duplicate award.")
+                        } else {
+                            Log.d(TAG, "AI Verified Challenge Completion! Awarding 100 points.")
+                            awardPoints(context, PointAction.WEEKLY_CHALLENGE)
+                            // توثيق الإنجاز لأسبوعه: كان الإنجاز يُمنح بلا حفظ
+                            // إطلاقاً فلا تظهر المهمة منجزة أبداً في لوحة الشرف.
+                            context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
+                                .putInt("completed_week_${mission.id}", currentWeekKey())
+                                .apply()
+                        }
+                    }
                 } else {
                     Log.d(TAG, "AI decided the script does not match the weekly challenge: $geminiResponse")
                 }

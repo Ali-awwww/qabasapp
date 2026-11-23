@@ -43,8 +43,9 @@ import com.qabas.app.ui.theme.*
  *   لأن مدة المقطع غير موجودة في قاعدة البيانات.
  * - النقر على مصغّر يقفز للمقطع في الخلاصة عبر onJumpToReel.
  *
- * حدود صريحة: صفحات الصوت تجمّع حسب القارئ (اسم الصانع) لا حسب المقطع
- * الصوتي، لأنه لا عمود audio_track_id في ReelRow.
+ * حدود صريحة: صفحات الصوت تجمّع حسب الصانع (مفتاحه: معرّفه أو اسمه)
+ * لا حسب المقطع الصوتي، لأنه لا عمود audio_track_id في ReelRow.
+ * ق42: كان التجميع بالاسم وحده فيندمج صانعان مختلفان بالاسم نفسه.
  */
 @Composable
 fun ReelsExploreScreen(
@@ -76,28 +77,43 @@ fun ReelsExploreScreen(
             .take(10)
             .map { it.key }
     }
+    // (مفتاح الصانع، الاسم المعروض، عدد المقاطع) — التجميع بالمفتاح
+    // (ق42) لا بالاسم: صانعان مختلفان بالاسم نفسه كانا يندمجان في صف
+    // واحد ويُعرضان كصانع واحد.
     val reciters = remember(reels) {
-        reels.groupBy { it.userName.trim().ifBlank { "صانع محتوى" } }
+        reels.groupBy { ReelFeedScoring.creatorKey(it) }
             .entries.sortedByDescending { it.value.size }
             .take(10)
-            .map { it.key to it.value.size }
+            .map { (key, group) ->
+                Triple(
+                    key,
+                    group.first().userName.trim().ifBlank { "صانع محتوى" },
+                    group.size
+                )
+            }
     }
+    val selectedReciterName =
+        reciters.firstOrNull { it.first == selectedReciter }?.second
     val visibleReels = remember(reels, selectedTag, selectedReciter, searchQuery) {
         reels.filter { reel ->
-            val matchTag = selectedTag == null || reel.tags.contains(selectedTag)
+            // ق42: مقارنة الوسم بعد التقليم (الوسم الرائج مقلَّم أصلاً)،
+            // والصانع بالمفتاح لا بالاسم.
+            val matchTag = selectedTag == null || reel.tags.any { it.trim() == selectedTag }
             val matchReciter = selectedReciter == null ||
-                reel.userName.trim().ifBlank { "صانع محتوى" } == selectedReciter
+                ReelFeedScoring.creatorKey(reel) == selectedReciter
+            // ق42: بحث مطبَّع (تشكيل/همزة/ألف) كبقية البحث العام —
+            // «قران» بلا همزة كان لا يجد «قرآن» هنا.
             val matchQuery = searchQuery.isBlank() ||
-                reel.title.contains(searchQuery, ignoreCase = true) ||
-                reel.tags.any { it.contains(searchQuery, ignoreCase = true) } ||
-                (reel.userName?.contains(searchQuery, ignoreCase = true) == true)
+                HadithSearchNormalizer.matches(reel.title, searchQuery) ||
+                reel.tags.any { HadithSearchNormalizer.matches(it, searchQuery) } ||
+                (reel.userName?.let { HadithSearchNormalizer.matches(it, searchQuery) } == true)
             matchTag && matchReciter && matchQuery
         }
     }
 
     val pageTitle = when {
         selectedTag != null -> "وسم: $selectedTag"
-        selectedReciter != null -> "صوت: $selectedReciter"
+        selectedReciter != null -> "صوت: ${selectedReciterName ?: "صانع محتوى"}"
         else -> "استكشف الريلز"
     }
 
@@ -177,11 +193,11 @@ fun ReelsExploreScreen(
                     }
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            reciters.forEach { (reciter, count) ->
+                            reciters.forEach { (key, name, count) ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { selectedReciter = reciter }
+                                        .clickable { selectedReciter = key }
                                         .background(
                                             color = theme.primary.copy(alpha = 0.08f),
                                             shape = RoundedCornerShape(12.dp)
@@ -197,7 +213,7 @@ fun ReelsExploreScreen(
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text(
-                                        text = reciter,
+                                        text = name,
                                         color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.SemiBold,

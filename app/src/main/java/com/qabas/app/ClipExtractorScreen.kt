@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +23,12 @@ import org.json.JSONArray
 
 private data class GoldenClip(val hook: String, val text: String)
 
+/** حافظة لحظات ذهبية عبر التدوير: زوجا (خطاف، نص) مسطحان (ق101). */
+private val goldenClipsSaver = listSaver<List<GoldenClip>, String>(
+    save = { clips -> clips.flatMap { listOf(it.hook, it.text) } },
+    restore = { flat -> flat.chunked(2).mapNotNull { if (it.size == 2) GoldenClip(it[0], it[1]) else null } }
+)
+
 /**
  * مقص المقاطع: خطبة/بودكاست طويل → 5 لحظات ذهبية جاهزة كريلزات.
  */
@@ -31,38 +39,88 @@ fun ClipExtractorScreen(
     onBack: () -> Unit,
     onCreateProject: (scriptText: String, topic: String) -> Unit
 ) {
-    var longText by remember { mutableStateOf(initialText) }
-    var clips by remember { mutableStateOf<List<GoldenClip>>(emptyList()) }
+    // ق101: النص الملصوق والتنبيه واللحظات تنجو من تدوير الشاشة —
+    // كان تدوير واحد يفقد نصاً طويلاً ألصقه المستخدم ونتائج
+    // الاستخراج معاً. أما working فيبقى remember عادياً قصداً:
+    // التدوير يلغي الكوروتين فلو استُعيد true لتعطل الزر للأبد
+    // بلا عمل جارٍ.
+    var longText by rememberSaveable { mutableStateOf(initialText) }
+    var clips by rememberSaveable(saver = goldenClipsSaver) { mutableStateOf<List<GoldenClip>>(emptyList()) }
     var working by remember { mutableStateOf(false) }
+    var notice by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    /** خطاف العرض: «…» للاقتطاع فقط لا لكل جملة (ق101). */
+    fun clipHook(text: String): String = if (text.length > 40) text.take(40) + "…" else text
 
     fun localClips(t: String): List<GoldenClip> {
         val parts = t.split(Regex("[.،!؟\\n]")).map { it.trim() }.filter { it.length > 20 }.take(5)
-        return parts.map { GoldenClip(hook = it.take(40) + "…", text = it) }
+        return parts.map { GoldenClip(hook = clipHook(it), text = it) }
     }
 
     fun extract() {
-        if (longText.length < 30 || working) return
+        // ق25: كان الزر لا يفعل شيئاً بصمت عند نص قصير.
+        if (longText.length < 30) {
+            notice = "الصق نصاً أطول (30 حرفاً على الأقل) ليجد المقص لحظات ذهبية."
+            return
+        }
+        if (working) return
+        notice = null
         working = true
         scope.launch {
             val p = """
                 من هذا النص الطويل: "${longText.take(3000)}"
                 استخرج 5 لحظات ذهبية تصلح ريلزات قصيرة. أخرج JSON فقط: [{"hook":"جملة خطافة أول ثانيتين","text":"نص المقطع 30-50 كلمة"}].
             """.trimIndent()
-            val raw = withContext(Dispatchers.IO) {
+            val truncated = longText.length > 3000
+            var usedLocalFallback = false
+            // المسار الأول: Groq يعيد JSON مباشرة.
+            val groqRaw = withContext(Dispatchers.IO) {
                 try { RealGroqService.chatOrGenerate(p) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-                    ?: try { RealGeminiService.generateScript(longText, "", "موعظة", "مؤثر").joinToString("\n") { it.title } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             }
-            clips = try {
-                if (raw != null && raw.contains("[")) {
-                    val arr = JSONArray(raw.substring(raw.indexOf("["), raw.lastIndexOf("]") + 1))
+            var parsed: List<GoldenClip> = emptyList()
+            var groqOk = false
+            if (groqRaw != null && groqRaw.contains("[")) {
+                parsed = try {
+                    val arr = JSONArray(groqRaw.substring(groqRaw.indexOf("["), groqRaw.lastIndexOf("]") + 1))
                     (0 until arr.length()).map {
                         val o = arr.getJSONObject(it)
                         GoldenClip(o.optString("hook", "لحظة ذهبية"), o.optString("text", ""))
                     }.filter { it.text.isNotBlank() }
-                } else localClips(longText)
-            } catch (_: Exception) { localClips(longText) }
-            if (clips.isEmpty()) clips = localClips(longText)
+                } catch (_: Exception) { emptyList() }
+                groqOk = parsed.isNotEmpty()
+            }
+            clips = if (groqOk) {
+                parsed
+            } else {
+                // ق101: احتياط Gemini كان joinToString لعناوين المشاهد
+                // فينتج نصاً بلا "[" فيُرمى دائماً ويُستبدل بالتقسيم
+                // المحلي بصمت — فالمسار الثاني كله كان وهماً. الآن
+                // تُبنى اللحظات من المشاهد نفسها (عنوانها العربي
+                // جملة قابلة للسرد).
+                val geminiClips = withContext(Dispatchers.IO) {
+                    try {
+                        RealGeminiService.generateScript(longText, "", "موعظة", "مؤثر")
+                            .filter { it.title.isNotBlank() }
+                            .take(5)
+                            .map { GoldenClip(hook = clipHook(it.title), text = it.title) }
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyList() }
+                }
+                if (geminiClips.isNotEmpty()) geminiClips else {
+                    usedLocalFallback = true
+                    localClips(longText)
+                }
+            }
+            // ق101: تنبيه صادق عن مصدر اللحظات — كان الفشل الصامت
+            // يعرض تقسيماً محلياً على أنه استخراج ذكي، والنتيجة
+            // الفارغة كانت تترك الشاشة خالية بلا أي رسالة.
+            notice = when {
+                clips.isEmpty() -> "لم تُعثر على لحظات في هذا النص — جرّب نصاً أطول بجمل مكتملة."
+                usedLocalFallback -> "تعذّر استخراج اللحظات بالذكاء الاصطناعي — عُرضت لحظات مستخرجة محلياً من النص." +
+                    if (truncated) " (حُلِّل أول 3000 حرف فقط.)" else ""
+                truncated -> "حُلِّل أول 3000 حرف من النص فقط."
+                else -> null
+            }
             working = false
         }
     }
@@ -88,6 +146,16 @@ fun ClipExtractorScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 ProdPrimaryButton(text = if (working) "المقص يعمل..." else "قص اللحظات الذهبية ✂️", onClick = { extract() })
+                // ق101: مؤشر تقدّم غير محدد أثناء الاستدعاء — كان نص
+                // الزر وحده إشارة العمل، بلا أي مؤشر مرئي.
+                if (working) {
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = PresetPrimary, trackColor = Color(0xFF1E293B))
+                }
+                notice?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                }
             }
             itemsIndexed(clips) { i, c ->
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)), shape = RoundedCornerShape(14.dp)) {

@@ -109,7 +109,7 @@ object AiTools {
                         SupabaseServices.AiGenerationRow(
                             id = UUID.randomUUID().toString(),
                             type = "image",
-                            // سلسلة AppServices.generateAiImage الفعلية: Pollinations/FLUX ثم Pixabay.
+                            // سلسلة AppServices.generateAiImage الفعلية: Pollinations/FLUX وحده (ق135: بلا بديل بصورة مخزون).
                             provider = "pollinations",
                             prompt = prompt,
                             filePath = path,
@@ -134,47 +134,59 @@ object AiTools {
         ) { args ->
             val prompt = args.optString("prompt").ifBlank { "مشهد دعوي سينمائي" }
             val duration = args.optInt("duration_seconds", 5).coerceIn(3, 30)
-            val file = HiggsfieldVideoService.generateTextToVideo(
-                context, prompt, durationSeconds = duration
-            )
-            if (file == null || !file.exists()) {
-                runCatching {
-                    SupabaseServices.Database.insertStudioJob(
-                        SupabaseServices.StudioJobRow(
-                            id = UUID.randomUUID().toString(),
-                            type = "video",
-                            status = "failed",
-                            progress = 0f,
-                            prompt = prompt,
-                            error = "فشل توليد الفيديو عبر Higgsfield"
+            // (ق41) المهمة حية في الطابور منذ البدء لا بعد الانتهاء: تُسجَّل
+            // في StudioLiveJobs وتُحدَّث بتقدم Kling الحقيقي، وتُرفع في
+            // finally حتى عند الإلغاء — فلا مهمة «جارية» عالقة أبداً.
+            val liveId = StudioLiveJobs.start(prompt)
+            try {
+                val file = HiggsfieldVideoService.generateTextToVideo(
+                    context, prompt, durationSeconds = duration
+                ) { progress, status -> StudioLiveJobs.update(liveId, progress, status) }
+                if (file == null || !file.exists()) {
+                    runCatching {
+                        SupabaseServices.Database.insertStudioJob(
+                            SupabaseServices.StudioJobRow(
+                                id = UUID.randomUUID().toString(),
+                                type = "video",
+                                status = "failed",
+                                progress = 0f,
+                                prompt = prompt,
+                                // (ق41) سبب الفشل الحقيقي لا العام: كان
+                                // «فشل توليد الفيديو عبر Higgsfield» دائماً
+                                // بينما السبب (HTTP/مهلة/بلا معرّف) موجود.
+                                error = HiggsfieldVideoService.lastError
+                                    ?: "فشل توليد الفيديو عبر Higgsfield"
+                            )
                         )
-                    )
+                    }
+                    "تعذّر توليد الفيديو عبر Higgsfield — تحقق من بوابة المنصة والاتصال."
+                } else {
+                    runCatching {
+                        SupabaseServices.Database.insertStudioJob(
+                            SupabaseServices.StudioJobRow(
+                                id = UUID.randomUUID().toString(),
+                                type = "video",
+                                status = "completed",
+                                progress = 1f,
+                                prompt = prompt,
+                                filePath = file.absolutePath
+                            )
+                        )
+                        SupabaseServices.Database.insertAiGeneration(
+                            SupabaseServices.AiGenerationRow(
+                                id = UUID.randomUUID().toString(),
+                                type = "video",
+                                provider = "higgsfield_kling",
+                                prompt = prompt,
+                                filePath = file.absolutePath,
+                                costUsd = 0.0
+                            )
+                        )
+                    }
+                    file.absolutePath
                 }
-                "تعذّر توليد الفيديو عبر Higgsfield — تحقق من بوابة المنصة والاتصال."
-            } else {
-                runCatching {
-                    SupabaseServices.Database.insertStudioJob(
-                        SupabaseServices.StudioJobRow(
-                            id = UUID.randomUUID().toString(),
-                            type = "video",
-                            status = "completed",
-                            progress = 1f,
-                            prompt = prompt,
-                            filePath = file.absolutePath
-                        )
-                    )
-                    SupabaseServices.Database.insertAiGeneration(
-                        SupabaseServices.AiGenerationRow(
-                            id = UUID.randomUUID().toString(),
-                            type = "video",
-                            provider = "higgsfield_kling",
-                            prompt = prompt,
-                            filePath = file.absolutePath,
-                            costUsd = 0.0
-                        )
-                    )
-                }
-                file.absolutePath
+            } finally {
+                StudioLiveJobs.finish(liveId)
             }
         },
         ToolDef(

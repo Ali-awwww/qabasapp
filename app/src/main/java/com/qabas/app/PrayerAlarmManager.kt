@@ -33,8 +33,8 @@ object PrayerAlarmManager {
         PRAYER_SUHUR
     )
 
-    private fun getRequestCode(prayerKey: String, isPreReminder: Boolean = false): Int {
-        val base = when (prayerKey) {
+    private fun getRequestCode(prayerKey: String): Int {
+        return when (prayerKey) {
             PRAYER_FAJR -> 2001
             PRAYER_SUNRISE -> 2002
             PRAYER_DHUHR -> 2003
@@ -44,7 +44,6 @@ object PrayerAlarmManager {
             PRAYER_SUHUR -> 2007
             else -> 2000
         }
-        return if (isPreReminder) base + 500 else base
     }
 
     /**
@@ -90,8 +89,7 @@ object PrayerAlarmManager {
             todayTimes.qiyamStart,
             tomorrowTimes.qiyamStart,
             "قيام الليل والسحر",
-            city,
-            isOvernight = true
+            city
         )
 
         // شغّل عدّاد الأذان الثابت بعد كل جدولة ناجحة
@@ -114,8 +112,7 @@ object PrayerAlarmManager {
         todayTimeStr: String,
         tomorrowTimeStr: String,
         prayerArabicName: String,
-        city: CityLocation,
-        isOvernight: Boolean = false
+        city: CityLocation
     ) {
         val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
         val isPrayerEnabled = prayerPrefs.getBoolean("notify_$prayerKey", true)
@@ -128,21 +125,24 @@ object PrayerAlarmManager {
         val nowMillis = System.currentTimeMillis()
 
         val triggerMillis = runCatching {
-            if (isOvernight) {
-                PrayerCalculationHelper.calendarForPrayerTime(todayTimeStr, nowMillis, city, dayOffset = 1)
-                    .timeInMillis
+            // ق120: المنطق نفسه لكل الصلوات — ومنها السحر: وقت اليوم إن
+            // كان ما زال في المستقبل وإلا وقت الغد. الفرع الليلي القديم
+            // كان يضيف يوماً دائماً (dayOffset = 1)، فيتخطى قيام الليلة
+            // نفسها كلما أُعيدت الجدولة بين منتصف الليل وبدء القيام
+            // (نحو 00:00–01:20 لمكة: إقلاع أو تبديل إعداد في تلك النافذة
+            // كان يؤجل السحر لليلة التالية)؛ والمنطق الموحد صحيح في كل
+            // الحالات — فقيمة قيام ما بعد منتصف الليل تنتمي لليلة نفسها
+            // لا «للغد» لمجرد أن ساعتها بعد 00:00.
+            val targetCal = PrayerCalculationHelper.calendarForPrayerTime(todayTimeStr, nowMillis, city)
+            if (targetCal.timeInMillis > nowMillis) {
+                targetCal.timeInMillis
             } else {
-                val targetCal = PrayerCalculationHelper.calendarForPrayerTime(todayTimeStr, nowMillis, city)
-                if (targetCal.timeInMillis > nowMillis) {
-                    targetCal.timeInMillis
-                } else {
-                    PrayerCalculationHelper.calendarForPrayerTime(
-                        tomorrowTimeStr,
-                        nowMillis,
-                        city,
-                        dayOffset = 1
-                    ).timeInMillis
-                }
+                PrayerCalculationHelper.calendarForPrayerTime(
+                    tomorrowTimeStr,
+                    nowMillis,
+                    city,
+                    dayOffset = 1
+                ).timeInMillis
             }
         }.onFailure {
             Log.e(TAG, "Could not resolve $prayerKey prayer time in ${city.nameAr}", it)
@@ -152,8 +152,14 @@ object PrayerAlarmManager {
         // «تكبير فقط» قيمة قديمة محفوظة بلا صوت تكبير مستقل خلفها — كانت
         // تُشغّل الأذان الكامل؛ تُطبَّع إلى الأذان الكامل صراحةً، والخيار
         // نفسه أُزيل من نافذة التخصيص فلا يختاره مستخدم جديد.
+        // الشروق بلا أذان أبداً: منبهه تنبيه فقط مهما حُفظ قديماً — كان
+        // الافتراضي FULL_AZAN فيشغّل الأذان الكامل وشاشة الأذان عند الشروق.
         val rawSoundMode = prayerPrefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"
-        val soundMode = if (rawSoundMode == "TAKBEER_ONLY") "FULL_AZAN" else rawSoundMode
+        val soundMode = when {
+            prayerKey == PRAYER_SUNRISE -> "NOTIFICATION_ONLY"
+            rawSoundMode == "TAKBEER_ONLY" -> "FULL_AZAN"
+            else -> rawSoundMode
+        }
         val defaultVoice = MuezzinVoiceManager.getDefaultVoiceId(context)
         val voiceId = prayerPrefs.getString("voice_id_$prayerKey", defaultVoice) ?: defaultVoice
 
@@ -166,7 +172,7 @@ object PrayerAlarmManager {
             putExtra("trigger_time_millis", triggerMillis)
         }
 
-        val requestCode = getRequestCode(prayerKey, isPreReminder = false)
+        val requestCode = getRequestCode(prayerKey)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -219,7 +225,7 @@ object PrayerAlarmManager {
         val intent = Intent(context, PrayerAzanReceiver::class.java).apply {
             action = "com.qabas.app.ACTION_PRAYER_ALARM"
         }
-        val requestCode = getRequestCode(prayerKey, isPreReminder = false)
+        val requestCode = getRequestCode(prayerKey)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,

@@ -328,6 +328,13 @@ interface ChangelogDao {
 
     @Query("SELECT COUNT(*) FROM changelog_entries")
     suspend fun getCount(): Int
+
+    // ق21: تنظيف سجل مزيف: إصدارات 2.x لم تُنشر قط.
+    @Query("DELETE FROM changelog_entries WHERE versionName IN (:versions)")
+    suspend fun deleteByVersions(versions: List<String>)
+
+    @Query("SELECT * FROM changelog_entries WHERE id = :id")
+    suspend fun getById(id: String): ChangelogEntity?
 }
 
 // ملاحظة (جولة المراجعة 33): كيانات MemorizationRecord وQuranChallengeRecord
@@ -480,6 +487,17 @@ class ChangelogRepository(private val changelogDao: ChangelogDao) {
     suspend fun insertChangelog(entry: ChangelogEntity) = changelogDao.insertChangelog(entry)
 
     suspend fun ensureDefaultChangelogs() {
+        // ق21: تنظيف سجل مزيف سبق زرعه — إصلاح البذرة وحدها لا يكفي لأن
+        // الصفوف السيئة في قاعدة الأجهزة الحالية أصلاً:
+        // - إصدارات 2.1.0/2.3.0/2.4.0 لم تُنشر قط: لا وسوم ولا أي إصدار
+        //   2.x في تاريخ الريبو (الخط الحالي 1.3.7)، وبعضها يدّعي مزايا
+        //   غير موجودة (تزامن Firestore).
+        // - 1.3.3 موسومة «أحدث إصدار» مع أن التطبيق 1.3.7.
+        changelogDao.deleteByVersions(listOf("2.1.0", "2.3.0", "2.4.0"))
+        val row133 = changelogDao.getById("v1_3_3")
+        if (row133 != null && (row133.isLatest || row133.categoryBadge.contains("أحدث إصدار"))) {
+            changelogDao.insertChangelog(row133.copy(isLatest = false, categoryBadge = "إصدار سابق"))
+        }
         if (changelogDao.getCount() == 0) {
             val defaults = listOf(
                 ChangelogEntity(
@@ -488,39 +506,9 @@ class ChangelogRepository(private val changelogDao: ChangelogDao) {
                     versionCode = 102,
                     title = "منظومة الهود السايبرنتك، وتأمين السحابة، وتسريع البناء 🚀",
                     releaseDate = "23 أكتوبر 2026",
-                    categoryBadge = "أحدث إصدار 🌟",
-                    isLatest = true,
+                    categoryBadge = "إصدار سابق",
+                    isLatest = false,
                     highlights = "• ميزة جديدة: تطوير لوحة سجل التحديثات بنظام Cybernetic Glassmorphic HUD مع التصفية الذكية برقم الإصدار والتاريخ.\n• أمان وحماية: تعزيز منظومة حماية المفاتيح السحابية وتأمين جلسات التخزين المشفرة محلياً والضوابط الشرعية.\n• إصلاح أخطاء: ترقية كفاءة ذاكرة مجمع Kotlin ومعالجة مشاكل تجميع الـ NDK لتسريع الأداء والاستقرار الفوري.\n• ميزة جديدة: أيقونات ديناميكية متوهجة تصنف كل بند بحسب نوعه (أمان، ميزات جديدة، إصلاح أخطاء).\n• إصلاح أخطاء: تسريع استعلامات Supabase Postgrest وضبط مهام المزامنة الحية في الخلفية."
-                ),
-                ChangelogEntity(
-                    id = "v2_4_0",
-                    versionName = "2.4.0",
-                    versionCode = 240,
-                    title = "هندسة الشاشات المستقلة ودعم الخوادم ومجتمع واتساب 🚀",
-                    releaseDate = "26 سبتمبر 2026",
-                    categoryBadge = "تحديث رئيسي ✦",
-                    isLatest = false,
-                    highlights = "• ميزة جديدة: إعادة هندسة الإعدادات إلى شاشات فرعية مستقلة بنظام Material 3 كامل.\n• ميزة جديدة: إضافة قسم الدعم والمساهمة المتكامل وكفالة الخوادم بالتعليقات والأسهم.\n• أمان وحماية: ربط مجتمع واتساب الرسمي مع إمكانية الدخول المباشر ونسخ الرابط بلمسة.\n• ميزة جديدة: تزامن سحابي حي لبيانات الدعم والتحديثات عبر Firestore.\n• إصلاح أخطاء: تسريع تشغيل الفيديو وتحديث واجهة مشكاة الهدى بتصميم زجاجي مذهب."
-                ),
-                ChangelogEntity(
-                    id = "v2_3_0",
-                    versionName = "2.3.0",
-                    versionCode = 230,
-                    title = "استوديو بطاقات الحديث النبوي ومكتبة الصوتيات 📜",
-                    releaseDate = "15 سبتمبر 2026",
-                    categoryBadge = "تحديث رئيسي ✦",
-                    isLatest = false,
-                    highlights = "• إطلاق استوديو بطاقات الحديث الشريف بـ 5 قوالب جمالية متقدمة.\n• مكتبة الصوتيات والتلاوات النادرة مع دعم التشغيل في الخلفية.\n• فحص التجويد الصوتي المباشر وحساب مواقيت الصلاة الفلكي الدقيق.\n• نظام التنزيل الذكي في الخلفية مع شريط التقدم ونسبة الإنجاز الحية."
-                ),
-                ChangelogEntity(
-                    id = "v2_1_0",
-                    versionName = "2.1.0",
-                    versionCode = 210,
-                    title = "حارس المحتوى الشرعي والوضع الليلي الملكي 🛡️",
-                    releaseDate = "28 أغسطس 2026",
-                    categoryBadge = "تحسينات أمان ⚡",
-                    isLatest = false,
-                    highlights = "• تفعيل فلتر المحتوى الذكي (Islamic ContentGuard) لضمان نقاء المحتوى.\n• دعم التبديل السلس بين النمط الليلي الفاخر والنمط الفاتح.\n• تحسين محرك التصدير السينمائي FFmpeg بدقة 1080p و 4K بدون تقطيع.\n• إضافة بوصلة القبلة التفاعلية وسجل الأذكار اليومية."
                 ),
                 ChangelogEntity(
                     id = "v1_0_0",

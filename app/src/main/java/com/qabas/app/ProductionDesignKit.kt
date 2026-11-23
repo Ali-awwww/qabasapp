@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -58,11 +59,15 @@ fun ProdChipRow(options: List<String>, selected: String, onPick: (String) -> Uni
 }
 
 @Composable
-fun ProdPrimaryButton(text: String, onClick: () -> Unit) {
+fun ProdPrimaryButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
     val breathing = rememberBreathingScale()
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(56.dp).scale(breathing),
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(56.dp).scale(breathing)
+            // ق53: الزر المعطّل يُبهَت — كان نص «اكتب الفكرة أولاً» زراً
+            // قابلاً للنقر بلا أي أثر، فيخالف §3.
+            .alpha(if (enabled) 1f else 0.45f),
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
         contentPadding = PaddingValues(0.dp)

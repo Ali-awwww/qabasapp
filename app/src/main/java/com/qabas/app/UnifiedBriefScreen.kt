@@ -14,9 +14,11 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +48,24 @@ fun UnifiedBriefScreen(
     onSmartDirectorExit: () -> Unit
 ) {
     var tab by remember(initialTab) { mutableIntStateOf(initialTab) }
+
+    // ق70: حامل حوار المخرج يعيش هنا (الوالد يبقى مركّباً عند تبديل
+    // التبويبات) فينجو الحوار من التبديل؛ ويموت مع مغادرة التدفق.
+    val directorState = rememberDirectorChatState(state.inputText)
+
+    // ق180: نطاق إطلاق أدوار المخرج يعيش هنا مع الحامل — الابنة
+    // تخرج من التركيب عند تبديل التبويب فيُلغى نطاقها ويُسقط الرد،
+    // أما نطاق الوالد فيبقى فيكمل الدور الجاري ويُلحق رده.
+    val briefScope = rememberCoroutineScope()
+
+    // ق70: بذر فكرة جديدة من تبويب الفكرة إن كان الحوار ما زال بلا
+    // رسائل مستخدم؛ فالحوار الجاري لا يُستبدل أبداً بفكرة جديدة.
+    LaunchedEffect(tab) {
+        if (tab == TAB_DIRECTOR && state.inputText.isNotBlank()
+            && directorState.isFresh()
+            && directorState.briefState.value.idea != state.inputText
+        ) directorState.seedIdea(state.inputText)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScrollableTabRow(
@@ -89,9 +109,10 @@ fun UnifiedBriefScreen(
                     onOpenClips = onOpenClips
                 )
                 TAB_DIRECTOR -> DirectorChatScreen(
-                    initialText = state.inputText,
+                    state = directorState,
                     onBack = { tab = TAB_IDEA },
-                    onComplete = onBriefComplete
+                    onComplete = onBriefComplete,
+                    sendScope = briefScope
                 )
                 TAB_UNDERSTANDING -> UnderstandingScreen(
                     inputText = state.inputText,

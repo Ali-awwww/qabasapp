@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -50,7 +49,6 @@ fun ThemeDesignStudioScreen(
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
-    val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
 
     BackHandler { onBack() }
 
@@ -58,16 +56,12 @@ fun ThemeDesignStudioScreen(
     val currentThemeMode by ThemeManager.themeMode.collectAsState()
     var previewPreset by remember(globallyActivePreset) { mutableStateOf(globallyActivePreset) }
 
-    var isHudGridEnabled by remember {
-        mutableStateOf(prefs.getBoolean("pref_hud_grid", false))
-    }
-    var isHudCornersEnabled by remember {
-        mutableStateOf(prefs.getBoolean("pref_hud_corners", false))
-    }
     val isSoundFxEnabled = remember { AppSoundManager.clickEnabled.value }
-    var isOledHighContrast by remember {
-        mutableStateOf(prefs.getBoolean("pref_oled_contrast", false))
-    }
+    // السواد المطلق: تدفق مشترك مع مزوّد السمة (UserPreferencesManager)
+    // فيسري على التطبيق كاملاً فوراً، لا على معاينة هذه الشاشة وحدها.
+    // (حُذف مفتاحا «الشبكة المساعدة» و«تأكيد الحواف»: مفتاحان بلا أي
+    // قارئ مؤثر في التطبيق كله — واجهة توهم بعمل غير موجود.)
+    val isOledHighContrast by UserPreferencesManager.oledHighContrast.collectAsState()
 
     val previewPrimary = if (theme.isDark) previewPreset.darkPrimaryColor else previewPreset.lightPrimaryColor
     val previewAccent = if (theme.isDark) previewPreset.darkAccentColor else previewPreset.lightAccentColor
@@ -314,34 +308,9 @@ fun ThemeDesignStudioScreen(
                     subtitle = "خلفية سوداء نقية لراحة العين وتوفير البطارية على شاشات OLED",
                     checked = isOledHighContrast,
                     onCheckedChange = {
-                        isOledHighContrast = it
-                        prefs.edit().putBoolean("pref_oled_contrast", it).apply()
+                        UserPreferencesManager.setOledHighContrast(context, it)
                     },
                     icon = Icons.Default.DarkMode,
-                    primaryColor = previewPrimary
-                )
-                AppleInsetDivider()
-                StudioSwitchRow(
-                    title = "الشبكة المساعدة في أدوات التصميم",
-                    subtitle = "إظهار خطوط محاذاة خفيفة في معاينات التصميم",
-                    checked = isHudGridEnabled,
-                    onCheckedChange = {
-                        isHudGridEnabled = it
-                        prefs.edit().putBoolean("pref_hud_grid", it).apply()
-                    },
-                    icon = Icons.Default.Grid4x4,
-                    primaryColor = previewPrimary
-                )
-                AppleInsetDivider()
-                StudioSwitchRow(
-                    title = "تأكيد حواف البطاقات",
-                    subtitle = "إبراز حدود خفيفة حول البطاقات عند الحاجة لتباين أعلى",
-                    checked = isHudCornersEnabled,
-                    onCheckedChange = {
-                        isHudCornersEnabled = it
-                        prefs.edit().putBoolean("pref_hud_corners", it).apply()
-                    },
-                    icon = Icons.Default.CropFree,
                     primaryColor = previewPrimary
                 )
             }
