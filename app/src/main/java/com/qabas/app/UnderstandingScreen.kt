@@ -25,13 +25,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -51,6 +49,7 @@ fun UnderstandingScreen(
     onEditIdea: () -> Unit,
     onProceed: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val analyticsContext = LocalContext.current
     LaunchedEffect(Unit) { AppServices.getAnalyticsService(analyticsContext).logScreenView("Understanding") }
     // جلب تنبؤي: يبدأ أثناء قراءة الفهم فيخفي زمن الشبكة عن مسار الإنتاج
@@ -60,7 +59,6 @@ fun UnderstandingScreen(
     }
 
     var hasViolation by remember { mutableStateOf(false) }
-    var strikeMessage by remember { mutableStateOf("") }
     val accountService = remember { AppServices.getAccountService(analyticsContext) }
 
     var isAnalyzing by remember { mutableStateOf(true) }
@@ -76,8 +74,8 @@ fun UnderstandingScreen(
         ) 
     }
     
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
-    val surfaceGradient = Brush.verticalGradient(colors = listOf(Color(0xFF151B2B), Color(0xFF0B0F19)))
+    val goldGradient = Brush.horizontalGradient(colors = listOf(PresetAccent, PresetPrimary))
+    val surfaceGradient = Brush.verticalGradient(colors = listOf(theme.cardSurface, theme.background))
 
     LaunchedEffect(inputText, contentType, contentTone, videoDuration) {
         isAnalyzing = true
@@ -87,7 +85,7 @@ fun UnderstandingScreen(
                 SystemLogsManager.addLog(
                     "WARN",
                     "تحذير فلتر المحتوى — المتابعة بالتحليل والإنتاج",
-                    androidx.compose.ui.graphics.Color(0xFFE8C547)
+                    theme.gold
                 )
             }
             hasViolation = false
@@ -123,10 +121,10 @@ fun UnderstandingScreen(
                 }
                 onStyleDescriptionChange(fullStyleDesc)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             analysisError = "حدث خطأ غير متوقع: ${e.message ?: "فشل التحليل"}"
             analysisResult = null
-            SystemLogsManager.addLog("ERROR", "خطأ في UnderstandingScreen: ${e.message}", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "خطأ في UnderstandingScreen: ${e.message}", theme.destructive)
         } finally {
             isAnalyzing = false
         }
@@ -148,7 +146,7 @@ fun UnderstandingScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -177,14 +175,14 @@ fun UnderstandingScreen(
             topBar = {
             TopAppBar(
                 title = { 
-                    Text(Translator.tr("الرؤية الإخراجية"), color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp )
+                    Text(Translator.tr("الرؤية الإخراجية"), color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp )
                 },
                 navigationIcon = {
                     IconButton(
                         onClick = onEditIdea,
-                        modifier = Modifier.padding(start = 8.dp).background(Color(0xFF151B2B), CircleShape)
+                        modifier = Modifier.padding(start = 8.dp).background(theme.cardSurface, CircleShape)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = PresetPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate.copy(alpha = 0.95f))
@@ -249,6 +247,7 @@ fun UnderstandingScreen(
 
 @Composable
 fun UnderstandingErrorView(errorMessage: String, onRetry: () -> Unit) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -259,13 +258,13 @@ fun UnderstandingErrorView(errorMessage: String, onRetry: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(80.dp)
-                .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                .background(theme.destructive.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Default.ErrorOutline,
                 contentDescription = null,
-                tint = Color(0xFFEF4444),
+                tint = theme.destructive,
                 modifier = Modifier.size(48.dp)
             )
         }
@@ -274,7 +273,7 @@ fun UnderstandingErrorView(errorMessage: String, onRetry: () -> Unit) {
 
         Text(
             text = Translator.tr("حدث خطأ في التحليل"),
-            color = Color.White,
+            color = theme.textPrimary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
             fontSize = 20.sp,
@@ -302,11 +301,14 @@ fun UnderstandingErrorView(errorMessage: String, onRetry: () -> Unit) {
             Button(
                 onClick = onRetry,
                 modifier = Modifier.fillMaxSize(),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = CutCornerShape(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                    // سهم العودة في RTL يشير يميناً: كان Icons.Default.ArrowBack
+                    // (يسار) في كل التطبيق هو الوحيد غير المعكوس — الباقي
+                    // AutoMirrored (56 موضعاً).
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         Translator.tr("العودة والمحاولة مرة أخرى"),
@@ -316,7 +318,7 @@ fun UnderstandingErrorView(errorMessage: String, onRetry: () -> Unit) {
                     )
                 }
             }
-            HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.2f))
+            HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.2f))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -325,14 +327,14 @@ fun UnderstandingErrorView(errorMessage: String, onRetry: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .clip(CutCornerShape(12.dp))
-                .background(Color(0xFF151B2B)),
+                .background(theme.cardSurface),
             shape = CutCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0xFF1E293B))
+            border = BorderStroke(1.dp, theme.secondarySurface)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = Translator.tr("💡 نصيحة:"),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
@@ -359,6 +361,7 @@ fun UnderstandingBottomBar(
     onEditIdea: () -> Unit,
     onProceed: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Surface(
         color = DeepSlate.copy(alpha = 0.98f),
         shadowElevation = 24.dp
@@ -373,11 +376,11 @@ fun UnderstandingBottomBar(
             Button(
                 onClick = onEditIdea,
                 modifier = Modifier.weight(1f).height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF151B2B)),
+                colors = ButtonDefaults.buttonColors(containerColor = theme.cardSurface),
                 shape = CutCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.secondarySurface)
             ) {
-                Text(Translator.tr("تعديل"), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text(Translator.tr("تعديل"), color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
 
             Button(
@@ -392,7 +395,7 @@ fun UnderstandingBottomBar(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
-                            if (!isAnalyzing && !hasError) goldGradient else androidx.compose.ui.graphics.SolidColor(Color(0xFF1E293B)),
+                            if (!isAnalyzing && !hasError) goldGradient else androidx.compose.ui.graphics.SolidColor(theme.secondarySurface),
                             CutCornerShape(12.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -410,6 +413,7 @@ fun UnderstandingBottomBar(
 
 @Composable
 fun UnderstandingLoadingView() {
+    val theme = QabasTheme.current
     var stepIndex by remember { mutableIntStateOf(0) }
     var currentProgress by remember { mutableFloatStateOf(0.15f) }
 
@@ -445,14 +449,14 @@ fun UnderstandingLoadingView() {
         QabasGlowingSpinner(
             size = 84.dp,
             strokeWidth = 4.dp,
-            color = GoldPrimary
+            color = PresetPrimary
         )
 
         Spacer(modifier = Modifier.height(28.dp))
 
         Text(
             text = Translator.tr("نستلهم الأفكار... ✦"),
-            color = GoldPrimary,
+            color = PresetPrimary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
             fontSize = 22.sp
@@ -462,7 +466,7 @@ fun UnderstandingLoadingView() {
 
         Text(
             text = steps[stepIndex.coerceIn(0, steps.size - 1)].first,
-            color = Color.White,
+            color = theme.textPrimary,
             fontFamily = NotoSansFont,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -475,7 +479,7 @@ fun UnderstandingLoadingView() {
         Card(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
-                .border(1.dp, Color(0xFF1E293B), CutCornerShape(16.dp)),
+                .border(1.dp, theme.secondarySurface, CutCornerShape(16.dp)),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = CutCornerShape(16.dp)
         ) {
@@ -555,6 +559,7 @@ fun ViralHooksSection(
     selectedHook: String?,
     onSelectHook: (String?) -> Unit
 ) {
+    val theme = QabasTheme.current
     val hooks = if (analysis.hookSuggestions.isNotEmpty() && !analysis.hookSuggestions.any { it.contains("تعذّر التحليل") }) {
         analysis.hookSuggestions
     } else {
@@ -568,11 +573,11 @@ fun ViralHooksSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Bolt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Bolt, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     Translator.tr("خطاف البداية المقترح للريلز (Viral Hook) ⚡"), 
-                    color = GoldPrimary, 
+                    color = PresetPrimary,
                     fontFamily = CairoFont, 
                     fontWeight = FontWeight.Bold, 
                     fontSize = 15.sp
@@ -580,12 +585,12 @@ fun ViralHooksSection(
             }
             if (hooks.isNotEmpty()) {
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.2f),
+                    color = theme.success.copy(alpha = 0.2f),
                     shape = CutCornerShape(8.dp)
                 ) {
                     Text(
                         "${analysis.viralityScore}% ${Translator.tr("قوة الانتشار")}",
-                        color = Color(0xFF10B981),
+                        color = theme.success,
                         fontFamily = NotoSansFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -610,10 +615,10 @@ fun ViralHooksSection(
                     Surface(
                         onClick = { onSelectHook(if (isSelected) null else hook) },
                         shape = CutCornerShape(12.dp),
-                        color = if (isSelected) GoldPrimary.copy(alpha = 0.15f) else CardSurface,
+                        color = if (isSelected) PresetPrimary.copy(alpha = 0.15f) else CardSurface,
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isSelected) GoldPrimary else Color(0xFF1E293B)
+                            if (isSelected) PresetPrimary else theme.secondarySurface
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -621,12 +626,12 @@ fun ViralHooksSection(
                             RadioButton(
                                 selected = isSelected,
                                 onClick = { onSelectHook(if (isSelected) null else hook) },
-                                colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary, unselectedColor = TextSecondary)
+                                colors = RadioButtonDefaults.colors(selectedColor = PresetPrimary, unselectedColor = TextSecondary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "« $hook »",
-                                color = if (isSelected) GoldPrimary else TextPrimary,
+                                color = if (isSelected) PresetPrimary else TextPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -637,7 +642,7 @@ fun ViralHooksSection(
                 }
                 Text(
                     "🔁 الخاتمة الحلقية: ${pack.loopEnding}",
-                    color = Color(0xFF34D399),
+                    color = theme.success,
                     fontFamily = CairoFont,
                     fontSize = 12.sp
                 )
@@ -656,10 +661,10 @@ fun ViralHooksSection(
                     Surface(
                         onClick = { onSelectHook(if (isSelected) null else hook) },
                         shape = CutCornerShape(12.dp),
-                        color = if (isSelected) GoldPrimary.copy(alpha = 0.15f) else CardSurface,
+                        color = if (isSelected) PresetPrimary.copy(alpha = 0.15f) else CardSurface,
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp, 
-                            if (isSelected) GoldPrimary else Color(0xFF1E293B)
+                            if (isSelected) PresetPrimary else theme.secondarySurface
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -670,12 +675,12 @@ fun ViralHooksSection(
                             RadioButton(
                                 selected = isSelected,
                                 onClick = { onSelectHook(if (isSelected) null else hook) },
-                                colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary, unselectedColor = TextSecondary)
+                                colors = RadioButtonDefaults.colors(selectedColor = PresetPrimary, unselectedColor = TextSecondary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "« $hook »",
-                                color = if (isSelected) GoldPrimary else TextPrimary,
+                                color = if (isSelected) PresetPrimary else TextPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -691,11 +696,12 @@ fun ViralHooksSection(
 
 @Composable
 fun IdeaSummaryCard(inputText: String, analysis: IdeaAnalysis) {
+    val theme = QabasTheme.current
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(Translator.tr("الفكرة الأساسية"), color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(Translator.tr("الفكرة الأساسية"), color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
         Spacer(modifier = Modifier.height(12.dp))
         GlassmorphicSurface(
@@ -703,13 +709,13 @@ fun IdeaSummaryCard(inputText: String, analysis: IdeaAnalysis) {
                 .fillMaxWidth(),
             shape = CutCornerShape(12.dp),
             backgroundColor = CardSurface.copy(alpha = 0.85f),
-            borderColor = GoldPrimary.copy(alpha = 0.2f)
+            borderColor = PresetPrimary.copy(alpha = 0.2f)
         ) {
-            HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.1f))
+            HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.1f))
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "« $inputText »",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontSize = 16.sp,
                     fontFamily = NotoSansFont,
                     lineHeight = 28.sp,
@@ -726,13 +732,14 @@ fun VisualSettingsSection(
     currentTone: String,
     onToneAndStyleChange: (String, String) -> Unit
 ) {
+    val theme = QabasTheme.current
     var selectedTone by remember(currentTone) { mutableStateOf(currentTone) }
     var selectedStyle by remember(currentStyle) { mutableStateOf(currentStyle) }
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         // Visual Tone Selector
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(Translator.tr("المزاج العام (النبرة)"), color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(Translator.tr("المزاج العام (النبرة)"), color = theme.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 VisualOptionCard(
                     title = Translator.tr("خاشع"),
@@ -789,24 +796,24 @@ fun VisualSettingsSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Psychology, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Psychology, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         Translator.tr("التوجيه الإخراجي بواسطة StyleBrain"),
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = TajawalFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
                 }
                 Surface(
-                    color = GoldPrimary.copy(alpha = 0.15f),
+                    color = PresetPrimary.copy(alpha = 0.15f),
                     shape = CutCornerShape(8.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                 ) {
                     Text(
                         "تلقائي ذكي ✦",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -818,8 +825,8 @@ fun VisualSettingsSection(
             // StyleBrain Director Active Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                border = BorderStroke(1.5.dp, GoldPrimary),
+                colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
+                border = BorderStroke(1.5.dp, PresetPrimary),
                 shape = CutCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -830,14 +837,14 @@ fun VisualSettingsSection(
                     ) {
                         Text(
                             "🧠 الأسلوب المعتمد: ${activeAbsorbed.name}",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
                         Text(
                             "القوة: $coreScore%",
-                            color = Color(0xFF4CAF50),
+                            color = theme.success,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -862,9 +869,9 @@ fun VisualSettingsSection(
                             allAbsorbed.forEach { absorbed ->
                                 val isChosen = selectedStyle.contains(absorbed.name) || (selectedStyle.contains("StyleBrain") && absorbed.name == activeAbsorbed.name)
                                 Surface(
-                                    color = if (isChosen) GoldPrimary.copy(alpha = 0.2f) else Color(0xFF0B0F19),
+                                    color = if (isChosen) PresetPrimary.copy(alpha = 0.2f) else theme.background,
                                     shape = CutCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, if (isChosen) GoldPrimary else Color(0xFF1E293B)),
+                                    border = BorderStroke(1.dp, if (isChosen) PresetPrimary else theme.secondarySurface),
                                     modifier = Modifier.clickable {
                                         selectedStyle = "StyleBrain (${absorbed.name})"
                                         onToneAndStyleChange(selectedTone, selectedStyle)
@@ -875,12 +882,12 @@ fun VisualSettingsSection(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
                                         if (isChosen) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
                                         }
                                         Text(
                                             absorbed.name,
-                                            color = if (isChosen) GoldPrimary else TextSecondary,
+                                            color = if (isChosen) PresetPrimary else TextSecondary,
                                             fontSize = 11.sp,
                                             fontFamily = CairoFont,
                                             fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Normal
@@ -898,6 +905,7 @@ fun VisualSettingsSection(
 
 @Composable
 fun VisualOptionCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, isSelected: Boolean, onClick: () -> Unit) {
+    val theme = QabasTheme.current
         GlassmorphicSurface(
             modifier = Modifier
                 .width(100.dp)
@@ -905,66 +913,68 @@ fun VisualOptionCard(title: String, icon: androidx.compose.ui.graphics.vector.Im
                 .clickable { onClick() },
             shape = CutCornerShape(12.dp),
             backgroundColor = color.copy(alpha = 0.8f),
-            borderColor = if (isSelected) GoldPrimary else Color.Transparent
+            borderColor = if (isSelected) PresetPrimary else Color.Transparent
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Box(modifier = Modifier.size(48.dp).background(Color.White.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = if (isSelected) GoldPrimary else Color.White.copy(alpha=0.7f), modifier = Modifier.size(24.dp))
+                Box(modifier = Modifier.size(48.dp).background(theme.textPrimary.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = if (isSelected) PresetPrimary else theme.textPrimary.copy(alpha=0.7f), modifier = Modifier.size(24.dp))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(title, color = if (isSelected) GoldPrimary else Color.White, fontSize = 14.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                Text(title, color = if (isSelected) PresetPrimary else theme.textPrimary, fontSize = 14.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
             }
         }
 }
 
 @Composable
 fun InfoCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    val theme = QabasTheme.current
     Column(
         modifier = modifier
             .clip(CutCornerShape(16.dp))
-            .background(Color(0xFF151B2B))
-            .border(1.dp, Color(0xFF1E293B), CutCornerShape(16.dp))
+            .background(theme.cardSurface)
+            .border(1.dp, theme.secondarySurface, CutCornerShape(16.dp))
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier.size(40.dp).background(DeepSlate, CircleShape).border(1.dp, GoldPrimary.copy(alpha=0.3f), CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+        Box(modifier = Modifier.size(40.dp).background(DeepSlate, CircleShape).border(1.dp, PresetPrimary.copy(alpha=0.3f), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.height(12.dp))
         Text(title, color = TextSecondary, fontSize = 12.sp, fontFamily = NotoSansFont)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(value, color = Color.White, fontSize = 14.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(value, color = theme.textPrimary, fontSize = 14.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun KeywordsCard(keywords: List<String>) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(CutCornerShape(16.dp))
-            .background(Color(0xFF151B2B))
-            .border(1.dp, Color(0xFF1E293B), CutCornerShape(16.dp))
+            .background(theme.cardSurface)
+            .border(1.dp, theme.secondarySurface, CutCornerShape(16.dp))
             .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Tag, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Tag, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(Translator.tr("الكلمات المفتاحية"), color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(Translator.tr("الكلمات المفتاحية"), color = theme.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
         Spacer(modifier = Modifier.height(16.dp))
         GlassmorphicSurface(
             modifier = Modifier.fillMaxWidth(),
             shape = CutCornerShape(12.dp),
             backgroundColor = CardSurface.copy(alpha = 0.85f),
-            borderColor = Color(0xFF1E293B)
+            borderColor = theme.secondarySurface
         ) {
-            HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.05f))
+            HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.05f))
             FlowRow(
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -973,11 +983,11 @@ fun KeywordsCard(keywords: List<String>) {
                 keywords.forEach { keyword ->
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFF0B0F19), CutCornerShape(20.dp))
-                            .border(1.dp, GoldPrimary.copy(alpha = 0.5f), CutCornerShape(20.dp))
+                            .background(theme.background, CutCornerShape(20.dp))
+                            .border(1.dp, PresetPrimary.copy(alpha = 0.5f), CutCornerShape(20.dp))
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        Text(keyword, color = GoldPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = NotoSansFont)
+                        Text(keyword, color = PresetPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = NotoSansFont)
                     }
                 }
             }
@@ -987,11 +997,12 @@ fun KeywordsCard(keywords: List<String>) {
 
 @Composable
 fun ScenesTimelineCard(scenes: List<String>) {
+    val theme = QabasTheme.current
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.MovieFilter, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+            Icon(Icons.Default.MovieFilter, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(Translator.tr("المشاهد المقترحة"), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Text(Translator.tr("المشاهد المقترحة"), color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
         }
         
         Column(modifier = Modifier.padding(end = 8.dp)) {
@@ -1008,14 +1019,14 @@ fun ScenesTimelineCard(scenes: List<String>) {
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
-                                .background(if (index == 0) GoldPrimary.copy(alpha=0.15f) else DeepSlate, CircleShape)
-                                .border(2.dp, GoldPrimary, CircleShape),
+                                .background(if (index == 0) PresetPrimary.copy(alpha=0.15f) else DeepSlate, CircleShape)
+                                .border(2.dp, PresetPrimary, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             if (index == 0) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             } else {
-                                Text("${index + 1}", color = GoldPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("${index + 1}", color = PresetPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         if (index < scenes.size - 1) {
@@ -1023,7 +1034,7 @@ fun ScenesTimelineCard(scenes: List<String>) {
                                 modifier = Modifier
                                     .width(2.dp)
                                     .weight(1f)
-                                    .background(GoldPrimary.copy(alpha = 0.3f))
+                                    .background(PresetPrimary.copy(alpha = 0.3f))
                             )
                         }
                     }
@@ -1037,7 +1048,7 @@ fun ScenesTimelineCard(scenes: List<String>) {
                             .padding(bottom = if (index < scenes.size - 1) 24.dp else 0.dp)
                             .clip(CutCornerShape(12.dp))
                             .background(CardSurface)
-                            .border(1.dp, Color(0xFF1E293B), CutCornerShape(12.dp))
+                            .border(1.dp, theme.secondarySurface, CutCornerShape(12.dp))
                             .padding(16.dp)
                     ) {
                         Column {

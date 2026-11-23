@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import com.qabas.app.ui.theme.*
 
 /**
  * شاشة تكوين فريق الوكيل متعدد النماذج (Multi-Model Agent Team Config):
@@ -66,6 +67,7 @@ fun AgentTeamConfigScreen(
     val leaderCount = team.count { it.role == AgentTeamRole.LEADER && it.enabled } // 🔑 القائد المفعّل فقط
     // فحص الدستور حياً مع كل تعديل
     val validation = remember(team.toList()) { MultiModelAgentOrchestrator.validateTeam(team) }
+    val theme = QabasTheme.current
 
     Scaffold(
         topBar = {
@@ -83,16 +85,16 @@ fun AgentTeamConfigScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0B141A),
-                    titleContentColor = Color(0xFFD4AF37),
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color(0xFF38BDF8)
+                    containerColor = theme.background,
+                    titleContentColor = theme.gold,
+                    navigationIconContentColor = theme.textPrimary,
+                    actionIconContentColor = theme.primary
                 )
             )
         },
         bottomBar = {
             Surface(
-                color = Color(0xFF0B141A),
+                color = theme.background,
                 tonalElevation = 8.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -100,7 +102,7 @@ fun AgentTeamConfigScreen(
                     if (validation.errors.isNotEmpty()) {
                         Text(
                             "⛔ الحفظ متوقف حتى تُحل مخالفات الدستور أعلاه (${validation.errors.size})",
-                            color = Color(0xFFEF4444), fontSize = 12.sp,
+                            color = theme.destructive, fontSize = 12.sp,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
@@ -108,14 +110,14 @@ fun AgentTeamConfigScreen(
                     if (team.none { keyValidationState[it.id] == true }) {
                         Text(
                             "⚠️ لا يوجد مفتاح API صالح في الشاشة الرئيسية لأي مزود!",
-                            color = Color(0xFFEF4444), fontSize = 13.sp,
+                            color = theme.destructive, fontSize = 13.sp,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         OutlinedButton(
                             onClick = onOpenKeyHub,
                             modifier = Modifier.fillMaxWidth().height(40.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFFEF4444)
+                                contentColor = theme.destructive
                             )
                         ) { Text("🔑 فتح مركز المفاتيح لإضافة مفتاح", fontSize = 13.sp) }
                     }
@@ -126,32 +128,32 @@ fun AgentTeamConfigScreen(
                         },
                         enabled = validation.isValid && team.any { it.enabled && keyValidationState[it.id] == true },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37), contentColor = Color.Black)
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.gold, contentColor = theme.background)
                     ) { Text("حفظ الفريق وبدء العمل 💪", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         }
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().background(Color(0xFF0E1A21)).padding(padding)
+            Modifier.fillMaxSize().background(theme.background).padding(padding)
         ) {
             // شرح مختصر + قوالب جاهزة
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF16242D)),
+                colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Column(Modifier.padding(12.dp)) {
                     Text(
                         "🧠 نمط العمل: القائد + المساعدون",
-                        color = Color(0xFF38BDF8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+                        color = theme.primary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "يقوم النموذج القائد بتوزيع المهمة على المساعدين حسب رتبهم وتخصصاتهم، ثم يجمع مخرجاتهم في تقرير نهائي واحد.\n\nالرتبة الأصغر رقمًا تعني سلطة أعلى وأولوية في التنفيذ.",
-                        color = Color(0xFFB0BEC5), fontSize = 12.sp
+                        color = theme.textSecondary, fontSize = 12.sp
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text("قوالب جاهزة بنقرة:", color = Color(0xFFD4AF37), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("قوالب جاهزة بنقرة:", color = theme.gold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         MultiModelAgentOrchestrator.teamTemplates().forEach { (name, members) ->
@@ -175,7 +177,7 @@ fun AgentTeamConfigScreen(
                                 label = { Text((if (missing.isEmpty()) "✅ " else "⚠️ ") + name, fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Color.Transparent,
-                                    labelColor = if (missing.isEmpty()) Color(0xFF6EE7B7) else Color(0xFFFCD34D)
+                                    labelColor = if (missing.isEmpty()) theme.success else theme.warning
                                 )
                             )
                         }
@@ -186,20 +188,20 @@ fun AgentTeamConfigScreen(
             // 📜 دستور الفريق — فحص حي للمواد
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = if (validation.isValid) Color(0xFF0F2A1A) else Color(0xFF2A1414)
+                    containerColor = if (validation.isValid) theme.success.copy(alpha = 0.15f) else theme.destructive.copy(alpha = 0.15f)
                 ),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 border = BorderStroke(
                     1.dp,
-                    if (validation.isValid) Color(0xFF10B981).copy(alpha = 0.5f)
-                    else Color(0xFFEF4444).copy(alpha = 0.5f)
+                    if (validation.isValid) theme.success.copy(alpha = 0.5f)
+                    else theme.destructive.copy(alpha = 0.5f)
                 )
             ) {
                 Column(Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (validation.isValid) "📜 الدستور: سليم ✅" else "📜 الدستور: مخالفات ⛔",
-                            color = if (validation.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                            color = if (validation.isValid) theme.success else theme.destructive,
                             fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f)
                         )
@@ -209,17 +211,17 @@ fun AgentTeamConfigScreen(
                                 team.clear()
                                 team.addAll(fixed)
                                 Toast.makeText(context, "تم الإصلاح التلقائي 🛠 (رتب + تكرار)", Toast.LENGTH_SHORT).show()
-                            }) { Text("🛠 إصلاح تلقائي", fontSize = 11.sp, color = Color(0xFF38BDF8)) }
+                            }) { Text("🛠 إصلاح تلقائي", fontSize = 11.sp, color = theme.primary) }
                         }
                     }
                     validation.errors.forEach {
-                        Text("❌ $it", color = Color(0xFFFCA5A5), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("❌ $it", color = theme.destructive, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
                     }
                     validation.warnings.forEach {
-                        Text("⚠️ $it", color = Color(0xFFFCD34D), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("⚠️ $it", color = theme.warning, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
                     }
                     if (validation.isValid && validation.warnings.isEmpty()) {
-                        Text("قائد واحد • مساعد+ • رتب فريدة • تخصيصات مميزة", color = Color(0xFF6EE7B7), fontSize = 11.sp)
+                        Text("قائد واحد • مساعد+ • رتب فريدة • تخصيصات مميزة", color = theme.success, fontSize = 11.sp)
                     }
                 }
             }
@@ -230,8 +232,8 @@ fun AgentTeamConfigScreen(
                 onClick = { showConnectors = true },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF38BDF8))
+                border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.primary)
             ) {
                 Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
@@ -316,7 +318,7 @@ fun AgentTeamConfigScreen(
             title = { Text("رجوع بدون حفظ؟") },
             text = { Text("سيتم فقدان التعديلات غير المحفوظة على تشكيلة الفريق.") },
             confirmButton = {
-                TextButton(onClick = { showConfirmBack = false; onBack() }) { Text("نعم، رجوع", color = Color(0xFFEF4444)) }
+                TextButton(onClick = { showConfirmBack = false; onBack() }) { Text("نعم، رجوع", color = theme.destructive) }
             },
             dismissButton = { TextButton(onClick = { showConfirmBack = false }) { Text("متابعة التعديل") } }
         )
@@ -338,6 +340,7 @@ private fun TeamMemberCard(
     siblingInstructions: Set<String> = emptySet()
 ) {
         var visible by remember { mutableStateOf(false) }
+        val theme = QabasTheme.current
     LaunchedEffect(Unit) {
         delay(member.rank * 100L) // انزلاق متدرج حسب الرتبة
         visible = true
@@ -350,7 +353,7 @@ private fun TeamMemberCard(
     ) {
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = if (member.role == AgentTeamRole.LEADER) Color(0xFF1A2E1A) else Color(0xFF16242D)
+                containerColor = if (member.role == AgentTeamRole.LEADER) theme.success.copy(alpha = 0.15f) else theme.cardSurface
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -360,7 +363,7 @@ private fun TeamMemberCard(
                             BorderStroke(
                                 1.dp,
                                 Brush.horizontalGradient(
-                                    listOf(Color(0xFFD4AF37), Color(0xFFFFE082), Color(0xFFD4AF37))
+                                    listOf(theme.gold, theme.warning, theme.gold)
                                 )
                             ),
                             RoundedCornerShape(12.dp)
@@ -386,7 +389,7 @@ private fun TeamMemberCard(
                     .fillMaxWidth()
                     .then(
                         if (member.role == AgentTeamRole.LEADER) {
-                            Modifier.background(Color(0xFFD4AF37).copy(alpha = shimmerAlpha))
+                            Modifier.background(theme.gold.copy(alpha = shimmerAlpha))
                         } else Modifier
                     )
             ) {
@@ -396,13 +399,13 @@ private fun TeamMemberCard(
                         Icon(
                             Icons.Default.Star,
                             contentDescription = null,
-                            tint = if (member.role == AgentTeamRole.LEADER) Color(0xFFD4AF37) else Color(0xFF38BDF8),
+                            tint = if (member.role == AgentTeamRole.LEADER) theme.gold else theme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             member.displayName,
-                            color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            color = theme.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
@@ -410,15 +413,15 @@ private fun TeamMemberCard(
                             checked = member.enabled,
                             onCheckedChange = onEnabledChange,
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF10B981),
-                                checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.4f),
-                                uncheckedThumbColor = Color(0xFFEF4444),
-                                uncheckedTrackColor = Color(0xFFEF4444).copy(alpha = 0.2f)
+                                checkedThumbColor = theme.success,
+                                checkedTrackColor = theme.success.copy(alpha = 0.4f),
+                                uncheckedThumbColor = theme.destructive,
+                                uncheckedTrackColor = theme.destructive.copy(alpha = 0.2f)
                             ),
                             modifier = Modifier.height(28.dp)
                         )
                         IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.Close, "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Close, "حذف", tint = theme.destructive, modifier = Modifier.size(18.dp))
                         }
                     }
 
@@ -426,7 +429,7 @@ private fun TeamMemberCard(
 
                     // الدور (Leader / Executor / Reviewer)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("الدور:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                        Text("الدور:", color = theme.textSecondary, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                         AgentTeamRole.entries.forEach { role ->
                             FilterChip(
@@ -434,8 +437,8 @@ private fun TeamMemberCard(
                                 onClick = { onRoleChange(role) },
                                 label = { Text(role.label, fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFFD4AF37).copy(alpha = 0.3f),
-                                    selectedLabelColor = Color(0xFFD4AF37)
+                                    selectedContainerColor = theme.gold.copy(alpha = 0.3f),
+                                    selectedLabelColor = theme.gold
                                 ),
                                 modifier = Modifier.padding(horizontal = 2.dp)
                             )
@@ -446,7 +449,7 @@ private fun TeamMemberCard(
 
                     // الرتبة — ديناميكية حسب حجم الفريق (1 إلى teamSize)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("الرتبة:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                        Text("الرتبة:", color = theme.textSecondary, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                         Row {
                             (1..teamSize.coerceAtMost(5)).forEach { rankNum ->
@@ -455,8 +458,8 @@ private fun TeamMemberCard(
                                     onClick = { onRankChange(rankNum) },
                                     label = { Text("#$rankNum", fontSize = 11.sp) },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.25f),
-                                        selectedLabelColor = Color(0xFF38BDF8)
+                                        selectedContainerColor = theme.primary.copy(alpha = 0.25f),
+                                        selectedLabelColor = theme.primary
                                     ),
                                     modifier = Modifier.padding(horizontal = 2.dp)
                                 )
@@ -468,20 +471,20 @@ private fun TeamMemberCard(
 
                     // المزود + النموذج + حالة المفتاح (سطر الحالة فقط — الاسم يبقى نظيفاً)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("المزود: ${member.provider.displayName}", color = Color(0xFF00E5FF), fontSize = 12.sp)
+                        Text("المزود: ${member.provider.displayName}", color = theme.primary, fontSize = 12.sp)
                     }
                     Spacer(Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "النموذج: ${member.modelId.takeLast(30)}",
-                            color = Color(0xFF94A3B8), fontSize = 11.sp,
+                            color = theme.textSecondary, fontSize = 11.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (hasValidKey) "مفتاح مهيأ ✅" else "لا مفتاح ❌",
-                            color = if (hasValidKey) Color(0xFF10B981) else Color(0xFFEF4444),
+                            color = if (hasValidKey) theme.success else theme.destructive,
                             fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, softWrap = false
                         )
@@ -490,7 +493,7 @@ private fun TeamMemberCard(
                     Spacer(Modifier.height(6.dp))
                     var instructionDraft by remember(member.id) { mutableStateOf(member.customInstruction) }
                     var instructionTaken by remember(member.id) { mutableStateOf(false) }
-                    Text("تخصيص ${member.displayName}:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                    Text("تخصيص ${member.displayName}:", color = theme.textSecondary, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     // تخصيصات افتراضية قابلة للاختيار حسب الدور
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -510,9 +513,9 @@ private fun TeamMemberCard(
                                 label = { Text(preset.take(22) + "…", fontSize = 10.sp) },
                                 enabled = !isTaken,
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF38BDF8).copy(alpha = 0.3f),
-                                    selectedLabelColor = Color(0xFF38BDF8),
-                                    disabledLabelColor = Color(0xFF475569)
+                                    selectedContainerColor = theme.primary.copy(alpha = 0.3f),
+                                    selectedLabelColor = theme.primary,
+                                    disabledLabelColor = theme.textTertiary
                                 ),
                                 modifier = Modifier.padding(horizontal = 1.dp)
                             )
@@ -531,7 +534,7 @@ private fun TeamMemberCard(
                         supportingText = {
                             if (instructionTaken) Text(
                                 "⛔ هذا التخصيص مستخدم في عضو آخر — اختر غيره للفصل والنظام",
-                                fontSize = 10.sp, color = Color(0xFFEF4444)
+                                fontSize = 10.sp, color = theme.destructive
                             )
                         },
                         placeholder = {
@@ -561,6 +564,7 @@ private fun AddMemberDialog(
     existingInstructions: Set<String> = emptySet()
 ) {
     var selectedProvider by remember { mutableStateOf(DetectedProvider.OPENROUTER) }
+    val theme = QabasTheme.current
     var selectedModel by remember { mutableStateOf("anthropic/claude-sonnet-4.5") }
     var selectedRole by remember { mutableStateOf(if (currentLeaderCount == 0) AgentTeamRole.LEADER else AgentTeamRole.EXECUTOR) }
     var selectedRank by remember { mutableStateOf(if (currentLeaderCount == 0) 1 else teamSize) }
@@ -593,7 +597,7 @@ private fun AddMemberDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("المزود:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Text("المزود:", color = theme.textSecondary, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf(
                         DetectedProvider.OPENROUTER,
@@ -635,12 +639,12 @@ private fun AddMemberDialog(
                             .let { it.isNotBlank() && existingInstructions.contains(it) }
                         if (taken) Text(
                             "⛔ هذا التخصيص محجوز لعضو آخر",
-                            fontSize = 10.sp, color = Color(0xFFEF4444)
+                            fontSize = 10.sp, color = theme.destructive
                         )
                     }
                 )
 
-                Text("تخصيصات جاهزة للدور المختار:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Text("تخصيصات جاهزة للدور المختار:", color = theme.textSecondary, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     MultiModelAgentOrchestrator.rolePresets(selectedRole).forEach { preset ->
                         val isTaken = existingInstructions.contains(
@@ -656,7 +660,7 @@ private fun AddMemberDialog(
                     }
                 }
 
-                Text("الدور:", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Text("الدور:", color = theme.textSecondary, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     AgentTeamRole.entries.forEach { role ->
                         FilterChip(
@@ -673,7 +677,7 @@ private fun AddMemberDialog(
                     }
                 }
 
-                Text("الرتبة (1 = أعلى سلطة):", color = Color(0xFFB0BEC5), fontSize = 12.sp)
+                Text("الرتبة (1 = أعلى سلطة):", color = theme.textSecondary, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     (1..5).forEach { rankNum ->
                         FilterChip(
@@ -740,6 +744,7 @@ private fun TeamConnectorsDialog(
     val repo = remember { RepoVaultManager.getActiveRepo(context) }
     val localReady = remember { OnDeviceModelManager.getActiveReadyModel(context) }
     val engineOk = remember { LlamaCppService.isEngineAvailable() }
+    val theme = QabasTheme.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -750,9 +755,9 @@ private fun TeamConnectorsDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // 1) مفاتيح الأعضاء
-                Text("1) مفاتيح مزودي الأعضاء", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF38BDF8))
+                Text("1) مفاتيح مزودي الأعضاء", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = theme.primary)
                 if (enabled.isEmpty()) {
-                    Text("لا أعضاء مفعّلين — فعّل عضواً أولاً.", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                    Text("لا أعضاء مفعّلين — فعّل عضواً أولاً.", fontSize = 11.sp, color = theme.textSecondary)
                 }
                 enabled.forEach { m ->
                     val ok = keyValidationState[m.id] == true
@@ -766,41 +771,41 @@ private fun TeamConnectorsDialog(
                         Text(
                             "${m.displayName} • ${m.provider.displayName}" + if (poolSize > 1) " ($poolSize مفاتيح 🔑)" else "",
                             fontSize = 11.sp,
-                            color = Color.White,
+                            color = theme.textPrimary,
                             modifier = Modifier.weight(1f),
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
                 TextButton(onClick = onOpenKeyHub) {
-                    Text("🔑 فتح مركز المفاتيح", fontSize = 11.sp, color = Color(0xFFE5B842))
+                    Text("🔑 فتح مركز المفاتيح", fontSize = 11.sp, color = theme.gold)
                 }
 
                 // 2) المستودع
-                Text("2) مستودع الدفع (GitHub)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF38BDF8))
+                Text("2) مستودع الدفع (GitHub)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = theme.primary)
                 Text(
                     if (repo != null) "✅ ${repo.owner}/${repo.repo} • ${repo.defaultBranch.ifBlank { "main" }} — الدفع يعمل (عام أو خاص بتوكن صالح)"
                     else "❌ غير مربوط — اربطه من إعدادات الوكيل ليتعرف القائد على وجهة الدفع",
-                    fontSize = 11.sp, color = Color.White
+                    fontSize = 11.sp, color = theme.textPrimary
                 )
 
                 // 3) البناء
-                Text("3) اختبار البناء (android-ci.yml)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF38BDF8))
+                Text("3) اختبار البناء (android-ci.yml)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = theme.primary)
                 Text(
                     if (repo != null) "✅ جاهز — يُشغَّل عبر trigger_build بعد الدفع المعتمد"
                     else "❌ ينتظر ربط المستودع",
-                    fontSize = 11.sp, color = Color.White
+                    fontSize = 11.sp, color = theme.textPrimary
                 )
 
                 // 4) المحرك المحلي
-                Text("4) المحرك المحلي (احتياطي الأوفلاين)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF38BDF8))
+                Text("4) المحرك المحلي (احتياطي الأوفلاين)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = theme.primary)
                 Text(
                     when {
                         engineOk && localReady != null -> "✅ ${localReady.name} جاهز عبر JNI"
                         localReady != null -> "⚠️ ${localReady.name} منزّل لكن الجسر غير مبني — الفريق يعمل سحابياً فقط"
                         else -> "⚠️ لا نموذج محلي — الفريق سحابي حصراً"
                     },
-                    fontSize = 11.sp, color = Color.White
+                    fontSize = 11.sp, color = theme.textPrimary
                 )
             }
         },

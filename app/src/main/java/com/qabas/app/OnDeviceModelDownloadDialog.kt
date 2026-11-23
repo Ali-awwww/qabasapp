@@ -5,8 +5,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,10 +25,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
+import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * مركز تنزيل وإدارة النماذج المحلية للعمل بدون إنترنت
+ * مركز تنزيل وإدارة النماذج المحلية للعمل بدون إنترنت (حوار — كما كان).
+ * المحتوى نفسه في [OnDeviceModelsContent] ليُعاد في تبويب «النماذج» (12.5).
  */
 @Composable
 fun OnDeviceModelDownloadDialog(
@@ -38,19 +38,51 @@ fun OnDeviceModelDownloadDialog(
     onModelActivated: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
+    Dialog(onDismissRequest = onDismiss) {
+        OnDeviceModelsContent(
+            context = context,
+            onModelActivated = onModelActivated,
+            onDismiss = onDismiss,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp)
+        )
+    }
+}
+
+/**
+ * محتوى مركز النماذج المحلية — يُستعمل كحوار (أعلاه) وكتبويب «النماذج»
+ * (المرتبة 4) في قسم فايب كودينج. منطق التنزيل/الحذف/التبديل/التصدير/
+ * الاستيراد كاملاً في [OnDeviceModelManager] كما هو — لا إعادة كتابة هنا.
+ *
+ * قيد صدق ملزم: المحرك المحلي لا يعمل في بناء CI الافتراضي
+ * (CMakeLists.txt: LLAMA_REAL=OFF والـ stub يعيد 0، ولا LLAMA_REAL في
+ * android-ci.yml) — فالتبويب يعرض حالة المحرك بصدق عبر
+ * [LlamaCppService.isEngineAvailable]، وإن كان غير متاح عُطّل تفعيل
+ * الوضع المحلي برسالة صادقة؛ ولا يُفعَّل LLAMA_REAL=ON في CI هنا.
+ */
+@Composable
+fun OnDeviceModelsContent(
+    context: Context,
+    onModelActivated: () -> Unit = {},
+    onDismiss: () -> Unit = {},
+    modifier: Modifier = Modifier.fillMaxSize(),
+    /** في التبويب لا زر إغلاق — التبويب نفسه هو الحاوية. */
+    showCloseButton: Boolean = true
+) {
     val downloadState by OnDeviceModelManager.downloadState.collectAsState()
 
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var selectedModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
     var refreshKey by remember { mutableStateOf(0) }
+    // (12.16) نموذج محلي بانتظار تأكيد الحذف عبر الحوار أدناه.
+    var modelPendingDelete by remember { mutableStateOf<OnDeviceModelInfo?>(null) }
+    // حالة المحرك الحقيقية (محاولة تحميل llama_jni مرة واحدة، مخزنة في الخدمة).
+    val engineAvailable = remember { LlamaCppService.isEngineAvailable() }
+    val theme = QabasTheme.current
 
-    Dialog(onDismissRequest = onDismiss) {
-        GlassmorphicSurface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 700.dp),
-            backgroundColor = Color(0xFF090E17).copy(alpha = 0.96f),
-            borderColor = Color(0xFF00E5FF).copy(alpha = 0.5f)
+    GlassmorphicSurface(
+            modifier = modifier,
+            backgroundColor = theme.background.copy(alpha = 0.96f),
+            borderColor = theme.primary.copy(alpha = 0.5f)
         ) {
             Column(
                 modifier = Modifier
@@ -69,14 +101,14 @@ fun OnDeviceModelDownloadDialog(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF00E5FF).copy(alpha = 0.2f),
+                            color = theme.primary.copy(alpha = 0.2f),
                             modifier = Modifier.size(28.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.CloudDownload,
                                     contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
+                                    tint = theme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -87,18 +119,98 @@ fun OnDeviceModelDownloadDialog(
                                 text = "مركز النماذج المحلية (On-Device)",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "تعمل محلياً في الهاتف بدون إنترنت وبدون مفتاح API",
                                 fontSize = 10.sp,
-                                color = Color(0xFF94A3B8)
+                                color = theme.textSecondary
                             )
                         }
                     }
 
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق", tint = Color(0xFF94A3B8))
+                    if (showCloseButton) {
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textSecondary)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // (12.5) حالة المحرك بصدق: إن كان غير متاح عُطّل تفعيل الوضع المحلي.
+                if (!engineAvailable) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = theme.warning.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, theme.warning.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "المحرك المحلي غير متاح في هذه النسخة (بناء CI) — التنزيل والإدارة " +
+                                "متاحان، لكن تفعيل الوضع المحلي معطّل حتى يُبنى التطبيق مع LLAMA_REAL=ON.",
+                            fontSize = 11.sp,
+                            color = theme.gold,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // (12.4) بطاقة «قدرة جهازك»: قياس حي (RAM كلية/متاحة عبر
+                // ActivityManager.MemoryInfo + تخزين حر/كلي عبر StatFs + نوى)
+                // + النموذج المقترح. لا أرقام هنا لم تُقس.
+                val deviceCapability = remember(refreshKey) { VibeDeviceCapability.measure(context) }
+                val recommendedModel = remember(deviceCapability) {
+                    VibeDeviceCapability.recommendModel(deviceCapability)
+                }
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = theme.cardSurface,
+                    border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "قدرة جهازك (قياس حي)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = theme.textPrimary
+                            )
+                            TextButton(
+                                onClick = { refreshKey++ },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("إعادة القياس", fontSize = 10.sp, color = theme.primary)
+                            }
+                        }
+                        Text(
+                            text = "الذاكرة: ${formatDeviceBytes(deviceCapability.totalRamBytes)} كلية • " +
+                                "${formatDeviceBytes(deviceCapability.availableRamBytes)} متاحة الآن",
+                            fontSize = 11.sp,
+                            color = theme.textPrimary
+                        )
+                        Text(
+                            text = "التخزين: ${formatDeviceBytes(deviceCapability.freeStorageBytes)} حر من أصل " +
+                                "${formatDeviceBytes(deviceCapability.totalStorageBytes)} • النوى: ${deviceCapability.cpuCores}",
+                            fontSize = 11.sp,
+                            color = theme.textPrimary
+                        )
+                        Text(
+                            text = if (recommendedModel != null) {
+                                "النموذج المقترح لجهازك: ${recommendedModel.name} — الأقدر بين ما يعمل على جهازك الآن."
+                            } else {
+                                "لا يوجد نموذج يعمل على هذا الجهاز حالياً — حرّر ذاكرة أو مساحة تخزين ثم أعد القياس."
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (recommendedModel != null) theme.success else theme.destructive
+                        )
                     }
                 }
 
@@ -107,8 +219,8 @@ fun OnDeviceModelDownloadDialog(
                 // Mode Switch Strip (سحابي vs محلي)
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF0F172A),
-                    border = BorderStroke(1.dp, if (isOfflineMode) Color(0xFF00E5FF) else Color(0xFF334155)),
+                    color = theme.cardSurface,
+                    border = BorderStroke(1.dp, if (isOfflineMode) theme.primary else theme.separator),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -122,7 +234,7 @@ fun OnDeviceModelDownloadDialog(
                             Icon(
                                 imageVector = if (isOfflineMode) Icons.Default.WifiOff else Icons.Default.Wifi,
                                 contentDescription = null,
-                                tint = if (isOfflineMode) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                                tint = if (isOfflineMode) theme.primary else theme.textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -131,12 +243,12 @@ fun OnDeviceModelDownloadDialog(
                                     text = if (isOfflineMode) "وضع الوكيل: محلي بدون إنترنت 📴" else "وضع الوكيل: سحابي عبر المفتاح 🌐",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isOfflineMode) Color(0xFF00E5FF) else Color.White
+                                    color = if (isOfflineMode) theme.primary else theme.textPrimary
                                 )
                                 Text(
                                     text = if (isOfflineMode) "يعتمد على النماذج المنزلة محلياً في الجهاز" else "يعتمد على مفاتيح API (Gemini / Groq)",
                                     fontSize = 9.sp,
-                                    color = Color(0xFF94A3B8)
+                                    color = theme.textSecondary
                                 )
                             }
                         }
@@ -144,6 +256,10 @@ fun OnDeviceModelDownloadDialog(
                         Switch(
                             checked = isOfflineMode,
                             onCheckedChange = { enabled ->
+                                if (enabled && !engineAvailable) {
+                                    Toast.makeText(context, "المحرك المحلي غير متاح في هذه النسخة (بناء CI) — لا يمكن تفعيل الوضع المحلي", Toast.LENGTH_LONG).show()
+                                    return@Switch
+                                }
                                 if (enabled && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
                                     Toast.makeText(context, "الرجاء تنزيل أحد النماذج أدناه أولاً لتفعيل الوضع المحلي", Toast.LENGTH_SHORT).show()
                                     return@Switch
@@ -153,10 +269,10 @@ fun OnDeviceModelDownloadDialog(
                                 onModelActivated()
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0xFF00E5FF).copy(alpha = 0.4f),
-                                uncheckedThumbColor = Color(0xFF64748B),
-                                uncheckedTrackColor = Color(0xFF1E293B)
+                                checkedThumbColor = theme.primary,
+                                checkedTrackColor = theme.primary.copy(alpha = 0.4f),
+                                uncheckedThumbColor = theme.textTertiary,
+                                uncheckedTrackColor = theme.secondarySurface
                             )
                         )
                     }
@@ -168,7 +284,7 @@ fun OnDeviceModelDownloadDialog(
                     text = "النماذج البرمجية الجاهزة للتنزيل والتشغيل:",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFE5B842)
+                    color = theme.gold
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -182,11 +298,18 @@ fun OnDeviceModelDownloadDialog(
                 ) {
                     items(OnDeviceModelManager.availableModels) { model ->
                         key(model.id, refreshKey) {
+                            // (12.4) النماذج التي لا يعمل جهازها تُعطَّل مع سبب صادق.
+                            val deviceFits = VibeDeviceCapability.fitsModel(deviceCapability, model)
+                            val fitReason = if (deviceFits) null
+                                else VibeDeviceCapability.fitReason(deviceCapability, model)
                             OnDeviceModelCard(
                                 context = context,
                                 model = model,
                                 isSelected = selectedModel.id == model.id,
                                 downloadState = downloadState,
+                                deviceFits = deviceFits,
+                                fitReason = fitReason,
+                                isDeviceRecommended = recommendedModel?.id == model.id,
                                 onDownload = {
                                     // الخدمة الأمامية: عدّاد إشعار + يعمل بالخلفية حتى مع الخروج
                                     ModelDownloadService.start(context, model.id)
@@ -194,11 +317,15 @@ fun OnDeviceModelDownloadDialog(
                                 },
                                 onDownloadSuccess = {
                                     selectedModel = model
-                                    isOfflineMode = true
-                                    OnDeviceModelManager.setOfflineModeActive(context, true)
                                     refreshKey++
-                                    onModelActivated()
-                                    Toast.makeText(context, "تم تنزيل وتفعيل ${model.name} بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                    if (engineAvailable) {
+                                        isOfflineMode = true
+                                        OnDeviceModelManager.setOfflineModeActive(context, true)
+                                        onModelActivated()
+                                        Toast.makeText(context, "تم تنزيل وتفعيل ${model.name} بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "تم تنزيل ${model.name} — التفعيل المحلي غير متاح في هذه النسخة (بناء CI)", Toast.LENGTH_LONG).show()
+                                    }
                                 },
                                 onCancelDownload = {
                                     ModelDownloadService.cancel(context)
@@ -208,22 +335,18 @@ fun OnDeviceModelDownloadDialog(
                                 onSelectAsActive = {
                                     OnDeviceModelManager.setSelectedModel(context, model.id)
                                     selectedModel = model
-                                    isOfflineMode = true
-                                    OnDeviceModelManager.setOfflineModeActive(context, true)
-                                    onModelActivated()
-                                    Toast.makeText(context, "تم تعيين ${model.name} كنموذج نشط للوكيل ⭐", Toast.LENGTH_SHORT).show()
-                                },
-                                onDelete = {
-                                    val deleted = OnDeviceModelManager.deleteModel(context, model)
-                                    if (deleted) {
-                                        refreshKey++
-                                        selectedModel = OnDeviceModelManager.getSelectedModel(context)
-                                        isOfflineMode = OnDeviceModelManager.isOfflineModeActive(context) && OnDeviceModelManager.hasAnyInstalledModel(context)
-                                        OnDeviceModelManager.setOfflineModeActive(context, isOfflineMode)
+                                    if (engineAvailable) {
+                                        isOfflineMode = true
+                                        OnDeviceModelManager.setOfflineModeActive(context, true)
                                         onModelActivated()
-                                        Toast.makeText(context, "تم حذف ${model.name} وتحرير المساحة 🗑️", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تم تعيين ${model.name} كنموذج نشط للوكيل ⭐", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "تم اختيار ${model.name} — التفعيل المحلي غير متاح في هذه النسخة (بناء CI)", Toast.LENGTH_LONG).show()
                                     }
-                                }
+                                },
+                                // (12.16) الحذف المباشر بلا تأكيد كان مدمراً بصمت —
+                                // يفتح حوار تأكيد أولاً، والتنفيذ في الحوار أدناه.
+                                onDelete = { modelPendingDelete = model }
                             )
                         }
                     }
@@ -231,17 +354,49 @@ fun OnDeviceModelDownloadDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Bottom Close Button
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B), contentColor = Color(0xFF00E5FF))
-                ) {
-                    Text("تم وإغلاق", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                // Bottom Close Button (في الحوار فقط — التبويب بلا زر إغلاق)
+                if (showCloseButton) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface, contentColor = theme.primary)
+                    ) {
+                        Text("تم وإغلاق", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                // (12.16) حوار تأكيد حقيقي قبل حذف نموذج محلي (ملف GGUF كبير).
+                modelPendingDelete?.let { model ->
+                    AlertDialog(
+                        onDismissRequest = { modelPendingDelete = null },
+                        title = { Text("حذف نموذج محلي؟", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Text(
+                                "سيُحذف «${model.name}» (${model.sizeFormatted}) من الجهاز نهائياً، " +
+                                    "وستحتاج إلى إعادة تنزيله لاستخدامه. هل أنت متأكد؟"
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val deleted = OnDeviceModelManager.deleteModel(context, model)
+                                if (deleted) {
+                                    refreshKey++
+                                    selectedModel = OnDeviceModelManager.getSelectedModel(context)
+                                    isOfflineMode = OnDeviceModelManager.isOfflineModeActive(context) && OnDeviceModelManager.hasAnyInstalledModel(context)
+                                    OnDeviceModelManager.setOfflineModeActive(context, isOfflineMode)
+                                    onModelActivated()
+                                    Toast.makeText(context, "تم حذف ${model.name} وتحرير المساحة 🗑️", Toast.LENGTH_SHORT).show()
+                                }
+                                modelPendingDelete = null
+                            }) { Text("حذف نهائي", fontWeight = FontWeight.Bold) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { modelPendingDelete = null }) { Text("إلغاء") }
+                        }
+                    )
                 }
             }
         }
-    }
 }
 
 /**
@@ -257,7 +412,11 @@ fun OnDeviceModelCard(
     onCancelDownload: () -> Unit,
     onSelectAsActive: () -> Unit,
     onDelete: () -> Unit,
-    onDownloadSuccess: () -> Unit = {}
+    onDownloadSuccess: () -> Unit = {},
+    /** (12.4) ملاءمة الجهاز: false تعني تعطيل التنزيل/الاستيراد/التفعيل مع السبب. */
+    deviceFits: Boolean = true,
+    fitReason: String? = null,
+    isDeviceRecommended: Boolean = false
 ) {
     // نجاح الخلفية: الخدمة الأمامية تُكمل التنزيل وخروج التطبيق لا يلغيه
     // الحارس يمنع إعادة الإطلاق عند كل إعادة تركيب والحالة ما زالت Success
@@ -275,6 +434,7 @@ fun OnDeviceModelCard(
         }
     }
     val isInstalled = remember(model.id) { OnDeviceModelManager.isModelInstalled(context, model) }
+    val theme = QabasTheme.current
     val isThisDownloading = downloadState is ModelDownloadState.Downloading && downloadState.modelId == model.id
     || downloadState is ModelDownloadState.Interrupted && downloadState.modelId == model.id
     val badgeColor = Color(model.badgeColorHex)
@@ -307,10 +467,10 @@ fun OnDeviceModelCard(
 
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFF0F172A),
+        color = theme.cardSurface,
         border = BorderStroke(
             width = if (isSelected && isInstalled) 1.5.dp else 1.dp,
-            color = if (isSelected && isInstalled) Color(0xFF00E5FF) else Color(0xFF334155)
+            color = if (isSelected && isInstalled) theme.primary else theme.separator
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -343,7 +503,7 @@ fun OnDeviceModelCard(
                         text = model.name,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -351,7 +511,7 @@ fun OnDeviceModelCard(
 
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF1E293B)
+                    color = theme.secondarySurface
                 ) {
                     Text(
                         text = model.tag,
@@ -374,26 +534,41 @@ fun OnDeviceModelCard(
                 Icon(
                     imageVector = Icons.Default.Memory,
                     contentDescription = null,
-                    tint = Color(0xFF94A3B8),
+                    tint = theme.textSecondary,
                     modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "متطلبات الذاكرة: ${model.ramRequirement}",
                     fontSize = 10.sp,
-                    color = Color(0xFFCBD5E1)
+                    color = theme.textPrimary
                 )
 
                 if (model.isRecommended) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.2f)
+                        color = theme.success.copy(alpha = 0.2f)
                     ) {
                         Text(
                             text = "موصى به للهواتف ⭐",
                             fontSize = 9.sp,
-                            color = Color(0xFF10B981),
+                            color = theme.success,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+
+                if (isDeviceRecommended) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = theme.primary.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            text = "الأنسب لجهازك ⭐",
+                            fontSize = 9.sp,
+                            color = theme.primary,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                     }
@@ -406,9 +581,27 @@ fun OnDeviceModelCard(
             Text(
                 text = model.description,
                 fontSize = 10.sp,
-                color = Color(0xFF94A3B8),
+                color = theme.textSecondary,
                 lineHeight = 14.sp
             )
+
+            // (12.4) سبب صادق لعدم عمل النموذج على هذا الجهاز.
+            if (!deviceFits && fitReason != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = theme.destructive.copy(alpha = 0.1f),
+                    border = BorderStroke(0.6.dp, theme.destructive.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "لا يعمل على هذا الجهاز: $fitReason التنزيل والتفعيل معطّلان.",
+                        fontSize = 10.sp,
+                        color = theme.destructive,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -437,14 +630,14 @@ fun OnDeviceModelCard(
                         Text(
                             text = "جاري التنزيل: $downloadedMb MB من أصل $totalMb MB ($progressPercent%)",
                             fontSize = 10.sp,
-                            color = Color(0xFF00E5FF),
+                            color = theme.primary,
                             fontWeight = FontWeight.Bold
                         )
                         if (state.speedKbps > 0) {
                             Text(
                                 text = "${state.speedKbps} KB/s",
                                 fontSize = 9.sp,
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = FontFamily.Monospace
                             )
                         }
@@ -458,8 +651,8 @@ fun OnDeviceModelCard(
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
-                        color = Color(0xFF00E5FF),
-                        trackColor = Color(0xFF1E293B)
+                        color = theme.primary,
+                        trackColor = theme.secondarySurface
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
@@ -471,12 +664,12 @@ fun OnDeviceModelCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(34.dp),
-                                border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                border = BorderStroke(1.dp, theme.destructive),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
+                                Icon(imageVector = Icons.Default.Cancel, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("إلغاء التنزيل", fontSize = 10.sp, color = Color(0xFFEF4444))
+                                Text("إلغاء التنزيل", fontSize = 10.sp, color = theme.destructive)
                             }
                         }
                         is ModelDownloadState.Interrupted -> {
@@ -490,12 +683,12 @@ fun OnDeviceModelCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(34.dp),
-                                border = BorderStroke(1.dp, Color(0xFF00E5FF)),
+                                border = BorderStroke(1.dp, theme.primary),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                                Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = theme.primary, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("استكمال التنزيل", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                                Text("استكمال التنزيل", fontSize = 10.sp, color = theme.primary)
                             }
                         }
                         else -> Unit
@@ -507,8 +700,8 @@ fun OnDeviceModelCard(
                 // Installed State
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF10B981).copy(alpha = 0.1f),
-                    border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+                    color = theme.success.copy(alpha = 0.1f),
+                    border = BorderStroke(0.6.dp, theme.success.copy(alpha = 0.35f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -517,12 +710,12 @@ fun OnDeviceModelCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = theme.success, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (isSelected) "النموذج النشط حالياً للوكيل ✅" else "مثبت في ذاكرة الهاتف",
                                 fontSize = 10.sp,
-                                color = Color(0xFF6EE7B7),
+                                color = theme.success,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -530,9 +723,10 @@ fun OnDeviceModelCard(
                         if (!isSelected) {
                             TextButton(
                                 onClick = onSelectAsActive,
+                                enabled = deviceFits,
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("تفعيل كالنموذج النشط", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                                Text("تفعيل كالنموذج النشط", fontSize = 10.sp, color = theme.primary)
                             }
                         }
                     }
@@ -566,26 +760,26 @@ fun OnDeviceModelCard(
                             }
                         },
                         enabled = !isFileBusy,
-                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f)),
+                        border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.6f)),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.height(32.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Upload, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                        Icon(imageVector = Icons.Default.Upload, contentDescription = null, tint = theme.primary, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(3.dp))
-                        Text("تصدير نسخة احتياطية", fontSize = 9.sp, color = Color(0xFF00E5FF))
+                        Text("تصدير نسخة احتياطية", fontSize = 9.sp, color = theme.primary)
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                     OutlinedButton(
                         onClick = onDelete,
-                        border = BorderStroke(1.dp, Color(0xFF475569)),
+                        border = BorderStroke(1.dp, theme.separator),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.height(32.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                        Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(3.dp))
-                        Text("حذف الملف لتحرير المساحة", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        Text("حذف الملف لتحرير المساحة", fontSize = 9.sp, color = theme.textSecondary)
                     }
                 }
                 // شريط تقدم النسخ (تصدير) داخل البطاقة
@@ -598,15 +792,16 @@ fun OnDeviceModelCard(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = Color(0xFF00E5FF),
-                        trackColor = Color(0xFF1E293B)
+                        color = theme.primary,
+                        trackColor = theme.secondarySurface
                     )
                 }
             } else {
                 // Not Installed: Download Button
                 Button(
                     onClick = onDownload,
-                    colors = ButtonDefaults.buttonColors(containerColor = badgeColor, contentColor = Color(0xFF070B14)),
+                    enabled = deviceFits,
+                    colors = ButtonDefaults.buttonColors(containerColor = badgeColor, contentColor = Color.Black),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -625,19 +820,19 @@ fun OnDeviceModelCard(
 
                 OutlinedButton(
                     onClick = { importPicker.launch("*/*") },
-                    enabled = !isFileBusy,
-                    border = BorderStroke(1.dp, Color(0xFF475569)),
+                    enabled = !isFileBusy && deviceFits,
+                    border = BorderStroke(1.dp, theme.separator),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(34.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                    Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "أو استيراد ملف محفوظ (${model.fileName}) 📂",
                         fontSize = 10.sp,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -652,8 +847,8 @@ fun OnDeviceModelCard(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = Color(0xFF00E5FF),
-                        trackColor = Color(0xFF1E293B)
+                        color = theme.primary,
+                        trackColor = theme.secondarySurface
                     )
                 }
             }

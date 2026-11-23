@@ -1,10 +1,9 @@
 package com.qabas.app
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -23,8 +22,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicLong
@@ -83,30 +80,17 @@ object UserPreferencesManager {
     private val _readingTheme = MutableStateFlow("dark_luxury") // "dark_luxury", "sepia_warm", "oled_black", "light_clean"
     val readingTheme: StateFlow<String> = _readingTheme.asStateFlow()
 
-    private val _showTashkeel = MutableStateFlow(true)
-    val showTashkeel: StateFlow<Boolean> = _showTashkeel.asStateFlow()
-
-    private val _quranReciter = MutableStateFlow("alafasy") // "alafasy", "abdulbasit", "minshawy", "husary", "muaiqly", "ghamadi"
-    val quranReciter: StateFlow<String> = _quranReciter.asStateFlow()
+    // review-r12: رسم المصحف هو مصدر الحقيقة الوحيد للتشكيل — "uthmani" يعرض
+    // التشكيل الكامل، و"uthmani_simple"/"imlaei" بلا تشكيل. مفتاح show_tashkeel
+    // القديم حُذف: كان يُحفظ ولا يقرأه قارئ المصحف أبداً.
+    private val _mushafScript = MutableStateFlow("uthmani") // "uthmani", "uthmani_simple", "imlaei"
+    val mushafScript: StateFlow<String> = _mushafScript.asStateFlow()
 
     // ── 2. Prayer & Spiritual Reminders ──
     private val _calculationMethod = MutableStateFlow("MAKKAH") // "MAKKAH", "MWL", "EGYPT", "KARACHI", "ISNA"
     val calculationMethod: StateFlow<String> = _calculationMethod.asStateFlow()
-
-    private val _athanVoice = MutableStateFlow("makkah") // "makkah", "madinah", "aqsa", "alafasy", "takbeerat", "silent"
-    val athanVoice: StateFlow<String> = _athanVoice.asStateFlow()
-
-    private val _morningAthkar = MutableStateFlow(true)
-    val morningAthkar: StateFlow<Boolean> = _morningAthkar.asStateFlow()
-
-    private val _eveningAthkar = MutableStateFlow(true)
-    val eveningAthkar: StateFlow<Boolean> = _eveningAthkar.asStateFlow()
-
-    private val _qiyamReminder = MutableStateFlow(true)
-    val qiyamReminder: StateFlow<Boolean> = _qiyamReminder.asStateFlow()
-
-    private val _kahfFridayReminder = MutableStateFlow(true)
-    val kahfFridayReminder: StateFlow<Boolean> = _kahfFridayReminder.asStateFlow()
+    private val _asrMadhab = MutableStateFlow("SHAFI") // "SHAFI" (shadow 1) or "HANAFI" (shadow 2)
+    val asrMadhab: StateFlow<String> = _asrMadhab.asStateFlow()
 
     // ── 3. Content Creation & Watermark ──
     private val _watermarkEnabled = MutableStateFlow(true)
@@ -127,9 +111,6 @@ object UserPreferencesManager {
     // ── 4. Data Saver & Storage ──
     private val _dataSaverMode = MutableStateFlow(false)
     val dataSaverMode: StateFlow<Boolean> = _dataSaverMode.asStateFlow()
-
-    private val _cacheLimitMb = MutableStateFlow(500)
-    val cacheLimitMb: StateFlow<Int> = _cacheLimitMb.asStateFlow()
 
     private val _appLanguage = MutableStateFlow("ar")
     val appLanguage: StateFlow<String> = _appLanguage.asStateFlow()
@@ -201,15 +182,10 @@ object UserPreferencesManager {
         _quranFontSize.value = prefs.getFloat("quran_font_size", 20f)
         _readingFontFamily.value = prefs.getString("reading_font_family", "amiri") ?: "amiri"
         _readingTheme.value = prefs.getString("reading_theme", "dark_luxury") ?: "dark_luxury"
-        _showTashkeel.value = prefs.getBoolean("show_tashkeel", true)
-        _quranReciter.value = prefs.getString("quran_reciter", "alafasy") ?: "alafasy"
+        _mushafScript.value = getMushafScript(context)
 
         _calculationMethod.value = prefs.getString("calculation_method", "MAKKAH") ?: "MAKKAH"
-        _athanVoice.value = prefs.getString("athan_voice", "makkah") ?: "makkah"
-        _morningAthkar.value = prefs.getBoolean("morning_athkar", true)
-        _eveningAthkar.value = prefs.getBoolean("evening_athkar", true)
-        _qiyamReminder.value = prefs.getBoolean("qiyam_reminder", true)
-        _kahfFridayReminder.value = prefs.getBoolean("kahf_friday_reminder", true)
+        _asrMadhab.value = prefs.getString("asr_madhab", "SHAFI") ?: "SHAFI"
 
         _watermarkEnabled.value = prefs.getBoolean("watermark_enabled", true)
         _watermarkText.value = prefs.getString("watermark_text", "@qabas.studio") ?: "@qabas.studio"
@@ -218,14 +194,27 @@ object UserPreferencesManager {
         _autoSaveToGallery.value = prefs.getBoolean("auto_save_to_gallery", true)
 
         _dataSaverMode.value = prefs.getBoolean("data_saver_mode", false)
-        _cacheLimitMb.value = prefs.getInt("cache_limit_mb", 500)
 
         val lang = prefs.getString("app_language", "ar") ?: "ar"
         _appLanguage.value = lang
         Translator.setLanguage(lang)
 
         _highContrastMode.value = prefs.getBoolean("high_contrast_mode", false)
-        _reducedMotion.value = prefs.getBoolean("reduced_motion", false)
+        // تقليل الحركة: اختيار المستخدم المحفوظ أولاً؛ وإن لم يختر بعد، يُورَث من
+        // إعداد النظام «إزالة الحركات» (TRANSITION_ANIMATION_SCALE = 0) بدل
+        // الافتراض الأعمى false — وإلا بقي مستخدم فعّلها في النظام يواجه كل
+        // انتقالات التطبيق المتحركة حتى يكتشف مفتاحاً داخل التطبيق.
+        _reducedMotion.value = if (prefs.contains("reduced_motion")) {
+            prefs.getBoolean("reduced_motion", false)
+        } else {
+            runCatching {
+                Settings.Global.getFloat(
+                    context.contentResolver,
+                    Settings.Global.TRANSITION_ANIMATION_SCALE,
+                    1f
+                ) == 0f
+            }.getOrDefault(false)
+        }
         _globalTextScale.value = prefs.getFloat("global_text_scale", 1.0f)
 
         _cloudSyncEnabled.value = prefs.getBoolean("cloud_sync_enabled", true)
@@ -248,6 +237,7 @@ object UserPreferencesManager {
         if (_cloudSyncEnabled.value && SupabaseServices.isSupabaseAvailable) {
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                 runCatching { fetchAndApplyFromSupabase(context) }
+                    .onFailure { if (it is CancellationException) throw it }
             }
         }
     }
@@ -366,7 +356,13 @@ object UserPreferencesManager {
                             avatarUrl = avatarUrl ?: identityPrefs?.getString("user_avatar_uri", null),
                             preferencesJson = jsonPayload
                         )
-                    }.onFailure { Log.e("UserPreferencesManager", "profile sync failed: ${it.message}") }
+                    }.onFailure {
+                        // الإلغاء ليس خطأً ولا يُبتلَع (نمط الجولة 87): syncUserProfile
+                        // دالة suspend، فإلغاء المزامنة أثناءها كان يُسجَّل فشلاً
+                        // للملف الشخصي فقط وتتابع المزامنة كأن شيئاً لم يكن.
+                        if (it is CancellationException) throw it
+                        Log.e("UserPreferencesManager", "profile sync failed: ${it.message}")
+                    }
 
                     if (success) {
                         val now = System.currentTimeMillis()
@@ -437,7 +433,13 @@ object UserPreferencesManager {
                     try { editor.commit() } finally { isApplyingRemoteChanges = false }
                     applied = true
                 }
-            }.onFailure { Log.e("UserPreferencesManager", "profile restore failed: ${it.message}") }
+            }.onFailure {
+                // الإلغاء ليس خطأً ولا يُبتلَع (نمط الجولة 87): getUserProfile
+                // دالة suspend، فإلغاء الجلب أثناءها كان يُسجَّل فشلاً للاستعادة
+                // فقط وتُعاد applied=false كأن السحابة بلا ملف.
+                if (it is CancellationException) throw it
+                Log.e("UserPreferencesManager", "profile restore failed: ${it.message}")
+            }
             applied
         } finally {
             _isSyncing.value = false
@@ -487,7 +489,13 @@ object UserPreferencesManager {
                     }
                 }
                 url
-            }.onFailure { Log.e("UserPreferencesManager", "uploadLocalAvatarIfNeeded failed: ${it.message}") }
+            }.onFailure {
+                // الإلغاء ليس خطأً ولا يُبتلَع (نمط الجولة 87): uploadFile
+                // دالة suspend، فإلغاء الرفع أثناءه كان يُسجَّل فشلاً فقط
+                // وتتابع المزامنة بلا رابط صورة كأن الرفع فشل فحسب.
+                if (it is CancellationException) throw it
+                Log.e("UserPreferencesManager", "uploadLocalAvatarIfNeeded failed: ${it.message}")
+            }
                 .getOrNull()
         }
 
@@ -499,6 +507,7 @@ object UserPreferencesManager {
             if (_networkStatus.value == ConnectivityObserver.Status.Available) {
                 kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                     runCatching { syncToSupabase(context) }
+                        .onFailure { if (it is CancellationException) throw it }
                 }
             }
         }
@@ -523,51 +532,17 @@ object UserPreferencesManager {
         triggerAutoSync(context)
     }
 
-    fun setShowTashkeel(context: Context, show: Boolean) {
-        _showTashkeel.value = show
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("show_tashkeel", show).apply()
-        triggerAutoSync(context)
-    }
-
-    fun setQuranReciter(context: Context, reciter: String) {
-        _quranReciter.value = reciter
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("quran_reciter", reciter).apply()
-        triggerAutoSync(context)
-    }
-
     fun setCalculationMethod(context: Context, method: String) {
         _calculationMethod.value = method
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("calculation_method", method).apply()
         triggerAutoSync(context)
     }
 
-    fun setAthanVoice(context: Context, voice: String) {
-        _athanVoice.value = voice
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("athan_voice", voice).apply()
-        triggerAutoSync(context)
-    }
-
-    fun setMorningAthkar(context: Context, enable: Boolean) {
-        _morningAthkar.value = enable
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("morning_athkar", enable).apply()
-        triggerAutoSync(context)
-    }
-
-    fun setEveningAthkar(context: Context, enable: Boolean) {
-        _eveningAthkar.value = enable
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("evening_athkar", enable).apply()
-        triggerAutoSync(context)
-    }
-
-    fun setQiyamReminder(context: Context, enable: Boolean) {
-        _qiyamReminder.value = enable
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("qiyam_reminder", enable).apply()
-        triggerAutoSync(context)
-    }
-
-    fun setKahfFridayReminder(context: Context, enable: Boolean) {
-        _kahfFridayReminder.value = enable
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("kahf_friday_reminder", enable).apply()
+    /** مذهب العصر: "SHAFI" (الجمهور، ظلّ مثله) أو "HANAFI" (ظلّ مثليه). */
+    fun setAsrMadhab(context: Context, madhab: String) {
+        val normalized = if (madhab.trim().uppercase(Locale.US) == "HANAFI") "HANAFI" else "SHAFI"
+        _asrMadhab.value = normalized
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("asr_madhab", normalized).apply()
         triggerAutoSync(context)
     }
 
@@ -604,12 +579,11 @@ object UserPreferencesManager {
     fun setDataSaverMode(context: Context, enable: Boolean) {
         _dataSaverMode.value = enable
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("data_saver_mode", enable).apply()
-        triggerAutoSync(context)
-    }
-
-    fun setCacheLimitMb(context: Context, limit: Int) {
-        _cacheLimitMb.value = limit
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putInt("cache_limit_mb", limit).apply()
+        // review-r12: مفتاحا توفير البيانات (العام هنا + مفتاح ريلز) كانا
+        // مستقلين ويعِدان بالشيء نفسه بينما لا يقرأهما أي مستهلِك — الآن
+        // يكتب كل منهما الآخر فيبقيان متفقين دائماً، والمستهلِك (المزامن
+        // الصامت للأثر) يقرأ أياً منهما.
+        runCatching { ReelPreferencesManager.setDataSaver(context, enable) }
         triggerAutoSync(context)
     }
 
@@ -715,9 +689,6 @@ object UserPreferencesManager {
         }
     }
 
-    fun getMushafBookmark(context: Context, surah: Int, ayah: Int): MushafBookmark? =
-        getMushafBookmarks(context).firstOrNull { it.surah == surah && it.ayah == ayah }
-
     /** إضافة أو تحديث علامة (مفتاحها السورة:الآية)؛ الأحدث أولاً. */
     fun saveMushafBookmark(context: Context, bookmark: MushafBookmark) {
         if (bookmark.surah !in 1..114 || bookmark.ayah < 1) return
@@ -786,6 +757,63 @@ object UserPreferencesManager {
     }
 
     /**
+     * كتاب التفسير الافتراضي في لوحة دراسة الآية ومكتبة الكتب
+     * (قسم القرآن — الكتب): محلي فقط، مفتاحه غير مدرج في
+     * CLOUD_SYNCED_QABAS_KEYS فلا مزامنة سحابية. الافتراضي "muyassar"
+     * (التفسير الميسر المحلي)؛ ومعرّف غير معروف يرجع إليه.
+     */
+    fun getMushafTafsirBook(context: Context): String =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("mushaf_tafsir_book", "muyassar")
+            ?.takeIf { it in setOf("muyassar", "saadi", "ibn-kathir", "tabari", "jalalayn", "qurtubi", "baghawi", "wasit") }
+            ?: "muyassar"
+
+    fun saveMushafTafsirBook(context: Context, bookId: String) {
+        val valid = bookId.takeIf { it in setOf("muyassar", "saadi", "ibn-kathir", "tabari", "jalalayn", "qurtubi", "baghawi", "wasit") }
+            ?: "muyassar"
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_tafsir_book", valid).apply()
+    }
+
+    /**
+     * كتاب الإعراب الافتراضي في لوحة دراسة الآية (قسم القرآن — الكتب):
+     * محلي فقط، مفتاحه غير مدرج في CLOUD_SYNCED_QABAS_KEYS فلا مزامنة
+     * سحابية. الافتراضي "muyassar" (الإعراب الميسر)؛ ومعرّف غير معروف
+     * يرجع إليه.
+     */
+    fun getMushafIrabBook(context: Context): String =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("mushaf_irab_book", "muyassar")
+            ?.takeIf { it in setOf("muyassar", "darwish") }
+            ?: "muyassar"
+
+    fun saveMushafIrabBook(context: Context, bookId: String) {
+        val valid = bookId.takeIf { it in setOf("muyassar", "darwish") } ?: "muyassar"
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_irab_book", valid).apply()
+    }
+
+    /**
+     * الترجمة الإنجليزية الافتراضية في القارئ ولوحة الدراسة
+     * (قسم القرآن — الكتب): محلية فقط، مفتاحها غير مدرج في
+     * CLOUD_SYNCED_QABAS_KEYS فلا مزامنة سحابية. الافتراضي
+     * "english_saheeh"؛ ومعرّف غير معروف يرجع إليه.
+     */
+    fun getMushafTranslation(context: Context): String =
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("mushaf_translation", "english_saheeh")
+            ?.takeIf { it in setOf("english_saheeh", "english_hilali_khan", "english_rwwad") }
+            ?: "english_saheeh"
+
+    fun saveMushafTranslation(context: Context, translationId: String) {
+        val valid = translationId.takeIf {
+            it in setOf("english_saheeh", "english_hilali_khan", "english_rwwad")
+        } ?: "english_saheeh"
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("mushaf_translation", valid).apply()
+    }
+
+    /**
      * إظهار الترجمة الإنجليزية تحت آيات المصحف (خارطة المصحف — المرحلة 3):
      * محلي فقط، مفتاحه غير مدرج في CLOUD_SYNCED_QABAS_KEYS فلا مزامنة
      * سحابية. الترجمة نفسها لا تُحفظ محلياً — تُجلب من QuranEnc عند
@@ -823,6 +851,7 @@ object UserPreferencesManager {
 
     fun saveMushafScript(context: Context, script: String) {
         val valid = script.takeIf { it in setOf("uthmani", "uthmani_simple", "imlaei") } ?: "uthmani"
+        _mushafScript.value = valid
         context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString("mushaf_script", valid).apply()
     }
@@ -1039,7 +1068,10 @@ object UserPreferencesManager {
             root.put("audio_tracks", audioArr)
 
             root.toString(2)
-        }.getOrNull()
+            // الإلغاء ليس خطأً ولا يُبتلَع (نمط الجولة 87): getAllHadithCardsOnce
+            // وgetAllAudioTracksOnce دالتان suspend، فإلغاء التصدير أثناءهما
+            // كان يعيد null فتُعامل المزامنة الإلغاء كفشل تصدير عادي.
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
     }
 
     suspend fun importBackupJson(context: Context, jsonString: String): Boolean = withContext(Dispatchers.IO) {
@@ -1064,12 +1096,14 @@ object UserPreferencesManager {
                 _quranFontSize.value = prefsObj.optDouble("quran_font_size", 20.0).toFloat()
                 _readingFontFamily.value = prefsObj.optString("reading_font_family", "amiri")
                 _readingTheme.value = prefsObj.optString("reading_theme", "dark_luxury")
-                _showTashkeel.value = prefsObj.optBoolean("show_tashkeel", true)
-                _quranReciter.value = prefsObj.optString("quran_reciter", "alafasy")
                 _appLanguage.value = prefsObj.optString("app_language", "ar")
                 Translator.setLanguage(_appLanguage.value)
                 _highContrastMode.value = prefsObj.optBoolean("high_contrast_mode", false)
-                _reducedMotion.value = prefsObj.optBoolean("reduced_motion", false)
+                // لا تُصفّر تقليل الحركة عند استعادة نسخة بلا المفتاح — قد يكون
+                // موروثاً من إعداد النظام (انظر init)؛ يُكتب فقط إن ورد في النسخة.
+                if (prefsObj.has("reduced_motion")) {
+                    _reducedMotion.value = prefsObj.optBoolean("reduced_motion", false)
+                }
                 _globalTextScale.value = prefsObj.optDouble("global_text_scale", 1.0).toFloat()
             }
             // استرجاع تفضيلات الهوية/الموقع/القراءة/المظهر إلى qabas_prefs

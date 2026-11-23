@@ -3,9 +3,7 @@ package com.qabas.app
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -200,7 +197,7 @@ fun RegisterScreen(
             )
 
             Text(
-                text = "سجل انضمامك لمجتمع قبس الرقمي",
+                text = "سجل انضمامك لمجتمع خادم المسلم الرقمي",
                 color = theme.textSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 13.sp,
@@ -521,7 +518,7 @@ fun RegisterScreen(
                                     val cloudCustomId = cloudUser?.customId?.takeIf { it.isNotBlank() }
                                     val accountNumber = cloudUser?.accountNumber?.takeIf { it.isNotBlank() }
                                     if (canonicalUserId != authUid || cloudCustomId == null || accountNumber == null) {
-                                        runCatching { SupabaseServices.Auth.logout() }
+                                        runCatching { SupabaseServices.Auth.logout() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                         Toast.makeText(context, "لم يتم حفظ هوية الحساب في السحابة. لم يكتمل التسجيل.", Toast.LENGTH_LONG).show()
                                         isLoading = false
                                         return@launch
@@ -546,21 +543,21 @@ fun RegisterScreen(
                                     when (ActiveSessionManager.claim(context, authUid)) {
                                         ActiveSessionClaimResult.CLAIMED -> Unit
                                         ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
-                                            runCatching { ActiveSessionManager.endLocalSession(context) }
+                                            runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                             Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
                                             onNavigateToLogin()
                                             isLoading = false
                                             return@launch
                                         }
                                         ActiveSessionClaimResult.PROFILE_MISSING -> {
-                                            runCatching { ActiveSessionManager.endLocalSession(context) }
+                                            runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                             Toast.makeText(context, "تعذر العثور على ملف الحساب السحابي. لم يكتمل الدخول؛ تواصل مع الدعم.", Toast.LENGTH_LONG).show()
                                             onNavigateToLogin()
                                             isLoading = false
                                             return@launch
                                         }
                                         ActiveSessionClaimResult.UNAVAILABLE -> {
-                                            runCatching { ActiveSessionManager.endLocalSession(context) }
+                                            runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                             Toast.makeText(context, "تم إنشاء الحساب، لكن تعذر تأكيد الجلسة. انتقل لتسجيل الدخول وأعد المحاولة عند عودة الاتصال.", Toast.LENGTH_LONG).show()
                                             onNavigateToLogin()
                                             isLoading = false
@@ -587,14 +584,10 @@ fun RegisterScreen(
                                     prefsEdit.edit().apply {
                                         putBoolean("is_logged_in", true)
                                         putBoolean("is_guest", false)
-                                        putBoolean("is_admin", isAdmin)
-                                        putBoolean("is_developer", isDeveloper)
-                                        putString("user_id", authUid)
                                         putString("user_email", lowerEmail)
                                         putString("user_name", effectiveManualName)
                                         putString("user_display_name", effectiveManualName)
                                         putString("user_custom_id", cloudCustomId)
-                                        putString("user_tag", UserIdentifierManager.formatDisplay(cloudCustomId))
                                         putString("user_account_number", accountNumber)
                                         putString("user_name_with_account", nameWithAccount)
                                         apply()
@@ -616,7 +609,7 @@ fun RegisterScreen(
                                                 newEmail = lowerEmail,
                                                 emailConfirmed = emailConfirmedAfterRegister ?: true
                                             )
-                                        }
+                                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                     }
                                     if (emailConfirmedAfterRegister == false) {
                                         pendingVerificationEmail = lowerEmail
@@ -667,7 +660,7 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(12.dp))
             TextButton(onClick = onNavigateToRules) {
                 Text(
-                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
+                    text = "بإنشاء حسابك أنت توافق على القواعد والسياسات الموحدة لاستخدام خادم المسلم",
                     color = theme.primary,
                     fontFamily = CairoFont,
                     fontSize = 11.5.sp,
@@ -744,7 +737,7 @@ fun ForgotPasswordScreen(
                     onClick = {
                         coroutineScope.launch {
                             if (isRecoveryVerified) {
-                                runCatching { SupabaseConfig.client.auth.signOut() }
+                                runCatching { SupabaseConfig.client.auth.signOut() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                 PasswordRecoveryManager.clear(context)
                             }
                             onNavigateToLogin()
@@ -877,7 +870,7 @@ fun ForgotPasswordScreen(
                                     val updated = SupabaseServices.Auth.updateRecoveredPassword(pass)
                                     isLoading = false
                                     if (updated) {
-                                        runCatching { SupabaseConfig.client.auth.signOut() }
+                                        runCatching { SupabaseConfig.client.auth.signOut() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                         PasswordRecoveryManager.clear(context)
                                         newPassword = ""
                                         confirmPassword = ""
@@ -915,7 +908,7 @@ fun ForgotPasswordScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق قبس، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
+                    text = "افتح أحدث رسالة من Supabase واضغط رابط إعادة تعيين كلمة المرور. سيعود الرابط إلى تطبيق خادم المسلم، وبعد التحقق ستظهر هنا خانات تعيين كلمة المرور.",
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.5.sp,

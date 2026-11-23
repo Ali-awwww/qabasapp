@@ -578,6 +578,18 @@ object IslamicLibraryRepository {
 
     fun findBook(bookId: String): IslamicBook? = books.find { it.id == bookId }
 
+    /** دقائق القراءة المعروضة على البطاقة: للمقتطفات مجموع دقائق مقاطعها
+     * الفعلية (لا الرقم التقديري المكتوب الذي يضخّمها ~2.5×: «الداء والدواء»
+     * مثلاً مقطعاه 3+4 دقائق بينما كان يُعرض ~18 دقيقة)؛ وللصحيحين يبقى
+     * التقدير المكتوب لأن مقاطعهما أحاديث مفردة لا مقاطع قراءة موقوتة. */
+    fun displayReadMinutes(book: IslamicBook): Int =
+        if (book.isExcerpt) {
+            book.chapters.sumOf { chapter -> chapter.sections.sumOf { it.readTimeMinutes } }
+                .coerceAtLeast(1)
+        } else {
+            book.totalEstimatedMinutes
+        }
+
     /** إجمالي مقاطع الكتاب (عبر كل فصوله) — مقام نسبة التقدم في القراءة. */
     fun totalSections(book: IslamicBook): Int = book.chapters.sumOf { it.sections.size }
 

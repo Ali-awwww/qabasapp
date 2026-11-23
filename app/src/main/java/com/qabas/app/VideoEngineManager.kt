@@ -4,7 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.Environment
 import android.util.Log
-import androidx.compose.ui.graphics.Color
+import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -101,7 +101,7 @@ class VideoEngineManager(private val context: Context) {
             SystemLogsManager.addLog(
                 "INFO",
                 "مستوى الإنتاج: $renderLevel — جودة: ${VideoProcessor.currentQualityPreset.label}",
-                Color(if (renderLevel == RenderLevel.CINEMATIC) 0xFF4CAF50 else 0xFFE8C547)
+                if (renderLevel == RenderLevel.CINEMATIC) ThemeSuccess else ThemeWarning
             )
 
             // فحص مساحة التخزين قبل بدء المعالجة
@@ -111,12 +111,12 @@ class VideoEngineManager(private val context: Context) {
             val usableMB = usableBytes / (1024 * 1024)
             if (usableMB < 200L) {
                 onProgress(0f, "مساحة التخزين منخفضة جداً (${usableMB}MB) — يرجى تحرير مساحة")
-                SystemLogsManager.addLog("ERROR", "فشل: مساحة التخزين منخفضة (${usableMB}MB < 200MB)", Color(0xFFEF4444))
+                SystemLogsManager.addLog("ERROR", "فشل: مساحة التخزين منخفضة (${usableMB}MB < 200MB)", ThemeDestructive)
                 ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.VIDEO_ENGINE, ProductionPipelineTracker.Result.FAILURE, "نقص مساحة تخزين", "${usableMB}MB متاح (الحد 200MB)", 0, runId)
                 return@withContext null
             } else if (usableMB < 500L) {
                 onProgress(0f, "تنبيه: مساحة التخزين محدودة (${usableMB}MB) — قد تتأثر الجودة")
-                SystemLogsManager.addLog("WARN", "مساحة التخزين محدودة (${usableMB}MB) — جودة قد تتأثر", Color(0xFFE8C547))
+                SystemLogsManager.addLog("WARN", "مساحة التخزين محدودة (${usableMB}MB) — جودة قد تتأثر", ThemeWarning)
             }
             cacheDir.listFiles()?.forEach { f ->
                 val ageMs = System.currentTimeMillis() - f.lastModified()
@@ -137,7 +137,7 @@ class VideoEngineManager(private val context: Context) {
                     processedVideoPaths.add(cachedScene.absolutePath)
                     currentStep += 3
                     onProgress(currentStep.toFloat() / totalSteps, "المشهد ${index + 1}: مُعاد استخدامه من الكاش ⚡")
-                    SystemLogsManager.addLog("INFO", "المشهد ${index + 1}: كاش صالح — تخطي الترميز", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("INFO", "المشهد ${index + 1}: كاش صالح — تخطي الترميز", ThemeSuccess)
                     return@forEachIndexed
                 }
 
@@ -158,7 +158,7 @@ class VideoEngineManager(private val context: Context) {
                         val prefetched = BrollPrefetch.cached(query) ?: BrollPrefetch.cached(scene.title) ?: BrollPrefetch.cached(scene.description.take(60))
                         if (!prefetched.isNullOrBlank()) {
                             mediaToUse = prefetched
-                            SystemLogsManager.addLog("INFO", "وسائط تنبؤية جاهزة للمشهد ${index + 1} ⚡", Color(0xFF4CAF50))
+                            SystemLogsManager.addLog("INFO", "وسائط تنبؤية جاهزة للمشهد ${index + 1} ⚡", ThemeSuccess)
                         }
                     }
                     if (mediaToUse.isNullOrBlank()) {
@@ -170,7 +170,7 @@ class VideoEngineManager(private val context: Context) {
                                 SystemLogsManager.addLog(
                                     "INFO",
                                     "تم جلب وسائط حقيقية للمشهد ${index + 1} من المكتبة ✅",
-                                    Color(0xFF4CAF50)
+                                    ThemeSuccess
                                 )
                             }
                         } catch (fetchEx: Exception) {
@@ -187,9 +187,9 @@ class VideoEngineManager(private val context: Context) {
                             val pick = free.firstOrNull { it.videoUrl.startsWith("http") }
                             if (pick != null && pick.videoUrl.isNotBlank()) {
                                 mediaToUse = pick.videoUrl
-                                SystemLogsManager.addLog("INFO", "وسائط حرة بلا مفتاح للمشهد ${index + 1} 🌍", Color(0xFF4CAF50))
+                                SystemLogsManager.addLog("INFO", "وسائط حرة بلا مفتاح للمشهد ${index + 1} 🌍", ThemeSuccess)
                             }
-                        } catch (_: Exception) { }
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
                     }
 
                     // Priority 2: Local curated B-Roll library
@@ -201,7 +201,7 @@ class VideoEngineManager(private val context: Context) {
                             SystemLogsManager.addLog(
                                 "INFO",
                                 "استخدام B-Roll محلي متطابق للمشهد ${index + 1}",
-                                Color(0xFFE8C547)
+                                ThemeWarning
                             )
                         }
                     }
@@ -211,7 +211,7 @@ class VideoEngineManager(private val context: Context) {
                         SystemLogsManager.addLog(
                             "WARN",
                             "لا توجد وسائط للمشهد ${index + 1} — استخدام إطار سينمائي محلي",
-                            Color(0xFFE8C547)
+                            ThemeWarning
                         )
                         generateSolidColorVideo(cacheDir, index, scene.durationInSeconds, resolvedStyleAnalysis, sceneLabel)
                     } else {
@@ -244,7 +244,7 @@ class VideoEngineManager(private val context: Context) {
                         SystemLogsManager.addLog(
                             "WARN",
                             "فشل توليد مشهد ${index + 1} من الوسائط — استخدام إطار سينمائي محلي",
-                            Color(0xFFE8C547)
+                            ThemeWarning
                         )
                         ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.SCENE_PROCESSING, ProductionPipelineTracker.Result.FALLBACK, "مشهد ${index + 1}: إطار محلي بديل", "تعذر تجهيز الوسائط الأصلية", System.currentTimeMillis() - scenePrepStartMs, runId, index)
                         val solid = generateSolidColorVideo(
@@ -322,7 +322,7 @@ class VideoEngineManager(private val context: Context) {
                             VideoProcessor.applyCinematicColorGrading(
                                 context, scenePathAfterText, sceneFilter, gradedPath
                             )
-                        } catch (_: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                             false
                         }
                         if (gradeOk && VideoProcessor.isValidVideoFile(gradedPath, minSizeBytes = VideoProcessor.MIN_SCENE_SIZE)) {
@@ -331,7 +331,7 @@ class VideoEngineManager(private val context: Context) {
                             SystemLogsManager.addLog(
                                 "INFO",
                                 "تطبيق فلتر الاستوديو ($sceneFilter) على المشهد ${index + 1}",
-                                Color(0xFFE8C547)
+                                ThemeWarning
                             )
                         } else {
                             ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.COLOR_GRADING, ProductionPipelineTracker.Result.FALLBACK, "مشهد ${index + 1}: تعذر التلوين", "الاستمرار بدون فلتر", 0, runId, index)
@@ -354,7 +354,7 @@ class VideoEngineManager(private val context: Context) {
                     SystemLogsManager.addLog(
                         "ERROR",
                         "فشل المشهد ${index + 1}: ${e.localizedMessage ?: e.message} — إطار محلي",
-                        Color(0xFFEF4444)
+                        ThemeDestructive
                     )
                     val fallbackLabel = scene.title.ifBlank { scene.description }.take(60)
                     val fallback = generateSolidColorVideo(
@@ -392,7 +392,7 @@ class VideoEngineManager(private val context: Context) {
                 SystemLogsManager.addLog(
                     "ERROR",
                     "لا يوجد أي مشهد صالح للدمج — فشل التصدير 🔴",
-                    Color(0xFFEF4444)
+                    ThemeDestructive
                 )
                 ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.FFmpeg_MERGE, ProductionPipelineTracker.Result.FAILURE, "لا توجد مشاهد صالحة للدمج", "عدد المشاهد المعالجة: ${processedVideoPaths.size}", 0, runId)
                 return@withContext null
@@ -414,7 +414,7 @@ class VideoEngineManager(private val context: Context) {
                 SystemLogsManager.addLog(
                     "WARN",
                     "فشل الدمج بالانتقالات — إعادة المحاولة بدمج مباشر بلا انتقالات",
-                    Color(0xFFE8C547)
+                    ThemeWarning
                 )
                 concatSuccess = VideoProcessor.concatenateVideos(context, validPaths, rawConcatPath)
             }
@@ -435,7 +435,7 @@ class VideoEngineManager(private val context: Context) {
                 SystemLogsManager.addLog(
                     "ERROR",
                     "فشل دمج المشاهد نهائياً حتى بالدمج المباشر — فشل التصدير 🔴",
-                    Color(0xFFEF4444)
+                    ThemeDestructive
                 )
                 return@withContext null
             }
@@ -449,7 +449,7 @@ class VideoEngineManager(private val context: Context) {
                     styleAnalysis = resolvedStyleAnalysis,
                     outputPath = concatOutputPath
                 )
-            } catch (_: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                 false
             }
             if (!gradedOk || !VideoProcessor.isValidVideoFile(concatOutputPath, minSizeBytes = VideoProcessor.MIN_SCENE_SIZE)) {
@@ -468,7 +468,7 @@ class VideoEngineManager(private val context: Context) {
             val isDraft = validScenes.isNotEmpty() && fallbackSceneCount * 2 >= validScenes.size
             val finalFileName = if (isDraft) "Qabas_Draft_${timestamp}.mp4" else "Qabas_Project_$timestamp.mp4"
             if (isDraft) {
-                SystemLogsManager.addLog("WARN", "مسودة بلا B-Roll حقيقي ($fallbackSceneCount/${validScenes.size}) — وسم الملف كمسودة", Color(0xFFE8C547))
+                SystemLogsManager.addLog("WARN", "مسودة بلا B-Roll حقيقي ($fallbackSceneCount/${validScenes.size}) — وسم الملف كمسودة", ThemeWarning)
             }
             val publicDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: File(context.filesDir, "movies")
             if (!publicDir.exists()) publicDir.mkdirs()
@@ -487,23 +487,23 @@ class VideoEngineManager(private val context: Context) {
                 if (fullText.length > 3) {
                     val singleAudio: String? = kotlinx.coroutines.withTimeoutOrNull(90_000L) {
                         if (preferGuaranteedPath) {
-                            try { AndroidTTSService.synthesizeSpeech(fullText) } catch (_: Exception) { null }
+                            try { AndroidTTSService.synthesizeSpeech(fullText) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                         } else {
-                            try { AppServices.generateVoiceover(fullText) } catch (_: Exception) { null }
+                            try { AppServices.generateVoiceover(fullText) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                         }
                     }
                     if (!singleAudio.isNullOrBlank() && File(singleAudio).exists() && File(singleAudio).length() > 1000) {
                         try { File(singleAudio).copyTo(File(narrationPath), overwrite = true); narrationReady = true } catch (_: Exception) {}
-                        SystemLogsManager.addLog("INFO", "تعليق موحد بتمريرة واحدة ✅", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("INFO", "تعليق موحد بتمريرة واحدة ✅", ThemeSuccess)
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
             if (!narrationReady && validAudios.isNotEmpty()) {
-                narrationReady = try { VideoProcessor.concatAudios(context, validAudios, narrationPath) } catch (_: Exception) { false }
+                narrationReady = try { VideoProcessor.concatAudios(context, validAudios, narrationPath) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
             }
             if (narrationReady && File(narrationPath).exists()) {
                     val voicedPath = File(cacheDir, "final_voiced.mp4").absolutePath
-                    val voiceOk = try { VideoProcessor.mergeAudioVideo(context, currentWorkingVideoPath, narrationPath, voicedPath) } catch (_: Exception) { false }
+                    val voiceOk = try { VideoProcessor.mergeAudioVideo(context, currentWorkingVideoPath, narrationPath, voicedPath) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
                     if (voiceOk && VideoProcessor.isValidVideoFile(voicedPath, minSizeBytes = VideoProcessor.MIN_SCENE_SIZE)) {
                         currentWorkingVideoPath = voicedPath
                     }
@@ -548,12 +548,35 @@ class VideoEngineManager(private val context: Context) {
                 }
             }
 
+            // review-r12: العلامة المائية للمستخدم من الإعدادات (الإنتاج) —
+            // كانت تُحفظ (مفعّلة/النص/الموضع) ولا يقرأها أي مسار تصدير؛ الختم
+            // الوحيد المطبَّق كان ختم المطوّر. الآن تُطبع علامة المستخدم بعد
+            // ختم المطوّر، بموضعها المختار. تنبيه سلوك: الافتراضي مفعّل بنص
+            // "@qabas.studio"، فكل تصدير سيحملها ما لم يوقفها المستخدم.
+            if (UserPreferencesManager.watermarkEnabled.value) {
+                val userMark = UserPreferencesManager.watermarkText.value.trim()
+                if (userMark.isNotEmpty()) {
+                    onProgress(0.95f, "جاري طباعة علامتك المائية على الفيديو... ✦")
+                    val userWatermarkPath = File(cacheDir, "final_user_watermark.mp4").absolutePath
+                    val userStampSuccess = VideoProcessor.addDeveloperWatermarkOverlay(
+                        context = context,
+                        videoPath = currentWorkingVideoPath,
+                        watermarkText = userMark,
+                        outputPath = userWatermarkPath,
+                        position = UserPreferencesManager.watermarkPosition.value
+                    )
+                    if (userStampSuccess && File(userWatermarkPath).exists()) {
+                        currentWorkingVideoPath = userWatermarkPath
+                    }
+                }
+            }
+
             val sourceFile = File(currentWorkingVideoPath)
             if (!VideoProcessor.isValidVideoFile(sourceFile.absolutePath, minSizeBytes = VideoProcessor.MIN_OUTPUT_SIZE)) {
                 SystemLogsManager.addLog(
                     "ERROR",
                     "الملف النهائي غير صالح (لا يحتوي مساراً مرئياً أو مدة كافية) — فشل التصدير 🔴",
-                    Color(0xFFEF4444)
+                    ThemeDestructive
                 )
                 return@withContext null
             }
@@ -564,7 +587,7 @@ class VideoEngineManager(private val context: Context) {
                 SystemLogsManager.addLog(
                     "ERROR",
                     "فشل نسخ/التحقق من الملف النهائي في مجلد التصدير 🔴",
-                    Color(0xFFEF4444)
+                    ThemeDestructive
                 )
                 return@withContext null
             }
@@ -583,7 +606,7 @@ class VideoEngineManager(private val context: Context) {
             SystemLogsManager.addLog(
                 "SUCCESS",
                 "تم تصدير الفيديو بنجاح (${finalOutputFile.name}, ${finalOutputFile.length() / 1024}KB, $durationHint, $audioHint) ✅",
-                Color(0xFF4CAF50)
+                ThemeSuccess
             )
             onProgress(1.0f, "تم التصدير بنجاح! جاري تنظيف الملفات المؤقتة...")
             
@@ -596,7 +619,7 @@ class VideoEngineManager(private val context: Context) {
                         f.delete()
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
 
             finalOutputFile
         } catch (e: Exception) {
@@ -605,7 +628,7 @@ class VideoEngineManager(private val context: Context) {
             SystemLogsManager.addLog(
                 "ERROR",
                 "خطأ في معالجة الفيديو: ${e.localizedMessage ?: e.message} 🔴",
-                Color(0xFFEF4444)
+                ThemeDestructive
             )
             null
         }
@@ -718,7 +741,7 @@ class VideoEngineManager(private val context: Context) {
             SystemLogsManager.addLog(
                 "INFO",
                 "تعذر تحميل الوسائط — استخدام بديل ذكي من المكتبة: ${fallback.title}",
-                Color(0xFF4CAF50)
+                ThemeSuccess
             )
             return@withContext downloadMedia(fallback.videoUrl, cacheDir, index, styleAnalysis)
         }
@@ -726,7 +749,7 @@ class VideoEngineManager(private val context: Context) {
         SystemLogsManager.addLog(
             "WARN",
             "تعذر إيجاد بديل مباشر — توليد إطار سينمائي إجرائي",
-            Color(0xFFE8C547)
+            ThemeWarning
         )
         generateSolidColorVideo(cacheDir, index, 5, styleAnalysis, null)
     }
@@ -796,7 +819,7 @@ class VideoEngineManager(private val context: Context) {
                 if (!ok || !imgFile.exists() || imgFile.length() == 0L) {
                     Log.e(TAG, "generateSolidColorVideo produced invalid backdrop image for scene $index")
                 }
-            } catch (t: Throwable) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (t: Throwable) {
                 Log.e(TAG, "Error generating procedural backdrop for scene $index", t)
             }
             var ok = VideoProcessor.generateVideoFromImage(
@@ -821,7 +844,7 @@ class VideoEngineManager(private val context: Context) {
                         out.absolutePath,
                         null
                     )
-                } catch (retryEx: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (retryEx: Exception) {
                     Log.e(TAG, "Minimal frame retry failed for scene $index", retryEx)
                 }
             }
@@ -830,11 +853,11 @@ class VideoEngineManager(private val context: Context) {
                 SystemLogsManager.addLog(
                     "ERROR",
                     "فشل توليد الإطار المحلي للمشهد $index — لن يدخل الملف الفاشل في الدمج 🔴",
-                    Color(0xFFEF4444)
+                    ThemeDestructive
                 )
                 out.delete()
             }
-        } catch (t: Throwable) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (t: Throwable) {
             Log.e(TAG, "Error generating fallback solid video", t)
             out.delete()
         }

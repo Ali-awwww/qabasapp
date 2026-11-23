@@ -7,7 +7,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -23,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,7 +46,11 @@ fun ReadingCustomizationSection() {
     val quranFontSize by UserPreferencesManager.quranFontSize.collectAsState()
     val readingFontFamily by UserPreferencesManager.readingFontFamily.collectAsState()
     val readingTheme by UserPreferencesManager.readingTheme.collectAsState()
-    val showTashkeel by UserPreferencesManager.showTashkeel.collectAsState()
+    // review-r12: التشكيل يُقرأ من رسم المصحف الفعلي — "uthmani" بالتشكيل،
+    // و"uthmani_simple"/"imlaei" بلا تشكيل. المفتاح هنا يبدّل الرسم نفسه،
+    // فيبقى متفقاً مع منتقي الرسم داخل القارئ (لا مصدرا حقيقة).
+    val mushafScript by UserPreferencesManager.mushafScript.collectAsState()
+    val showTashkeel = mushafScript == "uthmani"
 
     val currentPalette = remember(readingTheme) {
         UserPreferencesManager.getResolvedReadingThemePalette(readingTheme)
@@ -241,12 +243,14 @@ fun ReadingCustomizationSection() {
 
         HorizontalDivider(color = theme.separator.copy(alpha = 0.45f), thickness = 0.5.dp)
 
-        // Show/Hide Tashkeel Toggle
+        // Show/Hide Tashkeel Toggle — switches the Mushaf script itself.
         SettingToggleRow(
             title = "إظهار التشكيل والحركات الكاملة",
-            subtitle = "تفعيل علامات الإعراب وضبط أحرف القرآن والأحاديث",
+            subtitle = "التبديل بين الرسم العثماني بالتشكيل والرسم المبسّط بلا تشكيل في قارئ المصحف",
             checked = showTashkeel,
-            onCheckedChange = { UserPreferencesManager.setShowTashkeel(context, it) }
+            onCheckedChange = {
+                UserPreferencesManager.saveMushafScript(context, if (it) "uthmani" else "uthmani_simple")
+            }
         )
     }
 }
@@ -259,6 +263,7 @@ fun SpiritualPreferencesSection() {
     val context = LocalContext.current
     val theme = QabasTheme.current
     val calculationMethod by UserPreferencesManager.calculationMethod.collectAsState()
+    val asrMadhab by UserPreferencesManager.asrMadhab.collectAsState()
     val backgroundScope = rememberCoroutineScope()
     var adhanBackground by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -311,7 +316,45 @@ fun SpiritualPreferencesSection() {
                         selected = isSelected,
                         onClick = {
                             UserPreferencesManager.setCalculationMethod(context, key)
+                            PrayerAlarmManager.scheduleAllPrayers(context)
                             Toast.makeText(context, "تم ضبط الحساب على: $label", Toast.LENGTH_SHORT).show()
+                        },
+                        label = { Text(label, fontFamily = CairoFont, fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = theme.secondarySurface.copy(alpha = 0.65f),
+                            labelColor = theme.textSecondary,
+                            selectedContainerColor = theme.primary,
+                            selectedLabelColor = theme.onPrimary
+                        ),
+                        border = BorderStroke(0.5.dp, if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            }
+        }
+
+        // Asr Madhhab Chips — وقت العصر: الشافعي (الظلّ مثله) أو الحنفي (الظلّ مثليه)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Schedule, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("مذهب وقت العصر", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(
+                    listOf(
+                        "SHAFI" to "الشافعي والجمهور (الظلّ مثله)",
+                        "HANAFI" to "الحنفي (الظلّ مثليه)"
+                    )
+                ) { (key, label) ->
+                    val isSelected = asrMadhab == key
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            UserPreferencesManager.setAsrMadhab(context, key)
+                            PrayerAlarmManager.scheduleAllPrayers(context)
+                            Toast.makeText(context, "تم ضبط وقت العصر على: $label", Toast.LENGTH_SHORT).show()
                         },
                         label = { Text(label, fontFamily = CairoFont, fontSize = 11.5.sp) },
                         colors = FilterChipDefaults.filterChipColors(
@@ -727,7 +770,7 @@ fun StorageAndBackupSection(
 
         SettingToggleRow(
             title = "وضع توفير بيانات الهاتف (Data Saver)",
-            subtitle = "تقليل استهلاك الإنترنت عند الاتصال بالبيانات الخلوية وعدم تحميل 4K إلا عبر Wi-Fi",
+            subtitle = "إيقاف التحميل المسبق لمقاطع «الأثر» على البيانات الخلوية — تتم المزامنة التلقائية على Wi-Fi فقط",
             checked = dataSaverMode,
             onCheckedChange = { UserPreferencesManager.setDataSaverMode(context, it) }
         )
@@ -1016,7 +1059,7 @@ fun AccessibilitySettingsSection() {
 
             SettingToggleRow(
                 title = "تقليل الحركة (Reduced Motion)",
-                subtitle = "تعطيل انتقالات التنقل المتحركة بين الشاشات لتقليل الحركة",
+                subtitle = "تعطيل انتقالات التنقل المتحركة بين الشاشات لتقليل الحركة — يُفعَّل تلقائياً إن فعّلت «إزالة الحركات» في إعدادات النظام",
                 checked = reducedMotion,
                 onCheckedChange = { UserPreferencesManager.setReducedMotion(context, it) }
             )

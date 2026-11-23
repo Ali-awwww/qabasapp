@@ -1,7 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -9,12 +7,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,37 +18,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.qabas.app.ui.agent.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.UUID
-import java.util.Date
-import java.util.Locale
-import java.text.SimpleDateFormat
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +49,7 @@ internal fun AgentChatOverlayDialog(
     onSwitchSession: (String) -> Unit = {},
     onApprovePlan: (AgentPlanCardData) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -97,9 +75,9 @@ internal fun AgentChatOverlayDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = 16.dp, bottom = 12.dp, start = 8.dp, end = 8.dp),
-            color = Color(0xFF070D18),
+            color = theme.background,
             shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+            border = BorderStroke(1.5.dp, theme.success.copy(alpha = 0.6f))
         ) {
             Column(
                 modifier = Modifier
@@ -107,9 +85,9 @@ internal fun AgentChatOverlayDialog(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF091528),
-                                Color(0xFF050B14),
-                                Color(0xFF09121F)
+                                theme.cardSurface,
+                                theme.background,
+                                theme.cardSurface
                             )
                         )
                     )
@@ -118,7 +96,7 @@ internal fun AgentChatOverlayDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0C192E).copy(alpha = 0.95f))
+                        .background(theme.cardSurface.copy(alpha = 0.95f))
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -147,7 +125,7 @@ internal fun AgentChatOverlayDialog(
                         Column(verticalArrangement = Arrangement.Center) {
                             Text(
                                 text = "الوكيل الذكي",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 13.sp,
@@ -178,12 +156,12 @@ internal fun AgentChatOverlayDialog(
                         // زر جلسة جديدة
                         IconButton(
                             onClick = onNewChat,
-                            modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF0F261C))
+                            modifier = Modifier.size(34.dp).clip(CircleShape).background(theme.success.copy(alpha = 0.15f))
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AddComment,
                                 contentDescription = "محادثة جديدة",
-                                tint = Color(0xFF10B981),
+                                tint = theme.success,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
@@ -192,12 +170,12 @@ internal fun AgentChatOverlayDialog(
                         Box {
                             IconButton(
                                 onClick = { showSessionsMenu = true },
-                                modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF131D2E))
+                                modifier = Modifier.size(34.dp).clip(CircleShape).background(theme.cardSurface)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.History,
                                     contentDescription = "السجل",
-                                    tint = Color(0xFF38BDF8),
+                                    tint = theme.primary,
                                     modifier = Modifier.size(17.dp)
                                 )
                             }
@@ -206,22 +184,22 @@ internal fun AgentChatOverlayDialog(
                                 expanded = showSessionsMenu,
                                 onDismissRequest = { showSessionsMenu = false },
                                 modifier = Modifier
-                                    .background(Color(0xFF0B1424))
-                                    .border(1.dp, Color(0xFF1E2D4A), RoundedCornerShape(8.dp))
+                                    .background(theme.cardSurface)
+                                    .border(1.dp, theme.separator, RoundedCornerShape(8.dp))
                             ) {
                                 Text(
                                     text = "جلسات المحادثة السابقة",
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
-                                HorizontalDivider(color = Color(0xFF1E2D4A))
+                                HorizontalDivider(color = theme.separator)
 
                                 if (sessions.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("لا توجد محادثات سابقة", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont) },
+                                        text = { Text("لا توجد محادثات سابقة", color = theme.textTertiary, fontSize = 12.sp, fontFamily = CairoFont) },
                                         onClick = { showSessionsMenu = false }
                                     )
                                 } else {
@@ -232,7 +210,7 @@ internal fun AgentChatOverlayDialog(
                                                 Column {
                                                     Text(
                                                         text = session.title,
-                                                        color = if (isCurrent) Color(0xFF10B981) else Color.White,
+                                                        color = if (isCurrent) theme.success else theme.textPrimary,
                                                         fontSize = 12.sp,
                                                         fontFamily = CairoFont,
                                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
@@ -240,7 +218,7 @@ internal fun AgentChatOverlayDialog(
                                                     )
                                                     Text(
                                                         text = "${session.messageCount} رسائل",
-                                                        color = Color(0xFF64748B),
+                                                        color = theme.textTertiary,
                                                         fontSize = 10.sp
                                                     )
                                                 }
@@ -253,7 +231,7 @@ internal fun AgentChatOverlayDialog(
                                                 Icon(
                                                     imageVector = if (isCurrent) Icons.Default.CheckCircle else Icons.Default.ChatBubbleOutline,
                                                     contentDescription = null,
-                                                    tint = if (isCurrent) Color(0xFF10B981) else Color(0xFF64748B),
+                                                    tint = if (isCurrent) theme.success else theme.textTertiary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                             }
@@ -265,7 +243,7 @@ internal fun AgentChatOverlayDialog(
                         if (isRunning) {
                             IconButton(
                                 onClick = { if (isPaused) onResume() else onPause() },
-                                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF15263F))
+                                modifier = Modifier.size(36.dp).clip(CircleShape).background(theme.cardSurface)
                             ) {
                                 Icon(
                                     imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
@@ -289,19 +267,19 @@ internal fun AgentChatOverlayDialog(
                         
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF1E293B))
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(theme.separator)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = Color.White,
+                                tint = theme.textPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFF1E293B))
+                HorizontalDivider(color = theme.separator)
 
                 // Chat Messages List
                 LazyColumn(
@@ -319,9 +297,9 @@ internal fun AgentChatOverlayDialog(
                     if (isThinking || (isRunning && !isPaused)) {
                         item {
                             Surface(
-                                color = Color(0xFF0F2038),
+                                color = theme.cardSurface,
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                                border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
@@ -333,12 +311,12 @@ internal fun AgentChatOverlayDialog(
                                 ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(18.dp),
-                                        color = Color(0xFF38BDF8),
+                                        color = theme.primary,
                                         strokeWidth = 2.dp
                                     )
                                     Text(
                                         text = "الوكيل يفكر ويولّد التعديلات البرمجية... 🧠⚡",
-                                        color = Color(0xFF7DD3FC),
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
@@ -349,7 +327,7 @@ internal fun AgentChatOverlayDialog(
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFF1E293B))
+                HorizontalDivider(color = theme.separator)
 
                 // Quick Prompts Redesign
                 LazyRow(
@@ -398,7 +376,7 @@ internal fun AgentChatOverlayDialog(
 
                 // Input Bar
                 Surface(
-                    color = Color(0xFF0A1220),
+                    color = theme.cardSurface,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -414,18 +392,18 @@ internal fun AgentChatOverlayDialog(
                             placeholder = {
                                 Text(
                                     "أرسل توجيهاً أو تعديلاً للوكيل...",
-                                    color = Color(0xFF64748B),
+                                    color = theme.textTertiary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.5.sp
                                 )
                             },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF0F1B2E),
-                                unfocusedContainerColor = Color(0xFF0D1829),
-                                focusedBorderColor = Color(0xFF10B981),
-                                unfocusedBorderColor = Color(0xFF1E293B),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedContainerColor = theme.secondarySurface,
+                                unfocusedContainerColor = theme.secondarySurface,
+                                focusedBorderColor = theme.success,
+                                unfocusedBorderColor = theme.separator,
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary
                             ),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
@@ -444,8 +422,8 @@ internal fun AgentChatOverlayDialog(
                             },
                             enabled = inputText.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF059669),
-                                disabledContainerColor = Color(0xFF1E293B)
+                                containerColor = theme.success,
+                                disabledContainerColor = theme.separator
                             ),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
@@ -454,7 +432,7 @@ internal fun AgentChatOverlayDialog(
                             Icon(
                                 imageVector = Icons.Default.Send,
                                 contentDescription = "إرسال",
-                                tint = if (inputText.isNotBlank()) Color.White else Color(0xFF64748B),
+                                tint = if (inputText.isNotBlank()) theme.onPrimary else theme.textTertiary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -470,6 +448,7 @@ internal fun ChatMessageBubble(
     message: AgentChatMessage,
     onApprovePlan: (AgentPlanCardData) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val isUser = message.sender == AgentChatSender.USER
     val isSystem = message.sender == AgentChatSender.TOOL_SYSTEM
 
@@ -487,14 +466,14 @@ internal fun ChatMessageBubble(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(if (isSystem) Color(0xFF1E293B) else Color(0xFF064E3B))
-                        .border(1.dp, if (isSystem) Color(0xFF64748B) else Color(0xFF10B981), CircleShape),
+                        .background(if (isSystem) theme.separator else theme.success.copy(alpha = 0.35f))
+                        .border(1.dp, if (isSystem) theme.textTertiary else theme.success, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isSystem) Icons.Default.Build else Icons.Default.SmartToy,
                         contentDescription = null,
-                        tint = if (isSystem) Color(0xFF94A3B8) else Color(0xFF34D399),
+                        tint = if (isSystem) theme.textSecondary else theme.success,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -503,9 +482,9 @@ internal fun ChatMessageBubble(
 
             Surface(
                 color = when {
-                    isUser -> Color(0xFF0F3823)
-                    isSystem -> Color(0xFF131D2E)
-                    else -> Color(0xFF0B192E)
+                    isUser -> theme.success.copy(alpha = 0.2f)
+                    isSystem -> theme.cardSurface
+                    else -> theme.cardSurface
                 },
                 shape = RoundedCornerShape(
                     topStart = 16.dp,
@@ -516,16 +495,16 @@ internal fun ChatMessageBubble(
                 border = BorderStroke(
                     1.dp,
                     when {
-                        isUser -> Color(0xFF10B981).copy(alpha = 0.6f)
-                        isSystem -> Color(0xFF38BDF8).copy(alpha = 0.4f)
-                        else -> Color(0xFF3B82F6).copy(alpha = 0.5f)
+                        isUser -> theme.success.copy(alpha = 0.6f)
+                        isSystem -> theme.primary.copy(alpha = 0.4f)
+                        else -> theme.primary.copy(alpha = 0.5f)
                     }
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = if (isUser) "أنت (المطور) 👤" else if (isSystem) "نظام الأداة 🛠️" else "الوكيل البرمجي 🤖",
-                        color = if (isUser) Color(0xFFA7F3D0) else if (isSystem) Color(0xFF7DD3FC) else Color(0xFF93C5FD),
+                        color = if (isUser) theme.success else if (isSystem) theme.primary else theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -533,7 +512,7 @@ internal fun ChatMessageBubble(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = message.text,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
                         lineHeight = 19.sp
@@ -598,14 +577,14 @@ internal fun ChatMessageBubble(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF065F46))
-                        .border(1.dp, Color(0xFF34D399), CircleShape),
+                        .background(theme.success.copy(alpha = 0.35f))
+                        .border(1.dp, theme.success, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = theme.textPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -622,14 +601,15 @@ internal fun InteractivePlanCard(
     planCard: AgentPlanCardData,
     onApprovePlan: (AgentPlanCardData) -> Unit
 ) {
+    val theme = QabasTheme.current
     var isApproved by remember { mutableStateOf(planCard.isApproved) }
 
     Surface(
-        color = Color(0xFF071224),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(
             1.dp,
-            if (isApproved) Color(0xFF10B981) else Color(0xFFA855F7)
+            if (isApproved) theme.success else theme.accent
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -653,21 +633,21 @@ internal fun InteractivePlanCard(
                             .size(24.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isApproved) Color(0xFF10B981).copy(alpha = 0.2f)
-                                else Color(0xFFA855F7).copy(alpha = 0.2f)
+                                if (isApproved) theme.success.copy(alpha = 0.2f)
+                                else theme.accent.copy(alpha = 0.2f)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (isApproved) Icons.Default.CheckCircle else Icons.Default.Psychology,
                             contentDescription = null,
-                            tint = if (isApproved) Color(0xFF10B981) else Color(0xFFA855F7),
+                            tint = if (isApproved) theme.success else theme.accent,
                             modifier = Modifier.size(14.dp)
                         )
                     }
                     Text(
                         text = if (isApproved) "خطة العمل المعمدة ✓" else "خطة العمل المقترحة (في انتظار الاعتماد) 📐",
-                        color = if (isApproved) Color(0xFF10B981) else Color(0xFFD8B4FE),
+                        color = if (isApproved) theme.success else theme.accent,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.5.sp
@@ -676,7 +656,7 @@ internal fun InteractivePlanCard(
 
                 Text(
                     text = if (isApproved) "معتمدة" else "مؤقتة",
-                    color = if (isApproved) Color(0xFF10B981) else Color(0xFFF59E0B),
+                    color = if (isApproved) theme.success else theme.warning,
                     fontFamily = RobotoMonoFont,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
@@ -685,13 +665,13 @@ internal fun InteractivePlanCard(
 
             Text(
                 text = planCard.summary,
-                color = Color.White,
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
 
-            HorizontalDivider(color = Color(0xFF1E2D4A))
+            HorizontalDivider(color = theme.separator)
 
             planCard.steps.forEach { step ->
                 Row(
@@ -703,12 +683,12 @@ internal fun InteractivePlanCard(
                         modifier = Modifier
                             .size(20.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E293B)),
+                            .background(theme.separator),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "${step.number}",
-                            color = Color(0xFF38BDF8),
+                            color = theme.primary,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = RobotoMonoFont
@@ -717,14 +697,14 @@ internal fun InteractivePlanCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = step.title,
-                            color = Color(0xFFE2E8F0),
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
                         Text(
                             text = step.description,
-                            color = Color(0xFF94A3B8),
+                            color = theme.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 10.sp
                         )
@@ -744,7 +724,7 @@ internal fun InteractivePlanCard(
                         .fillMaxWidth()
                         .height(42.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF9333EA)
+                        containerColor = theme.accent
                     ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
@@ -755,12 +735,12 @@ internal fun InteractivePlanCard(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = theme.onPrimary,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = "🚀 اعتماد الخطة والبدء بالتنفيذ المباشر",
-                            color = Color.White,
+                            color = theme.onPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -782,6 +762,7 @@ internal fun TeamStepCard(
     isLast: Boolean,
     isThinking: Boolean
 ) {
+    val theme = QabasTheme.current
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
     
     // Golden Flash/Glow Alpha
@@ -805,11 +786,11 @@ internal fun TeamStepCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Surface(
-            color = Color(0xFF0F1B2E),
+            color = theme.secondarySurface,
             shape = RoundedCornerShape(16.dp),
             border = BorderStroke(
                 if (isThinking) 2.dp else 1.dp,
-                if (isThinking) Color(0xFFD4AF37).copy(alpha = glowAlpha) else Color(0xFF1E2D4A)
+                if (isThinking) theme.warning.copy(alpha = glowAlpha) else theme.separator
             ),
             // Golden flash shadow when thinking
             shadowElevation = if (isThinking) (6.dp * glowAlpha) else 0.dp,
@@ -826,17 +807,17 @@ internal fun TeamStepCard(
                             .clip(CircleShape)
                             .background(
                                 when {
-                                    isThinking -> Color(0xFFD4AF37).copy(alpha = 0.15f)
-                                    step.isSuccess -> Color(0xFF10B981).copy(alpha = 0.15f)
-                                    else -> Color(0xFFEF4444).copy(alpha = 0.15f)
+                                    isThinking -> theme.warning.copy(alpha = 0.15f)
+                                    step.isSuccess -> theme.success.copy(alpha = 0.15f)
+                                    else -> theme.destructive.copy(alpha = 0.15f)
                                 }
                             )
                             .border(
                                 1.dp,
                                 when {
-                                    isThinking -> Color(0xFFD4AF37).copy(alpha = glowAlpha)
-                                    step.isSuccess -> Color(0xFF10B981)
-                                    else -> Color(0xFFEF4444)
+                                    isThinking -> theme.warning.copy(alpha = glowAlpha)
+                                    step.isSuccess -> theme.success
+                                    else -> theme.destructive
                                 },
                                 CircleShape
                             ),
@@ -845,14 +826,14 @@ internal fun TeamStepCard(
                         if (isThinking) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
-                                color = Color(0xFFD4AF37),
+                                color = theme.warning,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 imageVector = if (step.isSuccess) Icons.Default.Check else Icons.Default.Error,
                                 contentDescription = null,
-                                tint = if (step.isSuccess) Color(0xFF10B981) else Color(0xFFEF4444),
+                                tint = if (step.isSuccess) theme.success else theme.destructive,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -863,7 +844,7 @@ internal fun TeamStepCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = step.title,
-                            color = if (isThinking) Color(0xFFD4AF37) else Color.White,
+                            color = if (isThinking) theme.warning else theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -871,7 +852,7 @@ internal fun TeamStepCard(
                         if (step.toolName.isNotBlank()) {
                             Text(
                                 text = "أداة: ${step.toolName}",
-                                color = Color(0xFF38BDF8),
+                                color = theme.primary,
                                 fontSize = 10.sp,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.SemiBold
@@ -881,12 +862,12 @@ internal fun TeamStepCard(
                     
                     // Step Index Badge
                     Surface(
-                        color = Color(0xFF1E293B),
+                        color = theme.separator,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "#${index + 1}",
-                            color = Color(0xFF94A3B8),
+                            color = theme.textSecondary,
                             fontSize = 10.sp,
                             fontFamily = RobotoMonoFont,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -898,7 +879,7 @@ internal fun TeamStepCard(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         text = step.description,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 11.5.sp,
                         lineHeight = 17.sp,
@@ -910,7 +891,7 @@ internal fun TeamStepCard(
                 if (isThinking) {
                     Spacer(Modifier.height(12.dp))
                     Surface(
-                        color = Color(0xFFD4AF37).copy(alpha = 0.1f),
+                        color = theme.warning.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -936,12 +917,12 @@ internal fun TeamStepCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFD4AF37).copy(alpha = dotAlpha))
+                                    .background(theme.warning.copy(alpha = dotAlpha))
                             )
                             
                             Text(
                                 text = "جارِ التفكير والتحليل الذكي الآن... ✨",
-                                color = Color(0xFFD4AF37),
+                                color = theme.warning,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -953,16 +934,16 @@ internal fun TeamStepCard(
                 if (step.outputSnippet.isNotBlank()) {
                     Spacer(Modifier.height(10.dp))
                     Surface(
-                        color = Color(0xFF070D18),
+                        color = theme.background,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        border = BorderStroke(1.dp, theme.separator),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(start = 44.dp)
                     ) {
                         Text(
                             text = step.outputSnippet,
-                            color = Color(0xFF67E8F9),
+                            color = theme.primary,
                             fontSize = 10.sp,
                             fontFamily = RobotoMonoFont,
                             modifier = Modifier.padding(10.dp),
@@ -984,10 +965,11 @@ internal fun DetailedDiagnosticCard(
     error: AgentErrorDetails,
     onRetry: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF1A0B0B),
+        color = theme.destructive.copy(alpha = 0.12f),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.2.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+        border = BorderStroke(1.2.dp, theme.destructive.copy(alpha = 0.6f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -999,19 +981,19 @@ internal fun DetailedDiagnosticCard(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                        .background(theme.destructive.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Warning,
                         contentDescription = null,
-                        tint = Color(0xFFEF4444),
+                        tint = theme.destructive,
                         modifier = Modifier.size(18.dp)
                     )
                 }
                 Text(
                     text = "تشخيص خطأ الجلب / التنفيذ 🔍",
-                    color = Color(0xFFEF4444),
+                    color = theme.destructive,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -1030,7 +1012,7 @@ internal fun DetailedDiagnosticCard(
                 if (error.isNetworkError) {
                     Text(
                         text = "⚠️ يبدو أن هناك مشكلة في اتصال الشبكة المحلي أو العالمي.",
-                        color = Color(0xFFF87171),
+                        color = theme.destructive,
                         fontSize = 11.sp,
                         fontFamily = CairoFont,
                         modifier = Modifier.padding(top = 4.dp)
@@ -1047,12 +1029,13 @@ internal fun DetailedDiagnosticCard(
 
 @Composable
 private fun DiagnosticItem(label: String, value: String) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = Color(0xFF94A3B8), fontSize = 11.sp, fontFamily = CairoFont)
-        Text(text = value, color = Color.White, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Medium)
+        Text(text = label, color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
+        Text(text = value, color = theme.textPrimary, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -1061,6 +1044,7 @@ private fun DiagnosticItem(label: String, value: String) {
  */
 @Composable
 internal fun InfiniteTriangleRetryButton(onClick: () -> Unit) {
+    val theme = QabasTheme.current
     val infiniteTransition = rememberInfiniteTransition(label = "triangle")
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -1077,11 +1061,11 @@ internal fun InfiniteTriangleRetryButton(onClick: () -> Unit) {
             .fillMaxWidth()
             .height(44.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFEF4444).copy(alpha = 0.1f),
-            contentColor = Color(0xFFEF4444)
+            containerColor = theme.destructive.copy(alpha = 0.1f),
+            contentColor = theme.destructive
         ),
         shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f))
+        border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.4f))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1096,7 +1080,7 @@ internal fun InfiniteTriangleRetryButton(onClick: () -> Unit) {
                 }
                 drawPath(
                     path = path,
-                    color = Color(0xFFEF4444),
+                    color = theme.destructive,
                     style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
                 )
             }

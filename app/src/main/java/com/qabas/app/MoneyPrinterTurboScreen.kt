@@ -23,21 +23,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * 🛸 شاشة «MoneyPrinter Turbo» السيبرانية (Spatial HUD Tech)
@@ -95,11 +88,12 @@ fun MoneyPrinterTurboScreen(
     )
 
     // الألوان السيبرانية المعتمدة
-    val hudCyan = Color(0xFF00F2FE)
-    val hudBlue = Color(0xFF4FACFE)
-    val hudGold = Color(0xFFE8C547)
-    val hudObsidian = Color(0xFF060913)
-    val hudGlassBg = Color(0x800B132B)
+    val theme = QabasTheme.current
+    val hudCyan = theme.primary
+    val hudBlue = theme.primary
+    val hudGold = theme.gold
+    val hudObsidian = theme.background
+    val hudGlassBg = theme.cardSurface.copy(alpha = 0.5f)
     val hudBorder = hudCyan.copy(alpha = glowAlpha * 0.5f)
 
     // فحص مبدئي سريع للسيرفر في الخلفية
@@ -126,12 +120,12 @@ fun MoneyPrinterTurboScreen(
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
-                                    .background(if (serverStatus?.isOnline == true) Color(0xFF10B981) else hudGold, CircleShape)
+                                    .background(if (serverStatus?.isOnline == true) theme.success else hudGold, CircleShape)
                             )
                         }
                         Text(
                             text = if (serverStatus?.isOnline == true) "متصل بالخادم السحابي (${serverStatus?.latencyMs}ms)" else "النمط المحلي المستقل (Edge-TTS + FFmpeg)",
-                            color = Color(0xFF94A3B8),
+                            color = theme.textSecondary,
                             fontSize = 11.sp,
                             fontFamily = CairoFont
                         )
@@ -139,7 +133,7 @@ fun MoneyPrinterTurboScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = theme.textPrimary)
                     }
                 },
                 actions = {
@@ -179,7 +173,7 @@ fun MoneyPrinterTurboScreen(
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     "محرك الإنتاج الآلي الذاتي",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
@@ -197,7 +191,7 @@ fun MoneyPrinterTurboScreen(
                         Spacer(Modifier.height(10.dp))
                         Text(
                             "يستبدل العمليات اليدوية المعقدة بمحرك إنتاج فوري: يولد السكريبت، ويستخرج لقطات B-Roll السينمائية، ويسجل بصوت Edge-TTS العصبي المجاني 100%، ويرندر ريلز كامل بدقة 9:16 بضغطة زر.",
-                            color = Color(0xFFCBD5E1),
+                            color = theme.textPrimary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont,
                             lineHeight = 18.sp
@@ -226,20 +220,20 @@ fun MoneyPrinterTurboScreen(
                             value = subjectText,
                             onValueChange = { subjectText = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("مثال: عجائب سورة الكهف، فضل الاستغفار، سيرة خالد بن الوليد...", color = Color.Gray, fontSize = 12.sp) },
+                            placeholder = { Text("مثال: عجائب سورة الكهف، فضل الاستغفار، سيرة خالد بن الوليد...", color = theme.textTertiary, fontSize = 12.sp) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = hudCyan,
-                                unfocusedBorderColor = Color(0xFF334155),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.6f),
-                                unfocusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.4f)
+                                unfocusedBorderColor = theme.separator,
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary,
+                                focusedContainerColor = theme.cardSurface.copy(alpha = 0.6f),
+                                unfocusedContainerColor = theme.cardSurface.copy(alpha = 0.4f)
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
 
                         Spacer(Modifier.height(10.dp))
-                        Text("مقترحات سريعة ملهمة:", color = Color(0xFF94A3B8), fontSize = 11.sp, fontFamily = CairoFont)
+                        Text("مقترحات سريعة ملهمة:", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
                         Spacer(Modifier.height(6.dp))
 
                         val presets = listOf(
@@ -252,9 +246,9 @@ fun MoneyPrinterTurboScreen(
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(presets) { preset ->
                                 Surface(
-                                    color = Color(0xFF1E293B),
+                                    color = theme.secondarySurface,
                                     shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f)),
+                                    border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.3f)),
                                     modifier = Modifier.clickable {
                                         subjectText = preset.substringAfter(" ")
                                     }
@@ -262,7 +256,7 @@ fun MoneyPrinterTurboScreen(
                                     Text(
                                         preset,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        color = Color(0xFFE2E8F0),
+                                        color = theme.textPrimary,
                                         fontSize = 11.sp,
                                         fontFamily = CairoFont
                                     )
@@ -298,7 +292,7 @@ fun MoneyPrinterTurboScreen(
                             }
                             Text(
                                 "FREE NEURAL",
-                                color = Color(0xFF10B981),
+                                color = theme.success,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp
@@ -316,7 +310,7 @@ fun MoneyPrinterTurboScreen(
                             ) {
                                 Text(
                                     "🧬 أصواتك المستنسخة (VoiceStudio):",
-                                    color = Color(0xFFA855F7),
+                                    color = theme.accent,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont
@@ -325,7 +319,7 @@ fun MoneyPrinterTurboScreen(
                                     onClick = onNavigateToVoiceCloning,
                                     contentPadding = PaddingValues(0.dp)
                                 ) {
-                                    Text("+ استنساخ جديد", color = Color(0xFFA855F7), fontSize = 11.sp, fontFamily = CairoFont)
+                                    Text("+ استنساخ جديد", color = theme.accent, fontSize = 11.sp, fontFamily = CairoFont)
                                 }
                             }
 
@@ -338,10 +332,10 @@ fun MoneyPrinterTurboScreen(
                                         .padding(vertical = 3.dp)
                                         .clickable { selectedVoice = voiceKey },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) Color(0xFF2E1065) else Color(0xFF0F172A).copy(alpha = 0.5f),
+                                    color = if (isSelected) theme.accent.copy(alpha = 0.2f) else theme.cardSurface.copy(alpha = 0.5f),
                                     border = BorderStroke(
                                         1.dp,
-                                        if (isSelected) Color(0xFFA855F7) else Color(0xFF334155).copy(alpha = 0.4f)
+                                        if (isSelected) theme.accent else theme.separator.copy(alpha = 0.4f)
                                     )
                                 ) {
                                     Row(
@@ -351,20 +345,20 @@ fun MoneyPrinterTurboScreen(
                                         RadioButton(
                                             selected = isSelected,
                                             onClick = { selectedVoice = voiceKey },
-                                            colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFA855F7))
+                                            colors = RadioButtonDefaults.colors(selectedColor = theme.accent)
                                         )
                                         Column(Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(profile.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                                Text(profile.name, color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                                 Spacer(Modifier.width(6.dp))
                                                 Surface(
-                                                    color = Color(0xFFA855F7).copy(alpha = 0.2f),
+                                                    color = theme.accent.copy(alpha = 0.2f),
                                                     shape = RoundedCornerShape(4.dp)
                                                 ) {
-                                                    Text("مستنسخ AI", color = Color(0xFFA855F7), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontFamily = CairoFont)
+                                                    Text("مستنسخ AI", color = theme.accent, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontFamily = CairoFont)
                                                 }
                                             }
-                                            Text(profile.description, color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
+                                            Text(profile.description, color = theme.textSecondary, fontSize = 10.sp, fontFamily = CairoFont)
                                         }
                                     }
                                 }
@@ -374,7 +368,7 @@ fun MoneyPrinterTurboScreen(
 
                         Text(
                             "🎙️ الأصوات العصبية الجاهزة (Edge-TTS المجاني):",
-                            color = Color(0xFFCBD5E1),
+                            color = theme.textPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont
@@ -390,10 +384,10 @@ fun MoneyPrinterTurboScreen(
                                     .padding(vertical = 3.dp)
                                     .clickable { selectedVoice = voice.id },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) Color(0xFF1E293B) else Color(0xFF0F172A).copy(alpha = 0.5f),
+                                color = if (isSelected) theme.secondarySurface else theme.cardSurface.copy(alpha = 0.5f),
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) hudGold else Color(0xFF334155).copy(alpha = 0.4f)
+                                    if (isSelected) hudGold else theme.separator.copy(alpha = 0.4f)
                                 )
                             ) {
                                 Row(
@@ -406,8 +400,8 @@ fun MoneyPrinterTurboScreen(
                                         colors = RadioButtonDefaults.colors(selectedColor = hudGold)
                                     )
                                     Column(Modifier.weight(1f)) {
-                                        Text(voice.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                        Text(voice.description, color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
+                                        Text(voice.name, color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                        Text(voice.description, color = theme.textSecondary, fontSize = 10.sp, fontFamily = CairoFont)
                                     }
                                 }
                             }
@@ -439,14 +433,14 @@ fun MoneyPrinterTurboScreen(
                                     .weight(1f)
                                     .clickable { selectedRatio = "9:16" },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (selectedRatio == "9:16") Color(0xFF1E293B) else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (selectedRatio == "9:16") hudCyan else Color(0xFF334155))
+                                color = if (selectedRatio == "9:16") theme.secondarySurface else theme.cardSurface,
+                                border = BorderStroke(1.dp, if (selectedRatio == "9:16") hudCyan else theme.separator)
                             ) {
                                 Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.StayCurrentPortrait, contentDescription = null, tint = if (selectedRatio == "9:16") hudCyan else Color.Gray)
+                                    Icon(Icons.Default.StayCurrentPortrait, contentDescription = null, tint = if (selectedRatio == "9:16") hudCyan else theme.textTertiary)
                                     Spacer(Modifier.height(4.dp))
-                                    Text("9:16 عمودي", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                    Text("TikTok / Reels / Shorts", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = RobotoMonoFont)
+                                    Text("9:16 عمودي", color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("TikTok / Reels / Shorts", color = theme.textSecondary, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                                 }
                             }
 
@@ -456,14 +450,14 @@ fun MoneyPrinterTurboScreen(
                                     .weight(1f)
                                     .clickable { selectedRatio = "16:9" },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (selectedRatio == "16:9") Color(0xFF1E293B) else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (selectedRatio == "16:9") hudCyan else Color(0xFF334155))
+                                color = if (selectedRatio == "16:9") theme.secondarySurface else theme.cardSurface,
+                                border = BorderStroke(1.dp, if (selectedRatio == "16:9") hudCyan else theme.separator)
                             ) {
                                 Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.StayCurrentLandscape, contentDescription = null, tint = if (selectedRatio == "16:9") hudCyan else Color.Gray)
+                                    Icon(Icons.Default.StayCurrentLandscape, contentDescription = null, tint = if (selectedRatio == "16:9") hudCyan else theme.textTertiary)
                                     Spacer(Modifier.height(4.dp))
-                                    Text("16:9 أفقي", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                    Text("YouTube / Landscape", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = RobotoMonoFont)
+                                    Text("16:9 أفقي", color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("YouTube / Landscape", color = theme.textSecondary, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                                 }
                             }
                         }
@@ -474,11 +468,11 @@ fun MoneyPrinterTurboScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("توليد ترجمة نصية متزامنة (Auto Subtitles)", color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                            Text("توليد ترجمة نصية متزامنة (Auto Subtitles)", color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                             Switch(
                                 checked = enableSubtitles,
                                 onCheckedChange = { enableSubtitles = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = hudCyan, checkedTrackColor = Color(0xFF0F766E))
+                                colors = SwitchDefaults.colors(checkedThumbColor = hudCyan, checkedTrackColor = theme.success.copy(alpha = 0.45f))
                             )
                         }
                     }
@@ -551,7 +545,7 @@ fun MoneyPrinterTurboScreen(
                                         currentProgress = prog
                                     }
                                 }
-                            } catch (e: Exception) {
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                 statusLogs = statusLogs + "❌ خطأ أثناء المعالجة: ${e.message}"
                                 Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_SHORT).show()
                             } finally {
@@ -590,8 +584,8 @@ fun MoneyPrinterTurboScreen(
             if (isGenerating || finishedVideoPath != null) {
                 item {
                     HudCard(
-                        borderColor = if (finishedVideoPath != null) Color(0xFF10B981) else hudCyan,
-                        backgroundColor = Color(0x990A1128)
+                        borderColor = if (finishedVideoPath != null) theme.success else hudCyan,
+                        backgroundColor = theme.cardSurface.copy(alpha = 0.6f)
                     ) {
                         Column(Modifier.padding(16.dp)) {
                             Row(
@@ -601,14 +595,14 @@ fun MoneyPrinterTurboScreen(
                             ) {
                                 Text(
                                     "رادار المعالجة السيبراني (Live Pipeline Radar)",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont
                                 )
                                 Text(
                                     "${(currentProgress * 100).toInt()}%",
-                                    color = if (finishedVideoPath != null) Color(0xFF10B981) else hudCyan,
+                                    color = if (finishedVideoPath != null) theme.success else hudCyan,
                                     fontFamily = RobotoMonoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
@@ -622,12 +616,12 @@ fun MoneyPrinterTurboScreen(
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp)),
-                                color = if (finishedVideoPath != null) Color(0xFF10B981) else hudCyan,
-                                trackColor = Color(0xFF1E293B)
+                                color = if (finishedVideoPath != null) theme.success else hudCyan,
+                                trackColor = theme.secondarySurface
                             )
 
                             Spacer(Modifier.height(10.dp))
-                            Text(currentStage, color = Color(0xFFE2E8F0), fontSize = 12.sp, fontFamily = CairoFont)
+                            Text(currentStage, color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
 
                             // في حال انتهاء الفيديو
                             if (finishedVideoPath != null) {
@@ -641,7 +635,7 @@ fun MoneyPrinterTurboScreen(
                                             finishedVideoPath?.let { onOpenInProEditor(it) }
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
                                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -654,7 +648,7 @@ fun MoneyPrinterTurboScreen(
                                             finishedVideoPath?.let { onOpenInYouTubeStudio(it) }
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = theme.destructive),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
                                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -671,8 +665,8 @@ fun MoneyPrinterTurboScreen(
             // سجل العمليات الطرفية (Terminal Radar Logs)
             item {
                 HudCard(
-                    borderColor = Color(0xFF334155),
-                    backgroundColor = Color(0xFF020617).copy(alpha = 0.85f)
+                    borderColor = theme.separator,
+                    backgroundColor = theme.background.copy(alpha = 0.85f)
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -684,7 +678,7 @@ fun MoneyPrinterTurboScreen(
                         statusLogs.takeLast(5).forEach { log ->
                             Text(
                                 log,
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontSize = 11.sp,
                                 fontFamily = CairoFont,
                                 modifier = Modifier.padding(vertical = 2.dp)
@@ -702,13 +696,13 @@ fun MoneyPrinterTurboScreen(
         AlertDialog(
             onDismissRequest = { showServerConfigDialog = false },
             title = {
-                Text("ربط خادم MoneyPrinterTurbo", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text("ربط خادم MoneyPrinterTurbo", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column {
                     Text(
                         "أدخل رابط خادم FastAPI لـ MoneyPrinterTurbo (مثل Docker أو VPS محلي أو سحابي):",
-                        color = Color(0xFFCBD5E1),
+                        color = theme.textPrimary,
                         fontSize = 12.sp,
                         fontFamily = CairoFont
                     )
@@ -719,9 +713,9 @@ fun MoneyPrinterTurboScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = hudCyan,
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            unfocusedBorderColor = theme.separator,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary
                         )
                     )
                     Spacer(Modifier.height(8.dp))
@@ -735,7 +729,7 @@ fun MoneyPrinterTurboScreen(
                                 Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (isCheckingServer) {
@@ -754,15 +748,15 @@ fun MoneyPrinterTurboScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = hudCyan)
                 ) {
-                    Text("حفظ", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("حفظ", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showServerConfigDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             },
-            containerColor = Color(0xFF0B132B)
+            containerColor = theme.cardSurface
         )
     }
 }

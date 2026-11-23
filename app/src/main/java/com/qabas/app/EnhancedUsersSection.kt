@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.content.Context
 import android.widget.Toast
-import java.util.Calendar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -23,8 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +34,7 @@ fun EnhancedUsersSection(
     context: Context,
     devUsers: androidx.compose.runtime.snapshots.SnapshotStateList<DevUser>
 ) {
+    val theme = QabasTheme.current
     var searchQuery by remember { mutableStateOf("") }
     var typeFilter by remember { mutableStateOf("الكل") }
     var statusFilter by remember { mutableStateOf("الكل") }
@@ -67,7 +65,6 @@ fun EnhancedUsersSection(
     }
 
     val types = listOf("الكل", "مطور", "خاص", "مجاني")
-    val statuses = listOf("الكل", "نشط", "موقوف")
 
     val filteredUsers = devUsers.filter { u ->
         val matchesQuery = u.name.contains(searchQuery, ignoreCase = true) ||
@@ -108,13 +105,13 @@ fun EnhancedUsersSection(
             onDismissRequest = { confirmRoleUser = null; confirmNewRole = null },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GoldPrimary)
-                    Text("تغيير رتبة المستخدم", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = PresetPrimary)
+                    Text("تغيير رتبة المستخدم", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("تغيير رتبة «${user.name}» إلى «${confirmNewRole ?: ""}»؟", color = Color.White, fontFamily = NotoSansFont)
+                    Text("تغيير رتبة «${user.name}» إلى «${confirmNewRole ?: ""}»؟", color = theme.textPrimary, fontFamily = NotoSansFont)
                     Text("سيتم حفظ الرتبة بشكل دائم عبر صلاحية الإدارة السحابية.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             },
@@ -152,15 +149,15 @@ fun EnhancedUsersSection(
                         confirmNewRole = null
                     },
                     enabled = updatingUserId == null,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(if (updatingUserId == user.id) "جارٍ الحفظ…" else "تأكيد التغيير", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(if (updatingUserId == user.id) "جارٍ الحفظ…" else "تأكيد التغيير", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRoleUser = null; confirmNewRole = null }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             },
             containerColor = CardSurface,
@@ -177,11 +174,11 @@ fun EnhancedUsersSection(
                     Icon(
                         if (willSuspend) Icons.Default.Block else Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = if (willSuspend) Color(0xFFEF4444) else Color(0xFF10B981)
+                        tint = if (willSuspend) theme.destructive else theme.success
                     )
                     Text(
                         if (willSuspend) "تأكيد إيقاف الحساب" else "تأكيد إعادة تفعيل الحساب",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold
                     )
@@ -193,7 +190,7 @@ fun EnhancedUsersSection(
                         "هل أنت متأكد من رغبتك في إيقاف حساب «${user.name}» (${user.email})؟ سيتعذر عليه استخدام المنصة مؤقتاً."
                     else
                         "هل تريد رفع الحظر وإعادة تنشيط حساب «${user.name}» (${user.email})؟",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.sp
                 )
@@ -229,16 +226,16 @@ fun EnhancedUsersSection(
                     },
                     enabled = updatingUserId == null,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (willSuspend) Color(0xFFEF4444) else Color(0xFF10B981)
+                        containerColor = if (willSuspend) theme.destructive else theme.success
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(if (updatingUserId == user.id) "جارٍ الحفظ…" else if (willSuspend) "إيقاف الحساب" else "إعادة التفعيل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text(if (updatingUserId == user.id) "جارٍ الحفظ…" else if (willSuspend) "إيقاف الحساب" else "إعادة التفعيل", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmSuspendUser = null }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             },
             containerColor = CardSurface,
@@ -255,52 +252,52 @@ fun EnhancedUsersSection(
                     Box(
                         modifier = Modifier
                             .size(36.dp)
-                            .background(GoldPrimary.copy(alpha = 0.15f), CircleShape),
+                            .background(PresetPrimary.copy(alpha = 0.15f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             user.name.take(1).uppercase(),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont
                         )
                     }
                     Column {
-                        Text(user.name, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(user.name, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         MaskedEmailText(email = user.email, reason = "عرض مستخدم في لوحة المطور", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HorizontalDivider(color = Color(0xFF1E293B))
+                    HorizontalDivider(color = theme.secondarySurface)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("الرتبة الحالية:", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
-                        Text(user.type, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("الرتبة الحالية:", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
+                        Text(user.type, color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("إجمالي المشاريع:", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
-                        Text("${user.projectCount} مشروع", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text("إجمالي المشاريع:", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
+                        Text("${user.projectCount} مشروع", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("تاريخ الانضمام:", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
-                        Text(user.regDate, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text("تاريخ الانضمام:", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
+                        Text(user.regDate, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("حالة الحساب:", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
+                        Text("حالة الحساب:", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                         Text(
                             if (user.isSuspended) "موقوف 🔴" else "نشط ومفعّل 🟢",
-                            color = if (user.isSuspended) Color(0xFFEF4444) else Color(0xFF10B981),
+                            color = if (user.isSuspended) theme.destructive else theme.success,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
                     }
-                    HorizontalDivider(color = Color(0xFF1E293B))
-                    Text("سجل الأنشطة والخط الزمني:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    HorizontalDivider(color = theme.secondarySurface)
+                    Text("سجل الأنشطة والخط الزمني:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     when {
-                        timeline == null -> Text("جاري جلب السجل...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        timeline.isEmpty() -> Text("لا يوجد نشاط مسجّل حتى الآن.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        timeline == null -> Text("جاري جلب السجل...", color = theme.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        timeline.isEmpty() -> Text("لا يوجد نشاط مسجّل حتى الآن.", color = theme.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         else -> {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 for (ev in timeline.take(8)) {
@@ -315,7 +312,7 @@ fun EnhancedUsersSection(
                                     val date = if (ts > 0) DevDashboardFormatters.formatRegDate(ts) else ""
                                     Text(
                                         "$icon ${ev["title"]} — $date",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 11.5.sp
                                     )
@@ -328,10 +325,10 @@ fun EnhancedUsersSection(
             confirmButton = {
                 Button(
                     onClick = { selectedUser = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("إغلاق", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("إغلاق", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             containerColor = CardSurface,
@@ -350,24 +347,24 @@ fun EnhancedUsersSection(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.6f)),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.2f))
+                colors = CardDefaults.cardColors(containerColor = theme.cardSurface.copy(alpha = 0.6f)),
+                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.2f))
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Surface(
                             modifier = Modifier.size(40.dp),
                             shape = CircleShape,
-                            color = GoldPrimary.copy(alpha = 0.1f),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                            color = PresetPrimary.copy(alpha = 0.1f),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.MenuBook, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("إدارة الأحاديث اليومية السحابية", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text("جدولة 365 حديثاً من الصحيحين للإرسال التلقائي", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("إدارة الأحاديث اليومية السحابية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("جدولة 365 حديثاً من الصحيحين للإرسال التلقائي", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
 
@@ -376,12 +373,12 @@ fun EnhancedUsersSection(
                             LinearProgressIndicator(
                                 progress = { hadithGenProgress / 365f },
                                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                                color = GoldPrimary,
-                                trackColor = Color.White.copy(alpha = 0.1f)
+                                color = PresetPrimary,
+                                trackColor = theme.textPrimary.copy(alpha = 0.1f)
                             )
                             Text(
                                 "جارٍ التوليد والرفع سحابياً... $hadithGenProgress / 365",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -409,7 +406,7 @@ fun EnhancedUsersSection(
                                             }
                                             Toast.makeText(context, "تم تجهيز 365 حديثاً سحابياً بنجاح! ✨", Toast.LENGTH_LONG).show()
                                             AuditLogger.log(context, "hadith_cloud_init", "توليد 365 حديثاً")
-                                        } catch (e: Exception) {
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                             Toast.makeText(context, "فشل التوليد: ${e.message}", Toast.LENGTH_LONG).show()
                                         } finally {
                                             isGeneratingHadiths = false
@@ -418,11 +415,11 @@ fun EnhancedUsersSection(
                                 },
                                 modifier = Modifier.fillMaxWidth().height(40.dp),
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                             ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = theme.background, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("توليد 365 حديثاً (AI)", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("توليد 365 حديثاً (AI)", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }
@@ -434,7 +431,7 @@ fun EnhancedUsersSection(
             // ── بطاقة إحصائيات النظام الفضائية (Spatial HUD Stats Card) ──
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -448,25 +445,25 @@ fun EnhancedUsersSection(
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
-                                    .background(GoldPrimary.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                                    .background(PresetPrimary.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Group, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Default.Group, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                             }
                             Column {
                                 Text("إجمالي قاعدة المستخدمين", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
-                                Text("${devUsers.size} حساب مسجّل", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                Text("${devUsers.size} حساب مسجّل", color = theme.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             }
                         }
 
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.15f),
+                            color = PresetPrimary.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
                         ) {
                             Text(
                                 "المعروض: ${filteredUsers.size}",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
@@ -478,9 +475,9 @@ fun EnhancedUsersSection(
                     // حالة إدارة ملفات المستخدمين عبر Supabase
                     val isSupabaseConfigured = SupabaseServices.isSupabaseAvailable
                     Surface(
-                        color = if (isSupabaseConfigured) Color(0xFF1E293B) else Color(0xFF0F172A),
+                        color = if (isSupabaseConfigured) theme.secondarySurface else theme.cardSurface,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(0.8.dp, if (isSupabaseConfigured) Color(0xFF10B981).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.3f)),
+                        border = BorderStroke(0.8.dp, if (isSupabaseConfigured) theme.success.copy(alpha = 0.5f) else theme.textTertiary.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -492,12 +489,12 @@ fun EnhancedUsersSection(
                                 Icon(
                                     if (isSupabaseConfigured) Icons.Default.CloudDone else Icons.Default.CloudOff,
                                     contentDescription = null,
-                                    tint = if (isSupabaseConfigured) Color(0xFF10B981) else Color.Gray,
+                                    tint = if (isSupabaseConfigured) theme.success else theme.textTertiary,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Text(
                                     if (isSupabaseConfigured) "سحابة Supabase: متصلة ومربوطة" else "سحابة Supabase: غير متصلة",
-                                    color = if (isSupabaseConfigured) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                    color = if (isSupabaseConfigured) theme.success else theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold
@@ -506,7 +503,7 @@ fun EnhancedUsersSection(
 
                             if (isSupabaseConfigured) {
                                 Surface(
-                                    color = Color(0xFF78350F).copy(alpha = 0.4f),
+                                    color = theme.warning.copy(alpha = 0.4f),
                                     shape = RoundedCornerShape(6.dp),
                                     modifier = Modifier.clickable {
                                         Toast.makeText(
@@ -518,7 +515,7 @@ fun EnhancedUsersSection(
                                 ) {
                                     Text(
                                         "الملفات على Supabase",
-                                        color = Color(0xFF10B981),
+                                        color = theme.success,
                                         fontFamily = CairoFont,
                                         fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
@@ -529,20 +526,20 @@ fun EnhancedUsersSection(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E293B))
+                    HorizontalDivider(color = theme.secondarySurface)
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(modifier = Modifier.size(8.dp).background(Color(0xFF10B981), CircleShape))
-                            Text("النشطة: $activeCount", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Box(modifier = Modifier.size(8.dp).background(theme.success, CircleShape))
+                            Text("النشطة: $activeCount", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
-                        Box(modifier = Modifier.width(1.dp).height(14.dp).background(Color(0xFF1E293B)))
+                        Box(modifier = Modifier.width(1.dp).height(14.dp).background(theme.secondarySurface))
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(modifier = Modifier.size(8.dp).background(Color(0xFFEF4444), CircleShape))
-                            Text("الموقوفة: $suspendedCount", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Box(modifier = Modifier.size(8.dp).background(theme.destructive, CircleShape))
+                            Text("الموقوفة: $suspendedCount", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 }
@@ -557,20 +554,20 @@ fun EnhancedUsersSection(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("بحث باسم المستخدم أو البريد الإلكتروني...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary) },
+                placeholder = { Text("بحث باسم المستخدم أو البريد الإلكتروني...", color = theme.textTertiary, fontFamily = NotoSansFont, fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "مسح", tint = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "مسح", tint = theme.textTertiary)
                         }
                     }
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color(0xFF1E293B),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedBorderColor = PresetPrimary,
+                    unfocusedBorderColor = theme.secondarySurface,
+                    focusedTextColor = theme.textPrimary,
+                    unfocusedTextColor = theme.textPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true
@@ -595,13 +592,13 @@ fun EnhancedUsersSection(
                         },
                         label = { Text(t, fontFamily = CairoFont, fontSize = 11.5.sp) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = GoldPrimary,
-                            selectedLabelColor = Color.Black
+                            selectedContainerColor = PresetPrimary,
+                            selectedLabelColor = theme.background
                         )
                     )
                 }
 
-                Box(modifier = Modifier.width(1.dp).height(28.dp).background(Color(0xFF1E293B)))
+                Box(modifier = Modifier.width(1.dp).height(28.dp).background(theme.secondarySurface))
 
                 FilterChip(
                     selected = statusFilter != "الكل",
@@ -621,8 +618,8 @@ fun EnhancedUsersSection(
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = if (statusFilter == "موقوف") Color(0xFFEF4444) else Color(0xFF10B981),
-                        selectedLabelColor = Color.White
+                        selectedContainerColor = if (statusFilter == "موقوف") theme.destructive else theme.success,
+                        selectedLabelColor = theme.textPrimary
                     )
                 )
             }
@@ -639,12 +636,12 @@ fun EnhancedUsersSection(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Icon(Icons.Default.Download, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Download, contentDescription = null, tint = theme.background, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("تصدير سجل المستخدمين (CSV)", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("تصدير سجل المستخدمين (CSV)", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
 
@@ -653,7 +650,7 @@ fun EnhancedUsersSection(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, theme.secondarySurface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -661,7 +658,7 @@ fun EnhancedUsersSection(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.PersonSearch, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(36.dp))
+                        Icon(Icons.Default.PersonSearch, contentDescription = null, tint = theme.textTertiary, modifier = Modifier.size(36.dp))
                         Text("لا يوجد مستخدمون مطابقون لمعايير البحث الحالية.", color = TextSecondary, fontFamily = CairoFont, fontSize = 13.sp)
                     }
                 }
@@ -671,9 +668,9 @@ fun EnhancedUsersSection(
         // ── بطاقات المستخدمين (User HUD Cards) ──
         items(filteredUsers, key = { it.id }) { user ->
             val tierColor = when (user.type) {
-                "مطور" -> GoldPrimary
-                "خاص" -> Color(0xFF8B5CF6)
-                else -> Color(0xFF38BDF8)
+                "مطور" -> PresetPrimary
+                "خاص" -> theme.accent
+                else -> theme.primary
             }
 
             Card(
@@ -681,7 +678,7 @@ fun EnhancedUsersSection(
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(
                     1.dp,
-                    if (user.isSuspended) Color(0xFFEF4444).copy(alpha = 0.5f) else Color(0xFF1E293B)
+                    if (user.isSuspended) theme.destructive.copy(alpha = 0.5f) else theme.secondarySurface
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -711,7 +708,7 @@ fun EnhancedUsersSection(
                             Column {
                                 Text(
                                     user.name,
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
@@ -727,14 +724,14 @@ fun EnhancedUsersSection(
                                 )
                                 if (!user.customId.isNullOrBlank()) {
                                     Surface(
-                                        color = Color(0xFF00E5FF).copy(alpha = 0.12f),
+                                        color = theme.primary.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(4.dp),
-                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.3f)),
+                                        border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.3f)),
                                         modifier = Modifier.padding(top = 2.dp)
                                     ) {
                                         Text(
                                             text = "ID: ${UserIdentifierManager.formatDisplay(user.customId)}",
-                                            color = Color(0xFF00E5FF),
+                                            color = theme.primary,
                                             fontFamily = RobotoMonoFont,
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Bold,
@@ -746,11 +743,11 @@ fun EnhancedUsersSection(
                         }
 
                         Surface(
-                            color = if (user.isSuspended) Color(0xFFEF4444).copy(alpha = 0.15f) else Color(0xFF10B981).copy(alpha = 0.15f),
+                            color = if (user.isSuspended) theme.destructive.copy(alpha = 0.15f) else theme.success.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
                             border = BorderStroke(
                                 1.dp,
-                                if (user.isSuspended) Color(0xFFEF4444).copy(alpha = 0.35f) else Color(0xFF10B981).copy(alpha = 0.35f)
+                                if (user.isSuspended) theme.destructive.copy(alpha = 0.35f) else theme.success.copy(alpha = 0.35f)
                             )
                         ) {
                             Row(
@@ -761,11 +758,11 @@ fun EnhancedUsersSection(
                                 Box(
                                     modifier = Modifier
                                         .size(6.dp)
-                                        .background(if (user.isSuspended) Color(0xFFEF4444) else Color(0xFF10B981), CircleShape)
+                                        .background(if (user.isSuspended) theme.destructive else theme.success, CircleShape)
                                 )
                                 Text(
                                     if (user.isSuspended) "موقوف" else "نشط",
-                                    color = if (user.isSuspended) Color(0xFFEF4444) else Color(0xFF10B981),
+                                    color = if (user.isSuspended) theme.destructive else theme.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.5.sp
@@ -778,19 +775,19 @@ fun EnhancedUsersSection(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF0F172A), RoundedCornerShape(8.dp))
+                            .background(theme.cardSurface, RoundedCornerShape(8.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("الرتبة:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("الرتبة:", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
                             Text(user.type, color = tierColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("المشاريع:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
-                            Text("${user.projectCount}", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                            Text("المشاريع:", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("${user.projectCount}", color = theme.textPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
                         }
                     }
 
@@ -805,11 +802,11 @@ fun EnhancedUsersSection(
                                 selectedUser = user
                             },
                             modifier = Modifier.weight(1f).height(38.dp),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
-                            Text("تفاصيل", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.5.sp)
+                            Text("تفاصيل", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.5.sp)
                         }
 
                         Box(modifier = Modifier.weight(1.1f)) {
@@ -819,11 +816,11 @@ fun EnhancedUsersSection(
                                     roleMenuUser = user
                                 },
                                 modifier = Modifier.fillMaxWidth().height(38.dp),
-                                border = BorderStroke(1.dp, GoldSecondary.copy(alpha = 0.5f)),
+                                border = BorderStroke(1.dp, PresetAccent.copy(alpha = 0.5f)),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 4.dp)
                             ) {
-                                Text("تغيير الرتبة", color = GoldSecondary, fontFamily = CairoFont, fontSize = 11.5.sp)
+                                Text("تغيير الرتبة", color = PresetAccent, fontFamily = CairoFont, fontSize = 11.5.sp)
                             }
                             DropdownMenu(
                                 expanded = roleMenuUser == user,
@@ -835,7 +832,7 @@ fun EnhancedUsersSection(
                                         text = {
                                             Text(
                                                 role,
-                                                color = if (role == user.type) GoldPrimary else Color.White,
+                                                color = if (role == user.type) PresetPrimary else theme.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 12.sp
                                             )
@@ -858,14 +855,14 @@ fun EnhancedUsersSection(
                             modifier = Modifier.weight(0.9f).height(38.dp),
                             border = BorderStroke(
                                 1.dp,
-                                if (user.isSuspended) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFEF4444).copy(alpha = 0.5f)
+                                if (user.isSuspended) theme.success.copy(alpha = 0.5f) else theme.destructive.copy(alpha = 0.5f)
                             ),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
                             Text(
                                 if (user.isSuspended) "تفعيل" else "إيقاف",
-                                color = if (user.isSuspended) Color(0xFF10B981) else Color(0xFFEF4444),
+                                color = if (user.isSuspended) theme.success else theme.destructive,
                                 fontFamily = CairoFont,
                                 fontSize = 11.5.sp
                             )

@@ -24,19 +24,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -46,7 +43,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.qabas.app.ui.theme.*
@@ -77,6 +73,7 @@ data class MishkatReminderContent(
  */
 @Composable
 fun MishkatReminderCard() {
+    val theme = QabasTheme.current
     var content by remember { mutableStateOf<MishkatReminderContent?>(null) }
 
     // تذكير اليوم الدائر (الدفعة 3): رقم يوم السنة (1–366) يُطوى على دورة
@@ -133,12 +130,12 @@ fun MishkatReminderCard() {
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
-                tint = Color(0xFFE8D8B5),
+                tint = theme.gold,
                 modifier = Modifier.size(18.dp)
             )
             Text(
                 text = "تذكّر",
-                color = Color(0xFFE8D8B5),
+                color = theme.gold,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
@@ -146,7 +143,7 @@ fun MishkatReminderCard() {
             Icon(
                 Icons.Default.Lightbulb,
                 contentDescription = "عرض التذكير",
-                tint = Color(0xFFD6BC83),
+                tint = theme.gold,
                 modifier = Modifier.size(17.dp)
             )
         }
@@ -163,15 +160,15 @@ fun MishkatReminderCard() {
                     .background(
                         brush = Brush.linearGradient(
                             colors = listOf(
-                                Color(0xFF041715),
-                                Color(0xFF0A2927),
-                                Color(0xFF071B25)
+                                theme.background,
+                                theme.cardSurface,
+                                theme.cardSurface.copy(alpha = 0.85f)
                             )
                         ),
                         shape = reminderShape
                     )
                     .border(
-                        BorderStroke(1.dp, Color(0xFF36CFC0).copy(alpha = 0.48f)),
+                        BorderStroke(1.dp, theme.primary.copy(alpha = 0.48f)),
                         shape = reminderShape
                     )
             ) {
@@ -187,16 +184,16 @@ fun MishkatReminderCard() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
-                        Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
+                        Box(Modifier.weight(1f).height(1.dp).background(theme.primary.copy(alpha = 0.42f)))
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = theme.gold, modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
+                        Box(Modifier.weight(1f).height(1.dp).background(theme.primary.copy(alpha = 0.42f)))
                     }
                     Text(
                         text = published.quoteText
                             .replace("، ", "،\n")
                             .replace("محطَّ نحس ", "محطَّ نحس\n")
                             .replace("\\n", "\n"),
-                        color = Color(0xFFF2E8D4),
+                        color = theme.textPrimary,
                         fontFamily = AmiriFont,
                         fontWeight = FontWeight.Medium,
                         fontSize = 23.sp,
@@ -206,7 +203,7 @@ fun MishkatReminderCard() {
                     )
                     Text(
                         text = published.attribution,
-                        color = Color(0xFF79D9CB),
+                        color = theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
@@ -229,9 +226,9 @@ fun MishkatReminderCard() {
                             },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                         ) {
-                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF79D9CB))
+                            Icon(Icons.Default.Link, contentDescription = null, tint = theme.primary)
                             Spacer(Modifier.width(8.dp))
-                            Text("مشاهدة الدرس الكامل", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                            Text("مشاهدة الدرس الكامل", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Row(
@@ -239,9 +236,9 @@ fun MishkatReminderCard() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
-                        Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
+                        Box(Modifier.width(42.dp).height(1.dp).background(theme.gold.copy(alpha = 0.55f)))
+                        Icon(Icons.Default.Star, contentDescription = null, tint = theme.gold, modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
+                        Box(Modifier.width(42.dp).height(1.dp).background(theme.gold.copy(alpha = 0.55f)))
                     }
                 }
             }
@@ -260,6 +257,7 @@ private fun MishkatDailyReminderCard(
     archiveDays: List<SupabaseServices.MishkatDailyRow>,
     todayDayNumber: Int
 ) {
+    val theme = QabasTheme.current
     var expanded by remember { mutableStateOf(false) }
     var archiveExpanded by remember { mutableStateOf(false) }
     // المحتوى المعروض: تذكير اليوم افتراضاً، أو يوم سابق اختاره المستخدم.
@@ -291,12 +289,12 @@ private fun MishkatDailyReminderCard(
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "طي التذكير" else "فتح التذكير",
-                tint = Color(0xFFE8D8B5),
+                tint = theme.gold,
                 modifier = Modifier.size(18.dp)
             )
             Text(
                 text = "تذكّر اليوم • اليوم ${shown.dayNumber} من 30",
-                color = Color(0xFFE8D8B5),
+                color = theme.gold,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
@@ -304,7 +302,7 @@ private fun MishkatDailyReminderCard(
             Icon(
                 Icons.Default.Lightbulb,
                 contentDescription = "عرض التذكير",
-                tint = Color(0xFFD6BC83),
+                tint = theme.gold,
                 modifier = Modifier.size(17.dp)
             )
         }
@@ -326,15 +324,15 @@ private fun MishkatDailyReminderCard(
                         .background(
                             brush = Brush.linearGradient(
                                 colors = listOf(
-                                    Color(0xFF041715),
-                                    Color(0xFF0A2927),
-                                    Color(0xFF071B25)
+                                    theme.background,
+                                    theme.cardSurface,
+                                    theme.cardSurface.copy(alpha = 0.85f)
                                 )
                             ),
                             shape = reminderShape
                         )
                         .border(
-                            BorderStroke(1.dp, Color(0xFF36CFC0).copy(alpha = 0.48f)),
+                            BorderStroke(1.dp, theme.primary.copy(alpha = 0.48f)),
                             shape = reminderShape
                         )
                 ) {
@@ -350,9 +348,9 @@ private fun MishkatDailyReminderCard(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
-                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
-                            Box(Modifier.weight(1f).height(1.dp).background(Color(0xFF39BFB2).copy(alpha = 0.42f)))
+                            Box(Modifier.weight(1f).height(1.dp).background(theme.primary.copy(alpha = 0.42f)))
+                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = theme.gold, modifier = Modifier.size(18.dp).padding(horizontal = 2.dp))
+                            Box(Modifier.weight(1f).height(1.dp).background(theme.primary.copy(alpha = 0.42f)))
                         }
                         Text(
                             text = when (shown.type) {
@@ -360,14 +358,14 @@ private fun MishkatDailyReminderCard(
                                 "hadith" -> "حديث اليوم"
                                 else -> "حكمة اليوم"
                             },
-                            color = Color(0xFF79D9CB),
+                            color = theme.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp
                         )
                         Text(
                             text = shown.title,
-                            color = Color(0xFFE8D8B5),
+                            color = theme.gold,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
@@ -376,7 +374,7 @@ private fun MishkatDailyReminderCard(
                         )
                         Text(
                             text = shown.text,
-                            color = Color(0xFFF2E8D4),
+                            color = theme.textPrimary,
                             fontFamily = AmiriFont,
                             fontWeight = FontWeight.Medium,
                             fontSize = 23.sp,
@@ -386,7 +384,7 @@ private fun MishkatDailyReminderCard(
                         )
                         Text(
                             text = shown.source,
-                            color = Color(0xFF79D9CB),
+                            color = theme.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp
@@ -403,9 +401,9 @@ private fun MishkatDailyReminderCard(
                                 },
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                             ) {
-                                Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF79D9CB))
+                                Icon(Icons.Default.Link, contentDescription = null, tint = theme.primary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("مشاهدة الدرس الكامل", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                                Text("مشاهدة الدرس الكامل", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         if (!isShowingToday) {
@@ -413,7 +411,7 @@ private fun MishkatDailyReminderCard(
                                 onClick = { shown = daily },
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                             ) {
-                                Text("عودة إلى تذكير اليوم", color = Color(0xFF79D9CB), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
+                                Text("عودة إلى تذكير اليوم", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         Row(
@@ -421,9 +419,9 @@ private fun MishkatDailyReminderCard(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFE0BD72), modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
-                            Box(Modifier.width(42.dp).height(1.dp).background(Color(0xFFE0BD72).copy(alpha = 0.55f)))
+                            Box(Modifier.width(42.dp).height(1.dp).background(theme.gold.copy(alpha = 0.55f)))
+                            Icon(Icons.Default.Star, contentDescription = null, tint = theme.gold, modifier = Modifier.size(16.dp).padding(horizontal = 2.dp))
+                            Box(Modifier.width(42.dp).height(1.dp).background(theme.gold.copy(alpha = 0.55f)))
                         }
                     }
                 }
@@ -436,13 +434,13 @@ private fun MishkatDailyReminderCard(
                         Icon(
                             if (archiveExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                             contentDescription = null,
-                            tint = Color(0xFF79D9CB),
+                            tint = theme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             "الأيام السابقة (${previousDays.size})",
-                            color = Color(0xFF79D9CB),
+                            color = theme.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp
@@ -463,7 +461,7 @@ private fun MishkatDailyReminderCard(
                                         .fillMaxWidth()
                                         .clickable { shown = day }
                                         .background(
-                                            color = Color(0xFF0A2927),
+                                            color = theme.cardSurface,
                                             shape = RoundedCornerShape(12.dp)
                                         )
                                         .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -472,14 +470,14 @@ private fun MishkatDailyReminderCard(
                                 ) {
                                     Text(
                                         text = "اليوم ${day.dayNumber}",
-                                        color = Color(0xFFD6BC83),
+                                        color = theme.gold,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         text = day.title,
-                                        color = Color(0xFFE8D8B5),
+                                        color = theme.gold,
                                         fontFamily = CairoFont,
                                         fontSize = 13.sp,
                                         maxLines = 1
@@ -499,6 +497,7 @@ private fun MishkatReminderVideoPlayer(
     videoUrl: String,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     var fullscreen by remember { mutableStateOf(false) }
     val player = remember(videoUrl) {
@@ -533,7 +532,7 @@ private fun MishkatReminderVideoPlayer(
     if (player == null) {
         Text(
             "تعذّر تهيئة مشغّل الفيديو على هذا الجهاز.",
-            color = Color(0xFFE8D8B5),
+            color = theme.gold,
             fontFamily = CairoFont,
             fontSize = 12.sp
         )
@@ -546,7 +545,7 @@ private fun MishkatReminderVideoPlayer(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black),
+                modifier = Modifier.fillMaxSize().background(theme.background),
                 contentAlignment = Alignment.Center
             ) {
                 AndroidView(
@@ -574,7 +573,7 @@ private fun MishkatReminderVideoPlayer(
                     Icon(
                         Icons.Default.Fullscreen,
                         contentDescription = "ملء الشاشة",
-                        tint = Color(0xFFE8D8B5)
+                        tint = theme.gold
                     )
                 }
             }
@@ -599,6 +598,7 @@ private fun MishkatReminderVideoPlayer(
 /** لوحة المطوّر لإدارة النص والفيديو والنشر السحابي لميزة تذكّر. */
 @Composable
 fun MishkatReminderManagementScreen(onBack: () -> Unit) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -632,7 +632,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                 } else {
                     errorMessage = "لم يُعثر على إعدادات الميزة في السحابة."
                 }
-            } catch (error: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
                 errorMessage = "تعذّر تحميل إعدادات الميزة من السحابة."
             }
         }
@@ -702,7 +702,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                     }
                     videoUrl = uploadedUrl
                     Toast.makeText(context, "تم رفع الفيديو إلى التخزين السحابي.", Toast.LENGTH_LONG).show()
-                } catch (error: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
                     errorMessage = error.message ?: "تعذّر رفع الفيديو."
                 } finally {
                     isUploading = false
@@ -715,7 +715,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
         title = "إدارة تذكّر",
         subtitle = "محتوى المشكاة • إعدادات سحابية",
         icon = Icons.Default.Lightbulb,
-        accentColor = GoldPrimary,
+        accentColor = PresetPrimary,
         tabs = listOf("المحتوى والنشر"),
         selectedTab = 0,
         onTabSelected = {},
@@ -724,7 +724,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
         when {
             !adminChecked || isLoading -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = GoldPrimary)
+                    CircularProgressIndicator(color = PresetPrimary)
                 }
             }
             !isAdmin -> {
@@ -733,8 +733,8 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(42.dp))
-                    Text("هذه الإدارة مخصصة للمطوّر المعتمد.", color = Color.White, fontFamily = CairoFont)
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(42.dp))
+                    Text("هذه الإدارة مخصصة للمطوّر المعتمد.", color = theme.textPrimary, fontFamily = CairoFont)
                 }
             }
             else -> {
@@ -744,7 +744,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                 ) {
                     Text(
                         "محتوى التذكير",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
@@ -801,13 +801,13 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                         LinearProgressIndicator(
                             progress = { uploadProgress / 100f },
                             modifier = Modifier.fillMaxWidth(),
-                            color = GoldPrimary
+                            color = PresetPrimary
                         )
                         Text("تقدم الرفع: $uploadProgress%", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
                     Text(
                         if (isEnabled) "الحالة الحالية: منشور للمستخدمين" else "الحالة الحالية: مسودة غير ظاهرة في المشكاة",
-                        color = if (isEnabled) Color(0xFF86D6A6) else TextSecondary,
+                        color = if (isEnabled) theme.success else TextSecondary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
@@ -815,7 +815,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                     if (videoUrl.isNotBlank() && videoUrl.startsWith("https://", ignoreCase = true)) {
                         Text(
                             "معاينة الفيديو قبل النشر",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -826,7 +826,7 @@ fun MishkatReminderManagementScreen(onBack: () -> Unit) {
                         )
                     }
                     errorMessage?.let {
-                        Text(it, color = Color(0xFFFF8A80), fontFamily = CairoFont, fontSize = 12.sp)
+                        Text(it, color = theme.destructive, fontFamily = CairoFont, fontSize = 12.sp)
                     }
                     Button(
                         onClick = {

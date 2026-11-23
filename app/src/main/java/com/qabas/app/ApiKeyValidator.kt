@@ -3,11 +3,13 @@ package com.qabas.app
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.graphics.Color
+import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Credentials
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -16,7 +18,7 @@ import java.util.concurrent.TimeUnit
 object SystemLogsManager {
     val logs = mutableStateListOf<SystemLogEntry>()
 
-    fun addLog(level: String, message: String, color: Color = Color.Green) {
+    fun addLog(level: String, message: String, color: Color = ThemeSuccess) {
         val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         val timeStr = timeFormat.format(Date())
         logs.add(0, SystemLogEntry(level = level, message = message, time = timeStr, color = color))
@@ -35,13 +37,6 @@ data class KeyValidationResult(
     val explanation: String = "",
     val suggestedFix: String = ""
 )
-
-sealed class KeyValidationStatus {
-    object Idle : KeyValidationStatus()
-    object Testing : KeyValidationStatus()
-    data class Valid(val result: KeyValidationResult) : KeyValidationStatus()
-    data class Invalid(val result: KeyValidationResult) : KeyValidationStatus()
-}
 
 object ApiKeyValidator {
     private val client = OkHttpClient.Builder()
@@ -101,7 +96,7 @@ object ApiKeyValidator {
                         } else {
                             "مفتاح Gemini API الصحيح يبدأ دائماً بالبادئة «AIzaSy» ويتكون من 39 محرفاً. المفتاح الذي أدخلته لا يطابق تلك التركيبة."
                         }
-                        SystemLogsManager.addLog("ERROR", "مفتاح Gemini غير صالح الصيغة - صيغة غير AIza", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "مفتاح Gemini غير صالح الصيغة - صيغة غير AIza", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "صيغة المفتاح غير صحيحة 🔴",
@@ -116,7 +111,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Gemini API متصل وسليم وفعال حقيقياً (Google AI Studio - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Gemini API متصل وسليم وفعال حقيقياً (Google AI Studio - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Gemini API شغال حقيقياً)",
@@ -143,7 +138,7 @@ object ApiKeyValidator {
                                 "تحقق من اتصال الإنترنت وحالة خدمات Google Cloud."
                             )
                         }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Gemini API ($code) - $exp", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Gemini API ($code) - $exp", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -156,7 +151,7 @@ object ApiKeyValidator {
                 }
                 "openai" -> {
                     if (!Regex("""sk-[A-Za-z0-9_\-]{20,}""").matches(trimmedKey)) {
-                        SystemLogsManager.addLog("ERROR", "مفتاح OpenAI غير صالح الصيغة - صيغة غير sk-", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "مفتاح OpenAI غير صالح الصيغة - صيغة غير sk-", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "صيغة المفتاح غير صحيحة 🔴",
@@ -174,7 +169,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح OpenAI API متصل وسليم (OpenAI - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح OpenAI API متصل وسليم (OpenAI - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (OpenAI API شغال حقيقياً)",
@@ -197,7 +192,7 @@ object ApiKeyValidator {
                                 "تحقق من اتصال الإنترنت وحالة خدمات OpenAI."
                             )
                         }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح OpenAI API ($code) - $exp", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح OpenAI API ($code) - $exp", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -219,7 +214,7 @@ object ApiKeyValidator {
                     }
                     val ok = OpenRouterService.validateKey(trimmedKey)
                     if (ok) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح OpenRouter متصل وسليم (200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح OpenRouter متصل وسليم (200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (OpenRouter شغال حقيقياً)",
@@ -227,7 +222,7 @@ object ApiKeyValidator {
                             suggestedFix = "المفتاح جاهز — خطط الطلبات ستُستخدم النماذج المجانية."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح OpenRouter", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح OpenRouter", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴",
@@ -247,7 +242,7 @@ object ApiKeyValidator {
                         val bodyStr = response.body?.string().orEmpty()
 
                         if (response.isSuccessful) {
-                            SystemLogsManager.addLog("SUCCESS", "مفتاح xAI Grok متصل وسليم (xAI Cloud - 200 OK)", Color(0xFF4CAF50))
+                            SystemLogsManager.addLog("SUCCESS", "مفتاح xAI Grok متصل وسليم (xAI Cloud - 200 OK)", ThemeSuccess)
                             return@withContext KeyValidationResult(
                                 isValid = true,
                                 summary = "متصل بالسيرفر ✅ (xAI Grok شغال حقيقياً)",
@@ -274,7 +269,7 @@ object ApiKeyValidator {
                                     "تحقق من إعدادات حسابك على console.x.ai."
                                 )
                             }
-                            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح xAI Grok ($code) - $exp", Color(0xFFEF4444))
+                            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح xAI Grok ($code) - $exp", ThemeDestructive)
                             return@withContext KeyValidationResult(
                                 isValid = false,
                                 summary = "غير متصل 🔴 (كود $code)",
@@ -295,7 +290,7 @@ object ApiKeyValidator {
                         val bodyStr = response.body?.string().orEmpty()
 
                         if (response.isSuccessful) {
-                            SystemLogsManager.addLog("SUCCESS", "مفتاح Groq API متصل وسليم (Groq Cloud - 200 OK)", Color(0xFF4CAF50))
+                            SystemLogsManager.addLog("SUCCESS", "مفتاح Groq API متصل وسليم (Groq Cloud - 200 OK)", ThemeSuccess)
                             return@withContext KeyValidationResult(
                                 isValid = true,
                                 summary = "متصل بالسيرفر ✅ (Groq Ultra Fast جاهز وفعال)",
@@ -318,7 +313,7 @@ object ApiKeyValidator {
                                     "تأكد من نسخ المفتاح بشكل صحيح."
                                 )
                             }
-                            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Groq API ($code) - $exp", Color(0xFFEF4444))
+                            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Groq API ($code) - $exp", ThemeDestructive)
                             return@withContext KeyValidationResult(
                                 isValid = false,
                                 summary = "غير متصل 🔴 (كود $code)",
@@ -341,7 +336,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "توكن HuggingFace متصل وسليم (AI Image Studio - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "توكن HuggingFace متصل وسليم (AI Image Studio - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Hugging Face جاهز وفعال)",
@@ -360,7 +355,7 @@ object ApiKeyValidator {
                                 "تحقق من حسابك على منصة Hugging Face."
                             )
                         }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من توكن Hugging Face ($code) - $exp", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من توكن Hugging Face ($code) - $exp", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -382,7 +377,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Pexels API متصل وسليم (Media Library - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Pexels API متصل وسليم (Media Library - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Pexels Media جاهز وفعال)",
@@ -405,7 +400,7 @@ object ApiKeyValidator {
                                 "تأكد من صحة المفتاح."
                             )
                         }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Pexels API ($code) - $exp", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Pexels API ($code) - $exp", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -424,7 +419,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Pixabay API متصل وسليم (Media Library - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Pixabay API متصل وسليم (Media Library - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Pixabay Media جاهز وفعال)",
@@ -443,7 +438,7 @@ object ApiKeyValidator {
                                 "تأكد من سلامة المفتاح."
                             )
                         }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Pixabay API ($code) - $exp", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Pixabay API ($code) - $exp", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -474,7 +469,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Azure Speech متصل وسليم (Microsoft - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Azure Speech متصل وسليم (Microsoft - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Azure Speech شغال حقيقياً)",
@@ -483,7 +478,7 @@ object ApiKeyValidator {
                             suggestedFix = "المفتاح جاهز للاستخدام الفوري."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Azure Speech ($code) - $bodyStr", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Azure Speech ($code) - $bodyStr", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -505,7 +500,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح ElevenLabs متصل وسليم (ElevenLabs - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح ElevenLabs متصل وسليم (ElevenLabs - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (ElevenLabs شغال حقيقياً)",
@@ -514,7 +509,7 @@ object ApiKeyValidator {
                             suggestedFix = "المفتاح جاهز للاستخدام الفوري."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح ElevenLabs ($code) - $bodyStr", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح ElevenLabs ($code) - $bodyStr", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -533,7 +528,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Coverr متصل وسليم (Coverr B-Roll - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Coverr متصل وسليم (Coverr B-Roll - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Coverr HD B-Roll فعال)",
@@ -542,7 +537,7 @@ object ApiKeyValidator {
                             suggestedFix = "المفتاح جاهز للعمل الفوري."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Coverr ($code) - $bodyStr", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Coverr ($code) - $bodyStr", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -556,7 +551,7 @@ object ApiKeyValidator {
                 "leonardo" -> {
                     val (isSuccess, message) = LeonardoImageService.testConnection(context, trimmedKey)
                     if (isSuccess) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Leonardo.ai متصل وسليم (Vision Engine - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "مفتاح Leonardo.ai متصل وسليم (Vision Engine - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Leonardo.ai جاهز)",
@@ -565,7 +560,7 @@ object ApiKeyValidator {
                             suggestedFix = "المفتاح جاهز للاستخدام الفوري في استوديو الصور والمشاهد الفنية."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Leonardo.ai: $message", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Leonardo.ai: $message", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴",
@@ -577,6 +572,49 @@ object ApiKeyValidator {
                     }
                 }
                 "qf", "quranfoundation", "quran_foundation" -> {
+                    // (r17) الفحص السابق كان وهمياً: GET /v4/chapters نقطة
+                    // عامة تعيد 200 لأي توكن — فكان أي سر عشوائي يُعرض
+                    // «متصل ✅». الفحص الحقيقي الوحيد للزوج هو طلب توكن
+                    // OAuth2 (client_credentials) — نفس الطلب الذي يستخدمه
+                    // QuranAudioService.ensureToken: سر خاطئ يرفضه الخادم
+                    // بـ 401 فلا توكن. hint يحمل Client ID عند فحص السر؛
+                    // وعند فحص المعرف وحده (بلا سر) لا يمكن إثبات شيء،
+                    // فيُكتفى بفحص وصول صادق التسمية.
+                    val clientId = hint?.trim().orEmpty()
+                    if (clientId.isNotBlank()) {
+                        val form = FormBody.Builder()
+                            .add("grant_type", "client_credentials")
+                            .add("scope", "content")
+                            .build()
+                        val request = Request.Builder()
+                            .url("https://oauth2.quran.foundation/oauth2/token")
+                            .post(form)
+                            .header("Authorization", Credentials.basic(clientId, trimmedKey))
+                            .build()
+                        val response = client.newCall(request).execute()
+                        val code = response.code
+                        val bodyStr = response.body?.string().orEmpty()
+                        if (response.isSuccessful && bodyStr.contains("access_token")) {
+                            SystemLogsManager.addLog("SUCCESS", "زوج Quran Foundation سليم ومعتمد (توكن OAuth2 - 200 OK)", ThemeSuccess)
+                            return@withContext KeyValidationResult(
+                                isValid = true,
+                                summary = "متصل بالسيرفر ✅ (Quran Foundation موثق)",
+                                errorCode = code,
+                                explanation = "قبل خادم Quran Foundation زوج (Client ID + Secret) وأصدر توكن وصول — السر صحيح فعلاً.",
+                                suggestedFix = "المفتاح جاهز للاستخدام."
+                            )
+                        } else {
+                            SystemLogsManager.addLog("ERROR", "رفض خادم Quran Foundation زوج المفاتيح ($code)", ThemeDestructive)
+                            return@withContext KeyValidationResult(
+                                isValid = false,
+                                summary = "غير متصل 🔴 (كود $code)",
+                                errorCode = code,
+                                rawError = bodyStr.take(200),
+                                explanation = "رفض خادم المصادقة زوج (Client ID + Secret): السر أو المعرف غير صحيح.",
+                                suggestedFix = "تأكد من صحة Client ID و Client Secret المسجلين في Quran Foundation."
+                            )
+                        }
+                    }
                     val url = "https://api.quran.com/api/v4/chapters"
                     val request = Request.Builder()
                         .url(url)
@@ -588,13 +626,13 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "اتصال Quran Foundation سليم ومعتمد (Quran API - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "خادم Quran Foundation متاح (فحص وصول فقط)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
-                            summary = "متصل بالسيرفر ✅ (Quran Foundation موثق)",
+                            summary = "الخادم متاح ✅ (فحص وصول فقط)",
                             errorCode = code,
-                            explanation = "تم التحقق من بيانات الربط الرسمية لمنصة Quran.com و Quran Foundation بنجاح (200 OK). خدمات النصوص الموثقة ومطابقة الآيات متصلة.",
-                            suggestedFix = "المفتاح جاهز للاستخدام."
+                            explanation = "وصل التطبيق إلى خوادم Quran Foundation — لكن هذا الفحص وحده لا يثبت صحة المعرف؛ الإثبات الكامل يتم عند فحص المفتاح السري معه.",
+                            suggestedFix = "افحص المفتاح السري (QF_CLIENT_SECRET) مع المعرف لتأكيد الزوج."
                         )
                     } else {
                         return@withContext KeyValidationResult(
@@ -628,7 +666,7 @@ object ApiKeyValidator {
                     val bodyStr = response.body?.string().orEmpty()
 
                     if (response.isSuccessful || code == 200 || code == 204) {
-                        SystemLogsManager.addLog("SUCCESS", "سحابة Supabase متصلة وسليمة (REST API - 200 OK)", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "سحابة Supabase متصلة وسليمة (REST API - 200 OK)", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل بالسيرفر ✅ (Supabase Cloud متصل)",
@@ -637,7 +675,7 @@ object ApiKeyValidator {
                             suggestedFix = "الاتصال سليم 100%."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من اتصال Supabase ($code)", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "فشل التحقق من اتصال Supabase ($code)", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (كود $code)",
@@ -651,7 +689,7 @@ object ApiKeyValidator {
                 "firebase", "google_services" -> {
                     val isValidJson = trimmedKey.contains("project_info") && trimmedKey.contains("project_id")
                     if (isValidJson) {
-                        SystemLogsManager.addLog("SUCCESS", "ملف google-services.json تم التحقق من سلامة هيكليته", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "ملف google-services.json تم التحقق من سلامة هيكليته", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "مهيأ وسليم ✅ (Firebase Config موثق)",
@@ -669,7 +707,7 @@ object ApiKeyValidator {
                 }
                 "google_auth" -> {
                     if (trimmedKey.contains("googleusercontent") && trimmedKey.length > 25) {
-                        SystemLogsManager.addLog("SUCCESS", "معرّف Google Web Client ID سليم ومطابق لمعايير OAuth2", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "معرّف Google Web Client ID سليم ومطابق لمعايير OAuth2", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "معرّف سليم ومُهيأ ✅ (OAuth 2.0 Web Client)",
@@ -677,7 +715,7 @@ object ApiKeyValidator {
                             suggestedFix = "يمكنك الآن تجربة تسجيل الدخول بنقرة واحدة عبر Google."
                         )
                     } else {
-                        SystemLogsManager.addLog("WARNING", "صيغة معرّف Google Web Client ID غير دقيقة", Color(0xFFF59E0B))
+                        SystemLogsManager.addLog("WARNING", "صيغة معرّف Google Web Client ID غير دقيقة", ThemeWarning)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "الصيغة غير مكتملة 🟡",
@@ -711,7 +749,7 @@ object ApiKeyValidator {
                     // دون أي فحص شبكي. لا خدمة معروفة تسقط فيه الآن (كل مزودي
                     // الاستوديو لهم فرع خاص أعلاه) — يُغلق بإضافة فرع حي لكل خدمة جديدة.
                     if (trimmedKey.length >= 8) {
-                        SystemLogsManager.addLog("SUCCESS", "تم قبول المفتاح وحفظ البيانات بنجاح", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("SUCCESS", "تم قبول المفتاح وحفظ البيانات بنجاح", ThemeSuccess)
                         return@withContext KeyValidationResult(
                             isValid = true,
                             summary = "متصل ✅ (صالح)",
@@ -719,7 +757,7 @@ object ApiKeyValidator {
                             suggestedFix = "المفتاح جاهز للعمل."
                         )
                     } else {
-                        SystemLogsManager.addLog("ERROR", "المفتاح قصير جداً وغير صالح", Color(0xFFEF4444))
+                        SystemLogsManager.addLog("ERROR", "المفتاح قصير جداً وغير صالح", ThemeDestructive)
                         return@withContext KeyValidationResult(
                             isValid = false,
                             summary = "غير متصل 🔴 (المفتاح قصير جداً)",
@@ -729,9 +767,9 @@ object ApiKeyValidator {
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             val netError = e.localizedMessage ?: "تعذر الوصول للسيرفر"
-            SystemLogsManager.addLog("ERROR", "فشل الاتصال بالإنترنت لفحص المفتاح: $netError", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "فشل الاتصال بالإنترنت لفحص المفتاح: $netError", ThemeDestructive)
             return@withContext KeyValidationResult(
                 isValid = false,
                 summary = "خطأ اتصال بالشبكة 🌐",
@@ -756,7 +794,7 @@ object ApiKeyValidator {
         val code = response.code
         val bodyStr = response.body?.string().orEmpty()
         if (response.isSuccessful) {
-            SystemLogsManager.addLog("SUCCESS", "مفتاح Anthropic متصل وسليم (200 OK)", Color(0xFF4CAF50))
+            SystemLogsManager.addLog("SUCCESS", "مفتاح Anthropic متصل وسليم (200 OK)", ThemeSuccess)
             KeyValidationResult(
                 isValid = true,
                 summary = "متصل بالسيرفر ✅ (Anthropic شغال حقيقياً)",
@@ -779,7 +817,7 @@ object ApiKeyValidator {
                     "تحقق من اتصال الإنترنت وحالة خدمات Anthropic."
                 )
             }
-            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Anthropic ($code) - $exp", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Anthropic ($code) - $exp", ThemeDestructive)
             KeyValidationResult(
                 isValid = false,
                 summary = "غير متصل 🔴 (كود $code)",
@@ -805,7 +843,7 @@ object ApiKeyValidator {
             val code = response.code
             val bodyStr = response.body?.string().orEmpty()
             if (response.isSuccessful) {
-                SystemLogsManager.addLog("SUCCESS", "مفتاح $serviceName متصل وسليم (200 OK)", Color(0xFF4CAF50))
+                SystemLogsManager.addLog("SUCCESS", "مفتاح $serviceName متصل وسليم (200 OK)", ThemeSuccess)
                 KeyValidationResult(
                     isValid = true,
                     summary = "متصل بالسيرفر ✅ ($serviceName شغال حقيقياً)",
@@ -828,7 +866,7 @@ object ApiKeyValidator {
                         "تحقق من اتصال الإنترنت وحالة خدمات $serviceName."
                     )
                 }
-                SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح $serviceName ($code) - $exp", Color(0xFFEF4444))
+                SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح $serviceName ($code) - $exp", ThemeDestructive)
                 KeyValidationResult(
                     isValid = false,
                     summary = "غير متصل 🔴 (كود $code)",

@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 /**
  * قسم وبطاقة مراجعات وتقييمات المجتمع الحقيقية المرتبطة بسحابة Supabase (public.app_reviews).
@@ -203,7 +204,7 @@ fun CommunityReviewsCard(
                                 fontWeight = FontWeight.Black,
                                 fontSize = 26.sp
                             )
-                            RatingStarsRow(rating = averageRating.toInt().coerceIn(1, 5), size = 14.dp)
+                            RatingStarsRow(rating = averageRating.roundToInt().coerceIn(1, 5), size = 14.dp)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "من إجمالي $totalCount تقييم",
@@ -231,10 +232,14 @@ fun CommunityReviewsCard(
                             val fiveStarCount = reviewsList.count { it.rating == 5 }
                             val fourStarCount = reviewsList.count { it.rating == 4 }
                             val threeStarCount = reviewsList.count { it.rating == 3 }
+                            val twoStarCount = reviewsList.count { it.rating == 2 }
+                            val oneStarCount = reviewsList.count { it.rating == 1 }
 
                             RatingProgressBar("5 ★", fiveStarCount, totalCount, theme.warning)
                             RatingProgressBar("4 ★", fourStarCount, totalCount, theme.success)
                             RatingProgressBar("3 ★", threeStarCount, totalCount, theme.primary)
+                            RatingProgressBar("2 ★", twoStarCount, totalCount, theme.textSecondary)
+                            RatingProgressBar("1 ★", oneStarCount, totalCount, theme.destructive)
                         } else {
                             Text(
                                 "تخزن مراجعات المستخدمين عبر Supabase وتربط بإصدار التطبيق لضمان الشفافية.",
@@ -508,7 +513,7 @@ fun CommunityReviewsListDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "مراجعات مجتمع قبس",
+                                "مراجعات مجتمع خادم المسلم",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -555,7 +560,7 @@ fun CommunityReviewsListDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = theme.primary)
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("جاري الاتصال بسحابة قبس...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text("جاري الاتصال بسحابة خادم المسلم...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 } else if (filteredReviews.isEmpty()) {
@@ -631,7 +636,7 @@ private fun ReviewItemCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = review.authorName.ifBlank { "مستخدم قبس" },
+                                text = review.authorName.ifBlank { "مستخدم خادم المسلم" },
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -658,14 +663,14 @@ private fun ReviewItemCard(
                                 }
                             }
                         }
-                        if (review.createdAt != null) {
-                            Text(
-                                text = formatReviewDate(review.createdAt),
-                                color = theme.textSecondary,
-                                fontSize = 10.sp,
-                                fontFamily = NotoSansFont
-                            )
-                        }
+                        // createdAt غير قابل للـ null في AppReviewDto (String = "") فلا
+                        // شرط null هنا؛ يعرض التاريخ المنسق مباشرة.
+                        Text(
+                            text = formatReviewDate(review.createdAt),
+                            color = theme.textSecondary,
+                            fontSize = 10.sp,
+                            fontFamily = NotoSansFont
+                        )
                     }
                 }
 
@@ -830,7 +835,7 @@ fun SubmitAppReviewDialog(
     val displayName = remember {
         prefs.getString("user_display_name", null)
             ?: CloudServices.Auth.currentUser.value?.displayName
-            ?: "مستخدم قبس"
+            ?: "مستخدم خادم المسلم"
     }
 
     var currentUserId by remember { mutableStateOf(SupabaseServices.Auth.getCurrentUserId()) }
@@ -893,7 +898,7 @@ fun SubmitAppReviewDialog(
                         Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.primary, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            if (isEditing) "تعديل تقييمك" else "تقييم تطبيق قبس",
+                            if (isEditing) "تعديل تقييمك" else "تقييم تطبيق خادم المسلم",
                             color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,

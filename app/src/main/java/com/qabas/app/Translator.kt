@@ -444,7 +444,7 @@ object Translator {
         "العبادات والمواقيت" to "Worship & Prayer Times",
         "الأذكار وحصن المسلم" to "Athkar & Muslim Fortress",
         "أذكار الصباح والمساء واليوم" to "Morning, Evening, and Daily Athkar",
-        "الأدعية المأثورة الموثقة مع عداد سبحة تفاعلي وتنبيهات أوقات الاستجابة." to "Documented traditional supplications with an interactive tasbeeh counter and response time alerts.",
+        "الأدعية المأثورة الموثقة مع عداد سبحة تفاعلي." to "Documented traditional supplications with an interactive tasbeeh counter.",
         "42 ذكراً مأثوراً" to "42 Documented Athkar",
         "130+ ذكر مأثور" to "130+ Traditional Athkar",
         "سيرة الأكابر والتراجم" to "Biographies of Great Scholars",

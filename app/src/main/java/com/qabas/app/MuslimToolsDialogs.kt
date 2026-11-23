@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -90,6 +89,7 @@ fun MuslimToolsGlassDialog(
 
 @Composable
 fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     var cash by remember { mutableStateOf("") }
     var gold by remember { mutableStateOf("") }
     var silver by remember { mutableStateOf("") }
@@ -135,21 +135,21 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         Box {
                             Surface(
                                 onClick = { expanded = true },
-                                color = Color(0xFF1E293B),
+                                color = theme.secondarySurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
                             ) {
                                 Text(
                                     carat.toString(),
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(Color(0xFF1E293B))) {
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(theme.secondarySurface)) {
                                 listOf(24, 22, 21, 18).forEach { c ->
                                     DropdownMenuItem(
-                                        text = { Text(c.toString(), color = Color.White) },
+                                        text = { Text(c.toString(), color = theme.textPrimary) },
                                         onClick = { carat = c; expanded = false; invalidateResult() }
                                     )
                                 }
@@ -184,7 +184,7 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 item {
                     Text(
                         Translator.tr(message),
-                        color = Color(0xFFFF8A80),
+                        color = theme.destructive,
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
                         lineHeight = 18.sp
@@ -238,7 +238,7 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(Translator.tr("احسب الزكاة الآن"), color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
@@ -247,28 +247,28 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
             result?.let { res ->
                 item {
                     Surface(
-                        color = if (res.isNisabReached) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                        color = if (res.isNisabReached) theme.success.copy(alpha = 0.15f) else theme.destructive.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, if (res.isNisabReached) Color(0xFF10B981) else Color(0xFFEF4444))
+                        border = BorderStroke(1.dp, if (res.isNisabReached) theme.success else theme.destructive)
                     ) {
                         Column(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 if (res.isNisabReached) Translator.tr("بلغ مجموع المدخلات نصاب الذهب (85 غ) ✅") else Translator.tr("لم يبلغ مجموع المدخلات نصاب الذهب (85 غ) ⏳"),
-                                color = if (res.isNisabReached) Color(0xFF34D399) else Color(0xFFF87171),
+                                color = if (res.isNisabReached) theme.success else theme.destructive,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
                             )
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text(Translator.tr("إجمالي الأصول المدخلة (بالعملة نفسها):"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
-                            Text(String.format(Locale.US, "%.2f", res.totalWealth), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                            Text(Translator.tr("إجمالي الأصول المدخلة (بالعملة نفسها):"), color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                            Text(String.format(Locale.US, "%.2f", res.totalWealth), color = theme.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(Translator.tr("نصاب الذهب المحسوب (85 غ):"), color = qabasTextSecondary(), fontSize = 11.sp, fontFamily = CairoFont)
                             Text(String.format(Locale.US, "%.2f", res.nisabValueGold), color = qabasTextSecondary(), fontSize = 13.sp, fontFamily = CairoFont)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(Translator.tr("قيمة الزكاة التقديرية (2.5%):"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                            Text(Translator.tr("قيمة الزكاة التقديرية (2.5%):"), color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                             Text(
                                 String.format(Locale.US, "%.2f", res.zakatAmount),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Black,
                                 fontFamily = CairoFont
@@ -283,6 +283,7 @@ fun ZakatCalculatorDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     var total by remember { mutableIntStateOf(engine.getMissedFastingDays()) }
     var completed by remember { mutableIntStateOf(engine.getCompletedFastingDays()) }
     var showEdit by remember { mutableStateOf(total == 0) }
@@ -295,13 +296,13 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
     ) {
         if (showEdit) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(Translator.tr("أدخل إجمالي عدد أيام القضاء الواجبة عليك:"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                Text(Translator.tr("أدخل إجمالي عدد أيام القضاء الواجبة عليك:"), color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 OutlinedTextField(
                     value = inputDays,
                     onValueChange = { inputDays = it },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = theme.textPrimary, unfocusedTextColor = theme.textPrimary)
                 )
                 Button(
                     onClick = {
@@ -314,7 +315,7 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         AppSoundManager.playActivate()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     Text(Translator.tr("حفظ"), color = DeepSlate, fontFamily = CairoFont)
                 }
@@ -326,20 +327,20 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                     CircularProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.fillMaxSize(),
-                        color = GoldPrimary,
-                        trackColor = Color.White.copy(alpha = 0.1f),
+                        color = PresetPrimary,
+                        trackColor = theme.textPrimary.copy(alpha = 0.1f),
                         strokeWidth = 12.dp,
                         strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${((progress * 100).toInt())}%", color = GoldPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text("${((progress * 100).toInt())}%", color = PresetPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         Text(Translator.tr("منجز"), color = qabasTextSecondary(), fontSize = 10.sp, fontFamily = CairoFont)
                     }
                 }
                 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    FastingStatBox(Translator.tr("الإجمالي"), total.toString(), GoldPrimary)
-                    FastingStatBox(Translator.tr("المتبقي"), (total - completed).toString(), Color(0xFFEF4444))
+                    FastingStatBox(Translator.tr("الإجمالي"), total.toString(), PresetPrimary)
+                    FastingStatBox(Translator.tr("المتبقي"), (total - completed).toString(), theme.destructive)
                 }
 
                 Button(
@@ -350,7 +351,7 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.success),
                     shape = RoundedCornerShape(12.dp),
                     enabled = completed < total
                 ) {
@@ -369,6 +370,7 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val existingPlan = remember(engine) { engine.getSavedKhatmaPlan() }
     var selectedDays by remember { mutableIntStateOf(existingPlan?.days ?: 30) }
@@ -381,21 +383,21 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
         onDismiss = onDismiss
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(Translator.tr("اختر مدة الختمة (بالأيام):"), color = Color.White, fontSize = 13.sp, fontFamily = CairoFont)
+            Text(Translator.tr("اختر مدة الختمة (بالأيام):"), color = theme.textPrimary, fontSize = 13.sp, fontFamily = CairoFont)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(10, 15, 30, 60).forEach { days ->
                     Surface(
                         onClick = { selectedDays = days; AppSoundManager.playClick() },
                         modifier = Modifier.weight(1f),
-                        color = if (selectedDays == days) GoldPrimary.copy(alpha = 0.2f) else Color(0xFF1E293B),
+                        color = if (selectedDays == days) PresetPrimary.copy(alpha = 0.2f) else theme.secondarySurface,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (selectedDays == days) GoldPrimary else Color.Transparent)
+                        border = BorderStroke(1.dp, if (selectedDays == days) PresetPrimary else Color.Transparent)
                     ) {
                         Text(
                             "$days ${Translator.tr("يوم")}",
                             modifier = Modifier.padding(8.dp),
                             textAlign = TextAlign.Center,
-                            color = if (selectedDays == days) GoldPrimary else Color.White,
+                            color = if (selectedDays == days) PresetPrimary else theme.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp
                         )
@@ -404,18 +406,18 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
             }
 
             Surface(
-                color = Color(0xFF1E293B).copy(alpha = 0.5f),
+                color = theme.secondarySurface.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
             ) {
                 Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(Translator.tr("وردك اليومي المقترح:"), color = qabasTextSecondary(), fontSize = 12.sp, fontFamily = CairoFont)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(plan.portionsPerDay, color = GoldPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                    Text(plan.portionsPerDay, color = PresetPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "${Translator.tr("بمعدل")} ${String.format("%.1f", plan.pagesPerDay)} ${Translator.tr("صفحة يومياً")}",
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = theme.textPrimary.copy(alpha = 0.7f),
                         fontSize = 11.sp,
                         fontFamily = CairoFont
                     )
@@ -427,7 +429,7 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                     Translator.tr(
                         if (savedDays == selectedDays) "هذه خطتك المحفوظة على هذا الجهاز" else "تغيّرت الخطة؛ اعتمدها لحفظ التعديل"
                     ),
-                    color = if (savedDays == selectedDays) Color(0xFF86EFAC) else qabasTextSecondary(),
+                    color = if (savedDays == selectedDays) theme.success else qabasTextSecondary(),
                     fontSize = 11.sp,
                     fontFamily = CairoFont
                 )
@@ -452,7 +454,7 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
                 Text(
                     Translator.tr(if (savedDays == selectedDays) "تحديث خطة الختمة 📖" else "اعتماد خطة الختمة 📖"),
@@ -467,6 +469,7 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 fun HajjUmrahDialog(onDismiss: () -> Unit) {
+    val theme = QabasTheme.current
     val steps = listOf(
         "الإحرام: الاغتسال ولبس ملابس الإحرام والنية.",
         "الطواف: الطواف حول الكعبة سبعة أشواط.",
@@ -493,19 +496,19 @@ fun HajjUmrahDialog(onDismiss: () -> Unit) {
             LinearProgressIndicator(
                 progress = { (currentStep + 1).toFloat() / steps.size },
                 modifier = Modifier.fillMaxWidth(),
-                color = GoldPrimary,
-                trackColor = Color.White.copy(alpha = 0.1f)
+                color = PresetPrimary,
+                trackColor = theme.textPrimary.copy(alpha = 0.1f)
             )
             
             Surface(
-                color = Color(0xFF1E293B),
+                color = theme.secondarySurface,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.2f))
+                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.2f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         "${Translator.tr("خطوة")} ${currentStep + 1} ${Translator.tr("من")} ${steps.size}",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = CairoFont
@@ -513,7 +516,7 @@ fun HajjUmrahDialog(onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         steps[currentStep],
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontSize = 15.sp,
                         fontFamily = CairoFont,
                         lineHeight = 22.sp
@@ -525,7 +528,7 @@ fun HajjUmrahDialog(onDismiss: () -> Unit) {
                 Button(
                     onClick = { tts?.speak(steps[currentStep], TextToSpeech.QUEUE_FLUSH, null, null) },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface)
                 ) {
                     Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -543,7 +546,7 @@ fun HajjUmrahDialog(onDismiss: () -> Unit) {
                         }
                     },
                     modifier = Modifier.weight(1.5f),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     Text(
                         if (currentStep < steps.size - 1) Translator.tr("التالي") else Translator.tr("تم بحمد الله"),
@@ -559,6 +562,7 @@ fun HajjUmrahDialog(onDismiss: () -> Unit) {
 
 @Composable
 fun HijriCalendarDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     val hijri = remember { engine.getHijriDate() }
     
     MuslimToolsGlassDialog(
@@ -571,15 +575,15 @@ fun HijriCalendarDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 modifier = Modifier
                     .size(200.dp)
                     .background(
-                        Brush.radialGradient(listOf(GoldPrimary.copy(alpha = 0.1f), Color.Transparent)),
+                        Brush.radialGradient(listOf(PresetPrimary.copy(alpha = 0.1f), Color.Transparent)),
                         CircleShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.NightsStay, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(48.dp))
+                    Icon(Icons.Default.NightsStay, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(hijri, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                    Text(hijri, color = theme.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                     Text(Translator.tr("تاريخ اليوم"), color = qabasTextSecondary(), fontSize = 12.sp, fontFamily = CairoFont)
                 }
             }
@@ -619,6 +623,7 @@ private fun parseZakatAmount(raw: String, allowBlank: Boolean): Double? {
 
 @Composable
 private fun ZakatInputField(label: String, value: String, onValueChange: (String) -> Unit, icon: String) {
+    val theme = QabasTheme.current
     Column {
         Text(label, color = qabasTextSecondary(), fontSize = 11.sp, fontFamily = CairoFont)
         Spacer(modifier = Modifier.height(4.dp))
@@ -629,10 +634,10 @@ private fun ZakatInputField(label: String, value: String, onValueChange: (String
             leadingIcon = { Text(icon, modifier = Modifier.padding(start = 8.dp)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = GoldPrimary,
-                unfocusedBorderColor = Color(0xFF334155),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
+                focusedBorderColor = PresetPrimary,
+                unfocusedBorderColor = theme.cardBorder,
+                focusedTextColor = theme.textPrimary,
+                unfocusedTextColor = theme.textPrimary
             ),
             shape = RoundedCornerShape(10.dp)
         )
@@ -641,8 +646,9 @@ private fun ZakatInputField(label: String, value: String, onValueChange: (String
 
 @Composable
 private fun FastingStatBox(label: String, value: String, color: Color) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF1E293B),
+        color = theme.secondarySurface,
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
         modifier = Modifier.width(100.dp)
@@ -655,6 +661,7 @@ private fun FastingStatBox(label: String, value: String, color: Color) {
 }
 @Composable
 fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     val types = listOf("سبحان الله", "الحمد لله", "الله أكبر", "أستغفر الله", "لا إله إلا الله")
     var selectedType by remember { mutableStateOf(types[0]) }
     var count by remember { mutableIntStateOf(engine.getTasbeehCount(selectedType)) }
@@ -676,12 +683,12 @@ fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                             AppSoundManager.playClick()
                         },
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.15f))
+                        color = if (isSelected) PresetPrimary else theme.textPrimary.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.textPrimary.copy(alpha = 0.15f))
                     ) {
                         Text(
                             type,
-                            color = if (isSelected) DeepSlate else Color.White,
+                            color = if (isSelected) DeepSlate else theme.textPrimary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             fontFamily = CairoFont,
                             fontSize = 11.sp
@@ -695,8 +702,8 @@ fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 modifier = Modifier
                     .size(180.dp)
                     .clip(CircleShape)
-                    .background(Brush.radialGradient(listOf(GoldPrimary.copy(alpha = 0.15f), Color.Transparent)))
-                    .border(2.dp, GoldPrimary.copy(alpha = 0.3f), CircleShape)
+                    .background(Brush.radialGradient(listOf(PresetPrimary.copy(alpha = 0.15f), Color.Transparent)))
+                    .border(2.dp, PresetPrimary.copy(alpha = 0.3f), CircleShape)
                     .clickable {
                         engine.incrementTasbeeh(selectedType)
                         count = engine.getTasbeehCount(selectedType)
@@ -705,8 +712,8 @@ fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(count.toString(), color = GoldPrimary, fontSize = 48.sp, fontWeight = FontWeight.Black)
-                    Text(selectedType, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, fontFamily = CairoFont)
+                    Text(count.toString(), color = PresetPrimary, fontSize = 48.sp, fontWeight = FontWeight.Black)
+                    Text(selectedType, color = theme.textPrimary.copy(alpha = 0.7f), fontSize = 14.sp, fontFamily = CairoFont)
                 }
             }
 
@@ -718,10 +725,10 @@ fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         AppSoundManager.playClick()
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.2f)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.destructive.copy(alpha = 0.2f)),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text(Translator.tr("تصفير"), color = Color(0xFFEF4444), fontFamily = CairoFont)
+                    Text(Translator.tr("تصفير"), color = theme.destructive, fontFamily = CairoFont)
                 }
             }
         }
@@ -730,6 +737,7 @@ fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 fun HabitsTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     var habits by remember { mutableStateOf(engine.getHabits()) }
     val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
@@ -750,19 +758,19 @@ fun HabitsTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         AppSoundManager.playToggle()
                     },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isDone) Color(0xFF10B981).copy(alpha = 0.1f) else Color(0xFF1E293B),
-                    border = BorderStroke(1.dp, if (isDone) Color(0xFF10B981) else Color.White.copy(alpha = 0.1f))
+                    color = if (isDone) theme.success.copy(alpha = 0.1f) else theme.secondarySurface,
+                    border = BorderStroke(1.dp, if (isDone) theme.success else theme.textPrimary.copy(alpha = 0.1f))
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(habit.name, color = if (isDone) Color(0xFF34D399) else Color.White, fontFamily = CairoFont)
+                        Text(habit.name, color = if (isDone) theme.success else theme.textPrimary, fontFamily = CairoFont)
                         Icon(
                             if (isDone) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                             contentDescription = null,
-                            tint = if (isDone) Color(0xFF10B981) else Color.White.copy(alpha = 0.3f)
+                            tint = if (isDone) theme.success else theme.textPrimary.copy(alpha = 0.3f)
                         )
                     }
                 }
@@ -773,6 +781,7 @@ fun HabitsTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 fun WorshipAnalyticsDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+    val theme = QabasTheme.current
     val stats = remember { engine.getWorshipStats() }
 
     MuslimToolsGlassDialog(
@@ -787,36 +796,36 @@ fun WorshipAnalyticsDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
             }
 
             Surface(
-                color = Color(0xFF1E293B),
+                color = theme.secondarySurface,
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                border = BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text(Translator.tr("تقدم الصيام"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                    Text(Translator.tr("تقدم الصيام"), color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { stats.fastingProgress },
                         modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = Color(0xFF10B981),
-                        trackColor = Color.White.copy(alpha = 0.1f),
+                        color = theme.success,
+                        trackColor = theme.textPrimary.copy(alpha = 0.1f),
                         strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                     )
                 }
             }
 
             Surface(
-                color = Color(0xFF1E293B),
+                color = theme.secondarySurface,
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                border = BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text(Translator.tr("تقدم الختمة"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                    Text(Translator.tr("تقدم الختمة"), color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { stats.khatmaProgress },
                         modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = GoldPrimary,
-                        trackColor = Color.White.copy(alpha = 0.1f),
+                        color = PresetPrimary,
+                        trackColor = theme.textPrimary.copy(alpha = 0.1f),
                         strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                     )
                 }
@@ -827,16 +836,17 @@ fun WorshipAnalyticsDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
 @Composable
 private fun AnalyticsCard(label: String, value: String, icon: String, modifier: Modifier = Modifier) {
+    val theme = QabasTheme.current
     Surface(
         modifier = modifier,
-        color = Color(0xFF1E293B),
+        color = theme.secondarySurface,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+        border = BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(icon, fontSize = 24.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(value, color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(value, color = PresetPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text(label, color = qabasTextSecondary(), fontSize = 10.sp, fontFamily = CairoFont)
         }
     }
