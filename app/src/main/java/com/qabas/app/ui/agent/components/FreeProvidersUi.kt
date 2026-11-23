@@ -85,17 +85,6 @@ internal fun FreeProvidersDialog(
             keyUrl = "https://console.groq.com/keys",
             keyPrefix = "gsk_..."
         ),
-        FreeProviderSuggestion(
-            id = "huggingface",
-            name = "HuggingFace Hub",
-            providerBadge = "مكتبة النماذج البرمجية 🤖",
-            color = QabasGold,
-            recommendedModel = "Qwen/Qwen2.5-Coder-32B-Instruct",
-            modelDescription = "استدلال مجاني مباشر عبر نماذج HuggingFace المخصصة للتطوير.",
-            freePerks = "مفتاح Access Token مجاني بالكامل بدون انتهاء صلاحية.",
-            keyUrl = "https://huggingface.co/settings/tokens",
-            keyPrefix = "hf_..."
-        )
     )
 
     val filtered = if (selectedFilter == "ALL") suggestions else suggestions.filter { it.id == selectedFilter }
@@ -177,11 +166,10 @@ internal fun FreeProvidersDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val filters = listOf(
-                        "ALL" to "الكل (4)",
+                        "ALL" to "الكل (3)",
                         "gemini" to "Google Gemini ⚡",
                         "openrouter" to "OpenRouter (Qwen Coder) 🧠",
-                        "groq" to "Groq Fast 🚀",
-                        "huggingface" to "HuggingFace 🤖"
+                        "groq" to "Groq Fast 🚀"
                     )
                     filters.forEach { (id, label) ->
                         val isSelected = selectedFilter == id

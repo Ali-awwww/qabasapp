@@ -20,13 +20,8 @@ object UniversalKeyBrain {
         val k = key.trim()
         return when {
             k.startsWith("sk-or-", ignoreCase = true) -> DetectedProvider.OPENROUTER
-            k.startsWith("sk-ant-", ignoreCase = true) -> DetectedProvider.ANTHROPIC
             k.startsWith("AIza", ignoreCase = true) || k.startsWith("Aq", ignoreCase = true) -> DetectedProvider.GEMINI
             k.startsWith("gsk_", ignoreCase = true) -> DetectedProvider.GROQ
-            k.startsWith("sk-", ignoreCase = true) -> DetectedProvider.OPENAI
-            k.startsWith("hf_", ignoreCase = true) -> DetectedProvider.HUGGINGFACE
-            k.startsWith("oc-", ignoreCase = true) -> DetectedProvider.OPENCODE
-            k.startsWith("xai-", ignoreCase = true) -> DetectedProvider.GROQ
             else -> DetectedProvider.NONE
         }
     }
@@ -40,18 +35,6 @@ object UniversalKeyBrain {
 
         val groq = KeyVault.groq
         if (groq.isNotBlank()) return Pair(DetectedProvider.GROQ, groq)
-
-        val oai = KeyVault.openai
-        if (oai.isNotBlank()) return Pair(DetectedProvider.OPENAI, oai)
-
-        val anthropic = KeyVault.anthropic
-        if (anthropic.isNotBlank()) return Pair(DetectedProvider.ANTHROPIC, anthropic)
-
-        val hf = KeyVault.huggingface
-        if (hf.isNotBlank()) return Pair(DetectedProvider.HUGGINGFACE, hf)
-
-        val oc = KeyVault.opencode
-        if (oc.isNotBlank()) return Pair(DetectedProvider.OPENCODE, oc)
 
         return Pair(DetectedProvider.NONE, "")
     }
@@ -94,7 +77,7 @@ object UniversalKeyBrain {
         if (k.isBlank()) return SmartSaveResult.Unsupported("المفتاح فارغ — الصق مفتاحاً أولاً.")
         val provider = forcedProvider?.takeIf { it != DetectedProvider.NONE } ?: detect(k)
         if (provider == DetectedProvider.NONE) {
-            return SmartSaveResult.Unsupported("تعذّر التعرّف على المفتاح — الصيغ المدعومة: AIza أو Aq (Gemini)، gsk_ (Groq)، sk-or- (OpenRouter)، sk- (OpenAI)، sk-ant- (Anthropic)، hf_ (HuggingFace)، oc- (OpenCode Zen) — أو اختر المزود يدوياً.")
+            return SmartSaveResult.Unsupported("تعذّر التعرّف على المفتاح — الصيغ المدعومة: AIza أو Aq (Gemini)، gsk_ (Groq)، sk-or- (OpenRouter) — أو اختر المزود يدوياً.")
         }
         val health = AgentConnectivityEngine.pingProviderLive(provider, k, KeySource.USER_INPUT)
         if (!health.isConnected) {
@@ -107,11 +90,7 @@ object UniversalKeyBrain {
     fun prefsKeyFor(provider: DetectedProvider): String = when (provider) {
         DetectedProvider.GEMINI -> "gemini_key"
         DetectedProvider.GROQ -> "groq_key"
-        DetectedProvider.OPENAI -> "openai_key"
         DetectedProvider.OPENROUTER -> "openrouter_key"
-        DetectedProvider.ANTHROPIC -> "anthropic_key"
-        DetectedProvider.HUGGINGFACE -> "huggingface_key"
-        DetectedProvider.OPENCODE -> "opencode_key"
         else -> ""
     }
 
@@ -292,78 +271,10 @@ object UniversalKeyBrain {
                     val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
                     Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(120), promptTokens, completionTokens))
                 }
-                DetectedProvider.OPENAI -> {
-                    val oaiModel = model?.takeIf { it.isNotBlank() } ?: DetectedProvider.OPENAI.defaultModel
-                    val url = "https://api.openai.com/v1/chat/completions"
-                    val jsonBody = org.json.JSONObject().apply {
-                        put("model", oaiModel)
-                        put("messages", org.json.JSONArray().apply {
-                            put(org.json.JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
-                            put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })
-                        })
-                    }
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Authorization", "Bearer $apiKey")
-                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val bodyString = response.body?.string() ?: ""
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(Exception("خطأ من سيرفر OpenAI (HTTP ${response.code}): $bodyString"))
-                    }
-                    val json = org.json.JSONObject(bodyString)
-                    val text = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
-                    if (text.isNullOrBlank()) {
-                        return@withContext Result.failure(Exception("استجابة فارغة من سيرفر OpenAI"))
-                    }
-                    val usageObj = json.optJSONObject("usage")
-                    val promptTokens = usageObj?.optInt("prompt_tokens", 0) ?: 0
-                    val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
-                    val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
-                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(120), promptTokens, completionTokens))
-                }
-                DetectedProvider.OPENCODE -> {
-                    // OpenCode Zen — بوابة OpenAI-compatible: النموذج من عضو الفريق (بدون بادئة opencode/)
-                    val zenModel = model?.takeIf { it.isNotBlank() }?.removePrefix("opencode/") ?: "big-pickle"
-                    val url = "https://opencode.ai/inference/v1/chat/completions"
-                    val jsonBody = org.json.JSONObject().apply {
-                        put("model", zenModel)
-                        put("messages", org.json.JSONArray().apply {
-                            put(org.json.JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
-                            put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })
-                        })
-                    }
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Authorization", "Bearer $apiKey")
-                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val bodyString = response.body?.string() ?: ""
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(Exception("خطأ من سيرفر OpenCode (HTTP ${response.code}): $bodyString"))
-                    }
-                    val json = org.json.JSONObject(bodyString)
-                    val text = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
-                    if (text.isNullOrBlank()) {
-                        return@withContext Result.failure(Exception("استجابة فارغة من سيرفر OpenCode"))
-                    }
-                    val usageObj = json.optJSONObject("usage")
-                    val promptTokens = usageObj?.optInt("prompt_tokens", 0) ?: 0
-                    val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
-                    val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
-                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(100), promptTokens, completionTokens))
-                }
                 DetectedProvider.GROQ -> {
-                    // 🔑 مفتاح xai- يُصنَّف GROQ لكنه يحتاج بوابة x.ai الفعلية لا بوابة Groq
-                    val isXai = apiKey.startsWith("xai-", ignoreCase = true)
-                    val gatewayName = if (isXai) "xAI (Grok)" else "Groq"
-                    val url = if (isXai) "https://api.x.ai/v1/chat/completions"
-                    else "https://api.groq.com/openai/v1/chat/completions"
-                    val groqModel = model?.takeIf { it.isNotBlank() }?.let { chosen ->
-                        if (isXai && !chosen.startsWith("grok", ignoreCase = true)) "grok-3" else chosen
-                    } ?: (if (isXai) "grok-3" else DetectedProvider.GROQ.defaultModel)
+                    val gatewayName = "Groq"
+                    val url = "https://api.groq.com/openai/v1/chat/completions"
+                    val groqModel = model?.takeIf { it.isNotBlank() } ?: DetectedProvider.GROQ.defaultModel
                     val jsonBody = org.json.JSONObject().apply {
                         put("model", groqModel)
                         put("messages", org.json.JSONArray().apply {
@@ -392,82 +303,10 @@ object UniversalKeyBrain {
                     val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
                     Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(100), promptTokens, completionTokens))
                 }
-                DetectedProvider.ANTHROPIC -> {
-                    val antModel = model?.takeIf { it.isNotBlank() } ?: DetectedProvider.ANTHROPIC.defaultModel
-                    val url = "https://api.anthropic.com/v1/messages"
-                    val jsonBody = org.json.JSONObject().apply {
-                        put("model", antModel)
-                        put("max_tokens", 4096)
-                        put("system", systemInstruction)
-                        put("messages", org.json.JSONArray().apply {
-                            put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })
-                        })
-                    }
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("x-api-key", apiKey)
-                        .header("anthropic-version", "2023-06-01")
-                        .header("User-Agent", "Qabas-Studio")
-                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val bodyString = response.body?.string() ?: ""
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(Exception("خطأ من سيرفر Anthropic (HTTP ${response.code}): $bodyString"))
-                    }
-                    val json = org.json.JSONObject(bodyString)
-                    val text = json.optJSONArray("content")?.let { arr ->
-                        (0 until arr.length()).joinToString("") { i ->
-                            val block = arr.optJSONObject(i)
-                            if (block != null && block.optString("type") == "text") block.optString("text", "") else ""
-                        }
-                    }
-                    if (text.isNullOrBlank()) {
-                        return@withContext Result.failure(Exception("استجابة فارغة من سيرفر Anthropic"))
-                    }
-                    val usage = json.optJSONObject("usage")
-                    val promptTokens = usage?.optInt("input_tokens", 0) ?: 0
-                    val completionTokens = usage?.optInt("output_tokens", 0) ?: 0
-                    Result.success(
-                        RealAgentResponse(text, (promptTokens + completionTokens).coerceAtLeast(150), promptTokens, completionTokens)
-                    )
-                }
-                DetectedProvider.HUGGINGFACE -> {
-                    val hfModel = model?.takeIf { it.isNotBlank() }?.removePrefix("hf/") ?: DetectedProvider.HUGGINGFACE.defaultModel
-                    val url = "https://router.huggingface.co/v1/chat/completions"
-                    val jsonBody = org.json.JSONObject().apply {
-                        put("model", hfModel)
-                        put("messages", org.json.JSONArray().apply {
-                            put(org.json.JSONObject().apply { put("role", "system"); put("content", systemInstruction) })
-                            put(org.json.JSONObject().apply { put("role", "user"); put("content", prompt) })
-                        })
-                    }
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Authorization", "Bearer $apiKey")
-                        .header("User-Agent", "Qabas-Studio")
-                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val bodyString = response.body?.string() ?: ""
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(Exception("خطأ من سيرفر HuggingFace (HTTP ${response.code}): $bodyString"))
-                    }
-                    val json = org.json.JSONObject(bodyString)
-                    val text = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
-                    if (text.isNullOrBlank()) {
-                        return@withContext Result.failure(Exception("استجابة فارغة من سيرفر HuggingFace"))
-                    }
-                    val usageObj = json.optJSONObject("usage")
-                    val promptTokens = usageObj?.optInt("prompt_tokens", 0) ?: 0
-                    val completionTokens = usageObj?.optInt("completion_tokens", 0) ?: 0
-                    val totalTokens = usageObj?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
-                    Result.success(RealAgentResponse(text, totalTokens.coerceAtLeast(120), promptTokens, completionTokens))
-                }
                 else -> {
                     Result.failure(
                         Exception(
-                            "المزود «${provider.displayName}» غير مدعوم للتنفيذ — اختر مزوداً من: Gemini / OpenRouter / OpenAI / Groq / Anthropic / HuggingFace / OpenCode."
+                            "المزود «${provider.displayName}» غير مدعوم للتنفيذ — اختر مزوداً من: Gemini / OpenRouter / Groq."
                         )
                     )
                 }

@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * ⚡ شاشة توجيه وتبديل نماذج الذكاء الاصطناعي الذكية حسب سرعة الاستجابة الحية (Latency Benchmark & Model Router)
  *
  * تسمح للمطور بـ:
- * 1. قياس سرعة استجابة (Latency) الخوادم الفعلية في اللحظة الحالية لـ Gemini و Groq و OpenAI.
+ * 1. قياس سرعة استجابة (Latency) الخوادم الفعلية في اللحظة الحالية لـ Gemini و Groq.
  * 2. التبديل التلقائي للمحرك الأسرع لحظياً أو تثبيت محرك يدوي بضغطة زر.
  * 3. تشغيل سباق ومقارنة حية (Head-to-Head Race) بين النماذج لنفس الفكرة ورؤية فارق الميلي ثانية.
  */
@@ -202,7 +202,7 @@ fun AiModelLatencySwitcherScreen(
                 }
             }
 
-            // 4. بطاقات النماذج الأربعة (Groq, Gemini, OpenAI, Pollinations)
+            // 3. بطاقات النماذج الثلاثة (Groq, Gemini, Pollinations)
             val modelsList = listOf(
                 ModelUiConfig(
                     id = "Groq",
@@ -219,14 +219,6 @@ fun AiModelLatencySwitcherScreen(
                     icon = Icons.Default.AutoAwesome,
                     accentColor = theme.primary,
                     description = "سياق فائق الضخامة، فهم لغوي عالي الدقة وتنسيق المشاهد السينمائية المعقدة."
-                ),
-                ModelUiConfig(
-                    id = "OpenAI",
-                    title = "OpenAI Platform",
-                    spec = "GPT-4o Mini",
-                    icon = Icons.Default.Psychology,
-                    accentColor = theme.accent,
-                    description = "محرك متزن جداً في التفكير الإبداعي والمنطقي والدعم اللغوي العام."
                 ),
                 ModelUiConfig(
                     id = "Pollinations",
@@ -378,7 +370,6 @@ private fun ActiveEngineHeroCard(
                             text = when (activeEngine) {
                                 "Groq" -> "محرك LPU فائق السرعة • Llama 3.3 70B"
                                 "Gemini" -> "محرك Google متعدد الوسائط • Gemini 2.5 Flash"
-                                "OpenAI" -> "محرك GPT-4o Mini المتزن"
                                 else -> "المحرك المجاني بلا مفتاح"
                             },
                             color = theme.textPrimary,
@@ -399,7 +390,6 @@ private fun ActiveEngineHeroCard(
                             imageVector = when (activeEngine) {
                                 "Groq" -> Icons.Default.Bolt
                                 "Gemini" -> Icons.Default.AutoAwesome
-                                "OpenAI" -> Icons.Default.Psychology
                                 else -> Icons.Default.Public
                             },
                             contentDescription = null,

@@ -12,7 +12,7 @@ import org.json.JSONObject
  * البثّ التدريجي الحقيقي لاستجابة النموذج (Streaming SSE):
  * يعرض النص لحظة بلحظة بدل انتظار الدفعة الكاملة، مع دعم الإلغاء بين المقاطع.
  * - Gemini: streamGenerateContent?alt=sse
- * - OpenAI/Groq/OpenRouter: chat/completions مع stream:true (صيغة data: ... و [DONE])
+ * - Groq/OpenRouter: chat/completions مع stream:true (صيغة data: ... و [DONE])
  */
 object AgentStreaming {
 
@@ -27,8 +27,8 @@ object AgentStreaming {
         try {
             when (provider) {
                 DetectedProvider.GEMINI -> streamGemini(apiKey, model, prompt, systemInstruction, onPartial)
-                DetectedProvider.OPENROUTER, DetectedProvider.OPENAI, DetectedProvider.GROQ ->
-                    streamOpenAiCompat(provider, apiKey, model, prompt, systemInstruction, onPartial)
+                DetectedProvider.OPENROUTER, DetectedProvider.GROQ ->
+                    streamChatCompat(provider, apiKey, model, prompt, systemInstruction, onPartial)
                 else -> Result.failure(Exception("البثّ غير مدعوم لهذا المزود"))
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -107,7 +107,7 @@ object AgentStreaming {
         }
     }
 
-    private suspend fun streamOpenAiCompat(
+    private suspend fun streamChatCompat(
         provider: DetectedProvider,
         apiKey: String,
         model: String?,
@@ -117,8 +117,7 @@ object AgentStreaming {
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val (url, defaultModel) = when (provider) {
             DetectedProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions" to "anthropic/claude-sonnet-4.5"
-            DetectedProvider.GROQ -> "https://api.groq.com/openai/v1/chat/completions" to "llama-3.3-70b-versatile"
-            else -> "https://api.openai.com/v1/chat/completions" to "gpt-4o"
+            else -> "https://api.groq.com/openai/v1/chat/completions" to "llama-3.3-70b-versatile"
         }
         val body = JSONObject().apply {
             put("model", model?.takeIf { it.isNotBlank() } ?: defaultModel)

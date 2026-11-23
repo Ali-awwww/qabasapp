@@ -51,7 +51,6 @@ fun ClipExtractorScreen(
             """.trimIndent()
             val raw = withContext(Dispatchers.IO) {
                 try { RealGroqService.chatOrGenerate(p) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-                    ?: try { RealOpenAIService.chatOrGenerate(p) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                     ?: try { RealGeminiService.generateScript(longText, "", "موعظة", "مؤثر").joinToString("\n") { it.title } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             }
             clips = try {

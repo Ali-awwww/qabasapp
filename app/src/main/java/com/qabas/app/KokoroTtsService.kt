@@ -8,7 +8,7 @@ import kotlinx.coroutines.withContext
 /**
  * Kokoro TTS — صوت عربي محلي عبر المحرك الصوتي.
  * تم تحسينه للعمل بمرونة تامة مع تفادي استهلاك مئات الميغابايتات الإضافية في الحزمة.
- * يسقط تلقائياً إلى RealElevenLabsService / RealAzureSpeechService / Android TTS.
+ * يسقط تلقائياً إلى Edge-TTS / Android TTS.
  */
 object KokoroTtsService {
     private const val TAG = "KokoroTtsService"

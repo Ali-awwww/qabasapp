@@ -21,8 +21,7 @@ object ApiUsageTracker {
     private const val MAX_LOGS = 60
 
     val SUPPORTED: List<String> = listOf(
-        "Gemini", "Groq", "OpenAI", "OpenRouter", "Azure TTS", "ElevenLabs",
-        "HuggingFace", "Pexels", "Pixabay", "Firebase", "Quran Foundation"
+        "Gemini", "Groq", "OpenRouter", "Pixabay", "Firebase", "Quran Foundation"
     )
 
     data class ApiStat(

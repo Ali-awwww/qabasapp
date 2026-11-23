@@ -16,7 +16,6 @@ enum class AiProviderType(val displayName: String, val defaultEndpoint: String, 
     OPENROUTER("OpenRouter (Multi-Model Hub)", "https://openrouter.ai/api/v1/chat/completions", "🌐"),
     DEEPSEEK("DeepSeek AI (Official)", "https://api.deepseek.com/chat/completions", "🧠"),
     GROQ("Groq (Ultra-Fast Inference)", "https://api.groq.com/openai/v1/chat/completions", "⚡"),
-    OPENAI("OpenAI (GPT-4o / Mini)", "https://api.openai.com/v1/chat/completions", "💠"),
     GEMINI("Google Gemini Gateway", "https://generativelanguage.googleapis.com", "✨"),
     POLLINATIONS("Pollinations AI (Free Edge)", "https://text.pollinations.ai", "🌸"),
     CUSTOM_OPENAI("Custom OpenAI-Compatible Endpoint", "", "⚙️")
@@ -81,7 +80,7 @@ data class AiModelConfig(
 }
 
 /**
- * سجل وإدارة نماذج الذكاء الاصطناعي المسجلة (OpenRouter, DeepSeek, Groq, OpenAI, Gemini, Custom)
+ * سجل وإدارة نماذج الذكاء الاصطناعي المسجلة (OpenRouter, DeepSeek, Groq, Gemini, Custom)
  */
 object AiModelRegistry {
     private const val PREFS_NAME = "qabas_ai_registry_prefs"
@@ -136,13 +135,6 @@ object AiModelRegistry {
             provider = AiProviderType.GROQ,
             modelIdentifier = "llama-3.3-70b-versatile",
             systemPrompt = "أنت مهندس دعم ومطور سريع وفائق الاستجابة."
-        ),
-        AiModelConfig(
-            id = "preset_openai_gpt4o",
-            name = "OpenAI GPT-4o Mini",
-            provider = AiProviderType.OPENAI,
-            modelIdentifier = "gpt-4o-mini",
-            systemPrompt = "أنت مساعد برمجي متقن لتطبيقات الأندرويد والمنظومة الفضائية."
         ),
         AiModelConfig(
             id = "preset_gemini_flash",

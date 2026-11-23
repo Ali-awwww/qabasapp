@@ -10,8 +10,7 @@ const cors = {
 };
 const owner = (Deno.env.get("QABAS_OWNER_EMAIL") || "aliwalead.2007@gmail.com").toLowerCase();
 const services = new Set([
-  "gemini", "groq", "openai", "openrouter", "huggingface", "elevenlabs",
-  "azure_speech", "pexels", "pixabay", "coverr", "qf_client_id", "qf_client_secret",
+  "gemini", "groq", "openrouter", "pixabay", "qf_client_id", "qf_client_secret",
   "higgsfield",
 ]);
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -220,9 +219,6 @@ Deno.serve(async req => {
     } else if (provider === "groq" && keys.groq) {
       url = "https://api.groq.com/openai/v1/chat/completions";
       headers.Authorization = `Bearer ${keys.groq}`;
-    } else if (provider === "openai" && keys.openai) {
-      url = "https://api.openai.com/v1/chat/completions";
-      headers.Authorization = `Bearer ${keys.openai}`;
     } else if (provider === "openrouter" && keys.openrouter) {
       url = "https://openrouter.ai/api/v1/chat/completions";
       headers.Authorization = `Bearer ${keys.openrouter}`;

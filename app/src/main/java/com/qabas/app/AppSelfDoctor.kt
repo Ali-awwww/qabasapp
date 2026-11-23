@@ -88,41 +88,15 @@ object AppSelfDoctor {
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
     private suspend fun groqCheck(key: String) = withTimeoutOrNull(12_000) {
-        val url = if (key.startsWith("xai-", ignoreCase = true)) "https://api.x.ai/v1/models"
-        else "https://api.groq.com/openai/v1/models"
+        val url = "https://api.groq.com/openai/v1/models"
         httpCheck(
             Request.Builder().url(url).header("Authorization", "Bearer $key").build()
         )
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun azureCheck(key: String, region: String) = withTimeoutOrNull(12_000) {
-        httpCheck(
-            Request.Builder()
-                .url("https://$region.tts.speech.microsoft.com/cognitiveservices/voices/list")
-                .header("Ocp-Apim-Subscription-Key", key)
-                .build()
-        )
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun elevenLabsCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(Request.Builder().url("https://api.elevenlabs.io/v1/user").header("xi-api-key", key).build())
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun huggingFaceCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(
-            Request.Builder().url("https://huggingface.co/api/whoami-v2")
-                .header("Authorization", "Bearer $key").build()
-        )
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun pexelsCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(
-            Request.Builder()
-                .url("https://api.pexels.com/videos/search?query=nature&per_page=1")
-                .header("Authorization", key)
-                .build()
-        )
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
     private suspend fun pixabayCheck(key: String) = withTimeoutOrNull(12_000) {
         httpCheck(
@@ -200,11 +174,6 @@ object AppSelfDoctor {
         // المفاتيح الفعّالة عبر KeyVault (شاشة المفاتيح أولاً ثم BuildConfig من Secrets)
         val geminiKey = KeyVault.gemini
         val groqKey = KeyVault.groq
-        val elevenLabsKey = KeyVault.elevenlabs
-        val azureKey = KeyVault.azureSpeechKey
-        val azureRegion = KeyVault.azureSpeechRegion.ifBlank { "eastus" }
-        val huggingFaceKey = KeyVault.huggingface
-        val pexelsKey = KeyVault.pexels
         val pixabayKey = KeyVault.pixabay
 
         // 1) فحوص الاتصال الحقيقية بالتوازي — طلب واحد خفيف لكل خدمة
@@ -215,14 +184,6 @@ object AppSelfDoctor {
                 jobs += async { "gemini" to geminiCheck(geminiKey) }
             if (isKeyValid(groqKey))
                 jobs += async { "groq" to groqCheck(groqKey) }
-            if (isKeyValid(azureKey))
-                jobs += async { "azure" to azureCheck(azureKey, azureRegion) }
-            if (isKeyValid(elevenLabsKey))
-                jobs += async { "elevenlabs" to elevenLabsCheck(elevenLabsKey) }
-            if (isKeyValid(huggingFaceKey))
-                jobs += async { "huggingface" to huggingFaceCheck(huggingFaceKey) }
-            if (isKeyValid(pexelsKey))
-                jobs += async { "pexels" to pexelsCheck(pexelsKey) }
             if (isKeyValid(pixabayKey))
                 jobs += async { "pixabay" to pixabayCheck(pixabayKey) }
             if (SupabaseConfig.isConfigured)
@@ -281,65 +242,29 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
-        if (!isKeyValid(elevenLabsKey) && !isKeyValid(azureKey)) {
-            reports.add(
-                DoctorReport(
-                    severity = "مهم",
-                    title = "التعليق الصوتي العصبي غير مفعل",
-                    message = "لا يوجد أي محرك صوتي سحابي (Azure Speech أو ElevenLabs) مفعل. يتم استخدام محرك الصوت المحلي الافتراضي (TTS أندرويد) — يعمل بلا مفاتيح لكن بجودة أقل.",
-                    category = "خدمات",
-                    suggestedAction = "أضف مفتاح Azure Speech (نوصي به للفصحى) أو ElevenLabs في إعدادات التطبيق أو GitHub Secrets.",
-                    suggestedFixCode = null
-                )
+        reports.add(
+            DoctorReport(
+                severity = "معلومة",
+                title = "التعليق الصوتي يعمل محلياً",
+                message = "التعليق الصوتي يولَّد محلياً عبر Kokoro وEdge-TTS ومحرك النظام (TTS أندرويد) — بلا مفاتيح سحابية.",
+                category = "خدمات",
+                suggestedAction = "لا إجراء مطلوب."
             )
-        } else {
-            if (isKeyValid(azureKey)) {
-                reports.add(
-                    liveStatusReport(
-                        serviceName = "Azure Speech",
-                        category = "خدمات",
-                        check = liveResults["azure"] ?: LiveCheck(false, false, true),
-                        onOk = "خدمة الصوت العصبي من Azure تستجيب فعلياً — التعليق العربي الفصيح متاح.",
-                        actionOk = "جاهز لإنتاج التعليق الصوتي."
-                    )
-                )
-            }
-            if (isKeyValid(elevenLabsKey)) {
-                reports.add(
-                    liveStatusReport(
-                        serviceName = "ElevenLabs",
-                        category = "خدمات",
-                        check = liveResults["elevenlabs"] ?: LiveCheck(false, false, true),
-                        onOk = "خدمة ElevenLabs تستجيب فعلياً — الأصوات الجبارة متاحة.",
-                        actionOk = "يمكن اختيار أصوات ElevenLabs في إعدادات الصوت."
-                    )
-                )
-            }
-        }
+        )
 
-        if (!isKeyValid(pexelsKey) && !isKeyValid(pixabayKey)) {
+
+        if (!isKeyValid(pixabayKey)) {
             reports.add(
                 DoctorReport(
                     severity = "مهم",
                     title = "مكتبة الوسائط الحية متوقفة",
-                    message = "لم يتم إضافة مفاتيح Pexels أو Pixabay. التطبيق يعتمد على الإطارات السينمائية المحلية (المولدة بعنوان كل مشهد) بدل مقاطع B-Roll حقيقية.",
+                    message = "لم يتم إضافة مفتاح Pixabay. التطبيق يعتمد على الإطارات السينمائية المحلية (المولدة بعنوان كل مشهد) بدل مقاطع B-Roll حقيقية.",
                     category = "تكامل",
-                    suggestedAction = "أضف مفاتيح Pexels أو Pixabay المجانية لتمكين جلب مقاطع B-Roll وصور المعالم الإسلامية بجودة HD.",
+                    suggestedAction = "أضف مفتاح Pixabay المجاني لتمكين جلب مقاطع B-Roll وصور المعالم الإسلامية بجودة HD.",
                     suggestedFixCode = null
                 )
             )
         } else {
-            if (isKeyValid(pexelsKey)) {
-                reports.add(
-                    liveStatusReport(
-                        serviceName = "Pexels",
-                        category = "تكامل",
-                        check = liveResults["pexels"] ?: LiveCheck(false, false, true),
-                        onOk = "مكتبة Pexels تستجيب فعلياً — جلب B-Roll حقيقي متاح.",
-                        actionOk = "جاهز لجلب الوسائط."
-                    )
-                )
-            }
             if (isKeyValid(pixabayKey)) {
                 reports.add(
                     liveStatusReport(
@@ -353,17 +278,6 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             }
         }
 
-        if (isKeyValid(huggingFaceKey)) {
-            reports.add(
-                liveStatusReport(
-                    serviceName = "HuggingFace",
-                    category = "تكامل",
-                    check = liveResults["huggingface"] ?: LiveCheck(false, false, true),
-                    onOk = "توليد الصور الذكي من HuggingFace يستجيب فعلياً.",
-                    actionOk = "جاهز لتوليد الخلفيات."
-                )
-            )
-        }
 
         val higgsfieldConfiguredOnServer = runCatching {
             PlatformGatewayClient.providerConfiguredSuspend("higgsfield")

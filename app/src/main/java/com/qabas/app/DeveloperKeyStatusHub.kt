@@ -79,7 +79,7 @@ fun DeveloperKeyStatusHub(
     val clipboardManager = LocalClipboardManager.current
     val theme = QabasTheme.current
 
-    // قائمة جميع المفاتيح الـ 18 المعتمدة في بنية التطبيق
+    // قائمة جميع المفاتيح الـ 10 المعتمدة في بنية التطبيق
     val secretSpecs = remember {
         listOf(
             SecretKeySpec(
@@ -96,22 +96,9 @@ fun DeveloperKeyStatusHub(
                 keyFormatHint = "يبدأ بـ AIzaSy..."
             ),
             SecretKeySpec(
-                envName = "OPENAI_API_KEY",
-                displayName = "OpenAI GPT",
-                provider = "OpenAI",
-                category = "AI",
-                icon = Icons.Default.Psychology,
-                howItWorks = "نماذج GPT للدردشة وكتابة النصوص.",
-                whyNeeded = "خيار إضافي لكتابة النصوص والدردشة عند تفضيل نماذج OpenAI.",
-                serviceType = "openai",
-                preferenceKey = "openai_key",
-                docUrl = "https://platform.openai.com/api-keys",
-                keyFormatHint = "يبدأ بـ sk-..."
-            ),
-            SecretKeySpec(
                 envName = "GROQ_API_KEY",
                 displayName = "Groq LPU Ultra-Fast",
-                provider = "Groq Cloud / xAI",
+                provider = "Groq Cloud",
                 category = "AI",
                 icon = Icons.Default.Bolt,
                 howItWorks = "محرك استدلال فائق السرعة يتخذ قرارات المونتاج اللحظية واقتطاع المشاهد وتوليد العناوين.",
@@ -134,88 +121,6 @@ fun DeveloperKeyStatusHub(
                 docUrl = "https://openrouter.ai/keys",
                 keyFormatHint = "يبدأ بـ sk-or-v1-..."
             ),
-            // (r17) كان المركز يعرض 14 مفتاحاً فقط بينما «مفاتيحي»
-            // تتيح 4 مفاتيح أخرى (Anthropic وOpenCode وAzure وLeonardo)
-            // — فادعاء «جميع المفاتيح» كان كاذباً. أُضيفت هنا بفروع
-            // فحصها الحية الموجودة في ApiKeyValidator.
-            SecretKeySpec(
-                envName = "ANTHROPIC_API_KEY",
-                displayName = "Anthropic Claude",
-                provider = "Anthropic",
-                category = "AI",
-                icon = Icons.Default.SmartToy,
-                howItWorks = "نماذج Claude للدردشة وكتابة النصوص وتحليلها.",
-                whyNeeded = "خيار إضافي لنماذج Claude عند تفضيلها على غيرها.",
-                serviceType = "anthropic",
-                preferenceKey = "anthropic_key",
-                docUrl = "https://console.anthropic.com/settings/keys",
-                keyFormatHint = "يبدأ بـ sk-ant-..."
-            ),
-            SecretKeySpec(
-                envName = "OPENCODE_API_KEY",
-                displayName = "OpenCode Inference",
-                provider = "OpenCode",
-                category = "AI",
-                icon = Icons.Default.Terminal,
-                howItWorks = "بوابة استدلال لنماذج مفتوحة عبر OpenCode.",
-                whyNeeded = "خيار إضافي للاستدلال بنماذج مفتوحة المصدر.",
-                serviceType = "opencode",
-                preferenceKey = "opencode_key",
-                docUrl = "https://opencode.ai",
-                keyFormatHint = "مفتاح OpenCode API"
-            ),
-            SecretKeySpec(
-                envName = "ELEVENLABS_API_KEY",
-                displayName = "ElevenLabs Neural Voice",
-                provider = "ElevenLabs",
-                category = "AUDIO",
-                icon = Icons.Default.RecordVoiceOver,
-                howItWorks = "توليد التعليق الصوتي البشري عالي النقاء بنبرات إسلامية وقورة تحاكي كبار المعلقين والشيوخ.",
-                whyNeeded = "يمنح الفيديوهات صوتاً احترافياً واقعياً يرفع نسب المشاهدة والتأثير الدعوي.",
-                serviceType = "elevenlabs",
-                preferenceKey = "elevenlabs_key",
-                docUrl = "https://elevenlabs.io",
-                keyFormatHint = "مفتاح API مكون من 32 محرفاً"
-            ),
-            SecretKeySpec(
-                envName = "HUGGINGFACE_API_KEY",
-                displayName = "Hugging Face Hub",
-                provider = "Hugging Face",
-                category = "AI",
-                icon = Icons.Default.Hub,
-                howItWorks = "تشكيل وضبط النصوص العربية وتوليد التضمين الشعاعي للبحث التراثي ونماذج الأحاديث مفتوحة المصدر.",
-                whyNeeded = "معالجة اللغة الطبيعية والتدقيق الصرفي للنصوص التراثية.",
-                serviceType = "huggingface",
-                preferenceKey = "huggingface_key",
-                docUrl = "https://huggingface.co/settings/tokens",
-                keyFormatHint = "يبدأ بـ hf_..."
-            ),
-            SecretKeySpec(
-                envName = "AZURE_SPEECH_KEY",
-                displayName = "Azure Speech",
-                provider = "Microsoft Azure",
-                category = "AUDIO",
-                icon = Icons.Default.Mic,
-                howItWorks = "نطق صوتي فصيح بنبرات عربية واقعية لمقاطع الريلز.",
-                whyNeeded = "تعليق صوتي عربي فصيح بجودة احترافية.",
-                serviceType = "azure",
-                preferenceKey = "azure_speech_key",
-                docUrl = "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices",
-                keyFormatHint = "32 محرف hex + منطقة (Region)"
-            ),
-            SecretKeySpec(
-                envName = "PEXELS_API_KEY",
-                displayName = "Pexels 4K Video Library",
-                provider = "Pexels API",
-                category = "MEDIA",
-                icon = Icons.Default.VideoLibrary,
-                howItWorks = "جلب مقاطع فيديو سينمائية طبيعية ومعمارية بدقة 4K لاستخدامها كـ B-Roll خلفي في المونتاج.",
-                whyNeeded = "توفير محتوى مرئي حقيقي خالي تماماً من حقوق الملكية الفكرية.",
-                serviceType = "pexels",
-                preferenceKey = "pexels_key",
-                docUrl = "https://www.pexels.com/api/",
-                keyFormatHint = "مفتاح Pexels المكون من 56 محرفاً"
-            ),
             SecretKeySpec(
                 envName = "PIXABAY_API_KEY",
                 displayName = "Pixabay Cinematic Assets",
@@ -228,19 +133,6 @@ fun DeveloperKeyStatusHub(
                 preferenceKey = "pixabay_key",
                 docUrl = "https://pixabay.com/api/docs/",
                 keyFormatHint = "أرقام ومفاتيح من لوحة Pixabay"
-            ),
-            SecretKeySpec(
-                envName = "COVERR_API_KEY",
-                displayName = "Coverr HD B-Roll Video",
-                provider = "Coverr.co",
-                category = "MEDIA",
-                icon = Icons.Default.SlowMotionVideo,
-                howItWorks = "توفير مقاطع فيديو عالية الجودة مخصصة للمشاهد الخلفية واللقطات التمهيدية في الريلز.",
-                whyNeeded = "توسيع خيارات المشاهد السينمائية للمونتير وضمان وجود لقطة مناسبة لكل معنى إسلامي.",
-                serviceType = "coverr",
-                preferenceKey = "coverr_key",
-                docUrl = "https://coverr.co",
-                keyFormatHint = "مفتاح Coverr API"
             ),
             SecretKeySpec(
                 envName = "LEONARDO_API_KEY",
@@ -332,9 +224,7 @@ fun DeveloperKeyStatusHub(
         return when (spec.envName) {
             // مفاتيح المزودين لا تُقرأ من BuildConfig أبداً (أمان الدفعة 1):
             // المصدر الوحيد هو ما أدخله المستخدم في الواجهة (يُقرأ أعلاه من SharedPreferences).
-            "GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
-            "ELEVENLABS_API_KEY", "HUGGINGFACE_API_KEY", "PEXELS_API_KEY", "PIXABAY_API_KEY",
-            "COVERR_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_API_KEY", "AZURE_SPEECH_KEY",
+            "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "PIXABAY_API_KEY",
             "LEONARDO_API_KEY" -> ""
             "QF_CLIENT_ID" -> runCatching { BuildConfig.QF_CLIENT_ID }.getOrDefault("")
             "QF_CLIENT_SECRET" -> runCatching { BuildConfig.QF_CLIENT_SECRET }.getOrDefault("")
@@ -359,14 +249,11 @@ fun DeveloperKeyStatusHub(
 
     /** (r17) التلميح الذي يحتاجه فحص كل مفتاح: رابط Supabase لمفتاحه،
      * ومعرف QF عند فحص سره (به يصير الفحص طلب توكن حقيقياً لا فحص
-     * وصول)، والمنطقة المحفوظة عند فحص Azure. تُستخدم في الفحص
-     * الجماعي وفي حوار التعديل معاً — السابق كان يمرر التلميح في
-     * الفحص الجماعي فقط فكان فحص الحوار أضعف. */
+     * وصول). تُستخدم في الفحص الجماعي وفي حوار التعديل معاً — السابق
+     * كان يمرر التلميح في الفحص الجماعي فقط فكان فحص الحوار أضعف. */
     fun hintFor(spec: SecretKeySpec): String? = when (spec.envName) {
         "SUPABASE_ANON_KEY" -> getKeyActualValue(secretSpecs.first { it.envName == "SUPABASE_URL" })
         "QF_CLIENT_SECRET" -> getKeyActualValue(secretSpecs.first { it.envName == "QF_CLIENT_ID" })
-        "AZURE_SPEECH_KEY" -> AgentPrefs.instance(context)
-            .getString("azure_speech_region", "")?.trim()?.ifBlank { null }
         else -> null
     }
 
@@ -1207,7 +1094,7 @@ fun DeveloperKeyStatusHub(
         )
     }
 
-    // دليل المعمارية وتوظيف المفاتيح الـ 18
+    // دليل المعمارية وتوظيف المفاتيح الـ 10
     if (showArchitectureGuide) {
         AlertDialog(
             onDismissRequest = { showArchitectureGuide = false },
@@ -1215,7 +1102,7 @@ fun DeveloperKeyStatusHub(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AccountTree, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("خريطة التوظيف المعماري للمفاتيح الـ 18", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
+                    Text("خريطة التوظيف المعماري للمفاتيح الـ 10", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
                 }
             },
             text = {
@@ -1226,7 +1113,7 @@ fun DeveloperKeyStatusHub(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        "تتوزع المفاتيح الـ 18 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة:",
+                        "تتوزع المفاتيح الـ 10 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة:",
                         fontFamily = NotoSansFont,
                         color = TextSecondary,
                         fontSize = 11.sp
@@ -1234,19 +1121,19 @@ fun DeveloperKeyStatusHub(
 
                     ArchitectureLayerItem(
                         layerName = "1. طبقة العقول والذكاء الاصطناعي (AI Brains)",
-                        description = "تشمل Gemini, OpenAI, Groq, OpenRouter, HuggingFace, Anthropic, OpenCode لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات فائقة السرعة.",
+                        description = "تشمل Gemini, Groq, OpenRouter لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات فائقة السرعة.",
                         color = PresetPrimary
                     )
 
                     ArchitectureLayerItem(
                         layerName = "2. طبقة الصوتيات وتلاوة القرآن (Audio & Voice)",
-                        description = "تشمل ElevenLabs وAzure Speech للأصوات السينمائية، و Quran Foundation لنصوص وتلاوات القرآن المعتمدة رسمياً آية بآية.",
+                        description = "تشمل Kokoro وEdge TTS والأصوات المحلية، و Quran Foundation لنصوص وتلاوات القرآن المعتمدة رسمياً آية بآية.",
                         color = theme.success
                     )
 
                     ArchitectureLayerItem(
                         layerName = "3. طبقة الوسائط والفيديو الواقعي (Media B-Roll)",
-                        description = "تشمل Pexels, Pixabay, Coverr, Leonardo لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق وصور مولّدة.",
+                        description = "تشمل Pixabay وLeonardo لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق وصور مولّدة.",
                         color = theme.primary
                     )
 
@@ -1370,7 +1257,6 @@ fun DeveloperKeyStatusHub(
                         try {
                             val obj = org.json.JSONObject(trimmed)
                             val allowed = secretSpecs.associateBy { it.preferenceKey }
-                            val region = obj.optString("azure_speech_region", "").trim()
                             val targets = mutableListOf<Pair<SecretKeySpec, String>>()
                             val keys = obj.keys()
                             while (keys.hasNext()) {
@@ -1379,10 +1265,6 @@ fun DeveloperKeyStatusHub(
                                 if (v.isNotBlank()) {
                                     allowed[k]?.let { targets.add(it to v) }
                                 }
-                            }
-                            if (region.isNotBlank()) {
-                                AgentPrefs.instance(context).edit()
-                                    .putString("azure_speech_region", region).apply()
                             }
                             if (targets.isEmpty()) {
                                 Toast.makeText(context, "لم يتم العثور على مفاتيح معروفة في النص", Toast.LENGTH_LONG).show()
@@ -1442,7 +1324,7 @@ fun DeveloperKeyStatusHub(
             },
             text = {
                 Text(
-                    "هل أنت متأكد من مسح جميع المفاتيح الـ 18 المخزنة في النظام؟\nسيتم حذفها من الذاكرة المحلية وإعادة التعيين إلى الحالة الافتراضية.",
+                    "هل أنت متأكد من مسح جميع المفاتيح الـ 10 المخزنة في النظام؟\nسيتم حذفها من الذاكرة المحلية وإعادة التعيين إلى الحالة الافتراضية.",
                     fontFamily = NotoSansFont,
                     color = TextSecondary,
                     fontSize = 12.sp,

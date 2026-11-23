@@ -106,35 +106,35 @@ fun SpatialServiceDiagnosticsHub(
             accentColor = Color(0xFF5856D6)
         ),
         SpatialServiceStatus(
-            id = "azure",
-            name = "Azure / Edge-TTS",
+            id = "local_tts",
+            name = "الأصوات المحلية (Kokoro / Edge TTS)",
             category = "التعليق الصوتي",
             icon = Icons.Default.RecordVoiceOver,
-            isLive = KeyVault.azureSpeechKey.isNotBlank() && KeyVault.azureSpeechRegion.isNotBlank(),
-            isConfigured = KeyVault.azureSpeechKey.isNotBlank(),
+            isLive = true,
+            isConfigured = true,
             fallbackEngine = "نطق النظام المحلي متاح",
-            providerBadge = "Microsoft / TTS",
+            providerBadge = "On-Device",
             accentColor = theme.success
         ),
         SpatialServiceStatus(
             id = "flux",
-            name = "HuggingFace / FLUX",
+            name = "Pollinations / FLUX (مجاني)",
             category = "الصور والبوسترات",
             icon = Icons.Default.Image,
-            isLive = KeyVault.huggingface.isNotBlank() && !KeyVault.huggingface.startsWith("your_", ignoreCase = true),
-            isConfigured = KeyVault.huggingface.isNotBlank(),
-            fallbackEngine = "يتطلب مفتاح API",
-            providerBadge = "HuggingFace",
+            isLive = true,
+            isConfigured = true,
+            fallbackEngine = "مجاني بلا مفتاح",
+            providerBadge = "Pollinations",
             accentColor = Color(0xFF7D7AFF)
         ),
         SpatialServiceStatus(
             id = "broll",
-            name = "Pexels & Pixabay",
+            name = "Pixabay",
             category = "المشاهد والخلفيات",
             icon = Icons.Default.VideoLibrary,
-            isLive = KeyVault.pexels.isNotBlank() || KeyVault.pixabay.isNotBlank(),
-            isConfigured = KeyVault.pexels.isNotBlank() || KeyVault.pixabay.isNotBlank(),
-            fallbackEngine = "يتطلب مفتاح Pexels/Pixabay",
+            isLive = KeyVault.pixabay.isNotBlank(),
+            isConfigured = KeyVault.pixabay.isNotBlank(),
+            fallbackEngine = "يتطلب مفتاح Pixabay",
             providerBadge = "Media API",
             accentColor = theme.primary
         ),
@@ -165,8 +165,8 @@ fun SpatialServiceDiagnosticsHub(
             name = "GitHub & xdelta",
             category = "الإصدارات والتحديثات",
             icon = Icons.Default.Code,
-            isLive = GitHubAuthManager.isConfigured() || KeyVault.effective("github_token").isNotBlank(),
-            isConfigured = GitHubAuthManager.isConfigured() || KeyVault.effective("github_token").isNotBlank(),
+            isLive = KeyVault.effective("github_token").isNotBlank(),
+            isConfigured = KeyVault.effective("github_token").isNotBlank(),
             fallbackEngine = "يتطلب رمز GitHub",
             providerBadge = "GitHub",
             accentColor = theme.textSecondary
@@ -187,13 +187,13 @@ fun SpatialServiceDiagnosticsHub(
                     "gemini" -> KeyVault.gemini.isNotBlank() && !KeyVault.gemini.startsWith("your_", ignoreCase = true)
                     "higgsfield" -> PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
                     "groq" -> KeyVault.groq.isNotBlank() && !KeyVault.groq.startsWith("your_", ignoreCase = true)
-                    "azure" -> KeyVault.azureSpeechKey.isNotBlank() && KeyVault.azureSpeechRegion.isNotBlank()
-                    "flux" -> KeyVault.huggingface.isNotBlank() && !KeyVault.huggingface.startsWith("your_", ignoreCase = true)
-                    "broll" -> KeyVault.pexels.isNotBlank() || KeyVault.pixabay.isNotBlank()
+                    "local_tts" -> true
+                    "flux" -> true
+                    "broll" -> KeyVault.pixabay.isNotBlank()
                     "supabase" -> SupabaseConfig.isConfigured
                     "openrouter" -> KeyVault.openrouter.isNotBlank() && !KeyVault.openrouter.startsWith("your_", ignoreCase = true)
                     "kokoro" -> true
-                    "github" -> GitHubAuthManager.isConfigured() || KeyVault.effective("github_token").isNotBlank()
+                    "github" -> KeyVault.effective("github_token").isNotBlank()
                     else -> false
                 }
 
@@ -202,17 +202,11 @@ fun SpatialServiceDiagnosticsHub(
                         "supabase" -> SupabaseServices.isSupabaseAvailable
                         "higgsfield" -> false // Server-managed gateway; readiness depends on live dispatch
                         "kokoro" -> true
-                        "github" -> KeyVault.effective("github_token").isNotBlank() || GitHubAuthManager.isConfigured()
-                        "azure" -> runCatching {
-                            ApiKeyValidator.validateKey(context, "azure", KeyVault.azureSpeechKey, KeyVault.azureSpeechRegion).isValid
-                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
-                        "flux" -> runCatching {
-                            ApiKeyValidator.validateKey(context, "huggingface", KeyVault.huggingface).isValid
-                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
+                        "github" -> KeyVault.effective("github_token").isNotBlank()
+                        "local_tts" -> true
+                        "flux" -> true
                         "broll" -> runCatching {
-                            val type = if (KeyVault.pexels.isNotBlank()) "pexels" else "pixabay"
-                            val key = if (type == "pexels") KeyVault.pexels else KeyVault.pixabay
-                            ApiKeyValidator.validateKey(context, type, key).isValid
+                            ApiKeyValidator.validateKey(context, "pixabay", KeyVault.pixabay).isValid
                         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         "gemini" -> runCatching {
                             ApiKeyValidator.validateKey(context, "gemini", KeyVault.gemini).isValid

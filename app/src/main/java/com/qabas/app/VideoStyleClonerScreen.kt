@@ -325,15 +325,13 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                         }
                     }
                 }
-                DetectedProvider.OPENROUTER, DetectedProvider.OPENAI, DetectedProvider.GROQ -> {
+                DetectedProvider.OPENROUTER, DetectedProvider.GROQ -> {
                     val url = when (provider) {
                         DetectedProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
-                        DetectedProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
                         else -> "https://api.groq.com/openai/v1/chat/completions"
                     }
                     val model = when (provider) {
                         DetectedProvider.OPENROUTER -> "anthropic/claude-sonnet-4.5"
-                        DetectedProvider.OPENAI -> "gpt-4o"
                         else -> "llama-3.3-70b-versatile"
                     }
                     val jsonBody = JSONObject().apply {

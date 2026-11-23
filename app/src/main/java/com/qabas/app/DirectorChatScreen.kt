@@ -151,7 +151,6 @@ fun DirectorChatScreen(
             القيم الفارغة null. النسبة الافتراضية 9:16. reply بالعربية الفصيحة المبسطة، جملتان كحد أقصى.
         """.trimIndent()
         val raw = try { RealGroqService.chatOrGenerate(extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-            ?: try { RealOpenAIService.chatOrGenerate(extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             ?: try { geminiChat(context, extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         if (raw.isNullOrBlank() || !raw.contains("{")) return@withContext b to ""
         try {
@@ -214,7 +213,6 @@ fun DirectorChatScreen(
                     بلا مقدمات.
                 """.trimIndent()
                 val t = try { RealGroqService.chatOrGenerate(tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-                    ?: try { RealOpenAIService.chatOrGenerate(tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                     ?: try { geminiChat(context, tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 if (!t.isNullOrBlank()) treatment = t.take(900)
                 else if (treatment.isBlank()) treatment = "الخطاف: «${nb.idea.take(50)}…»\nالمشهد 1: صوت يطرح السؤال + صورة سماء واسعة\nالمشهد 2: صوت يعمّق المعنى + صورة نور يخترق غيوماً\nالمشهد 3: صوت الذروة + صورة مسجد وقت الغروب\nالخاتمة: دعوة للمشاركة والنشر"

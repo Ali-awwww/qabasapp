@@ -425,7 +425,7 @@ private fun VibeConnectorsTab(onOpenKeys: () -> Unit) {
         item {
             VibeCard(title = "مزودو النماذج") {
                 Text(
-                    "مفاتيح Gemini وGroq وOpenAI وOpenRouter وغيرها تُدار من «مفاتيحي» — " +
+                    "مفاتيح Gemini وGroq وOpenRouter تُدار من «مفاتيحي» — " +
                         "فحص حي قبل الحفظ وعرض مقنّع دائماً.",
                     color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp
                 )

@@ -107,45 +107,5 @@ object CodingPlatformDirectory {
                 "يمكن استخدام المفتاح مباشرة أو توجيهه للوكيل الذكي."
             )
         ),
-        CodingPlatformGuide(
-            id = "github_models",
-            rank = 5,
-            name = "GitHub Models Marketplace",
-            provider = DetectedProvider.OPENAI,
-            badge = "بيئة مطوري GitHub 🐙",
-            badgeColor = Color(0xFF10B981),
-            powerScore = "9.4 / 10",
-            speedScore = "8.6 / 10",
-            keyModels = listOf("gpt-4o", "meta-llama-3.3-70b-instruct"),
-            description = "خدمة رسمية من GitHub توفر وصولاً مجانياً لأقوى نماذج العالم (GPT-4o, Llama 3) لاختبار وبرمجة التطبيقات باستخدام حساب GitHub فقط.",
-            apiKeyUrl = "https://github.com/marketplace/models",
-            freeTierInfo = "متاح مجاناً لجميع حسابات GitHub دون الحاجة لأي اشتراك مدفوع.",
-            steps = listOf(
-                "افتح صفحة GitHub Models وسجل دخولك بحساب GitHub.",
-                "اختر النموذج البرمجي المطلوب (مثل GPT-4o أو Llama 3.3).",
-                "اضغط على «Get API Key» أو استخرج Personal Access Token (PAT).",
-                "استخدم الرمز في استدعاءات الوكيل البرمجي."
-            )
-        ),
-        CodingPlatformGuide(
-            id = "huggingface",
-            rank = 6,
-            name = "Hugging Face Hub",
-            provider = DetectedProvider.HUGGINGFACE,
-            badge = "أكبر مستودع مفتوح المصدر 🤗",
-            badgeColor = Color(0xFFFFD21E),
-            powerScore = "8.8 / 10",
-            speedScore = "8.0 / 10",
-            keyModels = listOf("Qwen/Qwen2.5-Coder-32B", "bigcode/starcoder2-15b"),
-            description = "منصة مجتمع الذكاء الاصطناعي الأكبر، توفر واجهة Serverless Inference API مجانية لتشغيل نماذج البرمجة المفتوحة المصدر.",
-            apiKeyUrl = "https://huggingface.co/settings/tokens",
-            freeTierInfo = "رموز وصول شخصية (User Access Tokens) مجانية دائمة للاستدلال السريع.",
-            steps = listOf(
-                "سجل حساباً مجانياً على منصة Hugging Face.",
-                "اذهب إلى «Settings» ثم «Access Tokens».",
-                "اضغط «New token»، اختر نوع الصلاحية «Read».",
-                "انسخ الرمز الذي يبدأ بـ «hf_...» والصقه في إعدادات الوكيل."
-            )
-        )
     )
 }

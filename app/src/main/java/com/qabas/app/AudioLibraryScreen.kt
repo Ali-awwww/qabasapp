@@ -833,10 +833,7 @@ fun AIVoiceoverSection(
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
-    val hasCloudTts = remember { ServiceAvailabilityRegistry.hasCloudTtsKey() }
-
     var scriptText by remember { mutableStateOf("") }
-    var selectedEngine by remember { mutableStateOf("AZURE") }
     var selectedVoiceName by remember { mutableStateOf("ar-SA-HamedNeural") }
     var selectedTone by remember { mutableStateOf("وثائقي") }
     var speakingRate by remember { mutableStateOf("+0%") }
@@ -847,7 +844,7 @@ fun AIVoiceoverSection(
     var generatedAudioTitle by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
-    val azureVoices = remember {
+    val neuralVoices = remember {
         listOf(
             VoiceCharacter("ar-SA-HamedNeural", "حامد (سعودي)", "وقور ورخيم - تدبر وتلاوة", "خاشع", "https://vauisbhajmjpjjpkmvqy.supabase.co/storage/v1/object/public/previews/hamed_preview.mp3"),
             VoiceCharacter("ar-EG-ShakirNeural", "شاكر (مصري)", "وثائقي ورصين - سيرة وقصص", "وثائقي", "https://vauisbhajmjpjjpkmvqy.supabase.co/storage/v1/object/public/previews/shakir_preview.mp3"),
@@ -858,14 +855,6 @@ fun AIVoiceoverSection(
         )
     }
 
-    val elevenlabsVoices = remember {
-        listOf(
-            VoiceCharacter("21m00Tcm4TlvDq8ikWAM", "Rachel (ElevenLabs)", "هادئ متزن وواضح", "طبيعي", "https://vauisbhajmjpjjpkmvqy.supabase.co/storage/v1/object/public/previews/rachel_preview.mp3"),
-            VoiceCharacter("pNInz6obpgDQGcFmaJgB", "Adam (ElevenLabs)", "عميق وملحمي سينمائي", "ملحمي", "https://vauisbhajmjpjjpkmvqy.supabase.co/storage/v1/object/public/previews/adam_preview.mp3"),
-            VoiceCharacter("ErXwobaYiN019PkySvjV", "Antoni (ElevenLabs)", "حيوي وشبابي معبّر", "حماسي", "https://vauisbhajmjpjjpkmvqy.supabase.co/storage/v1/object/public/previews/antoni_preview.mp3"),
-            VoiceCharacter("EXAVITQu4vr4xnSDxMaL", "Bella (ElevenLabs)", "سردي وناعم للمونتاج", "قصصي", "https://vauisbhajmjpjjpkmvqy.supabase.co/storage/v1/object/public/previews/bella_preview.mp3")
-        )
-    }
 
     val previewPlayer = remember { MediaPlayer() }
     var isPreviewPlaying by remember { mutableStateOf(false) }
@@ -910,13 +899,6 @@ fun AIVoiceoverSection(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         heroBanner?.invoke()
-
-        if (!hasCloudTts) {
-            AppleKeyRequiredBanner(
-                serviceName = "أصوات Azure و ElevenLabs السحابية",
-                reason = "مفاتيح ElevenLabs أو Azure Speech غير مضافة؛ سيتم الاعتماد على محرك النطق المحلي المتاح عند التوليد أو تنبيهك إذا تعذر التوليد."
-            )
-        }
 
         AppleCard(cornerRadius = 16.dp) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -997,41 +979,18 @@ fun AIVoiceoverSection(
             }
         }
 
-        Column {
-            Text("محرك التوليد الصوتي", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                EngineCard(
-                    title = "Azure Neural Speech",
-                    subtitle = "نطق عربي وتشكيل دقيق",
-                    icon = Icons.Default.Bolt,
-                    isSelected = selectedEngine == "AZURE",
-                    modifier = Modifier.weight(1f)
-                ) {
-                    selectedEngine = "AZURE"
-                    selectedVoiceName = "ar-SA-HamedNeural"
-                }
-
-                EngineCard(
-                    title = "ElevenLabs Studio",
-                    subtitle = "نبرات سينمائية متعددة",
-                    icon = Icons.Default.Mic,
-                    isSelected = selectedEngine == "ELEVENLABS",
-                    modifier = Modifier.weight(1f)
-                ) {
-                    selectedEngine = "ELEVENLABS"
-                    selectedVoiceName = "21m00Tcm4TlvDq8ikWAM"
-                }
+        AppleCard(cornerRadius = 16.dp) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("محرك التوليد الصوتي المحلي", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("يُولَّد التعليق محلياً عبر Kokoro وEdge-TTS ومحرك النظام — بلا مفاتيح سحابية.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
         }
+
 
         Column {
             Text("المؤدي الصوتي والنبرة", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            val currentVoiceList = if (selectedEngine == "AZURE") azureVoices else elevenlabsVoices
+            val currentVoiceList = neuralVoices
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(currentVoiceList) { voice ->
                     val isSelected = selectedVoiceName == voice.id
@@ -1104,25 +1063,13 @@ fun AIVoiceoverSection(
                 }
                 isGenerating = true
                 coroutineScope.launch {
-                    val resultPath = if (selectedEngine == "ELEVENLABS") {
-                        AppServices.generateVoiceover(
-                            text = scriptText,
-                            tone = selectedTone,
-                            voiceId = selectedVoiceName,
-                            engine = selectedEngine,
-                            rate = speakingRate,
-                            pitch = pitchSetting
-                        )
-                    } else {
-                        AppServices.generateVoiceover(
-                            text = scriptText,
-                            tone = selectedTone,
-                            customVoiceName = selectedVoiceName,
-                            engine = selectedEngine,
-                            rate = speakingRate,
-                            pitch = pitchSetting
-                        )
-                    }
+                    val resultPath = AppServices.generateVoiceover(
+                        text = scriptText,
+                        tone = selectedTone,
+                        voiceId = selectedVoiceName,
+                        rate = speakingRate,
+                        pitch = pitchSetting
+                    )
                     isGenerating = false
                     if (resultPath != null) {
                         generatedAudioPath = resultPath
@@ -1133,7 +1080,7 @@ fun AIVoiceoverSection(
                             val trackEntity = AudioTrackEntity(
                                 id = "AI_VOICE_${System.currentTimeMillis()}",
                                 title = generatedAudioTitle,
-                                artistOrVibe = "$selectedEngine | $selectedTone",
+                                artistOrVibe = "محلي | $selectedTone",
                                 typeCategory = "AI_VOICEOVER",
                                 audioUrlOrPath = resultPath,
                                 duration = "0:30",

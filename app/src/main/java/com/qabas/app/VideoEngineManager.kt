@@ -152,7 +152,7 @@ class VideoEngineManager(private val context: Context) {
                         it.isNotBlank() && (it.startsWith("http") || File(it).exists()) 
                     } ?: scene.visualEffect.takeIf { it.startsWith("http") }
 
-                    // Priority 1: Real Pexels / Pixabay (with predictive prefetch cache first)
+                    // Priority 1: Real Pixabay (with predictive prefetch cache first)
                     if (mediaToUse.isNullOrBlank()) {
                         val query = "${scene.title} ${scene.description}".trim()
                         val prefetched = BrollPrefetch.cached(query) ?: BrollPrefetch.cached(scene.title) ?: BrollPrefetch.cached(scene.description.take(60))

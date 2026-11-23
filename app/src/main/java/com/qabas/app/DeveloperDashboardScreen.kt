@@ -2135,12 +2135,6 @@ fun SystemPerformanceHealthKpiGrid(context: Context) {
                     subtitle = "متوسط زمن الاستدعاء",
                     modifier = Modifier.weight(1f)
                 )
-                KpiMetricBox(
-                    title = "ElevenLabs",
-                    value = DevDashboardFormatters.formatLatency(stats["ElevenLabs"]?.avgLatencyMs ?: 0L),
-                    subtitle = "متوسط زمن الصوت",
-                    modifier = Modifier.weight(1f)
-                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -2451,7 +2445,7 @@ fun ApiConsumptionChart(context: Context) {
                 apis.forEach { name ->
                     val calls = stats[name]?.totalCalls ?: 0L
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        Text(name.replace("HuggingFace", "HF AI"), color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(name, color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Text(
                             if (calls > 0) "$calls استدعاء" else "0",
                             color = if (calls > 0) QabasTheme.current.success else QabasTheme.current.textTertiary,
@@ -2779,16 +2773,16 @@ fun diagnoseCrash(crash: CrashLogFile): CrashDiagnosis {
                 fix = "تحقق من الإنترنت؛ التطبيق يعمل بدون مفاتيح عبر الخلفيات البرمجية والنطق المدمج."
             )
 
-        // ─── Pexels / Pixabay ───
-        "pexels" in exc || "pixabay" in exc ->
+        // ─── Pixabay ───
+        "pixabay" in exc ->
             diag(
-                why = "فشل جلب B-Roll من Pexels/Pixabay. $locationHint",
+                why = "فشل جلب B-Roll من Pixabay. $locationHint",
                 how = "مفتاح غير صالح أو رفض عن بُعد. ${codeHint()}",
-                fix = "تحقق من مفاتيح Pexels/Pixabay؛ التطبيق يتحول تلقائياً للخلفيات البرمجية."
+                fix = "تحقق من مفتاح Pixabay؛ التطبيق يتحول تلقائياً للخلفيات البرمجية."
             )
 
         // ─── TTS ───
-        "texttospeech" in exc || "azurespeech" in exc || "elevenlabs" in exc ->
+        "texttospeech" in exc ->
             diag(
                 why = "فشل محرك توليد الصوت. $locationHint",
                 how = "${codeHint()} نقص مفتاح، انقطاع خدمة، أو عدم تثبيت أصوات محلية.",

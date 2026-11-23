@@ -850,22 +850,6 @@ class MainActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, "مرحباً بك في تطبيق خادم المسلم عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
         }
 
-        if (uri != null && uri.scheme == "qabas" && uri.host == "github-callback") {
-            val code = uri.getQueryParameter("code")
-            if (!code.isNullOrBlank()) {
-                lifecycleScope.launch {
-                    val token = GitHubAuthManager.exchangeCodeForToken(code)
-                    if (token != null) {
-                        GitHubAuthManager.saveAccessToken(this@MainActivity, token)
-                        Toast.makeText(this@MainActivity, "تم ربط حساب GitHub بنجاح! 🐙", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this@MainActivity, "فشل ربط حساب GitHub ❌", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            return
-        }
-
         if (uri != null &&
             uri.scheme == SupabaseConfig.PASSWORD_RESET_SCHEME &&
             uri.host == SupabaseConfig.PASSWORD_RESET_HOST
