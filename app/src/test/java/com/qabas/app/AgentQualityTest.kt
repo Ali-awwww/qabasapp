@@ -124,7 +124,7 @@ class AgentQualityTest {
     fun `agent screen renders deck modules and sub-tabs`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 5)
+                AiStudioAgentScreen(onBack = {})
             }
         }
 
@@ -144,7 +144,7 @@ class AgentQualityTest {
     fun `agent screen opens on developer hub overview`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 0)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_overview").assertExists()
@@ -154,7 +154,7 @@ class AgentQualityTest {
     fun `agent screen opens on projects section`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 3)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_projects").assertExists()
@@ -164,7 +164,7 @@ class AgentQualityTest {
     fun `workspace section uses the shared hub page header`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 1)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_page_02").assertExists()
@@ -174,7 +174,7 @@ class AgentQualityTest {
     fun `console section uses the shared hub page header`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 2)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_page_03").assertExists()
@@ -184,7 +184,7 @@ class AgentQualityTest {
     fun `history section uses the shared hub page header`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 4)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_page_05").assertExists()
@@ -194,7 +194,7 @@ class AgentQualityTest {
     fun `tools section uses the shared hub page header`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 5)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_page_06").assertExists()
@@ -206,7 +206,7 @@ class AgentQualityTest {
         AgentRunLog.clear(context)
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {}, initialTab = 4)
+                AiStudioAgentScreen(onBack = {})
             }
         }
         composeTestRule.onNodeWithText("إجمالي العمليات").assertExists()
