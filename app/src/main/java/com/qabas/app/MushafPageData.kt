@@ -118,29 +118,12 @@ object MushafPageData {
 
     fun isLoaded(): Boolean = pageRefs?.size == PAGE_COUNT
 
-    /**
-     * تأكد من أن كل مرجع في خريطة الصفحات يقابله نص آية محمّل،
-     * حتى لا تظهر صفحة ناقصة بسبب اختلاف نسختي البيانات.
-     */
-    fun matchesLoadedQuran(): Boolean {
-        val pages = pageRefs ?: return false
-        val refs = pages.flatten()
-        if (refs.size != 6236 || refs.distinct().size != 6236) return false
-        return refs.all { (surah, ayah) ->
-            !QuranDataProvider.getVerseText(surah, ayah).isNullOrBlank()
-        }
-    }
-
     /** مراجع (سورة، آية) لصفحة معينة (1-based). قائمة فارغة عند غياب التحميل. */
     fun getPageRefs(page: Int): List<Pair<Int, Int>> {
         val pages = pageRefs ?: return emptyList()
         if (page < 1 || page > PAGE_COUNT) return emptyList()
         return pages[page - 1]
     }
-
-    /** أرقام السور المميزة الظاهرة في الصفحة (بالترتيب). */
-    fun getSurahsOnPage(page: Int): List<Int> =
-        getPageRefs(page).map { it.first }.distinct()
 
     private fun refOrder(ref: Pair<Int, Int>): Int = ref.first * 1000 + ref.second
 
@@ -158,35 +141,6 @@ object MushafPageData {
         return juz
     }
 
-    /** رقم الحزب (1-60) الذي تنتمي إليه الصفحة حسب أول آية فيها. -1 عند غياب البيانات. */
-    fun getHizbForPage(page: Int): Int {
-        val hizbFirst = hizbFirstRefs ?: return -1
-        if (hizbFirst.isEmpty()) return -1
-        val refs = getPageRefs(page)
-        if (refs.isEmpty()) return -1
-        val order = refOrder(refs.first())
-        var hizb = 1
-        for (j in hizbFirst.indices) {
-            if (refOrder(hizbFirst[j]) <= order) hizb = j + 1 else break
-        }
-        return hizb
-    }
-
-    /** أول صفحة تبدأ منها سورة معينة (أول ظهور لآيتها الأولى). -1 عند الغياب. */
-    fun getPageForSurah(surahId: Int): Int {
-        val pages = pageRefs ?: return -1
-        for (p in pages.indices) {
-            if (pages[p].any { it.first == surahId && it.second == 1 }) return p + 1
-            // سور تُستكمل من صفحة سابقة: أول صفحة تذكر السورة إطلاقاً
-            if (pages[p].any { it.first == surahId }) {
-                // تحقق أنها البداية الفعلية: الصفحة السابقة لا تحويها
-                val prevHas = p > 0 && pages[p - 1].any { it.first == surahId }
-                if (!prevHas) return p + 1
-            }
-        }
-        return -1
-    }
-
     /** أول صفحة في جزء معين (1-30). -1 عند الغياب. */
     fun getPageForJuz(juz: Int): Int {
         val juzFirst = juzFirstRefs ?: return -1
@@ -197,6 +151,24 @@ object MushafPageData {
             if (pages[p].any { it == target }) return p + 1
         }
         // احتياطي: أول صفحة يتجاوز ترتيبها ترتيب أول آية في الجزء
+        val order = refOrder(target)
+        for (p in pages.indices) {
+            val refs = pages[p]
+            if (refs.isNotEmpty() && refOrder(refs.first()) >= order) return p + 1
+        }
+        return -1
+    }
+
+    /** أول صفحة في حزب معين (1-60). -1 عند الغياب. */
+    fun getPageForHizb(hizb: Int): Int {
+        val hizbFirst = hizbFirstRefs ?: return -1
+        if (hizb < 1 || hizb > hizbFirst.size) return -1
+        val target = hizbFirst[hizb - 1]
+        val pages = pageRefs ?: return -1
+        for (p in pages.indices) {
+            if (pages[p].any { it == target }) return p + 1
+        }
+        // احتياطي: أول صفحة يتجاوز ترتيبها ترتيب أول آية في الحزب
         val order = refOrder(target)
         for (p in pages.indices) {
             val refs = pages[p]

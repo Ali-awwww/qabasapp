@@ -10,6 +10,5 @@ object TestTags {
     const val SEARCH_FIELD = "search_field"
 
     const val HOME_SCREEN = "home_screen"
-    const val SETTINGS_SCREEN = "settings_screen"
     const val PROJECTS_SCREEN = "projects_screen"
 }

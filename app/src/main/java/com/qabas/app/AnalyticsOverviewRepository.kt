@@ -150,7 +150,7 @@ object AnalyticsOverviewRepository {
             dailyDau = dailyDau,
             topEvents = topEvents
         )
-    }.onFailure {
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
         Log.w(TAG, "loadOverview failed (table probably not applied yet): ${it.message}")
     }.getOrDefault(OverviewStats(analyticsAvailable = false))
 

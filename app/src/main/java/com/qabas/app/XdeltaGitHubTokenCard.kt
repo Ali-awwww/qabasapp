@@ -27,7 +27,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -35,7 +34,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.CairoFont
+import com.qabas.app.ui.theme.CardSurface
+import com.qabas.app.ui.theme.DeepSlate
 import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.PresetPrimary
+import com.qabas.app.ui.theme.TextPrimary
+import com.qabas.app.ui.theme.TextSecondary
+import com.qabas.app.ui.theme.TextTertiary
+import com.qabas.app.ui.theme.ThemeSuccess
+import com.qabas.app.ui.theme.ThemeWarning
 import kotlinx.coroutines.launch
 
 @Composable
@@ -49,14 +56,14 @@ fun XdeltaGitHubTokenCard() {
 
     LaunchedEffect(Unit) {
         loadingStatus = true
-        configured = runCatching { SupabaseServices.Database.getGitHubTokenConfigured() }.getOrNull()
+        configured = runCatching { SupabaseServices.Database.getGitHubTokenConfigured() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
         loadingStatus = false
     }
 
     GlassmorphicSurface(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = Color(0xFF0D1527).copy(alpha = 0.92f),
-        borderColor = Color(0xFF10B981).copy(alpha = 0.45f),
+        backgroundColor = CardSurface.copy(alpha = 0.92f),
+        borderColor = ThemeSuccess.copy(alpha = 0.45f),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -64,10 +71,10 @@ fun XdeltaGitHubTokenCard() {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF34D399))
+                Icon(Icons.Default.Key, contentDescription = null, tint = ThemeSuccess)
                 Text(
                     text = "خزنة GitHub السحابية",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
@@ -75,7 +82,7 @@ fun XdeltaGitHubTokenCard() {
             }
             Text(
                 text = "أدخل توكن GitHub هنا. يُرسل إلى الخادم مباشرة ويُحفظ في app_secrets؛ لا يُخزّن على الجهاز ولا يُعاد عرضه بعد الحفظ.",
-                color = Color(0xFFCBD5E1),
+                color = TextSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp
             )
@@ -90,13 +97,13 @@ fun XdeltaGitHubTokenCard() {
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF00E5FF),
-                    unfocusedBorderColor = Color(0xFF475569),
-                    focusedLabelColor = Color(0xFF00E5FF),
-                    unfocusedLabelColor = Color(0xFF94A3B8),
-                    cursorColor = Color(0xFF00E5FF)
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = PresetPrimary,
+                    unfocusedBorderColor = TextTertiary,
+                    focusedLabelColor = PresetPrimary,
+                    unfocusedLabelColor = TextSecondary,
+                    cursorColor = PresetPrimary
                 )
             )
             Row(
@@ -106,9 +113,9 @@ fun XdeltaGitHubTokenCard() {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (loadingStatus) {
-                        CircularProgressIndicator(modifier = Modifier.padding(2.dp), strokeWidth = 2.dp, color = Color(0xFF00E5FF))
+                        CircularProgressIndicator(modifier = Modifier.padding(2.dp), strokeWidth = 2.dp, color = PresetPrimary)
                     } else if (configured == true) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF34D399))
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = ThemeSuccess)
                     }
                     Text(
                         text = when {
@@ -117,7 +124,7 @@ fun XdeltaGitHubTokenCard() {
                             configured == false -> "لم يُضبط توكن بعد"
                             else -> "تعذر قراءة حالة الخزنة"
                         },
-                        color = if (configured == true) Color(0xFF34D399) else Color(0xFF94A3B8),
+                        color = if (configured == true) ThemeSuccess else TextSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.sp
                     )
@@ -129,7 +136,7 @@ fun XdeltaGitHubTokenCard() {
                         saving = true
                         message = null
                         scope.launch {
-                            runCatching { SupabaseServices.Database.saveGitHubToken(submitted) }
+                            runCatching { SupabaseServices.Database.saveGitHubToken(submitted) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                 .onSuccess { saved ->
                                     configured = saved
                                     if (saved) {
@@ -145,11 +152,11 @@ fun XdeltaGitHubTokenCard() {
                             saving = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857)),
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemeSuccess),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     if (saving) {
-                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.padding(end = 8.dp), color = Color.White)
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.padding(end = 8.dp), color = DeepSlate)
                     } else {
                         Icon(Icons.Default.Save, contentDescription = null)
                     }
@@ -157,11 +164,11 @@ fun XdeltaGitHubTokenCard() {
                 }
             }
             message?.let {
-                Text(it, color = if (configured == true) Color(0xFF34D399) else Color(0xFFFBBF24), fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text(it, color = if (configured == true) ThemeSuccess else ThemeWarning, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
             Text(
                 text = "الصلاحيات المطلوبة على المستودع: Actions (Read and write)، وContents (Read). لا تُرسل التوكن عبر الدردشة أو البلاغات.",
-                color = Color(0xFF94A3B8),
+                color = TextSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 11.sp
             )

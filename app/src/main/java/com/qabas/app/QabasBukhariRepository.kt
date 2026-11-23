@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import kotlinx.serialization.json.Json
 import org.json.JSONArray
@@ -101,25 +100,6 @@ object QabasBukhariRepository {
                 inBookReference = "رقم الحديث $hadithNumber"
             )
         }
-    }
-
-    fun importAndLoad(context: Context, uri: Uri): List<BukhariHadith> {
-        val input = context.contentResolver.openInputStream(uri) ?: error("تعذر فتح الملف المحدد")
-        input.use { source ->
-            val destination = File(context.filesDir, IMPORT_FILE_NAME)
-            destination.outputStream().use { target ->
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                var total = 0L
-                while (true) {
-                    val count = source.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    require(total <= MAX_IMPORTED_BYTES) { "ملف الأحاديث أكبر من الحد المسموح (8 MB)" }
-                    target.write(buffer, 0, count)
-                }
-            }
-        }
-        return load(context)
     }
 
     /** Rejects unexpectedly large decompressed data before it can exhaust process memory. */

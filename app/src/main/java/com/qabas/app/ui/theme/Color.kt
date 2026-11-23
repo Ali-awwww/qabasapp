@@ -2,14 +2,6 @@ package com.qabas.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
-
 // Apple iOS HIG Light Palette (Clean Minimal Light)
 val AppleLightBackground = Color(0xFFF2F2F7)        // iOS systemGroupedBackground
 val AppleLightSurface = Color(0xFFFFFFFF)           // iOS secondarySystemGroupedBackground
@@ -62,12 +54,6 @@ val CyberLightSecondaryLabel = Color(0xFF42516F)
 val CyberLightPrimary = Color(0xFF007C73)
 val CyberLightAccent = Color(0xFFB01890)
 
-// Static Fallbacks
-val StaticDeepSlate = Color(0xFF000000)
-val StaticCardSurface = Color(0xFF1C1C1E)
-val StaticGoldPrimary = CyberDarkPrimary
-val StaticGoldSecondary = CyberDarkAccent
-
 // Dynamic Palette (Bound reactively to ThemeManager.activePreset & isDarkState across all Compose & non-Compose contexts)
 val DeepSlate: Color
     get() = ThemeManager.activePreset.backgroundColor
@@ -85,11 +71,17 @@ val ThemeSeparator: Color
         if (ThemeManager.isDarkState) CyberDarkSeparator else CyberLightSeparator
     } else if (ThemeManager.isDarkState) AppleDarkSeparator else AppleLightSeparator
 
-val GoldPrimary: Color
+val PresetPrimary: Color
     get() = ThemeManager.activePreset.primaryColor
 
-val GoldSecondary: Color
+val PresetAccent: Color
     get() = ThemeManager.activePreset.accentColor
+
+// ذهبي حقيقي مستقل عن السمة (الجولة 69): لا يتغير بتبديل السمة — داكناً E8C547 وفاتحاً 9A6B00 —
+// للاستخدامات الذهبية المقصودة فعلاً (ختم ذهبي، بريميوم، تمييز)، لا للون الأساسي العام.
+// (قبلها كان اللون الأساسي يُستعمل خطأً لهذا الغرض وهو تركوازي في السمة الافتراضية.)
+val QabasGold: Color
+    get() = if (ThemeManager.isDarkState) AppleDarkGold else AppleLightGold
 
 val ThemeSuccess: Color
     get() = if (ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkGreen else if (ThemeManager.isDarkState) AppleDarkGreen else AppleLightGreen
@@ -110,16 +102,12 @@ val TextSecondary: Color
         if (ThemeManager.isDarkState) CyberDarkSecondaryLabel else CyberLightSecondaryLabel
     } else if (ThemeManager.isDarkState) AppleDarkSecondaryLabel else AppleLightSecondaryLabel
 
-val MushafCream = Color(0xFFFFFEF7)
-val MushafBorder = Color(0xFFD4AF37).copy(alpha = 0.45f)
-val MushafHeaderGold = Color(0xFFB8860B)
-val MushafDeepRed = Color(0xFF8B0000)
-
-val AntiqueParchment = Color(0xFFF4EAD5)
-val OldInk = Color(0xFF2C1E12)
-val ManuscriptGold = Color(0xFFB8860B)
-val AgedPaper = Color(0xFFE8DCC4)
-val DeepLibraryBlue = Color(0xFF1A2238)
+// (الجولة 148) كان هذا الرمز مستعملاً بلا إعلان في موضعين (CrashLogsHubScreen.kt:1702 منذ الجولة 70،
+// وStyleSelectionScreen.kt:263 منذ الجولة 145) — Unresolved reference يكسر الترجمة. القيم مطابقة
+// لبناء QabasDesignTheme.textTertiary في Theme.kt (داكناً AppleDarkSecondaryLabel‏ @0.78، فاتحاً
+// AppleLightSecondaryLabel 6C6C70) بلا تفرّع CYBER — كما في البناء نفسه.
+val TextTertiary: Color
+    get() = if (ThemeManager.isDarkState) AppleDarkSecondaryLabel.copy(alpha = 0.78f) else AppleLightSecondaryLabel
 
 // Adaptive Accent Tokens (Cyberpunk-aware while preserving non-Cyber presets)
 val AiCyan: Color
@@ -130,31 +118,7 @@ val AiCyanLight: Color
     get() = if (ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE) {
         if (ThemeManager.isDarkState) CyberDarkBlue else CyberLightPrimary
     } else if (ThemeManager.isDarkState) Color(0xFF5AC8FA) else AppleLightBlue
-val AiTeal: Color
-    get() = if (ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE) {
-        if (ThemeManager.isDarkState) CyberDarkPrimary else CyberLightPrimary
-    } else if (ThemeManager.isDarkState) Color(0xFF40CBE0) else Color(0xFF0A8499)
-val AiViolet: Color
-    get() = if (ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE) {
-        if (ThemeManager.isDarkState) CyberDarkAccent else CyberLightAccent
-    } else if (ThemeManager.isDarkState) AppleDarkIndigo else AppleLightIndigo
-val AiVioletLight: Color
-    get() = if (ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE) {
-        if (ThemeManager.isDarkState) CyberDarkAccent else CyberLightAccent
-    } else if (ThemeManager.isDarkState) Color(0xFFA5A3FF) else Color(0xFF5856D6)
-val AiVioletDeep: Color
-    get() = Color(0xFF4B49B6)
-val AiGlowBlue: Color
-    get() = AiCyan
 val AiNeonGreen: Color
     get() = ThemeSuccess
 val AiDanger: Color
     get() = ThemeDestructive
-
-// Light Palette Constants (Preserved for compatibility)
-val LightBackground = AppleLightBackground
-val LightSurface = AppleLightSurface
-val LightCardSurface = AppleLightSecondarySurface
-val LightTextPrimary = AppleLightLabel
-val LightTextSecondary = AppleLightSecondaryLabel
-val LightBorder = AppleLightSeparator

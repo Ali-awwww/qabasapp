@@ -27,7 +27,7 @@ object StyleBrainCrashGuard {
                     framesDir.listFiles()?.forEach { f ->
                         if (System.currentTimeMillis() - f.lastModified() > 900_000) f.delete()
                     }
-                } catch (_: Exception) {}
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
 
                 var durationSeconds = 6.0
                 val retriever = android.media.MediaMetadataRetriever()
@@ -71,7 +71,7 @@ object StyleBrainCrashGuard {
                 } finally {
                     try { retriever.release() } catch (_: Exception) {}
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e("StyleBrainCrashGuard", "extractKeyFramesSafe: ${e.message}", e)
             }
             out

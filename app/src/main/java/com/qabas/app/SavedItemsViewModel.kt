@@ -122,29 +122,8 @@ class SavedItemsViewModel(
             try {
                 repository.deleteItem(uid, itemId)
                 _syncMessage.value = "تم الحذف من سحابة خادم المسلم"
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 _syncMessage.value = "تعذر الحذف: ${e.localizedMessage}"
-            }
-        }
-    }
-
-    fun saveAyah(surah: String, ayahNumber: Int, text: String) {
-        viewModelScope.launch {
-            val uid = SupabaseServices.Auth.getCurrentUserId() ?: return@launch
-            val item = SavedItem(
-                id = "ayah_${surah}_$ayahNumber",
-                userId = uid,
-                itemType = SavedItemType.QURAN_AYAH.rawValue,
-                title = "سورة $surah - آية $ayahNumber",
-                content = text,
-                reference = "$surah: $ayahNumber",
-                tags = listOf("قرآن كريم", surah)
-            )
-            try {
-                repository.saveItem(item)
-                _syncMessage.value = "تم حفظ الآية في سحابة خادم المسلم ✦"
-            } catch (e: Exception) {
-                _syncMessage.value = "تعذر الحفظ: ${e.localizedMessage}"
             }
         }
     }
@@ -164,7 +143,7 @@ class SavedItemsViewModel(
             try {
                 repository.saveItem(item)
                 _syncMessage.value = "تم حفظ الخاطرة في سحابة خادم المسلم ✦"
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 _syncMessage.value = "تعذر الحفظ: ${e.localizedMessage}"
             }
         }

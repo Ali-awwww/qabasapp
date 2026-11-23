@@ -24,46 +24,6 @@ object LocalAgentInferenceEngine {
     private const val TAG = "LocalAgentEngine"
 
     /**
-     * محادثة طبيعية عبر النموذج المحلي — تعيد failure صادقاً إذا كان المحرك غير جاهز،
-     * بدل الرد بقالب وهمي. بهذا "مرحباً" ترد من Qwen فعلاً أو برسالة حالة واضحة.
-     */
-    suspend fun executeLocalChat(
-        context: Context,
-        userMessage: String,
-        maxTokens: Int = 512
-    ): Result<LocalInferenceResult> = withContext(Dispatchers.IO) {
-        val readyModel = OnDeviceModelManager.getActiveReadyModel(context)
-            ?: return@withContext Result.failure(
-                IllegalStateException("لا يوجد نموذج محلي مثبت. نزّل Qwen 2.5 أولاً من مركز التنزيل.")
-            )
-        if (!LlamaCppService.isEngineAvailable()) {
-            return@withContext Result.failure(
-                IllegalStateException(LlamaCppService.lastError ?: "محرك llama_jni غير متاح لسبب غير معروف.")
-            )
-        }
-        val startTime = System.currentTimeMillis()
-        val reply = LlamaCppService.chatLocal(context, readyModel.fileName, userMessage, maxTokens)
-            ?: return@withContext Result.failure(
-                IllegalStateException(LlamaCppService.lastError ?: "تعذر التوليد لسبب غير معروف.")
-            )
-        if (reply.isBlank()) {
-            return@withContext Result.failure(
-                IllegalStateException(LlamaCppService.lastError ?: "النموذج أعاد رداً فارغاً لسبب غير معروف.")
-            )
-        }
-        val latencyMs = System.currentTimeMillis() - startTime
-        Result.success(
-            LocalInferenceResult(
-                outputText = reply,
-                modelName = readyModel.name,
-                tokensGenerated = (reply.length / 3.8).toInt().coerceAtLeast(1),
-                executionLatencyMs = latencyMs,
-                isNativeJni = true
-            )
-        )
-    }
-
-    /**
      * تنفيذ توليد الكود المحلي عبر النموذج المثبت
      */
     suspend fun executeLocalCodeSynthesis(
@@ -99,7 +59,7 @@ object LocalAgentInferenceEngine {
                     temperature = 0.4f
                 )
             }
-        } catch (e: Throwable) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) {
             Log.w(TAG, "LlamaCpp JNI execution failed: ${e.message}")
         }
 

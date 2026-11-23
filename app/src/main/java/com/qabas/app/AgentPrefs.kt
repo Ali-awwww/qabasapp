@@ -158,6 +158,74 @@ object AgentPrefs {
     fun isToolEnabled(context: Context, name: String): Boolean =
         getBoolean(context, toolKey(name), true)
 
+    fun putLong(context: Context, key: String, value: Long) {
+        instance(context).edit().putLong(key, value).apply()
+    }
+
+    fun getLong(context: Context, key: String, default: Long): Long =
+        instance(context).getLong(key, default)
+
+    // نطاق صلاحيات ملفات الوكيل (12.16): بادئات مسارات وفروع مسموحة، مفصولة بفواصل.
+    // قائمة فارغة = بلا قيد (السلوك السابق) وتُعرض كذلك بصدق في تبويب التحكم.
+    const val ALLOWED_PATH_PREFIXES = "agent_allowed_path_prefixes"
+    const val ALLOWED_BRANCHES = "agent_allowed_branches"
+
+    fun allowedPathPrefixes(context: Context): List<String> =
+        getString(context, ALLOWED_PATH_PREFIXES).split(",")
+            .map { it.trim() }.filter { it.isNotEmpty() }
+
+    fun putAllowedPathPrefixes(context: Context, prefixes: List<String>) {
+        putString(context, ALLOWED_PATH_PREFIXES, prefixes.joinToString(", "))
+    }
+
+    fun allowedBranches(context: Context): List<String> =
+        getString(context, ALLOWED_BRANCHES).split(",")
+            .map { it.trim() }.filter { it.isNotEmpty() }
+
+    fun putAllowedBranches(context: Context, branches: List<String>) {
+        putString(context, ALLOWED_BRANCHES, branches.joinToString(", "))
+    }
+
+    fun isPathAllowed(context: Context, path: String): Boolean {
+        val allowed = allowedPathPrefixes(context)
+        if (allowed.isEmpty()) return true
+        val clean = path.trim().removePrefix("/")
+        return allowed.any { rawPrefix ->
+            val prefix = rawPrefix.trim().removePrefix("/").removeSuffix("/")
+            clean == prefix || clean.startsWith("$prefix/")
+        }
+    }
+
+    fun isBranchAllowed(context: Context, branch: String): Boolean {
+        val allowed = allowedBranches(context)
+        if (allowed.isEmpty()) return true
+        return branch in allowed
+    }
+
+    // الوضع المستقل (12.9): افتراضياً متوقف — التنفيذ بلا تأكيد كان الافتراضي
+    // السابق (true) وهو ما يُلغي عملياً «تأكيد لكل خطوة».
+    const val AUTONOMOUS_MODE = "agent_autonomous_mode"
+
+    fun isAutonomousMode(context: Context): Boolean =
+        getBoolean(context, AUTONOMOUS_MODE, false)
+
+    fun putAutonomousMode(context: Context, enabled: Boolean) {
+        putBoolean(context, AUTONOMOUS_MODE, enabled)
+    }
+
+    // حد التكلفة بالدولار (12.9/12.14): يُحفظ ويُعرض فقط في هذه المرحلة —
+    // الإيقاف عند بلوغ الحد تنفيذ لاحق (بند 12.14)، فلا إيقاف وهمي هنا.
+    // null = بلا حد. يُخزن نصاً لأن SharedPreferences بلا putDouble.
+    const val COST_LIMIT_USD = "agent_cost_limit_usd"
+
+    fun getCostLimitUsd(context: Context): Double? =
+        getString(context, COST_LIMIT_USD, "").toDoubleOrNull()?.coerceAtLeast(0.0)
+
+    fun putCostLimitUsd(context: Context, usd: Double?) {
+        if (usd == null) remove(context, COST_LIMIT_USD)
+        else putString(context, COST_LIMIT_USD, usd.toString())
+    }
+
     fun maxTurns(context: Context): Int =
         getInt(context, MAX_TURNS, 6).coerceIn(1, 10)
 
@@ -193,11 +261,6 @@ object AgentPrefs {
         putBoolean(context, AUTO_FIX, enabled)
     }
 
-    /** prefered key storage helper for GitHub PAT. */
-    fun putGitHubPat(context: Context, token: String) {
-        putString(context, GITHUB_PAT, token)
-    }
-
     fun getGitHubPat(context: Context): String = getString(context, GITHUB_PAT)
 
     fun putGitHubRepo(context: Context, owner: String, repo: String) {
@@ -220,7 +283,4 @@ object AgentPrefs {
 
     fun loadActiveMission(context: Context): String = getString(context, ACTIVE_MISSION_JSON)
 
-    fun clearActiveMission(context: Context) {
-        remove(context, ACTIVE_MISSION_JSON)
-    }
 }

@@ -70,7 +70,7 @@ class GiftManager(private val context: Context) {
                     Log.d(TAG, "Loaded ${promos.size} promo codes and ${gifts.size} gift cards from Supabase.")
                     return
                 }
-            }.onFailure { Log.w(TAG, "Supabase promo load failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "Supabase promo load failed: ${it.message}") }
         }
 
         validPromoCodes = emptyMap()
@@ -277,20 +277,4 @@ class GiftManager(private val context: Context) {
         return RedemptionResult.INVALID_CODE
     }
 
-    /**
-     * حجز كود مسبقاً قبل عملية الدفع (للمعاملات ومسار الشراء)
-     */
-    suspend fun reservePromoForCheckout(
-        code: String,
-        idempotencyKey: String = UUID.randomUUID().toString()
-    ): Result<SupabaseServices.PromoReservationResponse> {
-        return SupabaseServices.Database.reservePromoCode(code, idempotencyKey)
-    }
-
-    /**
-     * إلغاء حجز الكود عند فشل أو تراجع المستخدم عن الدفع
-     */
-    suspend fun releasePromoReservation(reservationToken: String): Result<Boolean> {
-        return SupabaseServices.Database.releasePromoCode(reservationToken)
-    }
 }

@@ -58,7 +58,7 @@ object PrayerLocationProvider {
                 @Suppress("DEPRECATION")
                 Geocoder(context, Locale("ar")).getFromLocation(location.latitude, location.longitude, 1)
                     ?.firstOrNull()
-            }.getOrNull()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
 
             val cityName = address?.locality ?: address?.subAdminArea ?: address?.adminArea ?: "موقعي الحالي"
             val countryName = address?.countryName ?: address?.countryCode ?: "غير معروف"

@@ -70,10 +70,11 @@ object PrayerAlarmManager {
         val cityTimeZone = PrayerCalculationHelper.timeZoneFor(city)
         val now = Calendar.getInstance(cityTimeZone)
         val calculationMethod = PrayerCalculationHelper.getSelectedCalculationMethod(context, city)
-        val todayTimes = PrayerCalculationHelper.calculatePrayerTimes(now, city, calculationMethod)
+        val asrShadowFactor = PrayerCalculationHelper.getSelectedAsrShadowFactor(context)
+        val todayTimes = PrayerCalculationHelper.calculatePrayerTimes(now, city, calculationMethod, asrShadowFactor = asrShadowFactor)
 
         val tomorrowCal = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val tomorrowTimes = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCal, city, calculationMethod)
+        val tomorrowTimes = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCal, city, calculationMethod, asrShadowFactor = asrShadowFactor)
 
         // جدول كل الصلوات — التحقق من تمكين كل صلاة يتم داخل scheduleSinglePrayer
         // (مصدر الحقيقة الوحيد: qabas_prayer_prefs / notify_<key>) مع إلغاء المنبه المعطّل.
@@ -148,7 +149,11 @@ object PrayerAlarmManager {
             cancelPrayerAlarm(context, prayerKey)
         }.getOrNull() ?: return
 
-        val soundMode = prayerPrefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"
+        // «تكبير فقط» قيمة قديمة محفوظة بلا صوت تكبير مستقل خلفها — كانت
+        // تُشغّل الأذان الكامل؛ تُطبَّع إلى الأذان الكامل صراحةً، والخيار
+        // نفسه أُزيل من نافذة التخصيص فلا يختاره مستخدم جديد.
+        val rawSoundMode = prayerPrefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"
+        val soundMode = if (rawSoundMode == "TAKBEER_ONLY") "FULL_AZAN" else rawSoundMode
         val defaultVoice = MuezzinVoiceManager.getDefaultVoiceId(context)
         val voiceId = prayerPrefs.getString("voice_id_$prayerKey", defaultVoice) ?: defaultVoice
 

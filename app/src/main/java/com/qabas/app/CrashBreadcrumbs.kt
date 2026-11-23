@@ -2,8 +2,6 @@ package com.qabas.app
 
 import android.app.ActivityManager
 import android.content.Context
-import android.os.Build
-import android.os.Process
 import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
@@ -172,13 +170,6 @@ object CrashBreadcrumbs {
             }
         }
         return sb.toString().trimEnd()
-    }
-
-    /** سجل الانهيارات المحلي. */
-    fun reportNonFatal(context: Context, throwable: Throwable, contextInfo: String = "") {
-        runCatching {
-            QabasCrashGuard.record(context, Thread.currentThread().name, throwable, "nonfatal:$contextInfo")
-        }
     }
 
     /** صحة الإصدار الحالي: انهيارات / إجمالي إقلاعات. */

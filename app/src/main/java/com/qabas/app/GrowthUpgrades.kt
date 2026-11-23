@@ -1,9 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -50,8 +47,6 @@ object StreakManager {
         return count
     }
 
-    fun getFreezes(context: Context): Int =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_FREEZES, 1)
 }
 
 object HookEngine {
@@ -70,39 +65,9 @@ object HookEngine {
         )
     }
 
-    suspend fun getPack(idea: String): HookPack = withContext(Dispatchers.IO) {
-        val p = """
-            الفكرة: "$idea".
-            أخرج JSON فقط: {"hooks":["خطاف سؤال","خطاف تناقض","خطاف أمر"],"loopEnding":"جملة ختامية تحيل للبداية وتشجع إعادة المشاهدة","commentCta":"دعوة تعليق بكلمة واحدة"}.
-            كلها عربية فصيحة مبسطة، كل جملة أقل من 15 كلمة.
-        """.trimIndent()
-        val raw = try { RealGroqService.chatOrGenerate(p) } catch (_: Exception) { null }
-            ?: try { RealOpenAIService.chatOrGenerate(p) } catch (_: Exception) { null }
-        try {
-            if (raw != null && raw.contains("{")) {
-                val j = org.json.JSONObject(raw.substring(raw.indexOf("{"), raw.lastIndexOf("}") + 1))
-                val arr = j.optJSONArray("hooks")
-                val hooks = (0 until (arr?.length() ?: 0)).map { arr!!.getString(it) }.filter { it.isNotBlank() }.take(3)
-                if (hooks.isNotEmpty()) return@withContext HookPack(
-                    hooks,
-                    j.optString("loopEnding", "").ifBlank { localPack(idea).loopEnding },
-                    j.optString("commentCta", "").ifBlank { localPack(idea).commentCta }
-                )
-            }
-        } catch (_: Exception) {}
-        localPack(idea)
-    }
 }
 
 object SharePack {
     const val HASHTAGS_3 = "#خادم_المسلم #ريلز_إسلامي #تدبر"
-    const val COMMENT_CTA = "اكتب كلمة واحدة وصفت شعورك 👇"
-    const val NO_WATERMARK_NOTE = "صدّر بلا علامة مائية قبل الرفع — المنصات تخفض انتشار الفيديوهات الموسومة."
 
-    /** المدة الذهبية 2026: 30-45ث هي المساحة الآمنة لعتبة 65%. */
-    fun goldenDuration(current: String): String = when {
-        current.contains("15") -> "30 ثانية"
-        current.isBlank() -> "30 ثانية"
-        else -> current
-    }
 }

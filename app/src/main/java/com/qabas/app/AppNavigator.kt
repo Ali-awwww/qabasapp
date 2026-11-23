@@ -24,6 +24,15 @@ object AppNavigator {
     }
 
     /**
+     * يرسل نصاً أولياً إلى شاشة الإدخال — المستهلك الوحيد QabasApp.kt
+     * (يضع النص في inputText وينتقل إلى AppState.INPUT). كان التدفق
+     * pendingInputText بلا أي باعث، فلا يصل النص أبداً (الجولة 52).
+     */
+    fun navigateToInputWithText(text: String) {
+        _pendingInputText.tryEmit(text)
+    }
+
+    /**
      * وجهة تنقّل مطلوبة من إشعار (navigate_to / target_screen) — StateFlow
      * يبقى محفوظاً حتى استهلاكه، فيعمل مع الإقلاع البارد (قبل تركيب الواجهة)
      * ومع الاستئناف الدافئ على حد سواء.
@@ -41,17 +50,7 @@ object AppNavigator {
         _notificationDestination.value = null
     }
 
-    fun navigateToInputWithText(text: String) {
-        _pendingInputText.tryEmit(text)
-        _targetAppState.tryEmit(AppState.INPUT)
-    }
-
     private val _pendingChatInfo = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 4)
     val pendingChatInfo: SharedFlow<Pair<String, String>> = _pendingChatInfo.asSharedFlow()
 
-    /** طلب فتح محادثة دعم فني لبلاغ محدد */
-    fun navigateToChat(userEmail: String, requestId: String) {
-        _pendingChatInfo.tryEmit(userEmail to requestId)
-        _targetAppState.tryEmit(AppState.AI_STUDIO_AGENT)
-    }
 }

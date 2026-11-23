@@ -3,8 +3,6 @@ package com.qabas.app
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
 /**
@@ -38,7 +36,7 @@ class QabasBrainRepository(private val context: Context) {
         val cloudStyles = if (CloudServices.isFirebaseInitialized) {
             try {
                 CloudServices.Database.getCloudStyleObjects(userId)
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.w(TAG, "Error fetching from Firestore, falling back to local: ${e.message}")
                 emptyList()
             }
@@ -53,13 +51,6 @@ class QabasBrainRepository(private val context: Context) {
         // استخدام الأنماط المخزنة في ذاكرة StyleBrain المحلية كاحتياطي موثوق
         val localAbsorbed = StyleBrain.absorbedStyles.value
         return@withContext localAbsorbed.map { StyleObject.fromAbsorbedStyle(it) }
-    }
-
-    /**
-     * تدفق مراقبة حي لكائنات الأنماط من Firestore
-     */
-    fun observeStyleObjects(): Flow<List<StyleObject>> {
-        return CloudServices.Database.observeCloudStyleObjects().flowOn(Dispatchers.IO)
     }
 
     /**
@@ -145,7 +136,7 @@ class QabasBrainRepository(private val context: Context) {
                 saveStyleObject(updatedStyle)
                 StyleBrain.recordUserFeedbackOnStyle(context, target.name, isPositive, updatedStyle)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error recording style feedback in repository: ${e.message}")
         }
     }
@@ -168,7 +159,7 @@ class QabasBrainRepository(private val context: Context) {
 
             prefs.edit().putString("qabas_brain_decision_history_json", jsonArr.toString()).apply()
             Log.d(TAG, "Saved decision history item: ${item.decision.title}")
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error saving decision history: ${e.message}", e)
         }
     }
@@ -207,7 +198,7 @@ class QabasBrainRepository(private val context: Context) {
             val jsonArr = org.json.JSONArray()
             currentList.forEach { jsonArr.put(it.toJsonObject()) }
             prefs.edit().putString("qabas_brain_decision_history_json", jsonArr.toString()).apply()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error deleting decision history item: ${e.message}")
         }
     }
@@ -241,7 +232,7 @@ class QabasBrainRepository(private val context: Context) {
                     recordStyleFeedback(styleToReinforce, isPositive)
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error updating decision feedback: ${e.message}")
         }
     }

@@ -34,7 +34,7 @@ fun TranscriptVideoEditorScreen(
         containerColor = DeepSlate,
         topBar = {
             TopAppBar(
-                title = { Text("محرر النص 🎙️", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("محرر النص 🎙️", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = CardSurface)
             )
@@ -48,7 +48,7 @@ fun TranscriptVideoEditorScreen(
                         onClick = { lines = lines.map { SmartCut.clean(it) } },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
-                    ) { Text("إزالة الحشو ✂️", color = GoldPrimary, fontFamily = CairoFont, fontSize = 13.sp) }
+                    ) { Text("إزالة الحشو ✂️", color = PresetPrimary, fontFamily = CairoFont, fontSize = 13.sp) }
                     Button(
                         onClick = {
                             val out = scenes.mapIndexedNotNull { i, s ->
@@ -57,7 +57,7 @@ fun TranscriptVideoEditorScreen(
                             }
                             onApply(out)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("طبّق ✓", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
@@ -72,7 +72,7 @@ fun TranscriptVideoEditorScreen(
                         OutlinedTextField(
                             value = line, onValueChange = { v -> lines = lines.toMutableList().also { it[i] = v } },
                             modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp), maxLines = 3,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                         )
                         IconButton(onClick = {
                             lines = lines.toMutableList().also { it[i] = "" }

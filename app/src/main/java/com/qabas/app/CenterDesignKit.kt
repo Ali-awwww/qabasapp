@@ -10,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,11 +39,11 @@ fun CenterTabRow(
             val isSelected = selected == index
             Surface(
                 modifier = Modifier.clickable { onSelect(index) },
-                color = if (isSelected) GoldPrimary else CardSurface,
+                color = if (isSelected) PresetPrimary else CardSurface,
                 shape = RoundedCornerShape(20.dp),
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (isSelected) GoldPrimary else GoldPrimary.copy(alpha = 0.25f)
+                    if (isSelected) PresetPrimary else PresetPrimary.copy(alpha = 0.25f)
                 )
             ) {
                 Text(
@@ -78,11 +77,11 @@ fun CenterTabRowWithIcons(
             val isSelected = selected == index
             Surface(
                 modifier = Modifier.clickable { onSelect(index) },
-                color = if (isSelected) GoldPrimary else CardSurface,
+                color = if (isSelected) PresetPrimary else CardSurface,
                 shape = RoundedCornerShape(20.dp),
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (isSelected) GoldPrimary else GoldPrimary.copy(alpha = 0.25f)
+                    if (isSelected) PresetPrimary else PresetPrimary.copy(alpha = 0.25f)
                 )
             ) {
                 Row(
@@ -176,13 +175,13 @@ fun CenterHeaderCard(
                     FilledTonalButton(
                         onClick = onAction,
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = GoldPrimary.copy(alpha = 0.2f)
+                            containerColor = PresetPrimary.copy(alpha = 0.2f)
                         ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
                             if (actionDone && actionDoneLabel != null) actionDoneLabel else actionLabel,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 11.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold

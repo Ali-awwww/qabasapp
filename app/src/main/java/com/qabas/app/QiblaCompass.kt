@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.content.Context
+import android.hardware.GeomagneticField
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -27,11 +28,22 @@ import androidx.compose.ui.platform.LocalContext
  * بقيمة false، وعلى الواجهة حينها عرض الاتجاه الثابت بالتسمية الصادقة
  * «اتجاه القبلة» لا «بوصلة»، بدل التظاهر بوجود بوصلة.
  * قراءة حساس الدوران لا تحتاج أي إذن تشغيل.
+ *
+ * تصحيح الانحراف المغناطيسي (الجولة 103): سمت حساس الدوران مقاس من
+ * الشمال المغناطيسي، بينما اتجاه القبلة المحسوب في
+ * [PrayerCalculationHelper.calculateQibla] مقاس من الشمال الحقيقي —
+ * والفرق بينهما (الانحراف المغناطيسي) يبلغ نحو +4° في الرياض والقاهرة
+ * ويصل إلى ±13° في أجزاء من أمريكا، فكانت الإبرة تنحرف بهذا القدر.
+ * عند تمرير الإحداثيات تُصحَّح القراءة عبر [GeomagneticField] (نموذج
+ * المجال المغناطيسي العالمي، بلا إذن وبلا شبكة) فيصير [QiblaCompassState.azimuthDeg]
+ * سمتاً من الشمال الحقيقي؛ وبلا إحداثيات يبقى مغناطيسياً كما كان.
  */
 data class QiblaCompassState(
     /** False عند غياب حساس متجه الدوران في الجهاز أصلاً. */
     val isSensorAvailable: Boolean,
-    /** سمت الجهاز بالدرجات، 0 = الشمال، وnull قبل أول قراءة. */
+    /** سمت الجهاز بالدرجات، 0 = الشمال الحقيقي عند توفر الإحداثيات
+     * (بعد تصحيح الانحراف المغناطيسي)، والشمال المغناطيسي عند غيابها،
+     * وnull قبل أول قراءة. */
     val azimuthDeg: Float?,
     /** True ما دامت دقة الحساس غير موثوقة/منخفضة: يُطلب من المستخدم المعايرة. */
     val isCalibrationNeeded: Boolean
@@ -46,7 +58,10 @@ fun qiblaNeedleRotationDeg(qiblaBearingDeg: Float, azimuthDeg: Float?): Float =
     else ((qiblaBearingDeg - azimuthDeg) % 360f + 360f) % 360f
 
 @Composable
-fun rememberQiblaCompassState(): QiblaCompassState {
+fun rememberQiblaCompassState(
+    latitude: Double? = null,
+    longitude: Double? = null
+): QiblaCompassState {
     val context = LocalContext.current
     var azimuthDeg by remember { mutableStateOf<Float?>(null) }
     var isCalibrationNeeded by remember { mutableStateOf(false) }
@@ -54,8 +69,19 @@ fun rememberQiblaCompassState(): QiblaCompassState {
         val manager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null
     }
+    // الانحراف المغناطيسي عند الموقع (درجات، موجب شرقاً)؛ صفر بلا إحداثيات.
+    // حساب خالص بلا نقطة تعليق، فلا يبتلع إلغاءً (معيار الجولات 87/99).
+    val declinationDeg = remember(latitude, longitude) {
+        if (latitude == null || longitude == null) 0f
+        else runCatching {
+            GeomagneticField(
+                latitude.toFloat(), longitude.toFloat(), 0f,
+                System.currentTimeMillis()
+            ).declination
+        }.getOrDefault(0f)
+    }
 
-    DisposableEffect(context, sensorAvailable) {
+    DisposableEffect(context, sensorAvailable, declinationDeg) {
         if (!sensorAvailable) return@DisposableEffect onDispose {}
         val manager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         val sensor = manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -70,7 +96,9 @@ fun rememberQiblaCompassState(): QiblaCompassState {
                 SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
                 SensorManager.getOrientation(rotationMatrix, orientationAngles)
                 val heading = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
-                azimuthDeg = ((heading % 360f) + 360f) % 360f
+                // السمت المغناطيسي + الانحراف = سمت من الشمال الحقيقي،
+                // ليوافق اتجاه القبلة المحسوب من الشمال الحقيقي.
+                azimuthDeg = ((heading + declinationDeg) % 360f + 360f) % 360f
             }
 
             override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {

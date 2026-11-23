@@ -14,7 +14,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudQueue
@@ -33,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.SupabaseServices
+import com.qabas.app.UserPreferencesManager
 import com.qabas.app.ui.theme.AppThemePreset
 import com.qabas.app.ui.theme.CyberDarkGreen
 import com.qabas.app.ui.theme.CyberDarkOrange
@@ -109,6 +109,9 @@ fun CloudSyncIndicator(
     val context = LocalContext.current
     val isNetworkOnline by rememberIsNetworkAvailable()
     val isSupabaseConfigured = remember { SupabaseServices.isSupabaseAvailable }
+    // آخر مزامنة إعدادات ناجحة حقيقية (رفع أو تنزيل) — المصدر الوحيد الذي
+    // يسمح بالحديث عن «محدَّثة»: بلا هذا الطابع لا يُقاس إلا الاتصال.
+    val lastSyncTime by UserPreferencesManager.lastSyncTime.collectAsState()
     val isCyberTheme = ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE
 
     val syncState = remember(isNetworkOnline, isSupabaseConfigured, isSyncing) {
@@ -174,8 +177,20 @@ fun CloudSyncIndicator(
         ),
         modifier = modifier.clickable {
             val msg = when (syncState) {
-                CloudSyncState.CONNECTED -> "سحابة Supabase متصلة ومستقرة ومحدثة لحظياً ✓"
-                CloudSyncState.SYNCING -> "يتم رفع ومزامنة التغييرات الآن مع خوادم Supabase السحابية..."
+                // «متصل» فقط — ما يُقاس هنا اتصال الشبكة + إعداد Supabase، لا
+                // حداثة البيانات. التحديث الحقيقي يُذكر بتاريخه المقاس، وبنطاقه
+                // (الإعدادات) لا «كل شيء محدَّث». بلا أي مزامنة ناجحة بعد، يُقال ذلك.
+                CloudSyncState.CONNECTED -> if (lastSyncTime > 0L) {
+                    val formatted = java.text.SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm", java.util.Locale.getDefault()
+                    ).format(java.util.Date(lastSyncTime))
+                    "متصل بسحابة Supabase — آخر مزامنة إعدادات ناجحة: $formatted"
+                } else {
+                    "متصل بسحابة Supabase — لم تتم مزامنة الإعدادات بعد"
+                }
+                // المتصلون يمررون حالات تحميل (تحديث لوحة شرف/دوري) لا رفعاً —
+                // فلا يُدَّعى «رفع التغييرات».
+                CloudSyncState.SYNCING -> "جارٍ تحديث البيانات مع سحابة Supabase..."
                 CloudSyncState.OFFLINE -> "غير متصل بالشبكة: يتم الحفظ محلياً تلقائياً وستتم المزامنة فور عودة الاتصال"
             }
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()

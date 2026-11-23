@@ -13,24 +13,6 @@ import org.json.JSONObject
  */
 object StyleBrainLoadFix {
 
-    fun normalizeCore(core: QabasCoreStyle): QabasCoreStyle {
-        val emptyTraits = core.visualTraits.isEmpty() &&
-            core.motionTraits.isEmpty() &&
-            core.textTraits.isEmpty()
-        return if (emptyTraits) {
-            QabasCoreStyle(
-                visualTraits = emptyList(),
-                motionTraits = emptyList(),
-                textTraits = emptyList(),
-                analysis = "عقل فارغ — يرجى إضافة فيديوهات مرجعية للتعلم والاستفادة",
-                strengthScore = 0,
-                lastUpdated = core.lastUpdated
-            )
-        } else {
-            core.copy(strengthScore = core.strengthScore.coerceIn(0, 100))
-        }
-    }
-
     enum class CoreRepairStatus {
         NO_STORED_CORE,
         NO_REPAIR_NEEDED,

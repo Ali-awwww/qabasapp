@@ -134,9 +134,9 @@ object UserAzanCloudRepository {
             )
             try {
                 client.from(TABLE).insert(row)
-            } catch (dbError: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (dbError: Exception) {
                 // Roll back the object if the owner-scoped metadata insert did not succeed.
-                runCatching { SupabaseServices.Storage.deleteFiles(BUCKET, listOf(storagePath!!)) }
+                runCatching { SupabaseServices.Storage.deleteFiles(BUCKET, listOf(storagePath!!)) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 Log.e(TAG, "metadata insert failed", dbError)
                 return@withContext Result.failure(
                     IllegalStateException("تعذر حفظ بيانات الأذان في حسابك: ${dbError.message}")
@@ -153,7 +153,7 @@ object UserAzanCloudRepository {
                     isFajrSpecific = false
                 )
             )
-        } catch (error: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
             Log.e(TAG, "personal upload failed", error)
             Result.failure(error)
         } finally {
@@ -181,7 +181,7 @@ object UserAzanCloudRepository {
                 )
             }
             Result.success(voices)
-        } catch (error: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
             Log.e(TAG, "fetch personal voices failed: ${error.message}", error)
             Result.failure(error)
         }
@@ -200,7 +200,7 @@ object UserAzanCloudRepository {
                 limit(1)
             }.decodeSingleOrNull<UserAzanVoiceRow>() ?: return@withContext null
             SupabaseServices.Storage.createSignedUrl(BUCKET, row.storagePath, kotlin.time.Duration.parse("1h"))
-        } catch (error: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
             Log.e(TAG, "resolve private voice URL failed: ${error.message}", error)
             null
         }
@@ -227,7 +227,7 @@ object UserAzanCloudRepository {
                 }
             }
             true
-        } catch (error: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
             Log.e(TAG, "delete personal voice failed: ${error.message}", error)
             false
         }
@@ -266,7 +266,7 @@ object UserAzanCloudRepository {
                 }
             }
             true
-        } catch (error: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
             Log.e(TAG, "update personal title failed: ${error.message}", error)
             false
         }

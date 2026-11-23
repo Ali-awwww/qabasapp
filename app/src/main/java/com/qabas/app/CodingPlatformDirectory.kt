@@ -39,7 +39,7 @@ object CodingPlatformDirectory {
             keyModels = listOf("gemini-2.5-flash", "gemini-2.5-pro"),
             description = "المنصة الرسمية من Google لبيئة Gemini. توفر أقوى قدرات التفكير المعماري، تحليل كود Android و Kotlin، ونافذة سياق ضخمة تتجاوز مليون رمز.",
             apiKeyUrl = "https://aistudio.google.com/app/apikey",
-            freeTierInfo = "مجاني تماماً للاستخدام الشخصي والمطورين (حتى 15 طلب/دقيقة) بدون اشتراط بطاقة بنكية.",
+            freeTierInfo = "مجاني تماماً للاستخدام الشخصي والمطورين بدون اشتراط بطاقة بنكية — راجع حدود الاستخدام الرسمية.",
             steps = listOf(
                 "افتح رابط Google AI Studio وسجّل الدخول بحساب Google الخاص بك.",
                 "اضغط على زر «Create API key» في الزاوية العلوية.",

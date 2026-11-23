@@ -146,7 +146,7 @@ object LeonardoImageService {
                 onProgress(0f, "خطأ في الاتصال بـ Leonardo (كود ${response.code()})")
                 SystemLogsManager.addLog("LEONARDO", "استجابة غير ناجحة: ${response.code()}", Color(0xFFEF4444))
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error generating image", e)
             onProgress(0f, "خطأ أثناء التوليد: ${e.message}")
             SystemLogsManager.addLog("LEONARDO", "استثناء: ${e.message}", Color(0xFFEF4444))
@@ -178,7 +178,7 @@ object LeonardoImageService {
                     Pair(false, "استجاب خادم Leonardo برمز خطأ ($code)")
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Leonardo testConnection error", e)
             Pair(false, "تعذر الاتصال بخوادم Leonardo: ${e.localizedMessage ?: e.message}")
         }

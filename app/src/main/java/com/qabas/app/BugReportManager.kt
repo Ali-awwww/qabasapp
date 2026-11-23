@@ -3,10 +3,8 @@ package com.qabas.app
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.net.Uri
 import android.util.Log
 import android.view.View
-import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -92,7 +90,7 @@ object BugReportManager {
             )
             screenshotFile?.delete()
             result.isSuccess
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to submit bug report: ${e.message}")
             false
         }

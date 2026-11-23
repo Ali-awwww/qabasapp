@@ -54,8 +54,8 @@ object ActiveSessionManager {
     /** يحرّر الجلسة قدر الإمكان ويحذف بيانات الجلسة المحلية. */
     suspend fun endLocalSession(context: Context) {
         val userId = currentUserId(context)
-        if (!userId.isNullOrBlank()) runCatching { release(context, userId) }
-        runCatching { SupabaseServices.Auth.logout() }
+        if (!userId.isNullOrBlank()) runCatching { release(context, userId) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+        runCatching { SupabaseServices.Auth.logout() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .remove("is_logged_in")
             .remove("is_guest")

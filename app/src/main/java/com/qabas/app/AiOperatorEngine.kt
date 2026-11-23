@@ -133,7 +133,7 @@ object AiOperatorRouter {
 
     // ── الفحص الشامل: نتائج DoctorReport الحقيقية ──
     private suspend fun diagnoseReport(context: Context): String {
-        val reports = runCatching { AppSelfDoctor.runFullDiagnosis(context) }.getOrDefault(emptyList())
+        val reports = runCatching { AppSelfDoctor.runFullDiagnosis(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
         if (reports.isEmpty()) return "لم يُرجع الطبيب أي نتيجة — أعد المحاولة أو تحقق من الإنترنت."
         val critical = reports.count { it.severity == "حرج" }
         val important = reports.count { it.severity == "مهم" }
@@ -163,7 +163,7 @@ object AiOperatorRouter {
 
     // ── السكريبت: مشاهد حقيقية من AppServices.generateScript ──
     private suspend fun scriptReport(topic: String): String {
-        val scenes = runCatching { AppServices.generateScript(topic) }.getOrDefault(emptyList())
+        val scenes = runCatching { AppServices.generateScript(topic) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
         if (scenes.isEmpty()) {
             return "لم يرجع المحرك أي مشهد عن «$topic». أضف مفتاح Gemini/Groq من شاشة المفاتيح أو ثبّت النموذج المحلي ثم أعد المحاولة."
         }
@@ -181,7 +181,7 @@ object AiOperatorRouter {
     private suspend fun chatReply(order: String): String {
         val reply = runCatching {
             AppServices.chatWithAssistant(listOf(Pair(true, order)))
-        }.getOrDefault("")
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault("")
         return reply.ifBlank {
             "لا يوجد رد. صياغة أوضح، أو أضف مفتاح Gemini/Groq من شاشة المفاتيح."
         }

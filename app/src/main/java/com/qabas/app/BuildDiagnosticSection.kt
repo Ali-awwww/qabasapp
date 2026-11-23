@@ -1,11 +1,9 @@
 package com.qabas.app
 
-import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,14 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.agent.AgentDesign
 import com.qabas.app.ui.agent.AgentNeonCard
 import com.qabas.app.ui.agent.AgentSectionHeader
 import com.qabas.app.ui.theme.*
@@ -46,7 +42,7 @@ fun BuildDiagnosticSection() {
             try {
                 githubInfo = UpdateManager.inspectGitHubRelease(context).getOrNull()
                 supabaseInfo = SupabaseServices.Database.getLatestActiveUpdate()
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 error = e.message
             } finally {
                 isLoading = false
@@ -63,14 +59,14 @@ fun BuildDiagnosticSection() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            AgentSectionHeader(index = "01", title = "معلومات البناء الحالية", accent = GoldPrimary)
+            AgentSectionHeader(index = "01", title = "معلومات البناء الحالية", accent = PresetPrimary)
             Spacer(Modifier.height(8.dp))
             BuildInfoCard(
                 title = "النسخة المحلية",
                 versionName = currentVersionName,
                 versionCode = currentVersionCode,
                 status = "نشط حالياً",
-                statusColor = GoldPrimary
+                statusColor = PresetPrimary
             )
         }
 
@@ -95,7 +91,7 @@ fun BuildDiagnosticSection() {
         if (isLoading && githubInfo == null) {
             item {
                 Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = GoldPrimary)
+                    CircularProgressIndicator(color = PresetPrimary)
                 }
             }
         } else {

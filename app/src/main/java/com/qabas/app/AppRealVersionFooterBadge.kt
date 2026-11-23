@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CutCornerShape
@@ -14,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.RobotoMonoFont
 import kotlinx.coroutines.launch
 
@@ -68,9 +66,9 @@ fun AppRealVersionFooterBadge(
                 0.9.dp,
                 Brush.horizontalGradient(
                     listOf(
-                        GoldPrimary.copy(alpha = 0.5f),
+                        PresetPrimary.copy(alpha = 0.5f),
                         Color(0xFF00E5FF).copy(alpha = 0.4f),
-                        GoldPrimary.copy(alpha = 0.5f)
+                        PresetPrimary.copy(alpha = 0.5f)
                     )
                 )
             ),
@@ -98,7 +96,7 @@ fun AppRealVersionFooterBadge(
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
-                        } catch (e: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                             Toast.makeText(
                                 context,
                                 "تعذر الاتصال بخادم التحديثات، تحقق من الإنترنت",
@@ -125,7 +123,7 @@ fun AppRealVersionFooterBadge(
                         CircularProgressIndicator(
                             modifier = Modifier.size(13.dp),
                             strokeWidth = 1.6.dp,
-                            color = GoldPrimary
+                            color = PresetPrimary
                         )
                     } else {
                         Icon(
@@ -153,14 +151,14 @@ fun AppRealVersionFooterBadge(
                 Surface(
                     shape = RoundedCornerShape(4.dp),
                     color = Color(0xFF1E293B).copy(alpha = 0.9f),
-                    border = BorderStroke(0.6.dp, GoldPrimary.copy(alpha = 0.35f))
+                    border = BorderStroke(0.6.dp, PresetPrimary.copy(alpha = 0.35f))
                 ) {
                     Text(
                         text = "Build $versionCode",
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 9.sp,
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                     )
                 }

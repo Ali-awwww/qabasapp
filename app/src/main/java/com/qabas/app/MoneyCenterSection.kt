@@ -9,9 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 
 /**
@@ -51,7 +49,7 @@ fun MoneyCenterSection(
             badge = if (isPro) "PRO" else "FREE",
             title = "مركز الإيرادات والنمو المالي 💰",
             subtitle = "الاشتراك الحالي: ${tier.title} • البوابة المالية المباشرة والوكالة وتتبع المبيعات",
-            accent = if (isPro) Color(0xFF10B981) else GoldPrimary,
+            accent = if (isPro) Color(0xFF10B981) else PresetPrimary,
             actionLabel = "تحديث محلي",
             onAction = {
                 AppSoundManager.playSuccess()

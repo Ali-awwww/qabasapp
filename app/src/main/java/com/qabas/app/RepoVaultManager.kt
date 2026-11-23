@@ -21,7 +21,6 @@ data class RepoVaultEntry(
 ) {
     val fullName: String get() = "$owner/$repo"
     val displayName: String get() = customName.ifBlank { repo }
-    val githubUrl: String get() = "https://github.com/$owner/$repo"
 
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -188,9 +187,4 @@ object RepoVaultManager {
         return null
     }
 
-    /**
-     * رابط التجهيز المسبق لإنشاء رمز GitHub PAT بالصلاحيات الدقيقة المطلوبة للوكيل والبناء.
-     */
-    const val GITHUB_TOKEN_GENERATION_URL =
-        "https://github.com/settings/tokens/new?description=Qabas+Studio+DevOps+Agent&scopes=repo,workflow,read:user"
 }

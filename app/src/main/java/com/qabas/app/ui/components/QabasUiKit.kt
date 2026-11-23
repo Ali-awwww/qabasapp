@@ -3,15 +3,12 @@ package com.qabas.app.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,9 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -184,40 +178,6 @@ fun QabasDesignCard(
     }
 }
 
-/** قسم بعناوين ومسافات موحدة لتقليل اختلافات التخطيط بين الشاشات. */
-@Composable
-fun QabasSection(
-    title: String? = null,
-    modifier: Modifier = Modifier,
-    description: String? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val theme = QabasTheme.current
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(QabasSpacingTokens.sm)
-    ) {
-        if (!title.isNullOrBlank()) {
-            Text(
-                text = title,
-                color = theme.textPrimary,
-                fontFamily = CairoFont,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
-        if (!description.isNullOrBlank()) {
-            Text(
-                text = description,
-                color = theme.textSecondary,
-                fontFamily = NotoSansFont,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-        content()
-    }
-}
-
 /** قسم مجمّع للقوائم والإعدادات ببطاقة وحدود ومسافات موحدة. */
 @Composable
 fun QabasGroupedSection(
@@ -323,99 +283,5 @@ fun QabasSecondaryButton(
             Spacer(modifier = Modifier.width(QabasSpacingTokens.xs))
         }
         Text(text = text, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-enum class QabasStatus { INFO, SUCCESS, WARNING, ERROR }
-
-@Composable
-fun QabasStatusBanner(
-    message: String,
-    status: QabasStatus = QabasStatus.INFO,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null
-) {
-    val theme = QabasTheme.current
-    val statusColor = when (status) {
-        QabasStatus.INFO -> theme.primary
-        QabasStatus.SUCCESS -> theme.success
-        QabasStatus.WARNING -> theme.warning
-        QabasStatus.ERROR -> theme.destructive
-    }
-    val fallbackIcon = when (status) {
-        QabasStatus.INFO -> Icons.Default.Info
-        QabasStatus.SUCCESS -> Icons.Default.CheckCircle
-        QabasStatus.WARNING -> Icons.Default.Warning
-        QabasStatus.ERROR -> Icons.Default.Warning
-    }
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = QabasShapeTokens.control,
-        color = statusColor.copy(alpha = if (theme.isDark) 0.16f else 0.10f),
-        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.42f))
-    ) {
-        Row(
-            modifier = Modifier.padding(QabasSpacingTokens.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon ?: fallbackIcon,
-                contentDescription = null,
-                tint = statusColor,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(QabasSpacingTokens.sm))
-            Text(
-                text = message,
-                color = theme.textPrimary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-fun QabasEmptyStatePanel(
-    title: String,
-    message: String,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    action: (@Composable BoxScope.() -> Unit)? = null
-) {
-    val theme = QabasTheme.current
-    QabasDesignCard(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(QabasSpacingTokens.xxl),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = theme.primary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.height(QabasSpacingTokens.sm))
-                }
-                Text(
-                    text = title,
-                    color = theme.textPrimary,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(QabasSpacingTokens.xs))
-                Text(
-                    text = message,
-                    color = theme.textSecondary,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                if (action != null) {
-                    Spacer(modifier = Modifier.height(QabasSpacingTokens.md))
-                    Box(content = action)
-                }
-            }
-        }
     }
 }

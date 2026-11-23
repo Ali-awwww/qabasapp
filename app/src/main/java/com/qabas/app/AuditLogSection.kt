@@ -69,7 +69,7 @@ fun AuditLogSection(context: Context) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("سجل التدقيق (Audit Log)", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("سجل التدقيق (Audit Log)", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text("كل إجراء حساس موثّق ومشفّر بسلسلة بصمات", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                 chainState?.let { broken ->
                     Text(
@@ -82,15 +82,15 @@ fun AuditLogSection(context: Context) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedButton(
                     onClick = { csvExport.launch("qabas_audit_${System.currentTimeMillis()}.csv") },
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                 ) {
-                    Text("CSV", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("CSV", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
                 OutlinedButton(
                     onClick = { refresh() },
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                 ) {
-                    Text("تحديث", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("تحديث", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         }
@@ -103,7 +103,7 @@ fun AuditLogSection(context: Context) {
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = GoldPrimary,
+                focusedBorderColor = PresetPrimary,
                 unfocusedBorderColor = Color(0xFF1E293B),
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
@@ -118,14 +118,14 @@ fun AuditLogSection(context: Context) {
             categories.forEach { cat ->
                 val isSelected = filterCategory == cat
                 Surface(
-                    color = if (isSelected) GoldPrimary.copy(alpha = 0.2f) else CardSurface,
+                    color = if (isSelected) PresetPrimary.copy(alpha = 0.2f) else CardSurface,
                     shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) PresetPrimary else Color(0xFF1E293B)),
                     modifier = Modifier.clickable { filterCategory = cat }
                 ) {
                     Text(
                         text = cat,
-                        color = if (isSelected) GoldPrimary else TextSecondary,
+                        color = if (isSelected) PresetPrimary else TextSecondary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -153,7 +153,7 @@ fun AuditLogSection(context: Context) {
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(e.action, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(e.action, color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(AuditLogger.formatTime(e.timeMs), color = TextSecondary, fontFamily = NotoSansFont, fontSize = 10.sp)
                             }
                             Text(e.detail, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)

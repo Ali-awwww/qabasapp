@@ -116,8 +116,4 @@ object PlatformGatewayClient {
     fun proxy(provider: String, payload: JSONObject): JSONObject? =
         runCatching { runBlocking { proxySuspend(provider, payload) } }.getOrNull()
 
-    suspend fun proxyGemini(payload: JSONObject): JSONObject? = proxySuspend("gemini", payload)
-    suspend fun proxyGroq(payload: JSONObject): JSONObject? = proxySuspend("groq", payload)
-    suspend fun proxyOpenAI(payload: JSONObject): JSONObject? = proxySuspend("openai", payload)
-    suspend fun proxyOpenRouter(payload: JSONObject): JSONObject? = proxySuspend("openrouter", payload)
 }

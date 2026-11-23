@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -38,6 +37,8 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         try {
             // إظهار الإشعار والتعامل مع الصوت بناءً على النمط
             when (soundMode) {
+                // TAKBEER_ONLY قيمة قديمة محفوظة (من منبهات مجدولة قبل إزالة
+                // الخيار): لا صوت تكبير مستقل خلفها، فتُشغّل الأذان الكامل.
                 "FULL_AZAN", "TAKBEER_ONLY" -> {
                     // تشغيل خدمة الأذان المباشرة
                     AzanPlaybackService.startAzan(context, voiceId, prayerName)
@@ -124,7 +125,6 @@ class PrayerAzanReceiver : BroadcastReceiver() {
         )
 
         // 🔑 نُظهر الشاشة الكاملة فقط في أوضاع الصوت الفعّالة (وليس الوضع الصامت)
-        val isSilentMode = soundMode == "SILENT" || soundMode == "OFF" || soundMode.isBlank()
         val isStrongSound = soundMode == "FULL_AZAN" || soundMode == "TAKBEER_ONLY"
 
         // سطر الورد اليومي يُضاف لنص الأذان الموسّع بدل إشعار منفصل يكرّر نفس اللحظة

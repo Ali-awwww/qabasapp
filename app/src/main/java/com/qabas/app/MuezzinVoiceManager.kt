@@ -158,35 +158,6 @@ object MuezzinVoiceManager {
     }
 
     /**
-     * نسخ ملف صوت من هاتف المستخدم إلى تخزين التطبيق الداخلي (للاستخدام المحلي فقط).
-     * يُستخدم للمستخدم العادي بدل الرفع السحابي.
-     */
-    fun copyLocalAzanFile(context: Context, sourceUri: android.net.Uri, displayName: String): String? {
-        return try {
-            val extension = android.webkit.MimeTypeMap.getSingleton()
-                .getExtensionFromMimeType(context.contentResolver.getType(sourceUri))
-                ?.lowercase(java.util.Locale.ROOT)
-                ?.takeIf { it.matches(Regex("[a-z0-9]{2,5}")) }
-                ?: "mp3"
-            val safe = displayName.substringBeforeLast('.')
-                .replace(Regex("[^a-zA-Z0-9_-]"), "_")
-                .take(40)
-                .ifBlank { "voice" }
-            val fileName = "azan_local_${System.currentTimeMillis()}_$safe.$extension"
-            val dest = java.io.File(context.filesDir, "azan_voices").apply { mkdirs() }.resolve(fileName)
-            val input = context.contentResolver.openInputStream(sourceUri) ?: return null
-            input.use {
-                dest.outputStream().use { output -> input.copyTo(output) }
-            }
-            if (!dest.exists() || dest.length() == 0L) {
-                dest.delete()
-                return null
-            }
-            android.net.Uri.fromFile(dest).toString()
-        } catch (_: Exception) { null }
-    }
-
-    /**
      * إضافة مؤذن جديد ديناميكياً
      */
     fun addCustomVoice(context: Context, voice: AzanVoice): Boolean {

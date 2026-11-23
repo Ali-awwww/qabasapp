@@ -1,8 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,7 +34,7 @@ object TasteManager {
             
             builder.append("استخدم هذا الذوق لتخصيص النتيجة وجعلها متوافقة مع أسلوب المستخدم الذي يفضله، فالتطبيق يتطور مع ذوق المستخدم.\n\n")
             builder.toString()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             ""
         }
     }
@@ -62,7 +60,7 @@ object TasteManager {
                     Toast.makeText(context, "الذكاء الاصطناعي يتعلم ذوقك في ($translatedCategory) 🧠✨", Toast.LENGTH_SHORT).show()
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             // Ignore
         }
     }

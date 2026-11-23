@@ -142,7 +142,7 @@ object EdgeTtsService {
                     }
                 }
                 null
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Edge-TTS error: ${e.message}", e)
                 null
             }

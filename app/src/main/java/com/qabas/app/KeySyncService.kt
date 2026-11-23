@@ -95,7 +95,7 @@ object KeySyncService {
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(true, "تم رفع ${result.count} مفتاحاً إلى الخزنة المشفرة ☁️✅")
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Push failed", e)
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(false, "فشل الرفع: ${e.message ?: "خطأ غير معروف"}")
@@ -142,7 +142,7 @@ object KeySyncService {
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(true, "تم سحب $imported مفتاح من السحابة ☁️📥")
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Pull failed", e)
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(false, "فشل السحب: ${e.message ?: "خطأ غير معروف"}")
@@ -172,7 +172,7 @@ object KeySyncService {
                         }
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(false, "خطأ في المزامنة: ${e.message}")
                 }

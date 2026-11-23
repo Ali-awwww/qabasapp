@@ -95,17 +95,3 @@ object FreeStockSources {
         return BRollEngine.searchBRoll(queryAr).take(3)
     }
 }
-
-/**
- * بدائل محلية موثقة (تتطلب دمج مكتبات ثقيلة لاحقاً — لا وهم الآن):
- * - TTS: Kokoro-82M عبر ONNX (kokoro-onnx) — يعمل CPU بلا نت
- * - LLM: llama.cpp GGUF (Gemma3-1B/Qwen3) عبر JNI
- * - صور: stable-diffusion.cpp (SDXL-Turbo)
- * هذه الأسماء مرجع للخطوة التالية، والمسار الحالي يبقى على TTS النظام + التحليل المحلي.
- */
-object LocalAiRoadmap {
-    const val TTS_REPO = "hexgrad/Kokoro + kokoro-onnx (Apache-2.0)"
-    const val LLM_REPO = "ggml-org/llama.cpp (MIT)"
-    const val IMG_REPO = "leejet/stable-diffusion.cpp"
-    const val TAFSIR_CDN = "spa5k/tafsir_api (122 تفسيراً، MIT)"
-}

@@ -94,22 +94,22 @@ object GoogleSignInFlow {
         val cloudCustomId = cloudUser?.customId?.takeIf { it.isNotBlank() }
         val accountNumber = cloudUser?.accountNumber?.takeIf { it.isNotBlank() }
         if (cloudCustomId == null || accountNumber == null) {
-            runCatching { SupabaseServices.Auth.logout() }
+            runCatching { SupabaseServices.Auth.logout() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             return@withContext Outcome.Failed("بيانات الحساب الموثقة غير مكتملة. لم يتم إنهاء تسجيل الدخول.")
         }
 
         when (ActiveSessionManager.claim(context, authUid)) {
             ActiveSessionClaimResult.CLAIMED -> Unit
             ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
-                runCatching { ActiveSessionManager.endLocalSession(context) }
+                runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 return@withContext Outcome.Failed("هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.")
             }
             ActiveSessionClaimResult.PROFILE_MISSING -> {
-                runCatching { ActiveSessionManager.endLocalSession(context) }
+                runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 return@withContext Outcome.Failed("تعذر العثور على ملف حسابك في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم.")
             }
             ActiveSessionClaimResult.UNAVAILABLE -> {
-                runCatching { ActiveSessionManager.endLocalSession(context) }
+                runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 return@withContext Outcome.Failed("تعذر التحقق من جلستك الآن. تحقق من الإنترنت ثم أعد المحاولة.")
             }
         }
@@ -145,14 +145,10 @@ object GoogleSignInFlow {
         prefs.edit().apply {
             putBoolean("is_logged_in", true)
             putBoolean("is_guest", false)
-            putBoolean("is_admin", finalIsAdmin)
-            putBoolean("is_developer", finalIsDeveloper)
-            putString("user_id", authUid)
             putString("user_email", authEmail)
             putString("user_name", effectiveLoginName)
             putString("user_display_name", effectiveLoginName)
             putString("user_custom_id", cloudCustomId)
-            putString("user_tag", UserIdentifierManager.formatDisplay(cloudCustomId))
             putString("user_account_number", accountNumber)
             putString("user_name_with_account", nameWithAccount)
             remove("saved_login_email")
@@ -172,7 +168,7 @@ object GoogleSignInFlow {
                     emailConfirmed = emailConfirmed
                 )
                 guestMigrated = true
-            }.onFailure { Log.w(TAG, "guest migration after Google sign-in failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "guest migration after Google sign-in failed: ${it.message}") }
         }
 
         Outcome.Success(

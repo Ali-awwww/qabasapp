@@ -62,12 +62,6 @@ object TransactionManager {
         addTransaction(context, tx)
     }
 
-    fun clearAllTransactions(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(KEY_TRANSACTIONS).apply()
-        _transactionsFlow.value = emptyList()
-    }
-
     private fun saveToPrefs(context: Context, list: List<Map<String, Any>>) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val jsonArray = JSONArray()

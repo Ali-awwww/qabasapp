@@ -100,7 +100,8 @@ object AgentStreaming {
             }
             val full = acc.toString()
             if (full.isBlank()) return@withContext Result.failure(Exception("استجابة بثّ فارغة من Gemini"))
-            Result.success(RealAgentResponse(full, (full.length / 4).coerceAtLeast(150)))
+            // (12.14) البثّ هنا بلا usageMetadata — الرموز تقدير طول/4 دائماً.
+            Result.success(RealAgentResponse(full, (full.length / 4).coerceAtLeast(150), tokensEstimated = true))
         } finally {
             resp.close()
         }
@@ -139,6 +140,8 @@ object AgentStreaming {
             }
             val acc = StringBuilder()
             var totalTokens = 0
+            var promptTokens = 0
+            var completionTokens = 0
             resp.body?.byteStream()?.bufferedReader()?.useLines { lines ->
                 lines.forEach { line ->
                     ensureActive()
@@ -148,8 +151,13 @@ object AgentStreaming {
                     if (payload.isBlank() || payload == "[DONE]") return@forEach
                     runCatching {
                         val j = JSONObject(payload)
-                        j.optJSONObject("usage")?.optInt("total_tokens", 0)
-                            ?.takeIf { it > 0 }?.let { totalTokens = it }
+                        // (12.14) قراءة تفصيل الرموز من usage عند إرساله —
+                        // بدونه تبقى التكلفة «غير مقاسة» (بلا تفصيل رموز).
+                        j.optJSONObject("usage")?.let { usage ->
+                            usage.optInt("total_tokens", 0).takeIf { it > 0 }?.let { totalTokens = it }
+                            promptTokens = usage.optInt("prompt_tokens", promptTokens)
+                            completionTokens = usage.optInt("completion_tokens", completionTokens)
+                        }
                         val choices = j.optJSONArray("choices") ?: return@runCatching
                         if (choices.length() == 0) return@runCatching
                         val delta = choices.getJSONObject(0).optJSONObject("delta")?.optString("content").orEmpty()
@@ -162,7 +170,18 @@ object AgentStreaming {
             }
             val full = acc.toString()
             if (full.isBlank()) return@withContext Result.failure(Exception("استجابة بثّ فارغة من ${provider.displayName}"))
-            Result.success(RealAgentResponse(full, totalTokens.takeIf { it > 0 } ?: (full.length / 4).coerceAtLeast(120)))
+            // (12.14) تقديرية فقط عند غياب usage (لا stream_options.include_usage
+            // في الطلب، فغالباً يرسل المزود البثّ بلا usage).
+            val estimated = totalTokens <= 0
+            Result.success(
+                RealAgentResponse(
+                    full,
+                    totalTokens.takeIf { it > 0 } ?: (full.length / 4).coerceAtLeast(120),
+                    promptTokens = promptTokens,
+                    completionTokens = completionTokens,
+                    tokensEstimated = estimated
+                )
+            )
         } finally {
             resp.close()
         }

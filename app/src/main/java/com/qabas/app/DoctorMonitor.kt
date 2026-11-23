@@ -3,6 +3,9 @@ package com.qabas.app
 import android.content.Context
 import kotlinx.coroutines.*
 import java.io.File
+import com.qabas.app.ui.theme.QabasGold
+import com.qabas.app.ui.theme.ThemeDestructive
+import com.qabas.app.ui.theme.ThemeSuccess
 
 // الطبيب الحي: فحص خفيف دوري (بلا شبكة) + علاج صامت + نبض يُقرأ من الواجهة.
 // القاعدة: لا حذف لبيانات المستخدم أبداً — فقط كاش المحرك والمشاهد المنتهية.
@@ -13,15 +16,6 @@ object DoctorMonitor {
     const val PULSE_MSG_KEY = "doctor_pulse_msg"
     const val LAST_RUN_KEY = "doctor_last_run"
     private const val INTERVAL_MS = 6 * 3_600_000L
-
-    fun readPulse(context: Context): Triple<String, Long, String> {
-        val p = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        return Triple(
-            p.getString(PULSE_KEY, "green") ?: "green",
-            p.getLong(PULSE_TIME_KEY, 0L),
-            p.getString(PULSE_MSG_KEY, "") ?: ""
-        )
-    }
 
     fun maybeRun(context: Context) {
         val p = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -89,7 +83,7 @@ object DoctorMonitor {
             SystemLogsManager.addLog(
                 if (pulse == "green") "INFO" else "WARN",
                 "الطبيب الحي: $msg",
-                androidx.compose.ui.graphics.Color(if (pulse == "red") 0xFFEF4444 else if (pulse == "yellow") 0xFFE8C547 else 0xFF4CAF50)
+                if (pulse == "red") ThemeDestructive else if (pulse == "yellow") QabasGold else ThemeSuccess
             )
         } catch (_: Exception) {}
     }

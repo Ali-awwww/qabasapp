@@ -123,14 +123,19 @@ object GoogleAuthHelper {
                     idToken = idToken
                 )
             )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: GetCredentialCancellationException) {
             Log.d(TAG, "User cancelled Google Sign-In")
             Result.failure(e)
         } catch (e: androidx.credentials.exceptions.NoCredentialException) {
             Log.e(TAG, "No Google accounts found or Client ID mismatch: ${e.message}")
-            val sha1 = "B9:4C:DE:BF:D3:73:F2:F1:D6:8E:6D:0B:5B:14:65:43:E4:F6:06:49"
+            // رسالة المستخدم بلا بصمة SHA-1: البصمة شأن المطوّر (تُدار في
+            // Google Cloud وتُعرض في حوار إعدادات Supabase للمطوّر)، والمستخدم
+            // لا يستطيع فعل شيء بها؛ كما أن البصمة المضمّنة قد لا تطابق مفتاح
+            // التوقيع الحالي (توقيع Play يختلف عن مفتاح التطوير) فتضلّل التشخيص.
             Result.failure(
-                IllegalStateException("لم يتم العثور على حسابات Google متاحة. تأكد من أن معرّف العميل (Client ID) مسجل في Google Cloud بهذا البصمة (SHA-1): $sha1")
+                IllegalStateException("لم يتم العثور على حساب Google على هذا الجهاز. تأكد من تسجيل الدخول إلى حساب Google على الجهاز ثم أعد المحاولة.")
             )
         } catch (e: GetCredentialException) {
             Log.e(TAG, "CredentialManager error: ${e.message}", e)

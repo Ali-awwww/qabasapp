@@ -26,7 +26,7 @@ object PushTokenManager {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putString(KEY_PENDING_TOKEN, token).apply()
             syncPending(context)
-        }.onFailure {
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
             Log.w(TAG, "Unable to obtain FCM token: ${it.message}")
         }
     }

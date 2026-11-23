@@ -250,8 +250,6 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 onClick = {
                     val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
                     prefs.edit()
-                        .putBoolean("has_seen_onboarding", true)
-                        .putBoolean("has_seen_welcome_rules", true)
                         .putBoolean("has_accepted_covenant", true)
                         .apply()
                     onFinish()

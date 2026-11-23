@@ -18,11 +18,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val ACTION_LISTEN = "com.qabas.app.ACTION_NOTIFICATION_LISTEN"
         const val ACTION_SNOOZE = "com.qabas.app.ACTION_NOTIFICATION_SNOOZE"
 
-        const val EXTRA_SHARE_TEXT = "extra_share_text"
         const val EXTRA_NOTIF_ID = "extra_notif_id"
         const val EXTRA_MESSAGE = "extra_message"
         const val EXTRA_AUDIO_URL = "extra_audio_url"
         const val EXTRA_AUDIO_TITLE = "extra_audio_title"
+        const val EXTRA_SNOOZE_TITLE = "extra_snooze_title"
+        const val EXTRA_SNOOZE_MESSAGE = "extra_snooze_message"
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -61,7 +62,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
             ACTION_SNOOZE -> {
                 if (notifId != -1) notifManager?.cancel(notifId)
                 Toast.makeText(context, "تم تأجيل التنبيه 15 دقيقة ⏰", Toast.LENGTH_SHORT).show()
-                NotificationPreferencesManager.scheduleSnooze(context, 15)
+                NotificationPreferencesManager.scheduleSnooze(
+                    context, 15,
+                    intent.getStringExtra(EXTRA_SNOOZE_TITLE).orEmpty(),
+                    intent.getStringExtra(EXTRA_SNOOZE_MESSAGE).orEmpty()
+                )
             }
 
         }

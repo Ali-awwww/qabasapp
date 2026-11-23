@@ -44,6 +44,26 @@ object AgentPatchKit {
         return "qabas-agent-proposals/${System.currentTimeMillis()}_$name"
     }
 
+    /**
+     * حفظ مقترح diff في المستودع (مجلد qabas-agent-proposals) دون استبدال
+     * ملف الكود الأصلي بمقتطف جزئي (12.13). يُعيد مسار المقترح المحفوظ
+     * أو null عند الفشل — المسار يُحسب هنا مرة واحدة لأن proposalPath
+     * يتضمن الطابع الزمني فلا يمكن إعادة حسابه عند المتصل.
+     */
+    suspend fun saveProposalToRepo(repo: RepoVaultEntry, diff: FileDiff): String? {
+        val path = proposalPath(diff.filePath)
+        val client = GitHubRepoClient(repo.owner, repo.repo, repo.token)
+        val ok = runCatching {
+            client.updateFile(
+                path,
+                repo.defaultBranch,
+                "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}",
+                diff.diffText
+            )
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
+        return if (ok) path else null
+    }
+
     fun extractDiffs(prompt: String, codeText: String): List<FileDiff> {
         val blocks = Regex("```(\\w*)\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
             .findAll(codeText)

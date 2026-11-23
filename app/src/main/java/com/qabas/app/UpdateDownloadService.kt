@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service

@@ -72,28 +72,6 @@ class SavedItemsRepository(
         }
     }
 
-    suspend fun isItemSaved(userId: String, itemId: String): Boolean {
-        require(userId.isNotBlank()) { "User ID must not be blank" }
-        require(itemId.isNotBlank()) { "Item ID must not be blank" }
-        return client.postgrest.from(TABLE).select {
-            filter {
-                eq("user_id", userId)
-                eq("id", itemId)
-            }
-            limit(1)
-        }.decodeList<SavedItem>().isNotEmpty()
-    }
-
-    suspend fun toggleSaved(userId: String, item: SavedItem): Boolean {
-        return if (isItemSaved(userId, item.id)) {
-            deleteItem(userId, item.id)
-            false
-        } else {
-            saveItem(item.copy(userId = userId))
-            true
-        }
-    }
-
     private companion object {
         const val TABLE = "saved_items"
     }

@@ -27,21 +27,6 @@ private val TajawalFontBase = FontFamily(
     Font(R.font.tajawal_regular, weight = FontWeight.Bold)
 )
 
-val ReemKufiFont = FontFamily(
-    Font(R.font.reem_kufi_regular, weight = FontWeight.Normal),
-    Font(R.font.reem_kufi_regular, weight = FontWeight.Bold)
-)
-
-val ScheherazadeFont = FontFamily(
-    Font(R.font.scheherazade_regular, weight = FontWeight.Normal),
-    Font(R.font.scheherazade_regular, weight = FontWeight.Bold)
-)
-
-val ArefRuqaaFont = FontFamily(
-    Font(R.font.aref_ruqaa_regular, weight = FontWeight.Normal),
-    Font(R.font.aref_ruqaa_regular, weight = FontWeight.Bold)
-)
-
 val AmiriFont = AmiriFontBase
 val RobotoMonoFont = FontFamily.Monospace
 

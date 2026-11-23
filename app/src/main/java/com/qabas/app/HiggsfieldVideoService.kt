@@ -72,7 +72,7 @@ object HiggsfieldVideoService {
             }
 
             pollRequestUntilFinished(context, requestId, onProgress)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Kling 4.0 text-to-video failed", e)
             SystemLogsManager.addLog("WARN", "تعذر إكمال توليد الفيديو عبر Kling 4.0.", Color(0xFFEF4444))
             null
@@ -135,7 +135,7 @@ object HiggsfieldVideoService {
             if (requestId.isBlank()) return@withContext null
 
             pollRequestUntilFinished(context, requestId, onProgress)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Kling 4.0 image-to-video failed", e)
             null
         } finally {
@@ -179,7 +179,7 @@ object HiggsfieldVideoService {
                     SystemLogsManager.addLog("SUCCESS", "اكتمل توليد وتنزيل الفيديو عبر Kling 4.0.", Color(0xFF10B981))
                     return file
                 }
-                status in setOf("failed", "nsfw", "canceled") -> {
+                isTerminalStatus(status) -> {
                     Log.w(TAG, "Kling 4.0 request ended with status: $status")
                     SystemLogsManager.addLog("WARN", "انتهى طلب Kling 4.0 بالحالة: $status.", Color(0xFFEF4444))
                     return null
@@ -235,6 +235,12 @@ object HiggsfieldVideoService {
     internal fun extractVideoUrl(response: JSONObject): String =
         response.optJSONObject("video")?.optString("url").orEmpty().trim()
 
+    /**
+     * الحالات النهائية لطلب Kling 4.0 — «completed» تُعالج في فرعها الخاص
+     * قبل هذا الفحص في حلقة الاستطلاع، فهنا تعني النهاية الفاشلة عملياً.
+     * القائمة مطابقة لمجموعة الحالات التي يعرفها الاستطلاع (الجولة 52).
+     */
     internal fun isTerminalStatus(status: String): Boolean =
         status.lowercase() in setOf("completed", "failed", "nsfw", "canceled")
+
 }

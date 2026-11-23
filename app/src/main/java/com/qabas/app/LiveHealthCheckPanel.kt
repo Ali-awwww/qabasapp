@@ -67,7 +67,7 @@ fun LiveHealthCheckPanel() {
                 val start = System.nanoTime()
                 val res = try {
                     ApiKeyValidator.validateKey(context, svc.type, key, svc.hint)
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                     val message = e.message ?: "خطأ غير معروف"
                     KeyValidationResult(
                         isValid = false,
@@ -97,15 +97,15 @@ fun LiveHealthCheckPanel() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f)),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text("فحص صحة المفاتيح الحي 🩺", color = GoldPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("فحص صحة المفاتيح الحي 🩺", color = PresetPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("قياس فوري للاتصال الفعلي وزمن الاستجابة لكل خدمة", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                 }
             }
@@ -115,7 +115,7 @@ fun LiveHealthCheckPanel() {
             checks.forEach { svc ->
                 val statusColor = when {
                     svc.value.isBlank() -> Color(0xFFEAB308)
-                    svc.result == null -> GoldPrimary
+                    svc.result == null -> PresetPrimary
                     svc.result!!.isValid -> Color(0xFF10B981)
                     else -> Color(0xFFEF4444)
                 }
@@ -142,7 +142,7 @@ fun LiveHealthCheckPanel() {
                 onClick = { launchCheck() },
                 enabled = !running,
                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Refresh, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -159,7 +159,7 @@ fun LiveHealthCheckPanel() {
             val issues = checks.filter { it.value.isNotBlank() && it.result != null && !it.result!!.isValid }
             if (issues.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("خطة الإصلاح المقترحة 🛡️", color = GoldPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("خطة الإصلاح المقترحة 🛡️", color = PresetPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
                 issues.forEach { svc ->
                     Row(
@@ -169,7 +169,7 @@ fun LiveHealthCheckPanel() {
                         Text("• ${svc.name}: ", color = TextPrimary, fontFamily = CairoFont, fontSize = 11.5.sp)
                         Text(if (svc.result!!.suggestedFix.isNotBlank()) svc.result!!.suggestedFix else svc.result!!.explanation, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, modifier = Modifier.weight(1f))
                         TextButton(onClick = { openUrl(context, svc.url) }) {
-                            Text("الموقع 🔗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("الموقع 🔗", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
                 }
@@ -178,7 +178,7 @@ fun LiveHealthCheckPanel() {
             if (totalCalls > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Insights, contentDescription = null, tint = GoldSecondary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Insights, contentDescription = null, tint = PresetAccent, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         "📊 إجمالي المكالمات الحقيقية: $totalCalls · نجاح ${(successRate * 100).toInt()}% — التفاصيل في لوحة المطور",
