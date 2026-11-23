@@ -87,7 +87,7 @@ fun ProjectsScreen(
             },
             text = {
                 Text(
-                    text = Translator.tr("هل أنت متأكد من حذف مشروع: \"${projectToDelete?.title?.cleanTitle()}\"؟ لا يمكن التراجع عن هذا الإجراء."),
+                    text = Translator.trf("هل أنت متأكد من حذف مشروع: \"{0}\"؟ لا يمكن التراجع عن هذا الإجراء.", projectToDelete?.title?.cleanTitle()),
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 14.sp,

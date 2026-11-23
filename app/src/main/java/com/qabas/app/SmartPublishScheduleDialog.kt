@@ -75,7 +75,6 @@ fun SmartPublishScheduleDialog(
                 timeLabel = "$label (مخصص)",
                 hourOfDay = h,
                 minute = m,
-                engagementScore = 0,
                 rationale = "موعد اخترته بنفسك",
                 isRecommended = false
             )
@@ -248,7 +247,8 @@ fun SmartPublishScheduleDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.AutoGraph, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("مواعيد النشر المثالية بناءً على تفاعل الجمهور 📊", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    // ق159: كان العنوان يدّعي «بناءً على تفاعل الجمهور» — المواعيد اقتراحات عامة لأوقات ذروة معتادة، بلا قياس جمهور.
+                                    Text("مواعيد مقترحة لأوقات الذروة المعتادة", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -285,7 +285,11 @@ fun SmartPublishScheduleDialog(
                                                         border = androidx.compose.foundation.BorderStroke(1.dp, if (slot.isRecommended) ThemeSuccess else PresetPrimary)
                                                     ) {
                                                         Text(
-                                                            if (slot.id == "custom_time") "موعدك ⏱️" else "${slot.engagementScore}% تفاعل 🚀",
+                                                            // ق159: كانت الشارة «98% تفاعل» من نسب مختلقة
+                                                            // بلا مصدر تحليلات — الآن وصف صادق بلا رقم.
+                                                            text = if (slot.id == "custom_time") "موعدك ⏱️"
+                                                            else if (slot.isRecommended) "موعد مقترح ⭐"
+                                                            else "وقت ذروة معتاد",
                                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                                             color = if (slot.isRecommended) ThemeSuccess else PresetPrimary,
                                                             fontFamily = CairoFont,

@@ -103,8 +103,6 @@ jobs:
       shell: bash
       run: |
         cat > .env <<'EOF'
-        AW_CLIENT_ID="ci-placeholder"
-        AW_CLIENT_SECRET="ci-placeholder"
         AZURE_SPEECH_KEY="ci-placeholder"
         AZURE_SPEECH_REGION="ci-placeholder"
         COVERR_API_KEY="ci-placeholder"

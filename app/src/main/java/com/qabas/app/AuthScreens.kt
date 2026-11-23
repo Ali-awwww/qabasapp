@@ -2,8 +2,10 @@ package com.qabas.app
 
 import android.content.Context
 import android.util.Log
+import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -14,11 +16,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -682,6 +686,9 @@ fun RegisterScreen(
     }
 }
 
+/** ق102: مهلة إعادة إرسال رابط الاستعادة (60 ثانية) — مطابقة لتقييد Supabase الخادمي على الإرسال المتكرر. */
+private const val RESEND_COOLDOWN_MILLIS = 60_000L
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForgotPasswordScreen(
@@ -691,14 +698,28 @@ fun ForgotPasswordScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val isRecoveryVerified by PasswordRecoveryManager.isRecoveryVerified.collectAsState()
-    var email by remember { mutableStateOf("") }
-    var isSubmitted by remember { mutableStateOf(false) }
+    // ق102: حالة التدفق محفوظة عبر التدوير (rememberSaveable) — كانت
+    // remember عادياً فكان التدوير على شاشة «تم الإرسال» يعيد نموذج
+    // البريد ويدفع المستخدم لإعادة الإرسال، ويمسح البريد المدخل.
+    // كلمتا المرور تبقيان remember عادياً عمداً: لا تدخل أسرار في
+    // حزمة الحالة المحفوظة (saved-state Bundle).
+    var email by rememberSaveable { mutableStateOf("") }
+    var isSubmitted by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var isNewPasswordVisible by remember { mutableStateOf(false) }
     var isConfirmPasswordVisible by remember { mutableStateOf(false) }
-    var isResetComplete by remember { mutableStateOf(false) }
+    var isResetComplete by rememberSaveable { mutableStateOf(false) }
+    // ق102: مهلة إعادة الإرسال — Supabase يقيّد الإرسال المتكرر
+    // خادمياً (~طلب/دقيقة) فكانت النقرات المتتالية على «إرسال رابط
+    // آخر» تنتهي بتنبيه فشل عام؛ المهلة هنا تمنع الطلب قبل أوانه.
+    var lastSentAtMillis by rememberSaveable { mutableStateOf(0L) }
+    val resendCooldownRemainingSeconds: () -> Long = {
+        val elapsed = System.currentTimeMillis() - lastSentAtMillis
+        if (lastSentAtMillis == 0L || elapsed >= RESEND_COOLDOWN_MILLIS) 0L
+        else (RESEND_COOLDOWN_MILLIS - elapsed + 999L) / 1000L
+    }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = theme.primary,
@@ -737,7 +758,7 @@ fun ForgotPasswordScreen(
                     onClick = {
                         coroutineScope.launch {
                             if (isRecoveryVerified) {
-                                runCatching { SupabaseConfig.client.auth.signOut() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                                runCatching { SupabaseServices.Auth.logout() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                 PasswordRecoveryManager.clear(context)
                             }
                             onNavigateToLogin()
@@ -870,7 +891,7 @@ fun ForgotPasswordScreen(
                                     val updated = SupabaseServices.Auth.updateRecoveredPassword(pass)
                                     isLoading = false
                                     if (updated) {
-                                        runCatching { SupabaseConfig.client.auth.signOut() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                                        runCatching { SupabaseServices.Auth.logout() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                         PasswordRecoveryManager.clear(context)
                                         newPassword = ""
                                         confirmPassword = ""
@@ -918,7 +939,18 @@ fun ForgotPasswordScreen(
                 Spacer(modifier = Modifier.height(24.dp))
                 ApplePrimaryButton(
                     text = "إرسال رابط آخر",
-                    onClick = { isSubmitted = false }
+                    onClick = {
+                        val remaining = resendCooldownRemainingSeconds()
+                        if (remaining > 0L) {
+                            Toast.makeText(
+                                context,
+                                "انتظر $remaining ثانية قبل إرسال رابط آخر",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@ApplePrimaryButton
+                        }
+                        isSubmitted = false
+                    }
                 )
             } else {
                 Text(
@@ -953,22 +985,32 @@ fun ForgotPasswordScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = fieldColors,
                             shape = RoundedCornerShape(12.dp),
-                            singleLine = true
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
                         )
 
                         ApplePrimaryButton(
                             text = "إرسال رابط الاستعادة",
                             isLoading = isLoading,
                             onClick = {
-                                if (email.isBlank()) {
+                                val trimmedEmail = email.trim()
+                                if (trimmedEmail.isBlank()) {
                                     Toast.makeText(context, "الرجاء إدخال البريد الإلكتروني", Toast.LENGTH_SHORT).show()
+                                    return@ApplePrimaryButton
+                                }
+                                // ق102: كان أي نص غير فارغ يُرسل إلى Supabase
+                                // فيرفضه الخادم ويظهر تنبيه «تحقق من الاتصال»
+                                // الكاذب؛ الصيغة تُفحص هنا أولاً بتنبيه صادق.
+                                if (!Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+                                    Toast.makeText(context, "أدخل بريداً إلكترونياً صحيحاً", Toast.LENGTH_SHORT).show()
                                     return@ApplePrimaryButton
                                 }
                                 isLoading = true
                                 coroutineScope.launch {
-                                    val success = SupabaseServices.Auth.resetPassword(email.trim())
+                                    val success = SupabaseServices.Auth.resetPassword(trimmedEmail)
                                     isLoading = false
                                     if (success) {
+                                        lastSentAtMillis = System.currentTimeMillis()
                                         isSubmitted = true
                                     } else {
                                         Toast.makeText(

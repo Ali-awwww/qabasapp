@@ -30,6 +30,21 @@ private val TajawalFontBase = FontFamily(
 val AmiriFont = AmiriFontBase
 val RobotoMonoFont = FontFamily.Monospace
 
+/**
+ * عائلات الخطوط الحقيقية المميزة (أصول الخطوط نفسها، لا أسماء
+ * مستعارة لخط الواجهة الحالي): تُستعمل لخط المصحف المختار في
+ * الإعدادات، حيث يجب أن يعطي كل خيار خطاً مختلفاً فعلاً.
+ * CairoFont/TajawalFont/NotoSansFont أدناه أسماء مستعارة لـ
+ * FontManager.current.family (خط الواجهة) فلا تصلح هنا.
+ */
+val CairoFontFamily: FontFamily = CairoFontBase
+val TajawalFontFamily: FontFamily = TajawalFontBase
+/** خط النسخ (Scheherazade — نسخي بتشكيل قرآني كامل) لخيار «النسخ». */
+val ScheherazadeFontFamily: FontFamily = FontFamily(
+    Font(R.font.scheherazade_regular, weight = FontWeight.Normal),
+    Font(R.font.scheherazade_regular, weight = FontWeight.Bold)
+)
+
 /** خيارات الخط العام لواجهة خادم المسلم، وليست خطوط المصحف المتخصصة. */
 enum class AppFontChoice(
     val id: String,

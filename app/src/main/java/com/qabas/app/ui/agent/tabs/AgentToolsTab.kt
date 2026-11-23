@@ -254,13 +254,17 @@ internal fun ToolsTab(context: Context) {
         "device_status" to "📱 فحص صحة الجهاز",
         "diagnose" to "🩺 التشخيص الهندسي الشامل",
         "generate_script" to "🎬 توليد سيناريو دعوي",
+        "generate_image" to "🖼️ توليد صورة",
+        "generate_video" to "🎥 توليد فيديو",
+        "generate_voice" to "🎙️ توليد تعليق صوتي",
+        "publish_to_reels" to "📱 نشر ريلز",
         "search_quran" to "🔍 محرك البحث القرآني",
         "get_tafsir" to "📖 استرجاع التفسير الموثق",
-        "search_code_symbols" to "🔍 البحث الدلالي عن الدوال والكلاسات",
+        "search_code_symbols" to "🔍 البحث في أسماء ملفات المشروع",
         "diagnose_build_error" to "🩺 تشخيص أسباب أخطاء التجميع",
-        "run_linter_check" to "🧪 التدقيق النحوي والساكن (Linting)",
+        "run_linter_check" to "🧪 فحص توازن الأقواس والسلاسل النصية",
         "generate_unit_test" to "🧪 توليد اختبارات الوحدات الآلية (Unit Tests)",
-        "refactor_and_optimize" to "⚡ فحص وتحسين أداء الذاكرة و Compose"
+        "refactor_and_optimize" to "⚡ إرشادات تحسين أداء Compose"
     )
 
     Box(modifier = Modifier.fillMaxSize()) {

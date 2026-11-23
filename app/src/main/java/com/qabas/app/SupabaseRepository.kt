@@ -674,9 +674,14 @@ class SupabaseRepository(
             syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
+            // ق51: نص المكتبة الخام (روابط/مضيفون/أكواد HTTP) كان يُنشر
+            // في حالة المصادقة فيعرضه SavedItemsViewModel حرفياً؛
+            // يُعقَّم عبر describeAuthFailure كما في diagnoseSignInAttempt.
+            // register() مستثناة عمداً: شاشة التسجيل تطابق فيها علامتي
+            // EMAIL_CONFIRMATION_REQUIRED وduplicate key نصياً.
             publishAuthStateIfRevision(
                 attemptRevision,
-                AuthState.Error(e.message ?: "Login failed")
+                AuthState.Error(SupabaseServices.Auth.describeAuthFailure(e).message)
             )
         }
     }
@@ -753,20 +758,12 @@ class SupabaseRepository(
             checkAuthState()
             true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
+            // ق51: تعقيم نص الخطأ كما في login() — لا نص مكتبة خام في الحالة.
             publishAuthStateIfRevision(
                 attemptRevision,
-                AuthState.Error(e.message ?: "Google Sign-In failed")
+                AuthState.Error(SupabaseServices.Auth.describeAuthFailure(e).message)
             )
         }
-    }
-
-    /** Reset user password via email. */
-    suspend fun resetPassword(email: String): Result<Boolean> = withContext(Dispatchers.IO) {
-        if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
-        runCatching {
-            client.auth.resetPasswordForEmail(email)
-            true
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /** Update current user password. */
@@ -786,6 +783,16 @@ class SupabaseRepository(
             // Invalidate any profile/role response already in flight before sign-out starts.
             synchronized(authStateWriteLock) {
                 authStateRevision += 1L
+            }
+            // ق108: تحرير حجز الجلسة النشطة عند كل تسجيل خروج — كان التحرير
+            // في ActiveSessionManager.endLocalSession وحده، فمسارات الخروج
+            // عبر المستودع مباشرة (المحفوظات، حذف الحساب، الاستعادة)
+            // تترك الحجز معلقاً فيحجب دخول جهاز آخر بـ ACTIVE_ELSEWHERE
+            // حتى انتهاء مهلة الحجز؛ والتحرير هنا أفضل جهد (لا يفشل الخروج).
+            val currentUid = client.auth.currentUserOrNull()?.id
+            if (!currentUid.isNullOrBlank()) {
+                runCatching { ActiveSessionManager.release(AppServices.appContext, currentUid) }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             }
             if (isAvailable) client.auth.signOut()
 
@@ -826,8 +833,7 @@ class SupabaseRepository(
      * ولا تُخزَّن أبداً كنص صريح في جدول `user_api_keys`.
      */
     private val VAULT_ALLOWED_SERVICES = setOf(
-        "gemini_key", "groq_key", "openai_key", "openrouter_key", "huggingface_key",
-        "azure_speech_key", "azure_speech_region", "elevenlabs_key", "pexels_key", "pixabay_key"
+        "gemini_key", "groq_key", "openrouter_key", "pixabay_key"
     )
 
     /** يطبّع اسم الخدمة إلى اسم الخزنة المسموح، أو null إن كانت الخدمة غير معروفة. */
@@ -835,12 +841,7 @@ class SupabaseRepository(
         val normalized = when (service.trim().lowercase()) {
             "gemini" -> "gemini_key"
             "groq" -> "groq_key"
-            "openai" -> "openai_key"
             "openrouter" -> "openrouter_key"
-            "huggingface" -> "huggingface_key"
-            "azure_speech" -> "azure_speech_key"
-            "elevenlabs" -> "elevenlabs_key"
-            "pexels" -> "pexels_key"
             "pixabay" -> "pixabay_key"
             else -> service.trim().lowercase()
         }
@@ -891,7 +892,7 @@ class SupabaseRepository(
      * Deletes one user API key from the cloud vault (action `delete` in
      * `qabas-key-vault` — موجود في الخادم أصلاً). Without this call deletion
      * was local-only and the key was re-pulled from the cloud on next sync.
-     * Local-only services (Anthropic/Leonardo/…) return false — they have
+     * Local-only services (Leonardo/…) return false — they have
      * no cloud copy to delete. The key value is never logged.
      */
     suspend fun deleteApiKey(service: String): Boolean = withContext(Dispatchers.IO) {

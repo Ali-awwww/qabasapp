@@ -12,6 +12,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -53,38 +54,16 @@ class ModelDownloadService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var activeModel: OnDeviceModelInfo? = null
     private var lastPercent = -1
+    // (ق62) جامع التقدم كان يُطلق من جديد مع كل startDownload ولا يُلغى
+    // أبداً — جامع متراكم لكل تنزيل سابق حتى موت الخدمة. جامع واحد
+    // لعمر الخدمة كله، يُطلق في onCreate ويُلغى في onDestroy.
+    private var progressJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_CANCEL -> {
-                activeModel?.let { OnDeviceModelManager.cancelDownload(this, it) }
-                stopSelf()
-                return START_NOT_STICKY
-            }
-            ACTION_START -> {
-                val modelId = intent.getStringExtra(EXTRA_MODEL_ID) ?: return START_NOT_STICKY
-                val model = OnDeviceModelManager.availableModels.find { it.id == modelId }
-                    ?: return START_NOT_STICKY
-                startDownload(model)
-            }
-        }
-        return START_NOT_STICKY
-    }
-
-    private fun startDownload(model: OnDeviceModelInfo) {
-        activeModel = model
-        lastPercent = -1
-        ensureChannel()
-        acquireWakeLock()
-        startForegroundWithType(NOTIF_ID, buildNotification(model.name, "بدء التنزيل…", null, null))
-        scope.launch(Dispatchers.IO) {
-            val ok = OnDeviceModelManager.downloadModel(this@ModelDownloadService, model)
-            finishDownload(model, ok)
-        }
-        // مرآة التقدم الحي من حالة المدير إلى الإشعار
-        scope.launch {
+    override fun onCreate() {
+        super.onCreate()
+        progressJob = scope.launch {
             OnDeviceModelManager.downloadState.collect { state ->
                 val m = activeModel ?: return@collect
                 when (state) {
@@ -103,6 +82,42 @@ class ModelDownloadService : Service() {
         }
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_CANCEL -> {
+                activeModel?.let { OnDeviceModelManager.cancelDownload(this, it) }
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_START -> {
+                val modelId = intent.getStringExtra(EXTRA_MODEL_ID) ?: return START_NOT_STICKY
+                val model = OnDeviceModelManager.availableModels.find { it.id == modelId }
+                    ?: return START_NOT_STICKY
+                // (ق62) حارس متزامن قبل إطلاق أي كوروتين: تنزيل جارٍ يعني
+                // تجاهل البدء الثاني — وإلا استُبدل activeModel وأُطلق تنزيل
+                // ثانٍ، وانتهاء الأول أوقف الخدمة فقتل الثاني بصمت.
+                if (activeModel != null) {
+                    android.util.Log.w("ModelDownloadService", "Download already active (${activeModel?.id}); ignoring start for $modelId")
+                    return START_NOT_STICKY
+                }
+                startDownload(model)
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startDownload(model: OnDeviceModelInfo) {
+        activeModel = model
+        lastPercent = -1
+        ensureChannel()
+        acquireWakeLock()
+        startForegroundWithType(NOTIF_ID, buildNotification(model.name, "بدء التنزيل…", null, null))
+        scope.launch(Dispatchers.IO) {
+            val ok = OnDeviceModelManager.downloadModel(this@ModelDownloadService, model)
+            finishDownload(model, ok)
+        }
+    }
+
     private fun updateNotification(model: OnDeviceModelInfo, s: ModelDownloadState.Downloading) {
         val pct = (s.progress * 100).toInt().coerceIn(0, 100)
         if (pct == lastPercent) return
@@ -113,15 +128,39 @@ class ModelDownloadService : Service() {
         nm?.notify(NOTIF_ID, buildNotification(model.name, "$mb$speed", pct, model))
     }
 
+    /**
+     * (ق62) الإشعار الختامي كان أعمى: أي عودة false تعني «تعذر التنزيل» —
+     * فيُبلَّغ الإلغاء الصريح من المستخدم والانقطاع القابل للاستئناف
+     * كفشل، وتُستبدل رسالة «توقف مؤقتاً» التي نشرها الجامع برسالة فشل.
+     * الآن الإشعار يقرأ الحالة النهائية الفعلية: نجاح، أو انقطاع
+     * (رسالة استئناف)، أو خطأ (برسالته)، أو إلغاء (سحب صامت بلا فشل كاذب).
+     */
     private fun finishDownload(model: OnDeviceModelInfo, ok: Boolean) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        nm?.notify(
-            NOTIF_ID,
-            buildDoneNotification(
-                if (ok) "اكتمل تنزيل ${model.name}" else "تعذر التنزيل",
-                if (ok) "النموذج جاهز في التطبيق ✅" else "أعد المحاولة من مركز التنزيل"
+        when {
+            ok -> nm?.notify(
+                NOTIF_ID,
+                buildDoneNotification(
+                    "اكتمل تنزيل ${model.name}",
+                    "النموذج جاهز في التطبيق ✅"
+                )
             )
-        )
+            OnDeviceModelManager.downloadState.value is ModelDownloadState.Interrupted -> nm?.notify(
+                NOTIF_ID,
+                buildDoneNotification(
+                    "توقف التنزيل مؤقتاً",
+                    "انقطع الاتصال — استكمل من التطبيق ▶"
+                )
+            )
+            OnDeviceModelManager.downloadState.value is ModelDownloadState.Error -> {
+                val message = (OnDeviceModelManager.downloadState.value as ModelDownloadState.Error).message
+                nm?.notify(
+                    NOTIF_ID,
+                    buildDoneNotification("تعذر التنزيل", message)
+                )
+            }
+            else -> nm?.cancel(NOTIF_ID)
+        }
         stopForeground(STOP_FOREGROUND_DETACH)
         releaseWakeLock()
         activeModel = null
@@ -197,6 +236,8 @@ class ModelDownloadService : Service() {
 
     override fun onDestroy() {
         activeModel?.let { OnDeviceModelManager.cancelDownload(this, it) }
+        progressJob?.cancel()
+        progressJob = null
         releaseWakeLock()
         scope.cancel()
         super.onDestroy()

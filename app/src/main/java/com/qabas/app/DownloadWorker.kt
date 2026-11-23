@@ -110,7 +110,9 @@ class DownloadWorker(
             DownloadsHubManager.refreshStorageMetrics(context)
             Result.success()
         } else {
-            DownloadsHubManager.reportWorkerError(KIND_REEL, reelId, title, result.errorMessage ?: "فشل التنزيل")
+            // ق168: خطأ العامل يحمل رابط الريل — بدونه كان إدخال الريل
+            // الفاشل في اللوحة بلا «إعادة» (إزالة فقط، كالوسائط في ق119).
+            DownloadsHubManager.reportWorkerError(KIND_REEL, reelId, title, result.errorMessage ?: "فشل التنزيل", videoUrl)
             if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
         }
     }
@@ -155,7 +157,7 @@ class DownloadWorker(
             DownloadsHubManager.refreshStorageMetrics(context)
             Result.success()
         } else {
-            DownloadsHubManager.reportWorkerError(KIND_MEDIA, mediaId, title, result.errorMessage ?: "فشل التنزيل")
+            DownloadsHubManager.reportWorkerError(KIND_MEDIA, mediaId, title, result.errorMessage ?: "فشل التنزيل", fileUrl, subtitle)
             if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
         }
     }

@@ -45,14 +45,7 @@ object KeyDeepLinkHandler {
         val paramNames = mapOf(
             "gemini" to "gemini_key",
             "groq" to "groq_key",
-            "openai" to "openai_key",
             "openrouter" to "openrouter_key",
-            "huggingface" to "huggingface_key",
-            "hf" to "huggingface_key",
-            "azure" to "azure_speech_key",
-            "azure_region" to "azure_speech_region",
-            "elevenlabs" to "elevenlabs_key",
-            "pexels" to "pexels_key",
             "pixabay" to "pixabay_key"
         )
 
@@ -82,31 +75,31 @@ object KeyDeepLinkHandler {
     fun applyImportedKeys(context: Context, keys: Map<String, String>): Pair<Boolean, String> {
         if (keys.isEmpty()) return false to "لا توجد مفاتيح"
 
-        val prefs = AgentPrefs.instance(context)
-        val editor = prefs.edit()
-
+        // كان الاستيراد يكتب التفضيل المفرد مباشرة بلا تنظيف وبلا
+        // مرور بالمسبح — وKeyVault يقرأ المسبح النشط أولاً، فكان
+        // المفتاح المستورَد بلا أثر صامتاً عند وجود مسبح، ومحارف النسخ
+        // الخفية تمر بلا تنظيف. المسار الواحد الصحيح هو setSingleKey.
+        var imported = 0
+        val names = mutableListOf<String>()
         keys.forEach { (field, value) ->
-            editor.putString(field, value)
-        }
-        editor.apply()
-
-        val names = keys.keys.map { field ->
-            when (field) {
-                "gemini_key" -> "Gemini"
-                "groq_key" -> "Groq"
-                "openai_key" -> "OpenAI"
-                "openrouter_key" -> "OpenRouter"
-                "huggingface_key" -> "HuggingFace"
-                "azure_speech_key" -> "Azure TTS"
-                "azure_speech_region" -> "Azure Region"
-                "elevenlabs_key" -> "ElevenLabs"
-                "pexels_key" -> "Pexels"
-                "pixabay_key" -> "Pixabay"
-                else -> field
+            val clean = KeyPoolManager.sanitizeApiKey(value)
+            if (clean.isNotBlank()) {
+                KeyPoolManager.setSingleKey(field, clean)
+                imported++
+                names.add(
+                    when (field) {
+                        "gemini_key" -> "Gemini"
+                        "groq_key" -> "Groq"
+                        "openrouter_key" -> "OpenRouter"
+                        "pixabay_key" -> "Pixabay"
+                        else -> field
+                    }
+                )
             }
         }
 
-        return true to "تم استيراد ${keys.size} مفتاح: ${names.joinToString("، ")} ✅"
+        if (imported == 0) return false to "لا توجد مفاتيح صالحة للاستيراد"
+        return true to "تم استيراد $imported مفتاح: ${names.joinToString("، ")} ✅"
     }
 
 }

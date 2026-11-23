@@ -73,7 +73,7 @@ fun PremiumUpgradeScreen(
         }
         billingManager.onPurchaseError = { errorMsg ->
             isProcessing = false
-            Toast.makeText(context, Translator.tr("تعذر الاشتراك: $errorMsg"), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, Translator.trf("تعذر الاشتراك: {0}", errorMsg), Toast.LENGTH_SHORT).show()
         }
         onDispose {
             billingManager.onPurchaseSuccess = null

@@ -131,6 +131,10 @@ fun ProfileScreen(
 
     var socialAccounts by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
 
+    // شارة «صانع موثق» تُمنح فعلاً لا ادعاءً: من قائمة الموثقين
+    // (VerificationManager — تُزامَن مع جدول verified_creators).
+    var isVerifiedCreator by remember { mutableStateOf(VerificationManager.isSelfVerified(context)) }
+
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showSwitchAccountDialog by remember { mutableStateOf(false) }
@@ -226,7 +230,10 @@ fun ProfileScreen(
             val effectiveName = if (!cloudDisplayName.isNullOrBlank()) {
                 cloudDisplayName.trim()
             } else {
-                val baseName = if (nameSnapshot == "علي وليد") null else savedAccountName
+                // بلا قائمة سوداء لاسم بعينه: الاسم المحفوظ اسم حقيقي
+                // يُعرض كما هو (كان «علي وليد» يُسقَط فيُعرض «مستخدم
+                // خادم المسلم» بدل اسم صاحب الحساب نفسه).
+                val baseName = nameSnapshot
                 baseName ?: sbName ?: "مستخدم خادم المسلم"
             }
             displayName = effectiveName
@@ -434,12 +441,16 @@ fun ProfileScreen(
         socialAccounts = SocialAccountManager.getAccounts(context)
         try {
             isLoadingLeague = true
+            runCatching { VerificationManager.refreshFromCloud(context) }
+            isVerifiedCreator = VerificationManager.isSelfVerified(context)
             val leaderboard = CloudServices.Database.getLeaderboard()
             val currentUserId = CloudServices.Auth.getCurrentUserId()
 
             if (leaderboard.isNotEmpty()) {
+                // المطابقة بالمعرّف وحده: مطابقة الاسم الجزئية كانت قد
+                // تُلحق بالمستخدم إدخال مستخدم آخر يحمل الاسم نفسه.
                 val myEntry = if (currentUserId != null) {
-                    leaderboard.find { it.isCurrentUser } ?: leaderboard.find { it.name.contains(displayName, ignoreCase = true) }
+                    leaderboard.find { it.isCurrentUser }
                 } else null
 
                 if (myEntry != null) {
@@ -447,16 +458,19 @@ fun ProfileScreen(
                     val calculatedRank = leaderboard.indexOf(myEntry) + 1
                     userLeagueRank = if (myEntry.rank > 0) myEntry.rank else calculatedRank
                 } else {
-                    val currentPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
-                    val fallbackPoints = (projectsCount * 50) + (currentPublished * 20)
-                    userLeaguePoints = if (userLeaguePoints > 0) userLeaguePoints else fallbackPoints
-                    userLeagueRank = if (userLeagueRank > 0) userLeagueRank else (leaderboard.size + 1).coerceAtMost(99)
+                    // بلا إدخال في دوري هذا الأسبوع: غير مصنف — لا نقاط
+                    // مختلقة من عدد المشاريع ولا ترتيب من حجم القائمة.
+                    // تُعرض النقاط المحلية الحقيقية (مفتاح PointsManager
+                    // نفسه الذي تستعمله لوحة الشرف) بلا ترتيب، وتُحفظ
+                    // بدل القيمة المختلقة السابقة في الذاكرة المحلية.
+                    // (القديم كان يمنح المركز الأول عند فراغ القائمة.)
+                    userLeaguePoints = prefs.getInt("local_user_points", prefs.getInt("local_points", 0))
+                    userLeagueRank = 0
                 }
             } else {
-                val currentPublished = socialAccounts.filter { it.isConnected }.sumOf { it.publishedCount }
-                val fallbackPoints = (projectsCount * 50) + (currentPublished * 20)
-                if (userLeaguePoints == 0) userLeaguePoints = fallbackPoints
-                if (userLeagueRank == 0) userLeagueRank = 1
+                // القائمة فارغة تعني بلا بيانات دوري، لا المركز الأول.
+                userLeaguePoints = prefs.getInt("local_user_points", prefs.getInt("local_points", 0))
+                userLeagueRank = 0
             }
             prefs.edit()
                 .putInt("user_league_points", userLeaguePoints)
@@ -495,7 +509,7 @@ fun ProfileScreen(
                 isUnlocked = true,
                 isCurrentTier = userLeaguePoints < 500,
                 description = "يُمنح لكل صانع محتوى يبدأ رحلته في دوري خادم المسلم الدعوي بنشر أولى بصماته المباركة.",
-                perk = "مضاعف نقاط 1.0x والدخول في السجل الأسبوعي."
+                perk = "وسام الصاعد الواعد يظهر في ملفك الشخصي ضمن الأوسمة والإنجازات."
             ),
             TournamentTierBadge(
                 id = "tier_silver",
@@ -509,7 +523,7 @@ fun ProfileScreen(
                 isUnlocked = userLeaguePoints >= 500,
                 isCurrentTier = userLeaguePoints in 500..1499,
                 description = "يُمنح للصناع الذين اجتازوا 500 نقطة وأثبتوا حضورهم المستمر بجودة عالية.",
-                perk = "أولوية معالجة الفيديوهات في السحابة ومضاعف نقاط 1.2x."
+                perk = "وسام النجم الفضي يظهر في ملفك الشخصي ضمن الأوسمة والإنجازات."
             ),
             TournamentTierBadge(
                 id = "tier_gold",
@@ -523,7 +537,7 @@ fun ProfileScreen(
                 isUnlocked = userLeaguePoints >= 1500,
                 isCurrentTier = userLeaguePoints in 1500..3499,
                 description = "وسام نخبوي للصناع المتميزين الذين حققوا تأثيراً مشهوداً عبر أكثر من 1,500 نقطة.",
-                perk = "إطار ذهبي للصورة الشخصية ومضاعف نقاط 1.5x."
+                perk = "وسام الصانع الذهبي يظهر في ملفك الشخصي ضمن الأوسمة والإنجازات."
             ),
             TournamentTierBadge(
                 id = "tier_diamond",
@@ -537,7 +551,7 @@ fun ProfileScreen(
                 isUnlocked = userLeaguePoints >= 3500,
                 isCurrentTier = userLeaguePoints in 3500..6999,
                 description = "يُمنح لكبار صناع المحتوى المؤثرين الذين بلغوا 3,500 نقطة في ميادين الدعوة.",
-                perk = "توليد مشاهد فورية غير محدودة وإبراز المشاريع في صدارة المنصات."
+                perk = "وسام الفارس الماسي يظهر في ملفك الشخصي ضمن الأوسمة والإنجازات."
             ),
             TournamentTierBadge(
                 id = "tier_master",
@@ -551,7 +565,7 @@ fun ProfileScreen(
                 isUnlocked = userLeaguePoints >= 7000,
                 isCurrentTier = userLeaguePoints in 7000..11999,
                 description = "أعلى أوسمة التقدير لصناع الأثر الذين حققوا أكثر من 7,000 نقطة بطولة.",
-                perk = "شارة سفير موثقة بجانب الاسم والوصول إلى أحدث الأدوات التجريبية."
+                perk = "وسام سفير الدعوة يظهر في ملفك الشخصي ضمن الأوسمة والإنجازات."
             ),
             TournamentTierBadge(
                 id = "tier_legend",
@@ -565,7 +579,7 @@ fun ProfileScreen(
                 isUnlocked = userLeaguePoints >= 12000,
                 isCurrentTier = userLeaguePoints >= 12000,
                 description = "تاج البطولة التنافسية الكبرى لمن تجاوزوا 12,000 نقطة من العطاء الاستثنائي.",
-                perk = "تخليد الاسم في لوحة الشرف الخالدة."
+                perk = "وسام أسطورة خادم المسلم يظهر في ملفك الشخصي ضمن الأوسمة والإنجازات."
             ),
             TournamentTierBadge(
                 id = "rank_top10",
@@ -580,7 +594,7 @@ fun ProfileScreen(
                 isUnlocked = userLeagueRank in 1..10,
                 isCurrentTier = userLeagueRank in 4..10,
                 description = "يُمنح لمن يدخل قائمة أفضل 10 صناع محتوى في الدوري الأسبوعي المباشر.",
-                perk = "شارة تميز تظهر في مجتمع خادم المسلم العام."
+                perk = "وسام فرسان الصدارة يظهر في ملفك الشخصي ما دمت ضمن العشرة الأوائل."
             ),
             TournamentTierBadge(
                 id = "rank_top3",
@@ -595,7 +609,7 @@ fun ProfileScreen(
                 isUnlocked = userLeagueRank in 1..3,
                 isCurrentTier = userLeagueRank in 2..3,
                 description = "يُمنح للمراكز الثلاثة الأولى على مستوى جميع المشتركين في البطولة الأسبوعية.",
-                perk = "تكريم خاص وإعلان التتويج الأسبوعي."
+                perk = "وسام منصة التتويج يظهر في ملفك الشخصي ما دمت ضمن الثلاثة الأوائل."
             ),
             TournamentTierBadge(
                 id = "rank_champion",
@@ -610,7 +624,7 @@ fun ProfileScreen(
                 isUnlocked = userLeagueRank == 1,
                 isCurrentTier = userLeagueRank == 1,
                 description = "المركز الأول المطلق في الدوري وصاحب أعلى بصمة أثرية في البطولة.",
-                perk = "كأس البطولة الأسبوعي ولقب بطل الموسم."
+                perk = "وسام بطل الدوري الأسبوعي يظهر في ملفك الشخصي ما دمت في المركز الأول."
             )
         )
     }
@@ -820,18 +834,20 @@ fun ProfileScreen(
                             }
                         }
 
-                        Surface(
-                            color = theme.success.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "صانع موثق ✓",
-                                color = theme.success,
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
+                        if (isVerifiedCreator) {
+                            Surface(
+                                color = theme.success.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "صانع موثق ✓",
+                                    color = theme.success,
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
                         }
                     }
 
@@ -1401,13 +1417,13 @@ fun ProfileScreen(
                     ) {
                         RankHighlightCard(
                             label = "الترتيب الحالي",
-                            value = if (isLoadingLeague) "..." else "#$userLeagueRank",
+                            value = if (isLoadingLeague) "..." else if (userLeagueRank > 0) "#$userLeagueRank" else "—",
                             icon = Icons.Default.Leaderboard,
                             accent = theme.primary
                         )
                         RankHighlightCard(
                             label = "رصيد النقاط",
-                            value = if (isLoadingLeague) "..." else "$userLeaguePoints نقطة",
+                            value = if (isLoadingLeague) "..." else if (userLeagueRank > 0) "$userLeaguePoints نقطة" else if (userLeaguePoints > 0) "$userLeaguePoints نقطة (محلية)" else "—",
                             icon = Icons.Default.Stars,
                             accent = theme.warning
                         )

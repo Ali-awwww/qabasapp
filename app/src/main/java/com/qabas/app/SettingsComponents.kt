@@ -614,7 +614,10 @@ fun ProfileSettingsCard(
                         fontSize = 17.sp
                     )
                     Text(
-                        text = userEmail,
+                        // ق104: كان الضيف يرى «guest@qabas.studio» معروضاً
+                        // كبريده — وهو معرّف داخلي للحساب الضيف لا بريد
+                        // حقيقي؛ البطاقة تعرف isGuest فتعرض نصاً صادقاً.
+                        text = if (isGuest) "تصفح كضيف — بلا بريد مسجل" else userEmail,
                         color = theme.textSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp

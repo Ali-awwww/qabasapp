@@ -332,27 +332,55 @@ object QuranAudioPlayer {
     private var sleepDeadlineMs: Long = 0L
     private var currentSpeed: Float = 1f
 
+    // ق186: لقطة الجلسة الجارية — القائمة والصفحة/السورة ووضع التكرار
+    // تُحفظ هنا لا في الشاشة، لأن حالة الشاشة remember تموت بالتدوير
+    // بينما المشغّل (singleton) ينجو؛ فتعيد الشاشة بناء حالتها منها
+    // بعد التدوير بدل فقدان التمييز وحالة التشغيل. تُصفَّر مع
+    // releasePlayer() وعند النهاية الطبيعية أو الخطأ، فلا لقطة لجلسة
+    // ميتة تُبعث بعد انتهائها.
+    private var lastAyahs: List<QuranAudioService.QuranTimedAyahAudio> = emptyList()
+    private var lastPage: Int? = null
+    private var lastSurah: Int? = null
+    private var lastRepeatMode: QuranRepeatMode = QuranRepeatMode.OFF
+
+    /** لقطة جلسة تلاوة جارية قابلة لإعادة الربط بعد التدوير. */
+    data class QuranPlaybackSession(
+        val ayahs: List<QuranAudioService.QuranTimedAyahAudio>,
+        val index: Int,
+        val playing: Boolean,
+        val page: Int?,
+        val surah: Int?,
+        val speed: Float,
+        val repeatMode: QuranRepeatMode
+    )
+
     fun playAyahs(
         context: Context,
         ayahs: List<QuranAudioService.QuranTimedAyahAudio>,
         startIndex: Int = 0,
         repeatMode: QuranRepeatMode = QuranRepeatMode.OFF,
         speed: Float = 1f,
+        page: Int? = null,
+        surah: Int? = null,
         onAyahChanged: ((Int) -> Unit)? = null,
         onEnded: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
-        // مؤقت النوم للجلسة لا للتشغيلة الواحدة: إيقاف المشغّل
-        // الداخلي هنا كان يلغي المؤقت بصمت مع بقاء عدّاده التنازلي
-        // ظاهراً في الشاشة؛ نحفظ المتبقي ونعيد تسليحه بعد بناء
-        // المشغّل الجديد، فينجو المؤقت من تبديل الصفحة/السورة
-        // وإعادة بناء القائمة عند تبديل التكرار.
-        val sleepLeftMs = sleepRemainingMs()
-        stop()
+        // مؤقت النوم للجلسة لا للتشغيلة الواحدة: إعادة بناء المشغّل
+        // لا تلغيه أبداً — يبقى مسلّحاً بموعدِه الأصلي عبر تبديل
+        // الصفحة/السورة وإعادة بناء القائمة عند تبديل التكرار، فيوقف
+        // التشغيل الجديد عند موعده (ق43: كان الالتقاط وإعادة التسليح
+        // هنا يحفظانه عبر playAyahs وحدها، بينما مسارات إعادة البناء
+        // الأخرى في الشاشة كانت تمر عبر stop() فتلغيه بصمت).
+        releasePlayer()
         if (ayahs.isEmpty()) return
         onEndedCallback = onEnded
         onErrorCallback = onError
         onAyahChangedCallback = onAyahChanged
+        lastAyahs = ayahs
+        lastPage = page
+        lastSurah = surah
+        lastRepeatMode = repeatMode
         currentSpeed = speed.coerceIn(0.5f, 2f)
         val p = try {
             ExoPlayerFactory.createPlayer(context.applicationContext)
@@ -380,6 +408,12 @@ object QuranAudioPlayer {
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
+                    // انتهت القائمة طبيعياً فلا معنى لبقاء المؤقت: إبقاؤه
+                    // كان يقطع تشغيلة لاحقة بلا عدّاد ظاهر (ق43).
+                    cancelSleepTimer()
+                    // ق186: نهاية طبيعية — الجلسة ميتة فتُصفَّى لقطتها
+                    // حتى لا يبعثها تدوير لاحق بعد انتهائها.
+                    clearSession()
                     val ended = onEndedCallback
                     onEndedCallback = null
                     ended?.invoke()
@@ -394,6 +428,11 @@ object QuranAudioPlayer {
                     PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> "ملف التلاوة غير متوفر لهذه الآية."
                     else -> "تعذّر تشغيل التلاوة — حاول مجدداً."
                 }
+                // ق43: كالنهاية الطبيعية — خطأ التشغيل ينهي الجلسة فلا
+                // يبقى المؤقت مسلّحاً لتشغيلة لاحقة بلا عدّاد ظاهر.
+                cancelSleepTimer()
+                // ق186: كالنهاية — خطأ التشغيل ينهي الجلسة فتُصفَّى لقطتها.
+                clearSession()
                 val report = onErrorCallback
                 onErrorCallback = null
                 report?.invoke(message)
@@ -402,7 +441,6 @@ object QuranAudioPlayer {
         p.prepare()
         p.play()
         player = p
-        if (sleepLeftMs != null && sleepLeftMs > 0) armSleepTimerMs(sleepLeftMs)
     }
 
     fun toggle(): Boolean {
@@ -412,6 +450,50 @@ object QuranAudioPlayer {
     }
 
     fun isPlaying(): Boolean = player?.isPlaying == true
+
+    /**
+     * ق186: لقطة الجلسة الجارية أو null بلا مشغّل حي — تُقرأ من
+     * الشاشة عند أول تركيب لإعادة ربط التمييز وحالة التشغيل بعد
+     * التدوير، دون إعادة بناء قائمة التشغيل أو إيقاف الصوت.
+     */
+    fun currentSession(): QuranPlaybackSession? {
+        val p = player ?: return null
+        if (lastAyahs.isEmpty()) return null
+        val index = try { p.currentMediaItemIndex } catch (_: Exception) { -1 }
+        if (index !in lastAyahs.indices) return null
+        return QuranPlaybackSession(
+            ayahs = lastAyahs,
+            index = index,
+            playing = try { p.isPlaying } catch (_: Exception) { false },
+            page = lastPage,
+            surah = lastSurah,
+            speed = currentSpeed,
+            repeatMode = lastRepeatMode
+        )
+    }
+
+    /**
+     * ق186: إعادة تسجيل ردود الجلسة الجارية بعد التدوير — تبديل
+     * المراجع فقط؛ لا يُعاد بناء المشغّل ولا يتوقف الصوت ولا يُعاد
+     * التشغيل من البداية.
+     */
+    fun reattachCallbacks(
+        onAyahChanged: ((Int) -> Unit)? = null,
+        onEnded: (() -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
+        onAyahChangedCallback = onAyahChanged
+        onEndedCallback = onEnded
+        onErrorCallback = onError
+    }
+
+    /** تصفية لقطة الجلسة وحدها (بلا مسّ المشغّل أو مؤقت النوم). */
+    private fun clearSession() {
+        lastAyahs = emptyList()
+        lastPage = null
+        lastSurah = null
+        lastRepeatMode = QuranRepeatMode.OFF
+    }
 
     /** موضع التشغيل الحالي داخل الآية الجارية (مللي ثانية) — لتطابق الكلمة. */
     fun currentPositionMs(): Long = try {
@@ -484,6 +566,22 @@ object QuranAudioPlayer {
 
     fun stop() {
         cancelSleepTimer()
+        releasePlayer()
+    }
+
+    /**
+     * إيقاف التشغيل مع بقاء مؤقت النوم مسلّحاً بموعدِه (ق43): لإعادة
+     * بناء قائمة التشغيل (تبديل التكرار) أو القفز إلى آية أخرى داخل
+     * الجلسة نفسها — فالمؤقت للجلسة لا للتشغيلة الواحدة. الإيقاف
+     * الصريح من المستخدم (تغيير القارئ، مغادرة الشاشة) يستعمل stop()
+     * فيلغي المؤقت مع التشغيل.
+     */
+    fun stopKeepingSleepTimer() {
+        releasePlayer()
+    }
+
+    /** تحرير المشغّل وتصفير ردوده دون مسّ مؤقت النوم. */
+    private fun releasePlayer() {
         try {
             player?.stop()
             player?.release()
@@ -493,5 +591,6 @@ object QuranAudioPlayer {
         onEndedCallback = null
         onErrorCallback = null
         onAyahChangedCallback = null
+        clearSession()
     }
 }

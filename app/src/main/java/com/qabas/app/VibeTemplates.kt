@@ -231,7 +231,11 @@ object VibeTemplates {
             "Book.kt" to """
                 package com.example.library
 
-                /** كتاب: ملف الأصل موجود فعلاً في أصول تطبيق خادم المسلم. */
+                /** كتاب: ملف الأصل موجود فعلاً في أصول تطبيق خادم المسلم.
+                 * ملاحظة (ق182): ملفا الحديث في الشجرة ‎.json.gz لكن أداة
+                 * التغليف تخزّنهما في الـ APK مفكوكَي الضغط باسم ‎.json —
+                 * فيُطلب ‎.json ويُقرأ JSON عادياً بلا فك ضغط (انظر
+                 * QabasBukhariRepository)؛ طلب ‎.json.gz يفشل بصمت. */
                 data class Book(
                     val id: String,
                     val title: String,
@@ -240,8 +244,8 @@ object VibeTemplates {
                 )
 
                 val STARTER_BOOKS = listOf(
-                    Book("bukhari", "صحيح البخاري", "الإمام البخاري", "hadith/sahih_bukhari.json.gz"),
-                    Book("muslim", "صحيح مسلم", "الإمام مسلم", "hadith/sahih_muslim.json.gz"),
+                    Book("bukhari", "صحيح البخاري", "الإمام البخاري", "hadith/sahih_bukhari.json"),
+                    Book("muslim", "صحيح مسلم", "الإمام مسلم", "hadith/sahih_muslim.json"),
                     Book("muyassar", "تفسير الميسر", "نخبة من العلماء", "quran/tafsir_muyassar.json")
                 )
             """.trimIndent(),

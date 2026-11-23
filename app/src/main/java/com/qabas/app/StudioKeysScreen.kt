@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PermMedia
@@ -64,12 +63,10 @@ import kotlinx.coroutines.launch
  *   + سحابي عبر دالة `qabas-key-vault` فقط (تشفير AES-GCM من جهة الخادم).
  *
  * حدود صريحة موثقة:
- * - Anthropic وOpenCode وLeonardo وCoverr ليست في قائمة الخزنة المسموحة
- *   (10 خدمات في `supabase/functions/qabas-key-vault/index.ts`) — مفاتيحها
- *   محلية فقط حتى يُوسَّع Edge Function والعميل معاً.
- * - منطقة Azure حقل منفصل عن المفتاح نفسه.
- * - روابط «احصل على المفتاح» مذكورة فقط حيث وردت في كود التطبيق أصلاً؛
- *   لا رابط مخترع لـ Anthropic أو OpenCode هنا.
+ * - Leonardo ليس في قائمة الخزنة المسموحة
+ *   (4 خدمات في `supabase/functions/qabas-key-vault/index.ts`) — مفتاحه
+ *   محلي فقط حتى يُوسَّع Edge Function والعميل معاً.
+ * - روابط «احصل على المفتاح» مذكورة فقط حيث وردت في كود التطبيق أصلاً.
  * - كل تلميحات التكلفة من بحث الويب في تقرير الاستوديو وموسومة «تقريبي».
  */
 private data class ProviderSpec(
@@ -85,7 +82,6 @@ private data class ProviderSpec(
     /** تلميح تكلفة — كل الأسعار هنا «تقريبي» من بحث الويب في تقرير الاستوديو. */
     val costHint: String,
     val detectedProvider: DetectedProvider?,
-    val needsRegion: Boolean = false,
     /** يُدار عبر بوابة المنصة (qabas-gateway) لا بمفتاح مستخدم. */
     val gatewayManaged: Boolean = false,
     val localOnlyReason: String? = null
@@ -107,13 +103,6 @@ private val PROVIDER_SPECS = listOf(
         detectedProvider = DetectedProvider.GROQ
     ),
     ProviderSpec(
-        id = "openai", displayName = "OpenAI", capability = "نص وسكربت ووكيل",
-        icon = Icons.Default.TextFields, prefsKey = "openai_key", vaultService = "openai_key",
-        keyUrl = "https://platform.openai.com/api-keys",
-        costHint = "مدفوع حسب الاستهلاك — راجع صفحة الأسعار الرسمية (تقريبي)",
-        detectedProvider = DetectedProvider.OPENAI
-    ),
-    ProviderSpec(
         id = "openrouter", displayName = "OpenRouter", capability = "نص وسكربت ووكيل",
         icon = Icons.Default.TextFields, prefsKey = "openrouter_key", vaultService = "openrouter_key",
         keyUrl = "https://openrouter.ai/keys",
@@ -121,48 +110,12 @@ private val PROVIDER_SPECS = listOf(
         detectedProvider = DetectedProvider.OPENROUTER
     ),
     ProviderSpec(
-        id = "anthropic", displayName = "Anthropic (Claude)", capability = "نص وسكربت ووكيل",
-        icon = Icons.Default.TextFields, prefsKey = "anthropic_key", vaultService = null,
-        keyUrl = null,
-        costHint = "مدفوع حسب الاستهلاك — راجع صفحة الأسعار الرسمية (تقريبي)",
-        detectedProvider = DetectedProvider.ANTHROPIC,
-        localOnlyReason = "ليس في قائمة الخزنة المسموحة (10 خدمات) — محلي فقط حتى تُوسَّع الخزنة"
-    ),
-    ProviderSpec(
         id = "leonardo", displayName = "Leonardo", capability = "صور",
         icon = Icons.Default.Image, prefsKey = "leonardo_api_key", vaultService = null,
         keyUrl = "https://app.leonardo.ai/api-access",
         costHint = "مجاني 150 رمزاً يومياً — تقريبي",
         detectedProvider = null,
-        localOnlyReason = "ليس في قائمة الخزنة المسموحة (10 خدمات) — محلي فقط حتى تُوسَّع الخزنة"
-    ),
-    ProviderSpec(
-        id = "higgsfield", displayName = "Higgsfield / Kling", capability = "فيديو",
-        icon = Icons.Default.Movie, prefsKey = "", vaultService = null,
-        keyUrl = null,
-        costHint = "Kling الأرخص لكل فيديو — تقريبي",
-        detectedProvider = null, gatewayManaged = true
-    ),
-    ProviderSpec(
-        id = "elevenlabs", displayName = "ElevenLabs", capability = "صوت",
-        icon = Icons.Default.GraphicEq, prefsKey = "elevenlabs_key", vaultService = "elevenlabs_key",
-        keyUrl = null,
-        costHint = "مجاني 10,000 حرف شهرياً — تقريبي",
-        detectedProvider = null
-    ),
-    ProviderSpec(
-        id = "azure", displayName = "Azure Speech", capability = "صوت",
-        icon = Icons.Default.GraphicEq, prefsKey = "azure_speech_key", vaultService = "azure_speech_key",
-        keyUrl = null,
-        costHint = "مدفوع حسب الأحرف — راجع صفحة الأسعار الرسمية (تقريبي)",
-        detectedProvider = null, needsRegion = true
-    ),
-    ProviderSpec(
-        id = "pexels", displayName = "Pexels", capability = "وسائط جاهزة",
-        icon = Icons.Default.PermMedia, prefsKey = "pexels_key", vaultService = "pexels_key",
-        keyUrl = "https://www.pexels.com/api/",
-        costHint = "مجاني بمفتاح بسيط — تقريبي",
-        detectedProvider = null
+        localOnlyReason = "ليس في قائمة الخزنة المسموحة (4 خدمات) — محلي فقط حتى تُوسَّع الخزنة"
     ),
     ProviderSpec(
         id = "pixabay", displayName = "Pixabay", capability = "وسائط جاهزة",
@@ -170,6 +123,14 @@ private val PROVIDER_SPECS = listOf(
         keyUrl = "https://pixabay.com/api/docs/",
         costHint = "مجاني بمفتاح بسيط — تقريبي",
         detectedProvider = null
+    ),
+    ProviderSpec(
+        id = "higgsfield", displayName = "Higgsfield", capability = "فيديو",
+        icon = Icons.Default.Movie, prefsKey = "", vaultService = null,
+        keyUrl = null,
+        costHint = "على حساب المنصة وبحصص محدودة — بلا مفتاح شخصي",
+        detectedProvider = null,
+        gatewayManaged = true
     )
 )
 
@@ -312,7 +273,7 @@ private fun SyncCard(
             Text("مزامنة سحابية مشفّرة", style = MaterialTheme.typography.titleSmall)
             Text(
                 "الرفع والتنزيل عبر دالة qabas-key-vault فقط (AES-GCM من جهة الخادم). " +
-                    "المفاتيح المحلية فقط (Anthropic وLeonardo) لا تُزامَن.",
+                    "المفاتيح المحلية فقط (Leonardo) لا تُزامَن.",
                 style = MaterialTheme.typography.bodyMedium
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -340,9 +301,6 @@ private fun ProviderKeyCard(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var input by remember { mutableStateOf("") }
-    var region by remember(spec.id) {
-        mutableStateOf(AgentPrefs.getString(context, "azure_speech_region"))
-    }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
@@ -414,15 +372,6 @@ private fun ProviderKeyCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     singleLine = true
                 )
-                if (spec.needsRegion) {
-                    OutlinedTextField(
-                        value = region,
-                        onValueChange = { region = it },
-                        label = { Text("منطقة Azure (مثال: eastus) — حقل منفصل") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
@@ -433,8 +382,12 @@ private fun ProviderKeyCard(
                             }
                             scope.launch {
                                 busy = true
-                                message = saveAndTestKey(context, spec, key, region)
-                                if (message.startsWith("تم الحفظ")) {
+                                // ق54: النجاح علم لا نص — كان المنادي يشمّ
+                                // بادئة «تم الحفظ» من الرسالة فينكسر مسح
+                                // الحقل والتحديث مع أي إعادة صياغة للنص.
+                                val (saved, msg) = saveAndTestKey(context, spec, key)
+                                message = msg
+                                if (saved) {
                                     input = ""
                                     onChanged()
                                 }
@@ -453,8 +406,7 @@ private fun ProviderKeyCard(
                             scope.launch {
                                 busy = true
                                 val result = ApiKeyValidator.validateKey(
-                                    context, spec.id, key,
-                                    region.takeIf { it.isNotBlank() }
+                                    context, spec.id, key
                                 )
                                 message = result.summary
                                 busy = false
@@ -467,22 +419,13 @@ private fun ProviderKeyCard(
                             scope.launch {
                                 busy = true
                                 KeyPoolManager.clearAll(spec.prefsKey)
-                                if (spec.needsRegion) {
-                                    AgentPrefs.remove(context, "azure_speech_region")
-                                }
                                 var cloudNote = ""
                                 if (spec.vaultService != null) {
                                     val deleted = runCatching {
                                         SupabaseRepository.getInstance().deleteApiKey(spec.id)
                                     }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                                     cloudNote = if (deleted) " وحُذف من السحابة."
-                                    else " (تعذّر حذف نسخة السحابة — أعد المحاولة)."
-                                    if (spec.needsRegion) {
-                                        runCatching {
-                                            SupabaseRepository.getInstance()
-                                                .deleteApiKey("azure_speech_region")
-                                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                                    }
+                                    else " (تعذّر حذف نسخة السحابة — ستعود عند التنزيل من السحابة؛ أعد المحاولة)."
                                 } else {
                                     cloudNote = " (محلي فقط أصلاً)."
                                 }
@@ -521,16 +464,15 @@ private fun openUrl(context: Context, url: String) {
  * وللبقية عبر [ApiKeyValidator.validateKey] ثم حفظ محلي مشفّر + خزنة سحابية إن سُمح.
  * لا يُطبع المفتاح أبداً في أي رسالة أو سجل.
  */
-/** روابط مزودي «مفاتيحي» الأحد عشر — تُعاد في تبويب الروابط بقسم فايب كودينج (12.8). */
+/** روابط مزودي «مفاتيحي» الخمسة — تُعاد في تبويب الروابط بقسم فايب كودينج (12.8). */
 val MY_KEYS_PROVIDER_LINKS: List<Pair<String, String?>>
     get() = PROVIDER_SPECS.map { it.displayName to it.keyUrl }
 
 private suspend fun saveAndTestKey(
     context: Context,
     spec: ProviderSpec,
-    key: String,
-    region: String
-): String {
+    key: String
+): Pair<Boolean, String> {
     val detected = spec.detectedProvider
     if (detected != null) {
         return when (val res = UniversalKeyBrain.saveKeyIfLive(context, key, detected)) {
@@ -545,25 +487,19 @@ private suspend fun saveAndTestKey(
                 } else {
                     note = " (محلي فقط — ليس في قائمة الخزنة المسموحة)."
                 }
-                "تم الحفظ — متصل (${res.latencyMs}ms).$note"
+                true to "تم الحفظ — متصل (${res.latencyMs}ms).$note"
             }
             is UniversalKeyBrain.SmartSaveResult.Failed ->
-                "فشل الفحص الحي: ${res.reason} — لم يُحفظ المفتاح."
+                false to "فشل الفحص الحي: ${res.reason} — لم يُحفظ المفتاح."
             is UniversalKeyBrain.SmartSaveResult.Unsupported ->
-                "تعذّر الحفظ: ${res.reason}"
+                false to "تعذّر الحفظ: ${res.reason}"
         }
     }
     val result = ApiKeyValidator.validateKey(
-        context, spec.id, key, region.takeIf { it.isNotBlank() }
+        context, spec.id, key
     )
-    if (!result.isValid) return "فشل الفحص الحي: ${result.summary} — لم يُحفظ المفتاح."
+    if (!result.isValid) return false to "فشل الفحص الحي: ${result.summary} — لم يُحفظ المفتاح."
     KeyPoolManager.setSingleKey(spec.prefsKey, key)
-    if (spec.needsRegion && region.isNotBlank()) {
-        AgentPrefs.putString(context, "azure_speech_region", region.trim())
-        runCatching {
-            SupabaseRepository.getInstance().registerApiKey("azure_speech_region", region.trim())
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-    }
     var note = ""
     if (spec.vaultService != null) {
         val pushed = runCatching {
@@ -574,5 +510,5 @@ private suspend fun saveAndTestKey(
     } else {
         note = " (محلي فقط — ليس في قائمة الخزنة المسموحة)."
     }
-    return "تم الحفظ — متصل.$note"
+    return true to "تم الحفظ — متصل.$note"
 }

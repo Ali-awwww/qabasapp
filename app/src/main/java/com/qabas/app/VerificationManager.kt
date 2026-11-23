@@ -90,12 +90,22 @@ object VerificationManager {
     fun isVerified(context: Context, userId: String): Boolean {
         val cleanId = userId.trim()
         if (cleanId.isBlank()) return false
-        if (isDeveloper(context)) return true
+        // ق154: كان «المطوّر موثّق» يُرجع true لأي معرّف على جهاز
+        // المطوّر، وشرط البريد كان يطابق بريد المشاهِد نفسه — فكل
+        // منشئ يظهر موثقاً على جهاز موثَّق. التوثيق الآن لصاحب
+        // المعرّف نفسه وحده: جدول verified_creators؛ أما المطوّر
+        // والموثَّق بالبريد فيوثَّقان لأنفسهما فقط (فيبقى شارة
+        // الملف الشخصي كما كانت).
         val ids = localVerifiedIds(context)
-        val email = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)
+        if (ids.any { it.equals(cleanId, ignoreCase = true) }) return true
+        val selfId = SupabaseServices.Auth.getCurrentUserId()
+        val selfEmail = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)
             .getString("user_email", null)
-        return ids.any { it.equals(cleanId, true) } ||
-            (!email.isNullOrBlank() && ids.any { it.equals(email, true) })
+        val isSelf = (!selfId.isNullOrBlank() && cleanId.equals(selfId, ignoreCase = true)) ||
+            (!selfEmail.isNullOrBlank() && cleanId.equals(selfEmail, ignoreCase = true))
+        if (!isSelf) return false
+        if (isDeveloper(context)) return true
+        return !selfEmail.isNullOrBlank() && ids.any { it.equals(selfEmail, ignoreCase = true) }
     }
 
     fun isSelfVerified(context: Context): Boolean {

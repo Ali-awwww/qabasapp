@@ -10,7 +10,6 @@ import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
-import java.util.zip.GZIPInputStream
 
 /** Hadith source fields adapted for the Qabas tips carousel without rewriting hadith text. */
 data class BukhariHadith(
@@ -31,10 +30,11 @@ data class BukhariHadith(
 object QabasBukhariRepository {
     private const val TAG = "QabasHadithTipsRepo"
     private const val IMPORT_FILE_NAME = "sahih_al_bukhari.json"
-    private const val BUKHARI_ASSET = "sahih_bukhari.json.gz"
-    private const val MUSLIM_ASSET = "sahih_muslim.json.gz"
+    private const val BUKHARI_ASSET = "sahih_bukhari.json"
+    private const val MUSLIM_ASSET = "sahih_muslim.json"
     private const val MAX_IMPORTED_BYTES = 8L * 1024 * 1024
-    private const val MAX_DECOMPRESSED_BYTES = 24L * 1024 * 1024
+    /** حد حجم ملف الكتاب كما هو مخزَّن في الـ APK (مفكوك الضغط — انظر loadBundledBook). */
+    private const val MAX_BOOK_BYTES = 24L * 1024 * 1024
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
@@ -57,6 +57,14 @@ object QabasBukhariRepository {
         return combined
     }
 
+    /**
+     * يقرأ كتاباً مضمّناً من الـ APK. ملفات المصدر في الشجرة مضغوطة
+     * (.json.gz) لكن أداة التغليف تخزّنها في الـ APK مفكوكة الضغط باسم
+     * .json (كما في quran/mushafs-1.json الذي يقرؤه QabasQuranData) —
+     * فطلب الاسم .json.gz يفشل بصمت في كل مرة (FileNotFoundException)،
+     * ولفّ الدفق بـ GZIPInputStream كان سيفشل أيضاً على JSON المفكوك.
+     * لذا يُقرأ الملف plain مع بقاء حارس الحد الأقصى للحجم.
+     */
     private fun loadBundledBook(
         context: Context,
         fileName: String,
@@ -64,12 +72,10 @@ object QabasBukhariRepository {
         idPrefix: String
     ): List<BukhariHadith> = runCatching {
         context.assets.open("hadith/$fileName").use { asset ->
-            GZIPInputStream(asset).use { gzip ->
-                LimitedInputStream(gzip, MAX_DECOMPRESSED_BYTES).use { limited ->
-                    BufferedReader(InputStreamReader(limited, Charsets.UTF_8)).use { reader ->
-                        val book = json.decodeFromString<FullSahihBook>(reader.readText())
-                        mapFullBook(book, fallbackTitle, idPrefix)
-                    }
+            LimitedInputStream(asset, MAX_BOOK_BYTES).use { limited ->
+                BufferedReader(InputStreamReader(limited, Charsets.UTF_8)).use { reader ->
+                    val book = json.decodeFromString<FullSahihBook>(reader.readText())
+                    mapFullBook(book, fallbackTitle, idPrefix)
                 }
             }
         }

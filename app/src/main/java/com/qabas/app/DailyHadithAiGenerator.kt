@@ -11,16 +11,23 @@ import org.json.JSONObject
 object DailyHadithAiGenerator {
     private const val TAG = "DailyHadithAiGen"
 
-    private val hadithSchema = Schema.obj(
+    /**
+     * نصوص الأحاديث ورواتها ومصادرها من المضمّن الموثّق وحده
+     * (SahihHadithsRepository) — النموذج لا يُسأل عن نص حديث أبداً.
+     * الصيغة السابقة كانت تطلب من النموذج «توليد» النص الكامل مع
+     * الراوي والمصدر، فيخترع النموذج ألفاظاً تُحفظ في الذاكرة المحلية
+     * وتُرسَل للمستخدمين إشعاراً منسوبةً للنبي ﷺ («صحيح البخاري») —
+     * نص شرعي مختلَق. دور النموذج الوحيد الآن: فائدة عملية قصيرة
+     * (شرح لا نص) لكل حديث موثّق؛ وعند فشل فائدة يوم يُستعمل
+     * wisdomCapsule المحلي المنسّق، لا نص مولَّد.
+     */
+    private val benefitSchema = Schema.obj(
         properties = mapOf(
-            "hadiths" to Schema.array(
+            "benefits" to Schema.array(
                 items = Schema.obj(
                     properties = mapOf(
                         "dayId" to Schema.integer(description = "Day of the year (1-365)"),
-                        "text" to Schema.string(description = "Full Arabic text of the Hadith from Sahih Bukhari or Muslim"),
-                        "narrator" to Schema.string(description = "The narrator of the Hadith (e.g. عن أبي هريرة رضي الله عنه)"),
-                        "benefit" to Schema.string(description = "A very short practical benefit or wisdom in Arabic"),
-                        "book" to Schema.string(description = "The source book (صحيح البخاري or صحيح مسلم)")
+                        "benefit" to Schema.string(description = "A very short practical benefit or wisdom in Arabic, one sentence")
                     )
                 )
             )
@@ -32,49 +39,79 @@ object DailyHadithAiGenerator {
             modelName = "gemini-3.8-flash",
             generationConfig = generationConfig {
                 responseMimeType = "application/json"
-                responseSchema = hadithSchema
+                responseSchema = benefitSchema
             }
         )
     }
 
     suspend fun generateBatch(startDay: Int, count: Int): List<DailyHadith> {
-        val prompt = """
-            Generate exactly $count daily Hadiths from Sahih al-Bukhari and Sahih al-Muslim.
-            Start from Day ID: $startDay.
-            The Hadiths should be short, meaningful, and suitable for a daily notification.
-            Provide the full Arabic text, narrator, a short benefit, and the source book.
-            Ensure each Hadith has a unique dayId starting from $startDay up to ${startDay + count - 1}.
-        """.trimIndent()
+        val bundled = SahihHadithsRepository.getAllHadiths()
+        if (bundled.isEmpty()) return emptyList()
+        // نفس تعيين اليوم→حديث المستعمل في DailyHadithRepository
+        // (احتياطي الأحاديث المضمّنة)، فيطابق الإشعار اليومي.
+        val days = (startDay until startDay + count).map { dayId ->
+            val normalizedDay = ((dayId - 1).coerceAtLeast(0) % 365) + 1
+            normalizedDay to bundled[(normalizedDay - 1) % bundled.size]
+        }
 
-        return try {
+        val benefits: Map<Int, String> = try {
+            val prompt = buildString {
+                append("For each numbered Hadith below, write ONE very short practical benefit or wisdom in Arabic (one sentence, no Hadith text, no narrator). Return JSON only.\n")
+                days.forEach { (dayId, item) ->
+                    append("Day $dayId: ${item.matn.take(400)}\n")
+                }
+            }
             val response = withTimeout(60_000L) {
                 model.generateContent(prompt)
             }
-            val jsonString = response.text ?: throw IllegalStateException("Model returned empty response")
-            val json = JSONObject(jsonString)
-            val hadithsArray = json.getJSONArray("hadiths")
-            
-            val result = mutableListOf<DailyHadith>()
-            for (i in 0 until hadithsArray.length()) {
-                val item = hadithsArray.getJSONObject(i)
-                result.add(
-                    DailyHadith(
-                        dayId = item.getInt("dayId"),
-                        text = item.getString("text"),
-                        narrator = item.getString("narrator"),
-                        benefit = item.getString("benefit"),
-                        book = item.getString("book")
-                    )
-                )
+            // بلا نص من النموذج فلا فوائد — يُستعمل البديل المحلي في
+            // الأسفل. (العودة من try بتسميته غير صالحة في Kotlin:
+            // try كلمة محجوزة لا تصلح تسميةً، فكان السطر القديم
+            // يكسر إعلان jsonString كله ويُسقط معه benefits وcatch.)
+            val jsonString = response.text
+            val map: Map<Int, String> = if (jsonString == null) {
+                emptyMap()
+            } else {
+                val json = JSONObject(jsonString)
+                val arr = json.getJSONArray("benefits")
+                val requested = days.map { it.first }.toSet()
+                val built = mutableMapOf<Int, String>()
+                for (i in 0 until arr.length()) {
+                    val item = arr.getJSONObject(i)
+                    val dayId = item.getInt("dayId")
+                    if (dayId in requested) {
+                        built[dayId] = item.getString("benefit")
+                    }
+                }
+                // ق160: توليد فوائد الأحاديث (Gemini 3.8 عبر Firebase) كان يمر
+                // بلا أثر في تتبع التكلفة — والسياق AppServices.appContext
+                // كمسار Groq (التسجيل runCatching فلا يسقط التوليد أبداً).
+                runCatching {
+                    VibeCostTracker.recordEstimated(AppServices.appContext, "gemini", "gemini-3.8-flash", prompt, jsonString, "فوائد الأحاديث اليومية")
+                }
+                built
             }
-            result
+            map
         } catch (e: Exception) {
             // الإلغاء الخارجي ليس فشل توليد ولا يُبتلَع (نمط الجولة 87): أما
             // مهلة withTimeout نفسها (TimeoutCancellationException) فتبقى
-            // فشلاً عادياً يعيد قائمة فارغة كما كان — عقدة هذه الدالة.
+            // فشلاً عادياً يعيد فوائد فارغة فيُستعمل البديل المحلي — عقدة
+            // هذه الدالة.
             if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
-            Log.e(TAG, "Batch generation failed for days $startDay to ${startDay + count - 1}", e)
-            emptyList()
+            Log.e(TAG, "Benefit generation failed for days $startDay to ${startDay + count - 1}", e)
+            emptyMap()
+        }
+
+        return days.map { (dayId, item) ->
+            DailyHadith(
+                dayId = dayId,
+                text = item.matn,
+                narrator = item.narrator,
+                benefit = benefits[dayId]?.takeIf { it.isNotBlank() }
+                    ?: item.wisdomCapsule.ifBlank { item.explanation.take(160) },
+                book = item.bookType.titleAr,
+                title = item.title
+            )
         }
     }
 }

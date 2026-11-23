@@ -2,12 +2,17 @@ package com.qabas.app
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.*
+import java.io.File
+import java.io.FileOutputStream
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import androidx.compose.ui.graphics.Color
 
@@ -71,6 +76,9 @@ object LeonardoImageService {
     private fun getApi(): LeonardoApi {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
+            // ق135: ترويسة التفويض تحمل مفتاح Leonardo — كان مستوى
+            // BODY يسجّلها حرفياً في logcat (§8: لا أسرار في السجلات).
+            redactHeader("Authorization")
         }
         val client = OkHttpClient.Builder()
             .addInterceptor(logging)
@@ -84,6 +92,35 @@ object LeonardoImageService {
             .addConverterFactory(MoshiConverterFactory.create())
             .build()
             .create(LeonardoApi::class.java)
+    }
+
+    // ق135: عميل تنزيل بلا مسجّل — سجل BODY كان سيصبّ بايتات الصورة
+    // في logcat؛ والتنزيل هنا على IO لا على خيط المنادي.
+    private val downloadClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private suspend fun downloadToCache(context: Context, url: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val request = okhttp3.Request.Builder().url(url).build()
+            downloadClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body ?: return@withContext null
+                val bytes = body.bytes()
+                if (bytes.size < 1024) return@withContext null
+                val dir = File(context.cacheDir, "leonardo_ai").apply { mkdirs() }
+                val file = File(dir, "leonardo_${UUID.randomUUID().toString().take(8)}.jpg")
+                FileOutputStream(file).use { it.write(bytes) }
+                if (file.exists() && file.length() > 0) file.absolutePath else null
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
     }
 
     suspend fun generateImage(
@@ -101,6 +138,27 @@ object LeonardoImageService {
         val api = getApi()
         val authHeader = "Bearer $apiKey"
 
+        // ق196: التوليد يستهلك رصيد Leonardo فعلاً لكنه لم يُسجَّل
+        // أبداً في ApiUsageTracker — المناديان الوحيدان لـ recordCall
+        // هما صوت القرآن (Quran Foundation) وفحص المفاتيح؛ فبقي عمود
+        // «Leonardo.ai» صفراً رغم توليدات حقيقية مدفوعة، وعجزت لوحة
+        // الاستهلاك عن إظهارها. كل محاولة شبكية تُسجَّل مرة واحدة
+        // هنا (نجاحاً أو فشلاً، مع الزمن المقاس)؛ وبلا مفتاح لا طلب
+        // أصلاً فلا تسجيل. التسجيل محمي فلا يكسر التوليد أبداً.
+        val t0 = System.nanoTime()
+        suspend fun recordOutcome(success: Boolean, statusCode: Int?, reason: String) {
+            withContext(Dispatchers.IO) {
+                try {
+                    ApiUsageTracker.recordCall(
+                        context, "Leonardo.ai",
+                        (System.nanoTime() - t0) / 1_000_000,
+                        success, statusCode, null, reason, null
+                    )
+                } catch (_: Exception) {
+                }
+            }
+        }
+
         try {
             onProgress(0.15f, "إرسال طلب التوليد إلى خوادم Leonardo.ai...")
             SystemLogsManager.addLog("LEONARDO", "إرسال طلب صورة Vision XL: ${prompt.take(45)}...", Color(0xFF38BDF8))
@@ -114,6 +172,7 @@ object LeonardoImageService {
                 val generationId = response.body()?.sdGenerationJob?.generationId
                 if (generationId == null) {
                     onProgress(0f, "لم يستجب الخادم بمعرف للمهمة")
+                    recordOutcome(false, response.code(), "لم يستجب الخادم بمعرّف للمهمة")
                     return null
                 }
                 
@@ -128,28 +187,45 @@ object LeonardoImageService {
                         if (detail?.status == "COMPLETE") {
                             val imgUrl = detail.generated_images?.firstOrNull()?.url
                             if (!imgUrl.isNullOrBlank()) {
-                                onProgress(1.0f, "اكتمل التوليد بنجاح عبر Leonardo.ai! 🎨✨")
-                                SystemLogsManager.addLog("LEONARDO", "تم توليد الصورة بنجاح وتنزيل الرابط", Color(0xFF10B981))
-                                return imgUrl
+                                // ق135: تنزيل الصورة المولدة ملفاً محلياً قبل
+                                // إرجاعها — كان الرابط البعيد يُرجَع كما هو
+                                // فيفشل فحص File.exists() في المعاينة
+                                // والمصدّر فيُعرض التدرج الافتراضي بصمت
+                                // رغم نجاح التوليد واستهلاك رصيد Leonardo.
+                                onProgress(0.95f, "تنزيل الصورة المولدة على جهازك...")
+                                val localPath = downloadToCache(context, imgUrl)
+                                if (localPath != null) {
+                                    onProgress(1.0f, "اكتمل التوليد بنجاح عبر Leonardo.ai! 🎨✨")
+                                    SystemLogsManager.addLog("LEONARDO", "تم توليد الصورة بنجاح وتنزيل الرابط", Color(0xFF10B981))
+                                    recordOutcome(true, 200, "تم توليد الصورة وتنزيلها بنجاح")
+                                    return localPath
+                                }
+                                onProgress(0f, "تعذّر تنزيل الصورة المولدة — تحقق من الاتصال")
+                                recordOutcome(false, 200, "اكتمل التوليد لكن تعذّر تنزيل الصورة المولدة")
+                                return null
                             }
                         } else if (detail?.status == "FAILED") {
                             onProgress(0f, "فشلت مهمة التوليد على خوادم Leonardo")
                             SystemLogsManager.addLog("LEONARDO", "فشل التوليد: حالة المهمة FAILED", Color(0xFFEF4444))
+                            recordOutcome(false, 200, "فشلت مهمة التوليد على خوادم Leonardo")
                             return null
                         }
                     }
                 }
                 onProgress(0f, "انتهت مهلة انتظار خوادم Leonardo")
+                recordOutcome(false, null, "انتهت مهلة انتظار خوادم Leonardo")
             } else {
                 val err = response.errorBody()?.string() ?: ""
                 Log.e(TAG, "Failed to create generation: $err")
                 onProgress(0f, "خطأ في الاتصال بـ Leonardo (كود ${response.code()})")
                 SystemLogsManager.addLog("LEONARDO", "استجابة غير ناجحة: ${response.code()}", Color(0xFFEF4444))
+                recordOutcome(false, response.code(), "فشل إنشاء مهمة التوليد (كود ${response.code()})")
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error generating image", e)
             onProgress(0f, "خطأ أثناء التوليد: ${e.message}")
             SystemLogsManager.addLog("LEONARDO", "استثناء: ${e.message}", Color(0xFFEF4444))
+            recordOutcome(false, null, "خطأ أثناء التوليد: ${e.message}")
         }
         return null
     }

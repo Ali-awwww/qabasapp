@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -21,7 +22,6 @@ object NotificationPreferencesManager {
 
     // مفاتيح التفضيلات الأساسية
     private const val KEY_MASTER_ENABLED = "notif_master_enabled"
-    private const val KEY_PRAYER_AZAN = "notif_prayer_azan_enabled"
     private const val KEY_SUHUR_REMINDER = "notif_suhur_enabled"
     private const val KEY_FAJR_REMINDER = "notif_fajr_enabled"
     private const val KEY_DAILY_HADITH = "notif_daily_hadith_enabled"
@@ -30,6 +30,13 @@ object NotificationPreferencesManager {
     private const val KEY_TREND_ALERTS = "notif_trend_alerts_enabled"
     private const val KEY_SOUND_ENABLED = "notif_sound_enabled"
     private const val KEY_VIBRATION_ENABLED = "notif_vibration_enabled"
+
+    // مفاتيح ساعات الهدوء (ق75): كتم التذكيرات الإيمانية ليلاً — الأذان لا يمسّه.
+    private const val KEY_QUIET_ENABLED = "notif_quiet_enabled"
+    private const val KEY_QUIET_START_HOUR = "notif_quiet_start_hour"
+    private const val KEY_QUIET_START_MINUTE = "notif_quiet_start_minute"
+    private const val KEY_QUIET_END_HOUR = "notif_quiet_end_hour"
+    private const val KEY_QUIET_END_MINUTE = "notif_quiet_end_minute"
     
     // مفاتيح التوقيت
     private const val KEY_SUHUR_HOUR = "notif_suhur_hour"
@@ -84,6 +91,17 @@ object NotificationPreferencesManager {
     private val _vibrationEnabled = MutableStateFlow(true)
     val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
 
+    // ساعات الهدوء: كتم التذكيرات الإيمانية في نافذة ليلية (الافتراضي
+    // 23:00 حتى 5:00). الأذان ومواقيت الصلاة خارج نطاقها تماماً.
+    private val _quietHoursEnabled = MutableStateFlow(false)
+    val quietHoursEnabled: StateFlow<Boolean> = _quietHoursEnabled.asStateFlow()
+
+    private val _quietStart = MutableStateFlow(Pair(23, 0))
+    val quietStart: StateFlow<Pair<Int, Int>> = _quietStart.asStateFlow()
+
+    private val _quietEnd = MutableStateFlow(Pair(5, 0))
+    val quietEnd: StateFlow<Pair<Int, Int>> = _quietEnd.asStateFlow()
+
     // توقيت تنبيه السحر (ساعة، دقيقة)
     private val _suhurTime = MutableStateFlow(Pair(3, 30))
     val suhurTime: StateFlow<Pair<Int, Int>> = _suhurTime.asStateFlow()
@@ -107,7 +125,6 @@ object NotificationPreferencesManager {
     private val _wiradStreak = MutableStateFlow(0)
     val wiradStreak: StateFlow<Int> = _wiradStreak.asStateFlow()
 
-    private var isInitialized = false
     private var boundPrefs: SharedPreferences? = null
     private var boundPrayerPrefs: SharedPreferences? = null
     private var changeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
@@ -128,6 +145,15 @@ object NotificationPreferencesManager {
         _trendAlertsEnabled.value = prefs.getBoolean(KEY_TREND_ALERTS, true)
         _soundEnabled.value = prefs.getBoolean(KEY_SOUND_ENABLED, true)
         _vibrationEnabled.value = prefs.getBoolean(KEY_VIBRATION_ENABLED, true)
+        _quietHoursEnabled.value = prefs.getBoolean(KEY_QUIET_ENABLED, false)
+        _quietStart.value = Pair(
+            prefs.getInt(KEY_QUIET_START_HOUR, 23),
+            prefs.getInt(KEY_QUIET_START_MINUTE, 0)
+        )
+        _quietEnd.value = Pair(
+            prefs.getInt(KEY_QUIET_END_HOUR, 5),
+            prefs.getInt(KEY_QUIET_END_MINUTE, 0)
+        )
 
         _wiradStreak.value = prefs.getInt(KEY_WIRAD_STREAK, 0)
         // review-r12: سلسلة الورد كانت تُعرض كما هي حتى بعد انقطاع أيام — أي
@@ -175,7 +201,6 @@ object NotificationPreferencesManager {
             val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                 when (key) {
                     KEY_MASTER_ENABLED -> _masterEnabled.value = prefs.getBoolean(key, true)
-                    KEY_PRAYER_AZAN -> _prayerAzanEnabled.value = prefs.getBoolean(key, true)
                     KEY_SUHUR_REMINDER -> _suhurReminderEnabled.value = prefs.getBoolean(key, true)
                     KEY_FAJR_REMINDER -> _fajrReminderEnabled.value = prefs.getBoolean(key, true)
                     KEY_DAILY_HADITH -> _dailyHadithEnabled.value = prefs.getBoolean(key, true)
@@ -184,6 +209,15 @@ object NotificationPreferencesManager {
                     KEY_TREND_ALERTS -> _trendAlertsEnabled.value = prefs.getBoolean(key, true)
                     KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)
                     KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)
+                    KEY_QUIET_ENABLED -> _quietHoursEnabled.value = prefs.getBoolean(key, false)
+                    KEY_QUIET_START_HOUR, KEY_QUIET_START_MINUTE -> _quietStart.value = Pair(
+                        prefs.getInt(KEY_QUIET_START_HOUR, 23),
+                        prefs.getInt(KEY_QUIET_START_MINUTE, 0)
+                    )
+                    KEY_QUIET_END_HOUR, KEY_QUIET_END_MINUTE -> _quietEnd.value = Pair(
+                        prefs.getInt(KEY_QUIET_END_HOUR, 5),
+                        prefs.getInt(KEY_QUIET_END_MINUTE, 0)
+                    )
                     KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)
                     KEY_SUHUR_HOUR, KEY_SUHUR_MINUTE -> _suhurTime.value = Pair(
                         prefs.getInt(KEY_SUHUR_HOUR, 3),
@@ -216,7 +250,6 @@ object NotificationPreferencesManager {
             boundPrayerPrefs = prayerPrefs
         }
 
-        isInitialized = true
     }
 
     fun setMasterEnabled(context: Context, enabled: Boolean) {
@@ -311,6 +344,40 @@ object NotificationPreferencesManager {
         _vibrationEnabled.value = enabled
     }
 
+    fun setQuietHoursEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_QUIET_ENABLED, enabled).apply()
+        _quietHoursEnabled.value = enabled
+    }
+
+    fun setQuietStart(context: Context, hour: Int, minute: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_QUIET_START_HOUR, hour).putInt(KEY_QUIET_START_MINUTE, minute).apply()
+        _quietStart.value = Pair(hour, minute)
+    }
+
+    fun setQuietEnd(context: Context, hour: Int, minute: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_QUIET_END_HOUR, hour).putInt(KEY_QUIET_END_MINUTE, minute).apply()
+        _quietEnd.value = Pair(hour, minute)
+    }
+
+    /**
+     * هل الآن داخل ساعات الهدوء؟ نافذة ليلية عابرة لمنتصف الليل
+     * (23:00–5:00) أو نهارية (13:00–15:00)؛ وبدء == انتهاء تعني
+     * نافذة صفرية فلا هدوء. تُفحص لحظة الإطلاق لا لحظة الجدولة،
+     * فتبديلها يسري على منبهات الغد دون إعادة جدولة.
+     */
+    fun isQuietNow(now: Calendar = Calendar.getInstance()): Boolean {
+        if (!_quietHoursEnabled.value) return false
+        val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        val start = _quietStart.value.first * 60 + _quietStart.value.second
+        val end = _quietEnd.value.first * 60 + _quietEnd.value.second
+        if (start == end) return false
+        return if (start < end) nowMinutes in start until end
+        else nowMinutes >= start || nowMinutes < end
+    }
+
     fun setSuhurTime(context: Context, hour: Int, minute: Int) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putInt(KEY_SUHUR_HOUR, hour).putInt(KEY_SUHUR_MINUTE, minute).apply()
@@ -378,7 +445,12 @@ object NotificationPreferencesManager {
         val lastDate = prefs.getString(KEY_LAST_WIRAD_DATE, null)
         if (lastDate == today) return // ورد اليوم مسجَّل من قبل — لا تضخيم
         val yesterday = dateFormat.format(Date(System.currentTimeMillis() - 24L * 60L * 60L * 1000L))
-        val newStreak = if (lastDate == yesterday) _wiradStreak.value + 1 else 1
+        // ق121: السلسلة الحالية تُقرأ من التفضيلات لا من تدفق الذاكرة —
+        // التدفق يُزامَن في init() وحده، وQabasApplication لا يستدعيه،
+        // فمستقبِل إشعار يعمل في عملية باردة (بلا MainActivity) كان
+        // يرى 0 فيحوّل سلسلة 30 يوماً متصلة إلى 1 بصمت عند أول تسجيل.
+        val currentStreak = prefs.getInt(KEY_WIRAD_STREAK, 0)
+        val newStreak = if (lastDate == yesterday) currentStreak + 1 else 1
         setWiradStreak(context, newStreak)
         prefs.edit().putString(KEY_LAST_WIRAD_DATE, today).apply()
     }

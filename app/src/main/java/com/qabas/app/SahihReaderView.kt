@@ -57,6 +57,10 @@ fun SahihReaderView(
     var selectedChapterId by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showOnlyBookmarks by remember { mutableStateOf(false) }
+    // ق68: إصدار الحفظ — مفتاح إعادة حساب قائمة الأحاديث عند تبديل
+    // حفظ أي حديث؛ فبدونه كانت قائمة «المحفوظة» قديمة: الحديث الذي
+    // يُلغى حفظه يبقى ظاهراً حتى مغادرة الفلتر والعودة إليه.
+    var bookmarkVersion by remember { mutableIntStateOf(0) }
     var showOnlyQuranEvidence by remember { mutableStateOf(false) }
     var showChallengeDialog by remember { mutableStateOf(false) }
     var showQuranicHarmonyDialog by remember { mutableStateOf(false) }
@@ -84,13 +88,41 @@ fun SahihReaderView(
     var speakingHadithId by remember { mutableStateOf<String?>(null) }
     var ttsRate by remember { mutableFloatStateOf(1.0f) }
     var ttsEngine by remember { mutableStateOf<TextToSpeech?>(null) }
+    // ق189: جاهزية النطق الحقيقية — كان setLanguage تُتجاهل نتيجته
+    // وفشل التهيئة يُتجاهل، فيُعرض زر الاستماع حالة «يتحدث» بلا
+    // صوت؛ وبلا مستمع اكتمال بقيت الحالة عالقة بعد انتهاء النطق
+    // طبيعياً (البطاقة مميزة وأيقونة الصوت إلى الأبد) — وهو العيب
+    // نفسه الذي أصلحته ق145 في القارئ الكامل وبقي هنا.
+    var ttsReady by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
-        val tts = TextToSpeech(context) { status ->
+        // tts متغير لا قيمة: الإشارة إليه داخل مستمع التهيئة نفسه
+        // مستحيلة مع val (المتغير خارج نطاق مهيّئه) — فيُعلَن أولاً
+        // ثم يُسند، فيبقى داخل المستمع وخارجه بالاسم نفسه.
+        lateinit var tts: TextToSpeech
+        tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                ttsEngine?.language = Locale("ar")
+                val langResult = tts.setLanguage(Locale("ar"))
+                ttsReady = langResult == TextToSpeech.LANG_AVAILABLE ||
+                    langResult == TextToSpeech.LANG_COUNTRY_AVAILABLE ||
+                    langResult == TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE
+            } else {
+                ttsReady = false
             }
         }
+        // مستمع اكتمال واحد (بنمط القارئ الكامل): بلا مستمع كان
+        // speakingHadithId يبقى عالقاً بعد انتهاء الحديث طبيعياً.
+        // تُصفّى الحالة فقط إن طابق معرّف المنطوق الحديث الجاري،
+        // حتى لا يمسح نطقٌ مُطفأ حالة نطق جديد بدأ بعده.
+        tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId == speakingHadithId) speakingHadithId = null
+            }
+            override fun onError(utteranceId: String?) {
+                if (utteranceId == speakingHadithId) speakingHadithId = null
+            }
+        })
         ttsEngine = tts
         onDispose {
             tts.stop()
@@ -99,22 +131,40 @@ fun SahihReaderView(
     }
 
     fun toggleSpeech(hadith: SahihHadithItem) {
-        val tts = ttsEngine ?: return
+        val tts = ttsEngine ?: run {
+            Toast.makeText(context, "القراءة الصوتية غير جاهزة بعد — أعد المحاولة", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (speakingHadithId == hadith.id) {
             tts.stop()
             speakingHadithId = null
         } else {
+            if (!ttsReady) {
+                Toast.makeText(context, "تعذّر تشغيل النطق — بيانات النطق العربية غير متوفرة على هذا الجهاز", Toast.LENGTH_SHORT).show()
+                return
+            }
             tts.stop()
             tts.setSpeechRate(ttsRate)
             val textToSpeak = "${hadith.narrator}. قال رسول الله صلى الله عليه وسلم: ${hadith.matn}"
-            tts.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, hadith.id)
-            speakingHadithId = hadith.id
+            val speakResult = tts.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, hadith.id)
+            if (speakResult == TextToSpeech.SUCCESS) {
+                speakingHadithId = hadith.id
+            } else {
+                Toast.makeText(context, "تعذّرت القراءة الصوتية على هذا الجهاز", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     // Chapters list for active book
     val chapters = remember(activeBook) {
         SahihHadithsRepository.getChaptersForBook(activeBook)
+    }
+
+    // ق126: عدد أحاديث كل باب — كانت رقائق الأبواب بلا عدّاد
+    // (العدّاد في «كافة الأبواب» وحده) فلا يُعرف حجم الباب قبل فتحه.
+    val chapterCounts = remember(activeBook) {
+        SahihHadithsRepository.getHadithsForBook(activeBook)
+            .groupingBy { it.chapterId }.eachCount()
     }
 
     // استئناف آخر باب فُتح في هذا الكتاب (جولة 38، بنمط الجولة 10 في
@@ -136,9 +186,17 @@ fun SahihReaderView(
     }
 
     // Filtered hadiths
-    val hadiths = remember(activeBook, selectedChapterId, searchQuery, showOnlyBookmarks, showOnlyQuranEvidence) {
+    val hadiths = remember(activeBook, selectedChapterId, searchQuery, showOnlyBookmarks, showOnlyQuranEvidence, bookmarkVersion) {
         val list = if (showOnlyBookmarks) {
-            SahihHadithsRepository.getBookmarkedHadiths(context).filter { it.bookType == activeBook }
+            // ق126: البحث كان ميتاً في وضع المحفوظات — الفرع يتجاهل
+            // الاستعلام تماماً؛ فتُقاطَع المحفوظات مع نتائج البحث
+            // في الكتاب كاملاً (منطق المطابقة نفسه بلا تكرار).
+            val bookmarked = SahihHadithsRepository.getBookmarkedHadiths(context).filter { it.bookType == activeBook }
+            if (searchQuery.isBlank()) bookmarked
+            else {
+                val matchingIds = SahihHadithsRepository.searchHadiths(activeBook, null, searchQuery).map { it.id }.toSet()
+                bookmarked.filter { it.id in matchingIds }
+            }
         } else {
             SahihHadithsRepository.searchHadiths(activeBook, selectedChapterId, searchQuery)
         }
@@ -149,9 +207,17 @@ fun SahihReaderView(
         }
     }
 
-    // Daily Hadith for spotlight
-    val dailyHadith = remember {
-        SahihHadithsRepository.getRandomDailyHadith()
+    // Daily Hadith for spotlight — ق118: من المستودع الموحد نفسه الذي
+    // يقرأ منه إشعار اليوم وبطاقة الرئيسية (DailyHadithRepository)،
+    // لا من getRandomDailyHadith بمحدد سنة×366 فيختلف حديث الإبراز
+    // عن حديث اليوم في اليوم نفسه. التحميل معلّق؛ والبطاقة مخفية
+    // حتى يصل العنصر (لا حديث بديل يخالف اليوم).
+    var dailyHadith by remember { mutableStateOf<SahihHadithItem?>(null) }
+    LaunchedEffect(Unit) {
+        val dayOfYear = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+        dailyHadith = runCatching {
+            DailyHadithRepository.getDailyHadithItem(context, dayOfYear)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
     }
 
     val theme = QabasTheme.current
@@ -283,7 +349,8 @@ fun SahihReaderView(
             }
 
             // 2. Spotlight: حديث اليوم المختار (Daily Wisdom Spotlight)
-            if (searchQuery.isBlank() && selectedChapterId == null && !showOnlyBookmarks) {
+            val spotlightHadith = dailyHadith
+            if (searchQuery.isBlank() && selectedChapterId == null && !showOnlyBookmarks && spotlightHadith != null) {
                 item {
                     AppleCard(cornerRadius = 16.dp) {
                         Column(
@@ -324,7 +391,7 @@ fun SahihReaderView(
                                             color = bookAccent
                                         )
                                         Text(
-                                            "${dailyHadith.bookType.titleAr} • ${dailyHadith.chapterTitle}",
+                                            "${spotlightHadith.bookType.titleAr} • ${spotlightHadith.chapterTitle}",
                                             fontFamily = NotoSansFont,
                                             fontSize = 11.sp,
                                             color = theme.textSecondary
@@ -334,7 +401,7 @@ fun SahihReaderView(
 
                                 Button(
                                     onClick = {
-                                        onNavigateToVideoCreation("${dailyHadith.matn} — ${dailyHadith.reference}")
+                                        onNavigateToVideoCreation("${spotlightHadith.matn} — ${spotlightHadith.reference}")
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                     shape = RoundedCornerShape(10.dp),
@@ -350,7 +417,7 @@ fun SahihReaderView(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             Text(
-                                text = dailyHadith.matn,
+                                text = spotlightHadith.matn,
                                 fontFamily = AmiriFont,
                                 fontSize = 15.5.sp,
                                 lineHeight = 25.sp,
@@ -368,7 +435,7 @@ fun SahihReaderView(
                                 Icon(Icons.Default.Lightbulb, contentDescription = null, tint = bookAccent, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = dailyHadith.wisdomCapsule,
+                                    text = spotlightHadith.wisdomCapsule,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.5.sp,
                                     color = theme.textSecondary,
@@ -516,7 +583,7 @@ fun SahihReaderView(
                                 },
                                 label = {
                                     Text(
-                                        chTitle,
+                                        "$chTitle (${chapterCounts[chId] ?: 0})",
                                         fontFamily = CairoFont,
                                         fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -537,11 +604,54 @@ fun SahihReaderView(
                             )
                         }
                     }
+                    // ق126: نطاق البحث معلن — كان البحث مقيَّداً بالباب
+                    // المختار بصمت (searchHadiths يصفّي بالباب)، فيعيد
+                    // استعلام من باب آخر صفراً بلا أي تفسير؛ والنمط هو
+                    // ق82 في القارئ الكامل (نطاق معلن + مخرج). الزر
+                    // يوسّع البحث للكتاب كاملاً بإلغاء اختيار الباب.
+                    val scopedChapterTitle = if (searchQuery.isNotBlank() && selectedChapterId != null && !showOnlyBookmarks) {
+                        chapters.find { it.first == selectedChapterId }?.second
+                    } else null
+                    if (scopedChapterTitle != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "البحث في باب «$scopedChapterTitle» فقط",
+                                color = theme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            TextButton(
+                                onClick = { selectedChapterId = null },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    "الكتاب كاملاً",
+                                    color = bookAccent,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
             // 4. Results Header & Count
             item {
+                // ق126: موضع الباب داخل الكتاب — كان الترويسة تعرض
+                // العنوان والعدد وحدهما بلا «الباب X من Y».
+                val chapterPosition = if (!showOnlyBookmarks && selectedChapterId != null) {
+                    val idx = chapters.indexOfFirst { it.first == selectedChapterId }
+                    if (idx >= 0) "الباب ${idx + 1} من ${chapters.size} • " else ""
+                } else ""
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -555,7 +665,7 @@ fun SahihReaderView(
                         color = theme.textPrimary
                     )
                     Text(
-                        text = "${hadiths.size} حديث موثق",
+                        text = "$chapterPosition${hadiths.size} حديث موثق",
                         fontFamily = NotoSansFont,
                         fontSize = 11.5.sp,
                         color = bookAccent,
@@ -577,7 +687,9 @@ fun SahihReaderView(
                             Icon(Icons.Default.SearchOff, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(44.dp))
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                "لم نجد أحاديث مطابقة للبحث",
+                                // ق68: رسالة البحث كانت تظهر أيضاً عند
+                                // فتح «المحفوظة» بلا أي حديث محفوظ.
+                                if (showOnlyBookmarks) "لا أحاديث محفوظة بعد" else "لم نجد أحاديث مطابقة للبحث",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -585,7 +697,7 @@ fun SahihReaderView(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "جرّب البحث بكلمة أخرى أو تصفح الأبواب المختلفة",
+                                if (showOnlyBookmarks) "انقر أيقونة الحفظ على أي حديث ليظهر هنا" else "جرّب البحث بكلمة أخرى أو تصفح الأبواب المختلفة",
                                 color = theme.textSecondary,
                                 fontFamily = NotoSansFont,
                                 fontSize = 12.sp
@@ -627,7 +739,9 @@ fun SahihReaderView(
                         } ?: ""
                         val quote = "${hadith.matn}$quranPart — ${hadith.reference}"
                         onNavigateToVideoCreation(quote)
-                    }
+                    },
+                    // ق68: إبلاغ القائمة بتبديل الحفظ لتُعاد حسابها فوراً.
+                    onBookmarkChanged = { bookmarkVersion++ }
                 )
             }
 
@@ -663,7 +777,8 @@ fun SahihHadithCard(
     onToggleSpeech: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
-    onConvertToVideo: () -> Unit
+    onConvertToVideo: () -> Unit,
+    onBookmarkChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
@@ -733,6 +848,7 @@ fun SahihHadithCard(
                     IconButton(
                         onClick = {
                             isBookmarked = SahihHadithsRepository.toggleBookmark(context, hadith.id)
+                            onBookmarkChanged()
                         },
                         modifier = Modifier.size(48.dp)
                     ) {

@@ -80,7 +80,7 @@ fun PaymentScreen(
                     paymentService.recharge(coinsAdded)
                     currentBalance = paymentService.userBalance
                     showRechargeDialog = false
-                    Toast.makeText(context, Translator.tr("تم شحن الرصيد بنجاح (+$coinsAdded عملة)"), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, Translator.trf("تم شحن الرصيد بنجاح (+{0} عملة)", coinsAdded), Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -238,7 +238,7 @@ fun PaymentScreen(
                         text = if (isProOrDev) {
                             Translator.tr("تصدير الفيديو الآن (مجاناً لمشتركي برو)")
                         } else {
-                            Translator.tr("تأكيد الدفع والتصدير (خصم $videoCost عملات)")
+                            Translator.trf("تأكيد الدفع والتصدير (خصم {0} عملات)", videoCost)
                         },
                         isLoading = isProcessing,
                         enabled = !isProcessing,

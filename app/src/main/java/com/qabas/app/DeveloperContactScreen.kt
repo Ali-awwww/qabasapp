@@ -164,6 +164,8 @@ fun DeveloperContactScreen(
     val authEmail by SupabaseServices.Auth.currentUser.collectAsState()
     val accountIdentity by AccountIdentityManager.identity.collectAsState()
     val unreadReplies by DevChatRealtimeManager.unreadReplies.collectAsState()
+    // (ق65) لوحة المطور تعيد تحميل محادثاتها حياً عند أي تغيير يصل لحظياً.
+    val inboxChanged by DevChatRealtimeManager.inboxChanged.collectAsState()
     val userEmail = accountIdentity.email.ifBlank { authEmail?.email.orEmpty() }
     val localDisplayName = accountIdentity.displayName
     val localAvatarUrl = accountIdentity.avatarUrl
@@ -242,6 +244,17 @@ fun DeveloperContactScreen(
     LaunchedEffect(selectedThreadEmail, isDeveloper) {
         if (isDeveloper && selectedThreadEmail.isNotBlank()) {
             messages = threads[selectedThreadEmail].orEmpty()
+        }
+    }
+
+    // (ق65) تحديث حي للوحة المطور: رسائل المستخدمين الجديدة تظهر دون
+    // انتظار زر التحديث. الحارس > 0 يمنع تحميلاً إضافياً عند أول تركيب.
+    LaunchedEffect(inboxChanged) {
+        if (isDeveloper && inboxChanged > 0L) {
+            threads = DevChatRepository.getAllThreads(context)
+            if (selectedThreadEmail.isNotBlank()) {
+                messages = threads[selectedThreadEmail].orEmpty()
+            }
         }
     }
 
@@ -364,9 +377,18 @@ fun DeveloperContactScreen(
                 input = ""
                 messages = DevChatRepository.getLocalMessages(context, conversationEmail)
                 if (isDeveloper) threads = DevChatRepository.getAllThreads(context)
+                // (ق65) التوست القديم كان يكذب: sendMessage لا يرمي عند
+                // فشل السحابة بل يعيد الرسالة بحالة pending — فكان
+                // «تم إرسال رسالتك إلى المطور» يظهر ورسالة دون اتصال
+                // لم تغادر الجهاز أصلاً. الآن التوست يقرأ الحالة الفعلية.
                 Toast.makeText(
                     context,
-                    if (isDeveloper) "تم إرسال الرد إلى المستخدم" else "تم إرسال رسالتك إلى المطور",
+                    when {
+                        it.status == "pending" && isDeveloper -> "تم حفظ الرد محليًا — سيُرسل عند عودة الاتصال"
+                        it.status == "pending" -> "تم حفظ الرسالة محليًا، وسنحاول مزامنتها عند عودة الاتصال"
+                        isDeveloper -> "تم إرسال الرد إلى المستخدم"
+                        else -> "تم إرسال رسالتك إلى المطور"
+                    },
                     Toast.LENGTH_SHORT
                 ).show()
             }.onFailure {

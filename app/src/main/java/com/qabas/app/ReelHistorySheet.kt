@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.text.format.DateUtils
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,7 +39,17 @@ import kotlinx.coroutines.launch
 @Composable
 fun ReelHistorySheet(
     onDismiss: () -> Unit,
-    onSelectReel: (reelId: String) -> Unit
+    onSelectReel: (reelId: String) -> Unit,
+    // ق131: تُستدعى بعد إلغاء حفظ ناجح من الورقة — فحالة «محفوظ»
+    // في الخلاصة نسخة محلية منفصلة (cloudBookmarks) لا تتحدث
+    // من نفسها، فيبقى الريل «محفوظاً» في الخلاصة بعد إلغاء حفظه.
+    onBookmarksChanged: () -> Unit = {},
+    // ق134: نظير onBookmarksChanged للإعجابات — إلغاء الإعجاب من
+    // الورقة كان يترك حالة «معجب» في الخلاصة (likedReelIds نسخة
+    // محلية منفصلة تُعاد قراءتها عند تغيّر المصادقة/الاتصال أو
+    // الاستئناف فقط) بلا أي إشعار، فيبقى القلب أحمر والعدّاد
+    // مضخماً في الجلسة نفسها.
+    onLikesChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
@@ -92,7 +103,17 @@ fun ReelHistorySheet(
         }
 
         if (removed) {
+            // ق131: إزالة محلية فورية (محفوظة) قبل إعادة الجلب — كان
+            // العنصر يعود للظهور إن فشل الجلب اللاحق رغم نجاح الحذف
+            // في السحابة.
+            when (tab) {
+                0 -> ReelPreferencesManager.removeFromWatchHistory(context, item.reelId)
+                1 -> ReelPreferencesManager.removeFromSavedReels(context, item.reelId)
+                else -> ReelPreferencesManager.removeFromLikedReels(context, item.reelId)
+            }
             refreshActivity()
+            if (tab == 1) onBookmarksChanged()
+            if (tab == 2) onLikesChanged()
             ReelPreferencesManager.triggerHaptic(context)
         } else {
             Toast.makeText(context, "تعذّر تحديث النشاط في السحابة. حاول مرة أخرى.", Toast.LENGTH_LONG).show()
@@ -187,7 +208,13 @@ fun ReelHistorySheet(
                 }
             }
 
-            val countsReady = !isLoading && !isRefreshing && !loadFailed
+            // ق131: العدّادات من اللقطة المحلية (تُحفظ في التفضيلات) —
+            // فعند فشل التحديث السحابي تُعرض القوائم المحلية وتبقى
+            // العدّادات مطابقة لها بدل «—».
+            val countsReady = !isLoading && !isRefreshing
+            // ق131: نشاط محلي محفوظ من جلسات سابقة — يُعرض عند فشل
+            // التحديث السحابي بدل شاشة خطأ تحجب المحفوظات كلها.
+            val hasLocalActivity = watchHistory.isNotEmpty() || savedReels.isNotEmpty() || likedReels.isNotEmpty()
             AppleSegmentedControl(
                 items = listOf(
                     0 to "السجل (${if (countsReady) userStats.totalWatched else "—"})",
@@ -219,6 +246,45 @@ fun ReelHistorySheet(
                 )
             }
 
+            // ق131: عند فشل التحديث السحابي ووجود نسخة محلية تُعرض
+            // القوائم المحلية مع لافتة صدق وزر إعادة محاولة — بدل
+            // شاشة خطأ كانت تحجب المحفوظات المحفوظة على الجهاز.
+            if (loadFailed && !isLoading && !isRefreshing && hasLocalActivity) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = theme.warning.copy(alpha = 0.12f),
+                    border = BorderStroke(0.75.dp, theme.warning.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudOff,
+                            contentDescription = null,
+                            tint = theme.warning,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "تعذّر تحديث النشاط من السحابة — تُعرض نسختك المحفوظة محلياً وقد لا تكون الأحدث.",
+                            color = theme.textPrimary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = { coroutineScope.launch { refreshActivity() } },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("إعادة المحاولة", color = theme.warning, fontFamily = CairoFont, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     isLoading || isRefreshing -> {
@@ -229,7 +295,9 @@ fun ReelHistorySheet(
                             CircularProgressIndicator(color = theme.primary)
                         }
                     }
-                    loadFailed -> {
+                    // ق131: شاشة الخطأ الكاملة فقط عند غياب أي نسخة
+                    // محلية — وإلا تُعرض القوائم المحلية مع اللافتة أعلاه.
+                    loadFailed && !hasLocalActivity -> {
                         Column(
                             modifier = Modifier
                                 .align(Alignment.Center)
@@ -546,7 +614,10 @@ fun ReelHistoryCard(
                     imageVector = if (showDeleteAsUnsave) Icons.Default.BookmarkRemove
                     else if (showDeleteAsUnlike) Icons.Default.Favorite
                     else Icons.Default.Close,
-                    contentDescription = "حذف",
+                    // ق131: وصف «حذف» كان مضللاً لزر إلغاء الحفظ/الإعجاب —
+                    // وهو قابل للتراجع بنقرة حفظ/إعجاب جديدة.
+                    contentDescription = if (showDeleteAsUnsave) "إزالة من المحفوظات"
+                    else if (showDeleteAsUnlike) "إزالة الإعجاب" else "حذف",
                     tint = if (showDeleteAsUnlike) theme.destructive else theme.textSecondary,
                     modifier = Modifier.size(20.dp)
                 )

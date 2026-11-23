@@ -102,6 +102,14 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
         })
     }
 
+    /**
+     * يستعلم عن تفاصيل المنتجات — استعلام منفصل لكل نوع منتج.
+     * Play Billing يرفض خلط الأنواع في استعلام واحد («All products should
+     * be of the same product type») فكان الاستعلام الموحّد (عملات INAPP +
+     * اشتراكات SUBS) يفشل كاملاً في كل مرة، وتبقى خريطة المنتجات فارغة
+     * فتفشل كل عمليات الشراء بـ «المنتج غير متوفر». كل نوع يُستعلم وحده
+     * وتُدمج النتائج؛ فشل نوع لا يحجب النوع الآخر.
+     */
     suspend fun queryAllProducts() {
         if (!billingClient.isReady) {
             Log.w(TAG, "queryAllProducts: BillingClient is not ready")
@@ -109,51 +117,44 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
         }
 
         try {
-            val productList = listOf(
-                // In-App Consumable Products
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(COIN_500)
-                    .setProductType(BillingClient.ProductType.INAPP)
-                    .build(),
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(COIN_1200)
-                    .setProductType(BillingClient.ProductType.INAPP)
-                    .build(),
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(COIN_3000)
-                    .setProductType(BillingClient.ProductType.INAPP)
-                    .build(),
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(COIN_10000)
-                    .setProductType(BillingClient.ProductType.INAPP)
-                    .build(),
-                // Subscriptions
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(SUB_MONTHLY_PRO)
-                    .setProductType(BillingClient.ProductType.SUBS)
-                    .build(),
-                QueryProductDetailsParams.Product.newBuilder()
-                    .setProductId(SUB_ANNUAL_PRO)
-                    .setProductType(BillingClient.ProductType.SUBS)
-                    .build()
+            val merged = mutableMapOf<String, ProductDetails>()
+            merged += queryProductsOfType(
+                BillingClient.ProductType.INAPP,
+                listOf(COIN_500, COIN_1200, COIN_3000, COIN_10000)
             )
-
-            val params = QueryProductDetailsParams.newBuilder()
-                .setProductList(productList)
-                .build()
-
-            val result = billingClient.queryProductDetails(params)
-            if (result.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                val list = result.productDetailsList ?: emptyList()
-                val map = list.associateBy { it.productId }
-                _products.value = map
-                Log.d(TAG, "Fetched ${list.size} products from Google Play")
-            } else {
-                Log.w(TAG, "Error querying product details: ${result.billingResult.debugMessage}")
-            }
+            merged += queryProductsOfType(
+                BillingClient.ProductType.SUBS,
+                listOf(SUB_MONTHLY_PRO, SUB_ANNUAL_PRO)
+            )
+            _products.value = merged
+            Log.d(TAG, "Fetched ${merged.size} products from Google Play")
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Exception querying products: ${e.message}", e)
         }
+    }
+
+    /** يستعلم عن منتجات من نوع واحد فقط — خلط الأنواع في استعلام واحد مرفوض من Play. */
+    private suspend fun queryProductsOfType(
+        productType: String,
+        productIds: List<String>
+    ): Map<String, ProductDetails> {
+        val productList = productIds.map { id ->
+            QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(id)
+                .setProductType(productType)
+                .build()
+        }
+        val params = QueryProductDetailsParams.newBuilder()
+            .setProductList(productList)
+            .build()
+
+        val result = billingClient.queryProductDetails(params)
+        if (result.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+            val list = result.productDetailsList ?: emptyList()
+            return list.associateBy { it.productId }
+        }
+        Log.w(TAG, "Error querying $productType product details: ${result.billingResult.debugMessage}")
+        return emptyMap()
     }
 
     suspend fun checkActiveSubscriptions(): Boolean {
@@ -306,7 +307,7 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
-                    onResult(false, Translator.tr("حدث خطأ أثناء استعادة المشتريات: ${e.localizedMessage}"))
+                    onResult(false, Translator.trf("حدث خطأ أثناء استعادة المشتريات: {0}", e.localizedMessage))
                 }
             }
         }

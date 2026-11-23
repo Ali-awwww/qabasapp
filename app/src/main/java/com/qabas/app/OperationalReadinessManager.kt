@@ -16,15 +16,17 @@ data class ReadinessReport(
     val statusDescription: String,
     val activeServicesCount: Int,
     val totalServicesCount: Int,
-    val services: List<ServiceReadiness>,
-    val lastError: String? = null
+    val services: List<ServiceReadiness>
+    // (قُتل في ق60: lastError كان null دائماً بلا قارئ — انظر
+    // OperationalReadinessManager أدناه.)
 )
 
 object OperationalReadinessManager {
 
-    private var lastRecordedError: String? = null
-
-    fun getLastError(): String? = lastRecordedError
+    // (قُتل في ق60: lastRecordedError/getLastError كانا وهماً — المتغير
+    // لا يسنده أحد فـ getLastError() ‏null‏ دائماً، وقسم «أخطاء مسجلة»
+    // في الطبيب لم يظهر أبداً. المصدر الحقيقي الآن
+    // QabasCrashGuard.lastCrashSummary.)
 
     fun calculateReadiness(context: Context, customKeys: Map<String, String>? = null): ReadinessReport {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -44,20 +46,13 @@ object OperationalReadinessManager {
 
         val geminiKey = getKey("gemini_key")
         val groqKey = getKey("groq_key")
-        val huggingfaceKey = getKey("huggingface_key")
-        val pexelsKey = getKey("pexels_key")
         val pixabayKey = getKey("pixabay_key")
-        val azureKey = getKey("azure_speech_key")
-        val elevenlabsKey = getKey("elevenlabs_key")
 
         val hasGemini = isKeyValid(geminiKey)
         val hasGroq = isKeyValid(groqKey)
-        val hasHuggingFace = isKeyValid(huggingfaceKey)
-        val hasPexels = isKeyValid(pexelsKey)
         val hasPixabay = isKeyValid(pixabayKey)
         val hasSupabase = SupabaseConfig.isConfigured
         val hasHiggsfield = false // Higgsfield credentials are stored server-side and are not readable by this local-only report.
-        val hasAudioCloud = isKeyValid(azureKey) || isKeyValid(elevenlabsKey)
 
         val services = listOf(
             ServiceReadiness(
@@ -65,7 +60,7 @@ object OperationalReadinessManager {
                 weight = 30,
                 isConfigured = hasGemini,
                 description = "المساعد الدعوي، صياغة السكريبتات، وتحليل الأفكار الإسلامية، والرؤية البصرية",
-                activeFeature = if (hasGemini) "متصل حقيقي مباشر (Gemini Flash Live)" else "يتطلب إدخال مفتاح Gemini للتشغيل السحابي"
+                activeFeature = if (hasGemini) "مفتاح مهيأ — يُفحص حياً في طبيب التطبيق" else "يتطلب إدخال مفتاح Gemini للتشغيل السحابي"
             ),
             ServiceReadiness(
                 name = "Higgsfield AI Video Engine",
@@ -82,25 +77,25 @@ object OperationalReadinessManager {
                 activeFeature = if (hasGroq) "معالجة فائقة السرعة مفعلة (~300ms)" else "توليد النصوص المدمج كبديل محلي"
             ),
             ServiceReadiness(
-                name = "Azure / ElevenLabs Audio",
+                name = "التعليق الصوتي المحلي (Kokoro / Edge / Android TTS)",
                 weight = 15,
-                isConfigured = hasAudioCloud,
-                description = "التعليق الصوتي العصبي الفصيح ونبرات السرد الوثائقي",
-                activeFeature = if (hasAudioCloud) "التعليق الصوتي العصبي عالي النقاء متصل" else "محرك النطق المدمج في الجهاز مجاناً"
+                isConfigured = true,
+                description = "تعليق صوتي محلي بلا مفاتيح سحابية",
+                activeFeature = "محركات النطق المحلية تعمل بلا مفاتيح"
             ),
             ServiceReadiness(
-                name = "Pexels & Pixabay APIs",
+                name = "Pixabay API",
                 weight = 10,
-                isConfigured = hasPexels || hasPixabay,
+                isConfigured = hasPixabay,
                 description = "جلب فيديوهات وصور المعالم الإسلامية والطبيعة HD",
-                activeFeature = if (hasPexels || hasPixabay) "جلب وسائط حية من المكتبات العالمية" else "المكتبات والأصول المحلية المدمجة"
+                activeFeature = if (hasPixabay) "جلب وسائط حية من المكتبات العالمية" else "المكتبات والأصول المحلية المدمجة"
             ),
             ServiceReadiness(
-                name = "Hugging Face / FLUX 8K",
+                name = "Pollinations / FLUX (صور مجانية)",
                 weight = 5,
-                isConfigured = hasHuggingFace,
-                description = "توليد صور وخلفيات إسلامية مخصصة بالذكاء الاصطناعي",
-                activeFeature = if (hasHuggingFace) "توليد صور الذكاء الاصطناعي مفعل" else "التصاميم والخلفيات المدمجة محلياً"
+                isConfigured = true,
+                description = "توليد صور وخلفيات إسلامية مخصصة بالذكاء الاصطناعي بلا مفتاح",
+                activeFeature = "توليد الصور المجاني مفعل"
             ),
             ServiceReadiness(
                 name = "Supabase Cloud Sync",
@@ -123,7 +118,10 @@ object OperationalReadinessManager {
 
         val (title, desc) = when {
             totalScore >= 95 -> Pair(
-                "جاهزية سينمائية متكاملة 100% 🌟",
+                // ق161: كان العنوان «متكاملة 100%» بينما العتبة 95 — نسبة
+                // لم تُقَس؛ والفرع نفسه بعيد المنال (Higgsfield 20 نقطة
+                // غير مقروءة محلياً فسقف النتيجة 80).
+                "جاهزية سينمائية متكاملة 🌟",
                 "التطبيق يعمل بكامل طاقته التشغيلية المباشرة. جميع المحركات والنماذج متصلة وتعمل بأعلى كفاءة."
             )
             totalScore >= 70 -> Pair(
@@ -146,8 +144,7 @@ object OperationalReadinessManager {
             statusDescription = desc,
             activeServicesCount = activeCount,
             totalServicesCount = services.size,
-            services = services,
-            lastError = lastRecordedError
+            services = services
         )
     }
 }

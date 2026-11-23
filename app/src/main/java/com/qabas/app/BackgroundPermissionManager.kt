@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.Manifest
+import android.app.Activity
 import android.app.AlarmManager
 import android.content.ComponentName
 import android.content.Context
@@ -12,6 +13,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.app.NotificationManager
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.util.Locale
 
@@ -80,6 +82,28 @@ object BackgroundPermissionManager {
                 canScheduleExactAlarms(context) &&
                 areNotificationsEnabled(context) &&
                 canUseFullScreenIntent(context)
+    }
+
+    /**
+     * هل سبق طلب أذونات التشغيل (الدفعة الأولى عند الإقلاع)؟ قبل أول
+     * طلب يعيد النظام false لـ shouldShowRequestPermissionRationale
+     * دائماً فلا يصح تفسيره رفضاً نهائياً — هذا العلم هو الفارق.
+     */
+    fun hasRequestedRuntimePermissionsBefore(context: Context): Boolean =
+        context.getSharedPreferences("qabas_permissions_prefs", Context.MODE_PRIVATE)
+            .getBoolean("initial_permissions_requested", false)
+
+    /**
+     * (ق64) هل الإذن مرفوض نهائياً؟ لم يُمنح + نافذة النظام لن تُعرض
+     * بعد الآن («عدم السؤال مجدداً» أو رفض مرتين). إطلاق المنادِي
+     * عندها صامت بلا أي أثر — كل أزرار «منح الإذن» في التطبيق كانت
+     * تطلق منادِياً ميتاً دون تفسير أو طريق بديل. الحل الوحيد عندها
+     * إعدادات النظام عبر [openAppSettings].
+     */
+    fun isPermissionPermanentlyDenied(activity: Activity, permission: String): Boolean {
+        if (ContextCompat.checkSelfPermission(activity, permission) == PackageManager.PERMISSION_GRANTED) return false
+        if (!hasRequestedRuntimePermissionsBefore(activity)) return false
+        return !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
     }
 
     /**

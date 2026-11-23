@@ -152,7 +152,7 @@ class VideoEngineManager(private val context: Context) {
                         it.isNotBlank() && (it.startsWith("http") || File(it).exists()) 
                     } ?: scene.visualEffect.takeIf { it.startsWith("http") }
 
-                    // Priority 1: Real Pexels / Pixabay (with predictive prefetch cache first)
+                    // Priority 1: Real Pixabay (with predictive prefetch cache first)
                     if (mediaToUse.isNullOrBlank()) {
                         val query = "${scene.title} ${scene.description}".trim()
                         val prefetched = BrollPrefetch.cached(query) ?: BrollPrefetch.cached(scene.title) ?: BrollPrefetch.cached(scene.description.take(60))
@@ -215,7 +215,11 @@ class VideoEngineManager(private val context: Context) {
                         )
                         generateSolidColorVideo(cacheDir, index, scene.durationInSeconds, resolvedStyleAnalysis, sceneLabel)
                     } else {
-                        downloadMedia(mediaToUse, cacheDir, index, resolvedStyleAnalysis)
+                        // ق100: نص المشهد يُمرَّر للبديل الذكي — كان
+                        // downloadMedia يطابق على الرابط الفاشل نفسه
+                        // (لاتيني بلا كلمة عربية) فيعود دائماً للعنصر
+                        // الأول مهما كان المشهد.
+                        downloadMedia(mediaToUse, cacheDir, index, resolvedStyleAnalysis, sceneQuery = "${scene.title} ${scene.description}".trim())
                     }
 
                     currentStep++
@@ -667,7 +671,7 @@ class VideoEngineManager(private val context: Context) {
         return "broll_$hash"
     }
 
-    private suspend fun downloadMedia(urlStr: String, cacheDir: File, index: Int, styleAnalysis: VideoStyleAnalysis? = null): File = withContext(Dispatchers.IO) {
+    private suspend fun downloadMedia(urlStr: String, cacheDir: File, index: Int, styleAnalysis: VideoStyleAnalysis? = null, sceneQuery: String = ""): File = withContext(Dispatchers.IO) {
         val cleanUrl = urlStr.trim()
         if (cleanUrl.isBlank() || cleanUrl == "null") {
             return@withContext generateSolidColorVideo(cacheDir, index, 5, styleAnalysis, null)
@@ -735,15 +739,18 @@ class VideoEngineManager(private val context: Context) {
         }
         Log.e(TAG, "B-Roll download failed after 3 attempts: $cleanUrl → ${lastException?.message}")
         
-        // 3. Smart Fallback to Local Library
-        val fallback = BRollEngine.matchBRoll(cleanUrl)
+        // 3. Smart Fallback to Local Library — مطابقة على نص المشهد
+        // لا على الرابط الفاشل (ق100): الرابط اللاتيني لا يطابق أي
+        // كلمة عربية فيعود دائماً للعنصر الأول؛ وبلا نص مشهد يبقى
+        // الأول هو البديل العام المعلن في BRollEngine.
+        val fallback = BRollEngine.matchBRoll(sceneQuery.ifBlank { cleanUrl })
         if (fallback.videoUrl != cleanUrl && fallback.videoUrl.isNotBlank()) {
             SystemLogsManager.addLog(
                 "INFO",
-                "تعذر تحميل الوسائط — استخدام بديل ذكي من المكتبة: ${fallback.title}",
+                "تعذر تحميل الوسائط — استخدام بديل من المكتبة: ${fallback.title}",
                 ThemeSuccess
             )
-            return@withContext downloadMedia(fallback.videoUrl, cacheDir, index, styleAnalysis)
+            return@withContext downloadMedia(fallback.videoUrl, cacheDir, index, styleAnalysis, sceneQuery)
         }
 
         SystemLogsManager.addLog(

@@ -46,7 +46,7 @@ fun AiSmartDirectorScreen(
     var durationSeconds by remember { mutableIntStateOf(30) }
     var selectedTone by remember { mutableStateOf("وقور وملهم") }
     var selectedAudience by remember { mutableStateOf("الجمهور العام") }
-    var showProDialog by remember { mutableStateOf(false) }
+    var showLimitDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: التوليد والإخراج، 1: سجل قرارات العقل
     
     val uiState by brainViewModel.uiState.collectAsState()
@@ -57,9 +57,9 @@ fun AiSmartDirectorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    if (showProDialog) {
+    if (showLimitDialog) {
         ModalBottomSheet(
-            onDismissRequest = { showProDialog = false },
+            onDismissRequest = { showLimitDialog = false },
             containerColor = DeepSlate,
             scrimColor = DeepSlate.copy(alpha = 0.6f)
         ) {
@@ -69,10 +69,13 @@ fun AiSmartDirectorScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = QabasGold, modifier = Modifier.size(64.dp))
+                // حوار حدّ يومي صادق (ق25): لا يوجد اشتراك «برو» في التطبيق
+                // أصلاً (الفئات: مجاني/اكتفاء ذاتي/مطور)، ولا Firestore،
+                // والزر السابق كان يدّعي «تفعيلاً مؤقتاً» لا يغيّر شيئاً.
+                Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(64.dp))
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "اشترك في خادم المسلم برو 👑",
+                    "بلغت الحد اليومي للتوليد",
                     color = TextPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
@@ -80,32 +83,20 @@ fun AiSmartDirectorScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "ميزة المخرج الذكي وذاكرة كائنات الأنماط من Firestore تتيح لك إخراجاً سينمائياً فائق الجودة بالذكاء الاصطناعي.",
+                    "الخطة المجانية تتيح 5 فيديوهات و5 صور يومياً وتتجدد كل 24 ساعة. لرفع الحد أدخل مفاتيح API الخاصة بك من «مفاتيح الاستوديو» فيصبح استخدامك غير محدود (اكتفاء ذاتي)، أو انتظر تجدد الحد غداً.",
                     color = TextSecondary,
                     fontFamily = CairoFont,
                     textAlign = TextAlign.Center,
                     fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                ProFeatureRow(Icons.Default.AutoAwesome, "ربط حي بذاكرة كائنات الأنماط (Firestore)")
-                ProFeatureRow(Icons.Default.Psychology, "استدلال سينمائي متقدم عبر Gemini API")
-                ProFeatureRow(Icons.Default.MovieFilter, "توليد فلاتر وتوجيهات FFmpeg للمونتاج الحقيقي")
-                ProFeatureRow(Icons.Default.Tune, "تعلم تراكمي من تقييماتك للمخرجات")
-                
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            showProDialog = false
-                            snackbarHostState.showSnackbar("تم تفعيل صلاحيات المخرج الذكي مؤقتاً للاختبار")
-                        }
-                    },
+                    onClick = { showLimitDialog = false },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("تجربة المخرج الذكي الآن", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("فهمت", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -200,7 +191,7 @@ fun AiSmartDirectorScreen(
                     onSyncMemory = {
                         brainViewModel.syncBrainMemory()
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("تمت مزامنة ذاكرة الأنماط مع سحابة Firestore")
+                            snackbarHostState.showSnackbar("تم تحديث ذاكرة الأنماط")
                         }
                     }
                 )
@@ -208,7 +199,7 @@ fun AiSmartDirectorScreen(
 
             item {
                 Text(
-                    "أدخل فكرة الفيديو أو الآية أو القصة، وسيقوم 'العقل' باستدعاء الأنماط المرجعية المحفوظة من Firestore وصياغة السيناريو والإخراج بـ Gemini API.",
+                    "أدخل فكرة الفيديو أو الآية أو القصة، وسيقوم 'العقل' باستدعاء الأنماط المرجعية المحفوظة في ذاكرة الأنماط وصياغة السيناريو والإخراج بـ Gemini API.",
                     color = TextSecondary,
                     fontFamily = CairoFont,
                     fontSize = 13.5.sp,
@@ -273,7 +264,7 @@ fun AiSmartDirectorScreen(
                     onClick = {
                         if (scriptText.isNotBlank()) {
                             if (!canUseDirector) {
-                                showProDialog = true
+                                showLimitDialog = true
                             } else {
                                 brainViewModel.processIdeaWithBrain(
                                     idea = scriptText,
@@ -500,7 +491,7 @@ fun AiSmartDirectorScreen(
                                     onClick = {
                                         brainViewModel.recordDecisionFeedback(false)
                                         coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("تم تسجيل الملاحظة لتعديل الأوزان في Firestore.")
+                                            snackbarHostState.showSnackbar("تم تسجيل الملاحظة لتعديل الموازين القادمة.")
                                         }
                                     },
                                     modifier = Modifier.size(36.dp).background(ThemeDestructive.copy(alpha = 0.15f), CircleShape)
@@ -559,18 +550,6 @@ fun AiSmartDirectorScreen(
     }
 }
 }
-}
-
-@Composable
-private fun ProFeatureRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
-        Text(text, color = TextPrimary, fontFamily = CairoFont, fontSize = 13.5.sp)
-    }
 }
 
 @Composable

@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 🗂️ متصفح ومستودع الوسائط المركزي الموحّد (Central Media Browser)
- * يربط بين سحابة Supabase Storage والملفات المحلية المولّدة بالذكاء الاصطناعي (FLUX 8K + Edge-TTS + Videos)
+ * يربط بين سحابة Supabase Storage والملفات المحلية المولّدة بالذكاء الاصطناعي (FLUX + Edge-TTS + Videos)
  * في واجهة قيادة زجاجية سيبرانية فائقة السرعة والتنظيم.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +91,8 @@ fun CentralMediaBrowserScreen(
                 val imported = CentralMediaManager.importFromUri(context, uri, type)
                 if (imported != null) {
                     Toast.makeText(context, "تمت إضافة الملف لمستودع الوسائط ✓", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "تعذّر استيراد الملف — تحقق من الملف وحاول مجدداً", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -105,6 +107,8 @@ fun CentralMediaBrowserScreen(
                 val imported = CentralMediaManager.importFromUri(context, uri, CentralMediaType.AUDIO)
                 if (imported != null) {
                     Toast.makeText(context, "تم استيراد الملف الصوتي بنجاح 🎙️", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "تعذّر استيراد الملف الصوتي — تحقق من الملف وحاول مجدداً", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -380,7 +384,7 @@ fun CentralMediaBrowserScreen(
                             fontSize = 13.sp
                         )
                         Text(
-                            "قم بتوليد صور FLUX 8K في الاستوديو أو ارفع وسائط من جهازك 📥",
+                            "قم بتوليد صور FLUX في الاستوديو أو ارفع وسائط من جهازك 📥",
                             color = theme.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
@@ -425,9 +429,13 @@ fun CentralMediaBrowserScreen(
             },
             onDelete = {
                 scope.launch {
-                    CentralMediaManager.deleteAsset(context, asset)
+                    val ok = CentralMediaManager.deleteAsset(context, asset)
                     selectedAssetForDetail = null
-                    Toast.makeText(context, "تم حذف الملف بنجاح 🗑️", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        if (ok) "تم حذف الملف بنجاح 🗑️" else "تعذّر حذف الملف — تحقق من الاتصال وحاول مجدداً",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             },
             onOpenInPhotoStudio = {

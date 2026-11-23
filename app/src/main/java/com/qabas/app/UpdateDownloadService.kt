@@ -107,7 +107,12 @@ class UpdateDownloadService : Service() {
     }
 
     private fun startDownload(info: UpdateManager.UpdateInfo, forceFull: Boolean) {
-        activeKey = "${info.versionName}|${info.versionCode}"
+        val key = "${info.versionName}|${info.versionCode}"
+        // ق46: بدء مكرر للنسخة نفسها يُتجاهل — التنزيل النشط يكفي، وإلا
+        // أعيد ضبط الإشعار إلى «بدء التنزيل» بلا داعٍ (الحارس الجذري في
+        // UpdateManager.downloadAndInstall يمنع التنزيل المزدوج نفسه).
+        if (activeKey == key) return
+        activeKey = key
         activeVersionName = info.versionName
         activeVersionCode = info.versionCode
         activeApkSize = info.apkSize

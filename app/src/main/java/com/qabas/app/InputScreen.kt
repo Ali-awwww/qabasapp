@@ -202,7 +202,7 @@ fun InputScreen(
                 )
             )
             scope.launch {
-                snackbarHostState.showSnackbar(Translator.tr("تم اختيار ${uris.size} صور بنجاح ✓"))
+                snackbarHostState.showSnackbar(Translator.trf("تم اختيار {0} صور بنجاح ✓", uris.size))
             }
         } else {
             scope.launch {

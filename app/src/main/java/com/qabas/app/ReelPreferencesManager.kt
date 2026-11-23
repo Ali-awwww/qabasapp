@@ -73,6 +73,8 @@ object ReelPreferencesManager {
     private const val KEY_HAPTIC_FEEDBACK = "reels_haptic_feedback"
     private const val KEY_AUTO_SCROLL = "reels_auto_scroll"
     private const val KEY_PLAYBACK_SPEED = "reels_playback_speed"
+    private const val KEY_LAST_VOLUME = "reels_last_volume"
+    private const val KEY_RESUME_POSITIONS = "reels_resume_positions_json"
     private const val KEY_SHOW_CAPTIONS = "reels_show_captions"
     private const val KEY_DOUBLE_TAP_ACTION = "reels_double_tap_action" // "LIKE", "SAVE", "PAUSE"
     private const val KEY_WATCH_HISTORY = "reels_watch_history_json"
@@ -101,6 +103,17 @@ object ReelPreferencesManager {
 
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
+    // مستوى الصوت الأخير غير الصفري (ق76): الكتم يستعيده بدل القفز
+    // إلى 100%، ويُحفظ عند مغادرة الشاشة فيبقى بين الجلسات.
+    private val _lastVolume = MutableStateFlow(1.0f)
+    val lastVolume: StateFlow<Float> = _lastVolume.asStateFlow()
+
+    // مواضع استئناف المشاهدة لكل ريل (ق165): كانت خريطة ذاكرة
+    // فقط في شاشة الريلز، فتضيع بمغادرة الشاشة ويعيد كل ريل من
+    // البداية؛ تُحفظ الآن في التفضيلات وتُستعاد عند الدخول.
+    private const val MAX_RESUME_POSITIONS = 50
+    private val resumePositions = LinkedHashMap<String, Long>()
 
     private val _showCaptions = MutableStateFlow(true)
     val showCaptions: StateFlow<Boolean> = _showCaptions.asStateFlow()
@@ -140,6 +153,17 @@ object ReelPreferencesManager {
         _hapticFeedback.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
         _autoScrollOnFinish.value = prefs.getBoolean(KEY_AUTO_SCROLL, false)
         _playbackSpeed.value = prefs.getFloat(KEY_PLAYBACK_SPEED, 1.0f)
+        _lastVolume.value = prefs.getFloat(KEY_LAST_VOLUME, 1.0f).coerceIn(0.05f, 1.0f)
+        runCatching {
+            val raw = prefs.getString(KEY_RESUME_POSITIONS, "{}") ?: "{}"
+            val obj = JSONObject(raw)
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val id = keys.next()
+                val pos = obj.optLong(id, 0L)
+                if (id.isNotBlank() && pos > 0L) resumePositions[id] = pos
+            }
+        }
         _showCaptions.value = prefs.getBoolean(KEY_SHOW_CAPTIONS, true)
         _doubleTapAction.value = prefs.getString(KEY_DOUBLE_TAP_ACTION, "LIKE") ?: "LIKE"
         _alAtharEnabled.value = prefs.getBoolean(KEY_AL_ATHAR_ENABLED, true)
@@ -211,6 +235,40 @@ object ReelPreferencesManager {
             .putFloat(KEY_PLAYBACK_SPEED, speed).apply()
     }
 
+    fun setLastVolume(context: Context, volume: Float) {
+        val safe = volume.coerceIn(0.05f, 1.0f)
+        _lastVolume.value = safe
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putFloat(KEY_LAST_VOLUME, safe).apply()
+    }
+
+    /**
+     * ق165: مواضع الاستئناف المحفوظة (نسخة) — تُزرع بها خريطة
+     * الشاشة عند الدخول، فيستأنف كل ريل من موضعه لا من البداية.
+     */
+    fun getResumePositions(context: Context): Map<String, Long> {
+        init(context)
+        return resumePositions.toMap()
+    }
+
+    /**
+     * ق165: حفظ مواضع الاستئناف عند مغادرة الشاشة (مرة واحدة،
+     * لا مع كل تحديث 500ms أثناء التشغيل). تُحذف المواضع دون
+     * ثانيتين (لا قيمة لاستئنافها)، ويُحتفظ بأحدث 50 ريلاً فقط.
+     */
+    fun saveResumePositions(context: Context, positions: Map<String, Long>) {
+        init(context)
+        val pruned = positions.entries
+            .filter { it.key.isNotBlank() && it.value >= 2000L }
+            .takeLast(MAX_RESUME_POSITIONS)
+        resumePositions.clear()
+        pruned.forEach { resumePositions[it.key] = it.value }
+        val obj = JSONObject()
+        pruned.forEach { obj.put(it.key, it.value) }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_RESUME_POSITIONS, obj.toString()).apply()
+    }
+
     fun setShowCaptions(context: Context, enabled: Boolean) {
         _showCaptions.value = enabled
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -246,54 +304,9 @@ object ReelPreferencesManager {
     }
 
     // --- Watch History Operations ---
-
-    /**
-     * تسجيل مشاهدة مقطع ريلز في السجل
-     */
-    fun recordWatch(
-        context: Context,
-        reelId: String,
-        title: String,
-        userName: String?,
-        userAvatar: String?,
-        videoUrl: String,
-        category: String = "عام",
-        durationSec: Int = 1
-    ) {
-        init(context)
-        val newItem = ReelHistoryItem(
-            reelId = reelId,
-            title = title,
-            userName = userName ?: "صانع محتوى خادم المسلم",
-            userAvatar = userAvatar,
-            videoUrl = videoUrl,
-            timestamp = System.currentTimeMillis(),
-            watchedDurationSec = durationSec,
-            category = category
-        )
-
-        // Keep most recent first, prevent immediate duplicates, enforce strict quota
-        val currentList = _watchHistory.value.toMutableList()
-        currentList.removeAll { it.reelId == reelId }
-        currentList.add(0, newItem)
-        while (currentList.size > ReelSafetyGuardrails.MAX_WATCH_HISTORY_COUNT) {
-            currentList.removeAt(currentList.lastIndex)
-        }
-        _watchHistory.value = currentList
-
-        // Save
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_WATCH_HISTORY, serializeItemsJson(currentList)).apply()
-
-        // Update stats
-        val curStats = _userStats.value
-        val updatedStats = curStats.copy(
-            totalWatched = curStats.totalWatched + 1,
-            totalWatchSeconds = curStats.totalWatchSeconds + durationSec
-        )
-        _userStats.value = updatedStats
-        saveStats(context, updatedStats)
-    }
+    // (حُذف recordWatch: كان مستدعاه الوحيد نشرَ الريلز، فيسجّل كل نشر
+    // كمشاهدة وهمية 10 ثوانٍ تضخّم الإحصائيات؛ وسجل المشاهدة الحقيقي
+    // مصدره السحابة عبر replaceActivityFromCloud.)
 
     fun removeFromWatchHistory(context: Context, reelId: String) {
         init(context)
@@ -309,6 +322,34 @@ object ReelPreferencesManager {
         _userStats.value = stats
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_WATCH_HISTORY, serializeItemsJson(currentList)).apply()
+        saveStats(context, stats)
+    }
+
+    // ق156: مسح نشاط الريلز الخاص بالحساب (مشاهدات/محفوظات/
+    // إعجابات وإحصائياتها) عند حذف الحساب — كان «مسح بيانات
+    // الحساب محلياً» يتركها في qabas_reels_preferences، فيبقى
+    // نشاط حساب محذوف على الجهاز وقد يظهر لحساب آخر يدخل بعده
+    // قبل أول مزامنة سحابية. المشاركات جهازية فتبقى، والمقاطع
+    // المخفية والمخزن العام ليسا نشاط حساب فيبقيان.
+    fun clearAccountActivity(context: Context) {
+        init(context)
+        _watchHistory.value = emptyList()
+        _savedReels.value = emptyList()
+        _likedReels.value = emptyList()
+        resumePositions.clear()
+        val stats = _userStats.value.copy(
+            totalWatched = 0,
+            totalWatchSeconds = 0L,
+            totalLikes = 0,
+            totalSaved = 0
+        )
+        _userStats.value = stats
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_WATCH_HISTORY, "[]")
+            .putString(KEY_SAVED_REELS, "[]")
+            .putString(KEY_LIKED_REELS, "[]")
+            .remove(KEY_RESUME_POSITIONS)
+            .apply()
         saveStats(context, stats)
     }
 
@@ -357,10 +398,37 @@ object ReelPreferencesManager {
         return _savedReels.value.any { it.reelId == reelId }
     }
 
+    // ق131: إزالة محلية فورية (محفوظة) من المحفوظات — كان نظيرها
+    // موجوداً للسجل (removeFromWatchHistory) وحده، فإزالة محفوظ
+    // من الورقة كانت تعتمد على إعادة جلب لاحقة، وإن فشلت عاد
+    // العنصر للظهور رغم نجاح حذفه في السحابة.
+    fun removeFromSavedReels(context: Context, reelId: String) {
+        init(context)
+        val currentList = _savedReels.value.filterNot { it.reelId == reelId }
+        _savedReels.value = currentList
+        val stats = _userStats.value.copy(totalSaved = currentList.size)
+        _userStats.value = stats
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_SAVED_REELS, serializeItemsJson(currentList)).apply()
+        saveStats(context, stats)
+    }
+
     // --- Liked Reels Operations ---
 
     fun isLiked(reelId: String): Boolean {
         return _likedReels.value.any { it.reelId == reelId }
+    }
+
+    // ق131: نظير removeFromSavedReels للإعجابات — للسبب نفسه.
+    fun removeFromLikedReels(context: Context, reelId: String) {
+        init(context)
+        val currentList = _likedReels.value.filterNot { it.reelId == reelId }
+        _likedReels.value = currentList
+        val stats = _userStats.value.copy(totalLikes = currentList.size)
+        _userStats.value = stats
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_LIKED_REELS, serializeItemsJson(currentList)).apply()
+        saveStats(context, stats)
     }
 
     fun recordShare(context: Context) {

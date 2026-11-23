@@ -8,9 +8,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import com.qabas.app.ui.theme.AmiriFont
-import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.NotoSansFont
-import com.qabas.app.ui.theme.TajawalFont
+import com.qabas.app.ui.theme.CairoFontFamily
+import com.qabas.app.ui.theme.ScheherazadeFontFamily
+import com.qabas.app.ui.theme.TajawalFontFamily
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +23,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 
@@ -54,8 +57,6 @@ object UserPreferencesManager {
         "sakina_mode",
         "offline_ai_mode",
         "selected_local_model_id",
-        "pref_hud_grid",
-        "pref_hud_corners",
         "pref_oled_contrast",
         "spatial_cam_docked_mode",
         "spatial_cam_compact_mode",
@@ -118,6 +119,12 @@ object UserPreferencesManager {
     // ── 5. Accessibility ──
     private val _highContrastMode = MutableStateFlow(false)
     val highContrastMode: StateFlow<Boolean> = _highContrastMode.asStateFlow()
+
+    // السواد المطلق OLED: كان مفتاحاً محلياً في شاشة المظهر وحدها
+    // (pref_oled_contrast في qabas_prefs) بلا أي تدفق يقرؤه مزوّد
+    // السمة — فالمفتاح يُحفظ ويُزامَن ولا يغيّر شيئاً خارج الشاشة.
+    private val _oledHighContrast = MutableStateFlow(false)
+    val oledHighContrast: StateFlow<Boolean> = _oledHighContrast.asStateFlow()
 
     private val _reducedMotion = MutableStateFlow(false)
     val reducedMotion: StateFlow<Boolean> = _reducedMotion.asStateFlow()
@@ -200,6 +207,10 @@ object UserPreferencesManager {
         Translator.setLanguage(lang)
 
         _highContrastMode.value = prefs.getBoolean("high_contrast_mode", false)
+        // السواد المطلق: مفتاحه في qabas_prefs (لا qabas_user_preferences)
+        // حيث كتبته شاشة المظهر منذ البداية وحيث تزامنه السحابة.
+        _oledHighContrast.value = context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("pref_oled_contrast", false)
         // تقليل الحركة: اختيار المستخدم المحفوظ أولاً؛ وإن لم يختر بعد، يُورَث من
         // إعداد النظام «إزالة الحركات» (TRANSITION_ANIMATION_SCALE = 0) بدل
         // الافتراض الأعمى false — وإلا بقي مستخدم فعّلها في النظام يواجه كل
@@ -675,6 +686,14 @@ object UserPreferencesManager {
                 val surah = obj.optInt("s", 0)
                 val ayah = obj.optInt("a", 0)
                 if (surah !in 1..114 || ayah < 1) continue
+                // ق87: قيد علوي بعدد آيات السورة الحقيقي — علامة تالفة
+                // (آية فوق عدد آيات سورتها) كانت تُعرض «آية 300» في سورة
+                // من 7 آيات ثم يقفز jumpTo مقيّداً لآية أخرى بصمت، فاللافتة
+                // تكذب على القفزة؛ تُسقط هنا فلا تُعرض، وتُحذف من التخزين
+                // عند أي كتابة لاحقة (الحفظ يبني على هذه القراءة).
+                val maxAyah = QuranDataProvider.surahs
+                    .firstOrNull { it.id == surah }?.versesCount
+                if (maxAyah != null && ayah > maxAyah) continue
                 result += MushafBookmark(
                     surah = surah,
                     ayah = ayah,
@@ -692,6 +711,11 @@ object UserPreferencesManager {
     /** إضافة أو تحديث علامة (مفتاحها السورة:الآية)؛ الأحدث أولاً. */
     fun saveMushafBookmark(context: Context, bookmark: MushafBookmark) {
         if (bookmark.surah !in 1..114 || bookmark.ayah < 1) return
+        // ق87: الرفض نفسه عند الكتابة — بلا قيد علوي كانت علامة تالفة
+        // تُحفظ ثم تُسقط عند القراءة فقط، فيبقى التخزين ملوثاً.
+        val maxAyah = QuranDataProvider.surahs
+            .firstOrNull { it.id == bookmark.surah }?.versesCount
+        if (maxAyah != null && bookmark.ayah > maxAyah) return
         val cleaned = bookmark.copy(
             note = bookmark.note.trim().take(MUSHAF_BOOKMARK_MAX_NOTE_LENGTH)
         )
@@ -797,17 +821,19 @@ object UserPreferencesManager {
      * الترجمة الإنجليزية الافتراضية في القارئ ولوحة الدراسة
      * (قسم القرآن — الكتب): محلية فقط، مفتاحها غير مدرج في
      * CLOUD_SYNCED_QABAS_KEYS فلا مزامنة سحابية. الافتراضي
-     * "english_saheeh"؛ ومعرّف غير معروف يرجع إليه.
+     * "english_saheeh"؛ ومعرّف غير معروف يرجع إليه. ق84: التحقق
+     * من المصدر الوحيد (QuranDataProvider.MUSHAF_TRANSLATION_IDS)
+     * بدل نسخة يدوية من قائمة الترجمات.
      */
     fun getMushafTranslation(context: Context): String =
         context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE)
             .getString("mushaf_translation", "english_saheeh")
-            ?.takeIf { it in setOf("english_saheeh", "english_hilali_khan", "english_rwwad") }
+            ?.takeIf { QuranDataProvider.isKnownMushafTranslationId(it) }
             ?: "english_saheeh"
 
     fun saveMushafTranslation(context: Context, translationId: String) {
         val valid = translationId.takeIf {
-            it in setOf("english_saheeh", "english_hilali_khan", "english_rwwad")
+            QuranDataProvider.isKnownMushafTranslationId(it)
         } ?: "english_saheeh"
         context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString("mushaf_translation", valid).apply()
@@ -935,6 +961,126 @@ object UserPreferencesManager {
             .remove("mushaf_khatmah_plan").apply()
     }
 
+    /** مدة اليوم الواحد بالمللي ثانية لحساب أيام الخطة تقويمياً. */
+    const val KHATMAH_DAY_MS = 86_400_000L
+    /** عدد آيات المصحف كاملاً (6236) — أساس حساب التقدّم بعدد الآيات. */
+    const val KHATMAH_TOTAL_AYAH_COUNT = 6236
+
+    /**
+     * الترتيب العام لآية (سورة، آية) بين آيات المصحف الـ 6236 (1-based).
+     * مصدر واحد مشترك لقارئ المصحف وحساب تقدّم الختمة.
+     */
+    fun globalAyahIndex(surah: Int, ayah: Int): Int {
+        var index = ayah.coerceAtLeast(1)
+        for (item in QuranDataProvider.surahs) {
+            if (item.id >= surah) break
+            index += item.versesCount
+        }
+        return index.coerceIn(1, KHATMAH_TOTAL_AYAH_COUNT)
+    }
+
+    /**
+     * تقدّم خطة ختمة من موضع القراءة الفعلي — نواة مشتركة واحدة:
+     * قارئ المصحف (مع موضعه الحي) وإحصائيات العبادة وحوار مخطط
+     * الختمة في الحسنات (من آخر قراءة محفوظة) يحسبون منها، فلا
+     * نسختان من رياضيات التقدّم تتباعدان. «المقترح اليوم» سقف قسمة
+     * المتبقي على الأيام المتبقية (بما فيها اليوم) — يُعاد حسابه كل
+     * يوم من الواقع، فلا ورد ثابت يتجاوز الحقيقة إن تأخر القارئ أو تقدّم.
+     */
+    data class KhatmahProgress(
+        val fraction: Float,
+        val completed: Boolean,
+        val overdue: Boolean,
+        val daysElapsed: Int,
+        val daysLeft: Int,
+        val totalUnits: Int,
+        val readUnits: Int,
+        val leftUnits: Int,
+        val suggestedDailyUnits: Int,
+        val unitWord: String
+    )
+
+    fun computeKhatmahProgress(
+        plan: MushafKhatmahPlan,
+        currentSurah: Int,
+        currentAyah: Int,
+        currentPage: Int?,
+        usePages: Boolean,
+        nowMillis: Long
+    ): KhatmahProgress {
+        // ق153: الأيام تقويمية لا قسمة مللي ثوانٍ على 24 ساعة —
+        // القسمة تُخطئ عبر تغيير التوقيت الصيفي (يوم 23/25 ساعة)
+        // فينقص يوم منقضٍ أو يسبق تاريخ الانتهاء يوماً؛ فالفرق
+        // بين تاريخي البداية والآن بالتقويم المحلي.
+        val daysElapsed = (ChronoUnit.DAYS.between(
+            Instant.ofEpochMilli(plan.startMillis).atZone(ZoneId.systemDefault()).toLocalDate(),
+            Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+        ).toInt() + 1).coerceAtLeast(1)
+        val daysLeft = (plan.targetDays - daysElapsed + 1).coerceAtLeast(0)
+        val currentGlobal = globalAyahIndex(currentSurah, currentAyah)
+        val completed = currentGlobal >= KHATMAH_TOTAL_AYAH_COUNT
+        val overdue = daysLeft == 0 && !completed
+        val dailyFor = { left: Int ->
+            if (left <= 0) 0 else (left + maxOf(1, daysLeft) - 1) / maxOf(1, daysLeft)
+        }
+        return if (usePages && plan.startPage != null && currentPage != null) {
+            val startPage = plan.startPage!!
+            val total = (MushafPageData.PAGE_COUNT - startPage + 1).coerceAtLeast(1)
+            val read = if (completed) total else (currentPage!! - startPage).coerceIn(0, total)
+            val left = (total - read).coerceAtLeast(0)
+            KhatmahProgress(
+                fraction = if (completed) 1f else read.toFloat() / total.toFloat(),
+                completed = completed,
+                overdue = overdue,
+                daysElapsed = daysElapsed,
+                daysLeft = daysLeft,
+                totalUnits = total,
+                readUnits = read,
+                leftUnits = left,
+                suggestedDailyUnits = dailyFor(left),
+                unitWord = "صفحة"
+            )
+        } else {
+            val startGlobal = globalAyahIndex(plan.startSurah, plan.startAyah)
+            val total = (KHATMAH_TOTAL_AYAH_COUNT - startGlobal + 1).coerceAtLeast(1)
+            val read = if (completed) total else (currentGlobal - startGlobal).coerceIn(0, total)
+            val left = (total - read).coerceAtLeast(0)
+            KhatmahProgress(
+                fraction = if (completed) 1f else read.toFloat() / total.toFloat(),
+                completed = completed,
+                overdue = overdue,
+                daysElapsed = daysElapsed,
+                daysLeft = daysLeft,
+                totalUnits = total,
+                readUnits = read,
+                leftUnits = left,
+                suggestedDailyUnits = dailyFor(left),
+                unitWord = "آية"
+            )
+        }
+    }
+
+    /**
+     * تقدّم الخطة المحفوظة من آخر قراءة محفوظة (بلا موضع حي):
+     * null عند غياب الخطة. الوحدة صفحات عند توفر صفحتي البداية
+     * وآخر قراءة، وإلا آيات.
+     */
+    fun getKhatmahProgress(
+        context: Context,
+        nowMillis: Long = System.currentTimeMillis()
+    ): KhatmahProgress? {
+        val plan = getMushafKhatmahPlan(context) ?: return null
+        val lastRead = getLastReadQuran(context)
+        return computeKhatmahProgress(
+            plan = plan,
+            currentSurah = lastRead?.surah ?: plan.startSurah,
+            currentAyah = lastRead?.ayah ?: plan.startAyah,
+            currentPage = lastRead?.page,
+            usePages = plan.startPage != null && lastRead?.page != null,
+            nowMillis = nowMillis
+        )
+    }
+
     /**
      * وضع الحفظ (إخفاء نص الآيات للتسميع) — محلي فقط، مفتاحه غير مدرج
      * في CLOUD_SYNCED_QABAS_KEYS فلا مزامنة سحابية. الإخفاء عرض فقط:
@@ -951,12 +1097,19 @@ object UserPreferencesManager {
     }
 
     // Helper to resolve font family
+    // كل خيار يعطي عائلة خط حقيقية مميزة (أصول الخطوط نفسها).
+    // كان «cairo» و«tajawal» و«naskh» تنهار كلها إلى خط الواجهة
+    // الحالي (CairoFont/TajawalFont/NotoSansFont أسماء مستعارة لـ
+    // FontManager.current.family)، فالمنتقي لم يكن يبدّل الخط فعلاً
+    // إلا عند «amiri»؛ و«naskh» لم يكن له خط أصلاً. «uthmani»
+    // (المذكور في تعليق الحالة) يُحلّ إلى الأميري.
     fun getResolvedFontFamily(key: String = _readingFontFamily.value): FontFamily {
         return when (key) {
-            "amiri" -> AmiriFont
-            "cairo" -> CairoFont
-            "tajawal" -> TajawalFont
-            else -> NotoSansFont
+            "amiri", "uthmani" -> AmiriFont
+            "cairo" -> CairoFontFamily
+            "tajawal" -> TajawalFontFamily
+            "naskh" -> ScheherazadeFontFamily
+            else -> AmiriFont
         }
     }
 
@@ -1099,6 +1252,11 @@ object UserPreferencesManager {
                 _appLanguage.value = prefsObj.optString("app_language", "ar")
                 Translator.setLanguage(_appLanguage.value)
                 _highContrastMode.value = prefsObj.optBoolean("high_contrast_mode", false)
+                // لا تُصفّر السواد المطلق عند استعادة نسخة بلا المفتاح —
+                // يُكتب فقط إن ورد في النسخة (على نمط تقليل الحركة أدناه).
+                if (prefsObj.has("pref_oled_contrast")) {
+                    _oledHighContrast.value = prefsObj.optBoolean("pref_oled_contrast", false)
+                }
                 // لا تُصفّر تقليل الحركة عند استعادة نسخة بلا المفتاح — قد يكون
                 // موروثاً من إعداد النظام (انظر init)؛ يُكتب فقط إن ورد في النسخة.
                 if (prefsObj.has("reduced_motion")) {
@@ -1137,6 +1295,12 @@ object UserPreferencesManager {
     fun setHighContrastMode(context: Context, enabled: Boolean) {
         _highContrastMode.value = enabled
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("high_contrast_mode", enabled).apply()
+        triggerAutoSync(context)
+    }
+
+    fun setOledHighContrast(context: Context, enabled: Boolean) {
+        _oledHighContrast.value = enabled
+        context.getSharedPreferences(QABAS_PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean("pref_oled_contrast", enabled).apply()
         triggerAutoSync(context)
     }
 

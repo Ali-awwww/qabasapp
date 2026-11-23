@@ -22,6 +22,46 @@ data class TransitionEffect(
 
 object BRollEngine {
 
+    /**
+     * تطبيع كلمة عربية للمطابقة: بلا تشكيل، وأشكال الألف موحدة،
+     * والتاء المربوطة هاء والألف المقصورة ياء.
+     */
+    private fun normalizeArabicWord(word: String): String =
+        word.replace(Regex("\\p{M}+"), "")
+            .replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
+            .replace('ة', 'ه').replace('ى', 'ي')
+
+    /**
+     * أشكال الكلمة بعد تجريد «ال» التعريف (مع سابقة و/ب/ف/ل/ك
+     * اختيارية: والمسجد، بالصلاة، للقرآن) وحرف جر/عطف واحد
+     * (بمسجد). ق100: بلا هذه الأشكال كانت المطابقة بحدود الكلمة
+     * تفقد «المسجد» و«بالدعاء» فلا يصح الاقتصار على المساواة الخام.
+     */
+    private fun arabicWordForms(token: String): Set<String> {
+        val forms = mutableSetOf(token)
+        val withoutArticle = token.replaceFirst(Regex("^(و|ب|ف|ل|ك)?ال"), "")
+        if (withoutArticle.isNotEmpty() && withoutArticle != token) forms += withoutArticle
+        if (token.length > 2 && token[0] in "وبفلك") forms += token.substring(1)
+        return forms
+    }
+
+    /** مجموعة كلمات النص المطبعة بأشكالها — للمطابقة بحدود الكلمة. */
+    private fun arabicWords(text: String): Set<String> =
+        normalizeArabicWord(text).split(Regex("[^\\p{L}]+"))
+            .filter { it.isNotEmpty() }
+            .flatMap { arabicWordForms(it) }
+            .toSet()
+
+    /** هل تطابق الكلمة المفتاحية أي كلمة في النص بحدودها؟ */
+    private fun matchesKeyword(words: Set<String>, keyword: String): Boolean {
+        val normalized = normalizeArabicWord(keyword.lowercase(Locale.ROOT))
+        return arabicWordForms(normalized).any { it in words }
+    }
+
+    /** هل يحوي النص أياً من الكلمات المرشحة بحدودها؟ */
+    private fun hasArabicWord(words: Set<String>, vararg candidates: String): Boolean =
+        candidates.any { matchesKeyword(words, it) }
+
     val availableTransitions = listOf(
         TransitionEffect("fade", "تلاشي ناعم (Fade)", "Smooth Fade", "Opacity"),
         TransitionEffect("dissolve", "ذوبان سينمائي (Dissolve)", "Dissolve", "AutoAwesome"),
@@ -208,49 +248,52 @@ object BRollEngine {
     )
 
     /**
-     * Translates common Arabic visual concepts to English search keywords for Pexels & Pixabay APIs.
+     * Translates common Arabic visual concepts to English search keywords for the Pixabay API.
+     * ق100: مطابقة بحدود الكلمة كـ matchBRoll — كانت contains() الخام
+     * تجعل «ماء» داخل «سماء» تلوّث استعلام Pixabay بكلمات مطر
+     * لمشهد سماء صافية.
      */
     fun mapArabicToVisualKeywords(arabicText: String): String {
-        val lower = arabicText.lowercase(Locale.ROOT)
+        val words = arabicWords(arabicText.lowercase(Locale.ROOT))
         val matches = mutableListOf<String>()
 
-        if (lower.contains("مسجد") || lower.contains("مساجد") || lower.contains("جامع") || lower.contains("مئذنة") || lower.contains("قبة")) {
+        if (hasArabicWord(words, "مسجد", "مساجد", "جامع", "مئذنة", "قبة")) {
             matches.add("mosque minaret islamic architecture")
         }
-        if (lower.contains("مكة") || lower.contains("كعبة") || lower.contains("طواف") || lower.contains("حرم") || lower.contains("حج") || lower.contains("عمرة")) {
+        if (hasArabicWord(words, "مكة", "كعبة", "طواف", "حرم", "حج", "عمرة")) {
             matches.add("mecca kaaba pilgrims holy mosque")
         }
-        if (lower.contains("مدينة") || lower.contains("نبوي") || lower.contains("الرسول") || lower.contains("النبي")) {
+        if (hasArabicWord(words, "مدينة", "نبوي", "الرسول", "النبي")) {
             matches.add("medina prophet mosque dome")
         }
-        if (lower.contains("قرآن") || lower.contains("مصحف") || lower.contains("آية") || lower.contains("تلاوة") || lower.contains("تدبر")) {
+        if (hasArabicWord(words, "قرآن", "مصحف", "آية", "تلاوة", "تدبر")) {
             matches.add("holy quran open book arabic calligraphy")
         }
-        if (lower.contains("سماء") || lower.contains("نجوم") || lower.contains("فضاء") || lower.contains("كون") || lower.contains("قمر") || lower.contains("ليل")) {
+        if (hasArabicWord(words, "سماء", "نجوم", "فضاء", "كون", "قمر", "ليل")) {
             matches.add("night sky stars milky way galaxy universe")
         }
-        if (lower.contains("شمس") || lower.contains("شروق") || lower.contains("فجر") || lower.contains("صباح") || lower.contains("نور")) {
+        if (hasArabicWord(words, "شمس", "شروق", "فجر", "صباح", "نور")) {
             matches.add("sunrise golden hour sun rays landscape")
         }
-        if (lower.contains("صحراء") || lower.contains("رمال") || lower.contains("كثبان") || lower.contains("واحة")) {
+        if (hasArabicWord(words, "صحراء", "رمال", "كثبان", "واحة")) {
             matches.add("desert sand dunes cinematic landscape")
         }
-        if (lower.contains("مطر") || lower.contains("ماء") || lower.contains("غيث") || lower.contains("سحاب") || lower.contains("غيوم") || lower.contains("رعد")) {
+        if (hasArabicWord(words, "مطر", "ماء", "غيث", "سحاب", "غيوم", "رعد")) {
             matches.add("rain clouds storm droplets nature")
         }
-        if (lower.contains("دعاء") || lower.contains("تضرع") || lower.contains("خشوع") || lower.contains("صلاة") || lower.contains("سجود") || lower.contains("استغفار")) {
+        if (hasArabicWord(words, "دعاء", "تضرع", "خشوع", "صلاة", "سجود", "استغفار")) {
             matches.add("man praying mosque dramatic light spiritual")
         }
-        if (lower.contains("جبال") || lower.contains("جبل") || lower.contains("طبيعة") || lower.contains("أشجار") || lower.contains("غابة") || lower.contains("أنهار")) {
+        if (hasArabicWord(words, "جبال", "جبل", "طبيعة", "أشجار", "غابة", "أنهار")) {
             matches.add("mountain peak green valley nature cinematic")
         }
-        if (lower.contains("بحر") || lower.contains("أمواج") || lower.contains("محيط") || lower.contains("غروب")) {
+        if (hasArabicWord(words, "بحر", "أمواج", "محيط", "غروب")) {
             matches.add("ocean sea waves sunset golden light")
         }
-        if (lower.contains("علم") || lower.contains("كتاب") || lower.contains("قراءة") || lower.contains("مخطوطة") || lower.contains("حكمة")) {
+        if (hasArabicWord(words, "علم", "كتاب", "قراءة", "مخطوطة", "حكمة")) {
             matches.add("ancient manuscript old book library candle")
         }
-        if (lower.contains("تاريخ") || lower.contains("أندلس") || lower.contains("حضارة") || lower.contains("قلاع") || lower.contains("آثار")) {
+        if (hasArabicWord(words, "تاريخ", "أندلس", "حضارة", "قلاع", "آثار")) {
             matches.add("historical architecture arabesque intricate pattern")
         }
 
@@ -263,16 +306,19 @@ object BRollEngine {
 
     /**
      * Smart AI Matcher: Matches text description with the most relevant B-Roll item.
+     * ق100: مطابقة بحدود الكلمة لا contains() الخام — كانت «ماء»
+     * داخل «سماء» تمنح لقطة المطر 3 نقاط إضافية فتفوز (6 مقابل 3)
+     * بمشهد سماء صافية، و«ليل» داخل «دليل»، و«خط» داخل «خطوة».
      */
     fun matchBRoll(sceneDescription: String): BRollItem {
-        val lower = sceneDescription.lowercase(Locale.ROOT)
+        val words = arabicWords(sceneDescription.lowercase(Locale.ROOT))
         var bestItem: BRollItem? = null
         var maxScore = 0
 
         library.forEach { item ->
             var score = 0
             item.keywords.forEach { kw ->
-                if (lower.contains(kw.lowercase(Locale.ROOT))) {
+                if (matchesKeyword(words, kw)) {
                     score += 3
                 }
             }
@@ -282,7 +328,10 @@ object BRollEngine {
             }
         }
 
-        return bestItem ?: library.random()
+        // بلا مطابقة: الأول (الأعم — المسجد الحرام) لا عشوائي (ق25):
+        // library.random() كان يعطي لقطة غير ذات صلة (مطر/صحراء/شمعة)
+        // لمشهد لا يمتّ لها بصلة، وبنتيجة مختلفة في كل مرة.
+        return bestItem ?: library.first()
     }
 
     fun getBRollForCategory(category: String): List<BRollItem> {

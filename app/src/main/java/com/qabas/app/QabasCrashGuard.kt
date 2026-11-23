@@ -769,6 +769,27 @@ object QabasCrashGuard {
 
     private fun fingerprintOf(diag: CrashDiagnosis): String = "${diag.exceptionType}|${diag.crashSiteKey}"
 
+    /**
+     * أحدث عطل مسجل (نوعه وموقعه وعدد تكراراته ووقته) من فهرس البصمات —
+     * يغذي قسم «أخطاء مسجلة» في طبيب التطبيق. null إن لم يُسجَّل عطل بعد.
+     */
+    fun lastCrashSummary(context: Context): String? = runCatching {
+        val dir = File(context.filesDir, "crash_logs")
+        val index = loadIndex(dir)
+        val (key, entry) = index.entries.maxByOrNull { it.value.lastMs } ?: return null
+        if (entry.lastMs <= 0L) return null
+        val type = key.substringBefore("|").ifBlank { "عطل غير مصنف" }
+        val site = key.substringAfter("|", "").trim()
+        val whenText = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(entry.lastMs))
+        buildString {
+            append(type)
+            if (site.isNotBlank()) append(" في $site")
+            if (entry.count > 1) append(" (تكرر ${entry.count} مرات)")
+            append(" — آخر حدوث $whenText")
+            if (entry.screen.isNotBlank() && entry.screen != "غير محددة") append(" — الشاشة: ${entry.screen}")
+        }
+    }.getOrNull()
+
     private fun loadIndex(dir: File): MutableMap<String, FingerprintEntry> {
         val map = LinkedHashMap<String, FingerprintEntry>()
         runCatching {

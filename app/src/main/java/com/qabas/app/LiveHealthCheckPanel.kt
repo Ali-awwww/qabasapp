@@ -41,11 +41,6 @@ fun LiveHealthCheckPanel() {
         listOf(
             LiveServiceCheck("gemini", "Gemini (ذكاء اصطناعي)", "https://aistudio.google.com/app/apikey", AgentPrefs.getString(context, AgentPrefs.GEMINI_KEY), freeFallback = "المحلل المحلي + استخراج المشاهد البلاغية يعملان بلا مفتاح"),
             LiveServiceCheck("groq", "Groq (نصوص فائقة السرعة)", "https://console.groq.com/keys", AgentPrefs.getString(context, AgentPrefs.GROQ_KEY), freeFallback = "توليد النصوص يقع على المحرك المحلي و Gemini المجاني"),
-            LiveServiceCheck("openai", "OpenAI (نماذج GPT)", "https://platform.openai.com/api-keys", AgentPrefs.getString(context, AgentPrefs.OPENAI_KEY), freeFallback = "توليد النصوص يقع على المحرك المحلي و Gemini المجاني"),
-            LiveServiceCheck("huggingface", "HuggingFace (صور AI)", "https://huggingface.co/settings/tokens", AgentPrefs.getString(context, AgentPrefs.HUGGINGFACE_KEY), freeFallback = "توليد الصور محلياً عبر LocalImageAnalyzer"),
-            LiveServiceCheck("azure", "Azure TTS (نطق)", "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices", AgentPrefs.getString(context, "azure_speech_key"), AgentPrefs.getString(context, "azure_speech_region"), freeFallback = "النطق المدمج في أندرويد (TextToSpeech) يعمل مجاناً دائماً"),
-            LiveServiceCheck("elevenlabs", "ElevenLabs (نطق)", "https://elevenlabs.io/app/settings/api-keys", AgentPrefs.getString(context, "elevenlabs_key"), freeFallback = "النطق المدمج في أندرويد (TextToSpeech) يعمل مجاناً دائماً"),
-            LiveServiceCheck("pexels", "Pexels (B-Roll)", "https://www.pexels.com/api/", AgentPrefs.getString(context, "pexels_key"), freeFallback = "كاش B-Roll المحلي + إطار آمن 1080×1920"),
             LiveServiceCheck("pixabay", "Pixabay (B-Roll)", "https://pixabay.com/api/docs/", AgentPrefs.getString(context, "pixabay_key"), freeFallback = "كاش B-Roll المحلي + إطار آمن 1080×1920"),
             LiveServiceCheck("higgsfield", "Higgsfield AI (فيديو سينمائي)", "https://higgsfield.ai", "", freeFallback = "يُدار مفتاح المزود مركزياً عبر بوابة الاستوديو؛ افتح إعدادات الاستوديو للتحقق من حالته")
         )

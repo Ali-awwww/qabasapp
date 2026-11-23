@@ -52,12 +52,8 @@ android {
       }
     }
 
-    buildConfigField("String", "AW_CLIENT_ID", "\"${resolveSecret("AW_CLIENT_ID")}\"")
-    buildConfigField("String", "AW_CLIENT_SECRET", "\"${resolveSecret("AW_CLIENT_SECRET")}\"")
     buildConfigField("String", "QF_CLIENT_ID", "\"${resolveSecret("QF_CLIENT_ID")}\"")
     buildConfigField("String", "QF_CLIENT_SECRET", "\"${resolveSecret("QF_CLIENT_SECRET")}\"")
-    buildConfigField("String", "GITHUB_CLIENT_ID", "\"${resolveSecret("GITHUB_CLIENT_ID")}\"")
-    buildConfigField("String", "GITHUB_CLIENT_SECRET", "\"${resolveSecret("GITHUB_CLIENT_SECRET")}\"")
     // Google Sign-In web client id (public OAuth client id, not a secret key).
     // Resolved from the Gradle property, the environment, or the root `.env`
     // file (see `.env.example`: GOOGLE_WEB_CLIENT_ID). Empty until the owner
@@ -145,22 +141,10 @@ secrets {
   // المصدر الوحيد لها هو ما يدخله المستخدم في الواجهة (مسبح المفاتيح + التفضيلات المشفرة).
   ignoreList.add("GEMINI_API_KEY")
   ignoreList.add("GROQ_API_KEY")
-  ignoreList.add("OPENAI_API_KEY")
   ignoreList.add("OPENROUTER_API_KEY")
-  ignoreList.add("HUGGINGFACE_API_KEY")
-  ignoreList.add("ANTHROPIC_API_KEY")
-  ignoreList.add("AZURE_SPEECH_KEY")
-  ignoreList.add("AZURE_SPEECH_REGION")
-  ignoreList.add("ELEVENLABS_API_KEY")
-  ignoreList.add("PEXELS_API_KEY")
   ignoreList.add("PIXABAY_API_KEY")
-  ignoreList.add("COVERR_API_KEY")
-  ignoreList.add("AW_CLIENT_ID")
-  ignoreList.add("AW_CLIENT_SECRET")
   ignoreList.add("QF_CLIENT_ID")
   ignoreList.add("QF_CLIENT_SECRET")
-  ignoreList.add("GITHUB_CLIENT_ID")
-  ignoreList.add("GITHUB_CLIENT_SECRET")
 }
 
 // Ensure google-services.json always exists before GoogleServices tasks run

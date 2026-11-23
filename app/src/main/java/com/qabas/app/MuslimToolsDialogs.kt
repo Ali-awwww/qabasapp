@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -369,13 +370,42 @@ fun FastingTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 }
 
 @Composable
-fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
+fun QuranKhatmaDialog(
+    onDismiss: () -> Unit,
+    onOpenMushaf: () -> Unit
+) {
     val theme = QabasTheme.current
     val context = LocalContext.current
-    val existingPlan = remember(engine) { engine.getSavedKhatmaPlan() }
-    var selectedDays by remember { mutableIntStateOf(existingPlan?.days ?: 30) }
-    var savedDays by remember { mutableIntStateOf(existingPlan?.days ?: 0) }
-    val plan = remember(selectedDays) { engine.generateKhatmaPlan(selectedDays) }
+    // الخطة الواحدة الموحّدة: مخطط المصحف نفسه — لا مخزن ثانٍ.
+    // (كان هنا مخطط موازٍ في MuslimToolsEngine لا يقرأ تقدّمه أحد،
+    // وإحصائيات العبادة تعرض 0% إلى الأبد.)
+    var savedPlan by remember { mutableStateOf(UserPreferencesManager.getMushafKhatmahPlan(context)) }
+    var progress by remember { mutableStateOf(UserPreferencesManager.getKhatmahProgress(context)) }
+    var selectedDays by remember { mutableIntStateOf(savedPlan?.targetDays ?: 30) }
+    val lastRead = remember { UserPreferencesManager.getLastReadQuran(context) }
+    val todayStart = remember { startOfDayMillis(System.currentTimeMillis()) }
+    // معاينة خطة جديدة قبل اعتمادها: من موضع القراءة الفعلية،
+    // والمتبقي والورد اليومي منها لا من إجمالي المصحف.
+    val prospectivePlan = remember(selectedDays, lastRead) {
+        UserPreferencesManager.MushafKhatmahPlan(
+            startSurah = lastRead?.surah ?: 1,
+            startAyah = lastRead?.ayah ?: 1,
+            startPage = lastRead?.page,
+            startMillis = todayStart,
+            targetDays = selectedDays.coerceAtLeast(1),
+            createdAtMillis = System.currentTimeMillis()
+        )
+    }
+    val prospectiveProgress = remember(prospectivePlan) {
+        UserPreferencesManager.computeKhatmahProgress(
+            plan = prospectivePlan,
+            currentSurah = prospectivePlan.startSurah,
+            currentAyah = prospectivePlan.startAyah,
+            currentPage = prospectivePlan.startPage,
+            usePages = prospectivePlan.startPage != null,
+            nowMillis = System.currentTimeMillis()
+        )
+    }
 
     MuslimToolsGlassDialog(
         title = Translator.tr("مخطط الختمة الذكي"),
@@ -411,25 +441,115 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
             ) {
                 Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(Translator.tr("وردك اليومي المقترح:"), color = qabasTextSecondary(), fontSize = 12.sp, fontFamily = CairoFont)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(plan.portionsPerDay, color = PresetPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "${Translator.tr("بمعدل")} ${String.format("%.1f", plan.pagesPerDay)} ${Translator.tr("صفحة يومياً")}",
-                        color = theme.textPrimary.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
-                        fontFamily = CairoFont
-                    )
+                    if (progress != null) {
+                        // خطة نشطة: تقدّم حقيقي من القراءة الفعلية، وورد اليوم
+                        // من المتبقي والأيام المتبقية — لا قسمة ثابتة.
+                        Text(Translator.tr("تقدّم خطتك:"), color = qabasTextSecondary(), fontSize = 12.sp, fontFamily = CairoFont)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "${(progress!!.fraction * 100).toInt()}%",
+                            color = PresetPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { progress!!.fraction },
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            color = PresetPrimary,
+                            trackColor = theme.textPrimary.copy(alpha = 0.1f),
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            Translator.tr("قرأت ") +
+                                "${progress!!.readUnits} ${progress!!.unitWord}" +
+                                Translator.tr(" من أصل ") +
+                                "${progress!!.totalUnits} ${progress!!.unitWord}" +
+                                Translator.tr(" — المتبقي ") +
+                                "${progress!!.leftUnits} ${progress!!.unitWord}" +
+                                Translator.tr(" في ") +
+                                "${progress!!.daysLeft}" +
+                                Translator.tr(" يوم."),
+                            color = theme.textPrimary.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            fontFamily = CairoFont,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            Translator.tr("ورد اليوم المقترح: ") +
+                                "${progress!!.suggestedDailyUnits} ${progress!!.unitWord}" +
+                                Translator.tr(" يومياً"),
+                            color = theme.textPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = CairoFont
+                        )
+                        if (savedPlan != null && savedPlan!!.targetDays != selectedDays) {
+                            // معاينة صادقة للمدة الجديدة قبل اعتمادها.
+                            val newRemainingDays =
+                                (selectedDays - progress!!.daysElapsed + 1).coerceAtLeast(1)
+                            val newDaily =
+                                (progress!!.leftUnits + newRemainingDays - 1) / newRemainingDays
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                Translator.tr("بالمدة الجديدة (") +
+                                    "$selectedDays" +
+                                    Translator.tr(" يوماً): نحو ") +
+                                    "$newDaily ${progress!!.unitWord}" +
+                                    Translator.tr(" يومياً"),
+                                color = theme.textPrimary.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontFamily = CairoFont
+                            )
+                        }
+                        if (progress!!.overdue) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                Translator.tr("انتهت المدة وبقي ") +
+                                    "${progress!!.leftUnits} ${progress!!.unitWord}" +
+                                    Translator.tr(" — حدّث المدة ليعيد الحساب."),
+                                color = Color(0xFFEF4444),
+                                fontSize = 11.sp,
+                                fontFamily = CairoFont,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        Text(Translator.tr("وردك اليومي المقترح:"), color = qabasTextSecondary(), fontSize = 12.sp, fontFamily = CairoFont)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "${prospectiveProgress.suggestedDailyUnits} ${prospectiveProgress.unitWord}",
+                            color = PresetPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            Translator.tr("المتبقي من المصحف: ") +
+                                "${prospectiveProgress.totalUnits} ${prospectiveProgress.unitWord}" +
+                                Translator.tr(" — من ") +
+                                if (lastRead != null) {
+                                    Translator.tr("سورة ") +
+                                        QuranDataProvider.surahNameOf(lastRead.surah) +
+                                        Translator.tr(" آية ") +
+                                        "${lastRead.ayah}"
+                                } else {
+                                    Translator.tr("أول المصحف")
+                                },
+                            color = theme.textPrimary.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            fontFamily = CairoFont,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
 
-            if (savedDays > 0) {
+            if (savedPlan != null) {
                 Text(
                     Translator.tr(
-                        if (savedDays == selectedDays) "هذه خطتك المحفوظة على هذا الجهاز" else "تغيّرت الخطة؛ اعتمدها لحفظ التعديل"
+                        if (savedPlan!!.targetDays == selectedDays) "هذه خطتك النشطة — تقدّمها من قراءتك الفعلية في المصحف"
+                        else "تغيّرت المدة؛ اعتمدها لتحديث هدف الخطة (تبقى بدايتها كما هي)"
                     ),
-                    color = if (savedDays == selectedDays) theme.success else qabasTextSecondary(),
+                    color = if (savedPlan!!.targetDays == selectedDays) theme.success else qabasTextSecondary(),
                     fontSize = 11.sp,
                     fontFamily = CairoFont
                 )
@@ -437,8 +557,14 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 
             Button(
                 onClick = {
-                    if (engine.saveKhatmaPlan(selectedDays)) {
-                        savedDays = selectedDays
+                    // تحديث الهدف فقط عند وجود خطة — البداية وتاريخها يبقيان؛
+                    // وإلا إنشاء خطة جديدة من موضع القراءة الفعلية.
+                    val plan = savedPlan?.copy(targetDays = selectedDays) ?: prospectivePlan
+                    UserPreferencesManager.saveMushafKhatmahPlan(context, plan)
+                    val verified = UserPreferencesManager.getMushafKhatmahPlan(context)
+                    if (verified != null && verified.targetDays == selectedDays) {
+                        savedPlan = verified
+                        progress = UserPreferencesManager.getKhatmahProgress(context)
                         AppSoundManager.playSuccess()
                         android.widget.Toast.makeText(
                             context,
@@ -457,15 +583,38 @@ fun QuranKhatmaDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
                 Text(
-                    Translator.tr(if (savedDays == selectedDays) "تحديث خطة الختمة 📖" else "اعتماد خطة الختمة 📖"),
+                    Translator.tr(if (savedPlan == null) "اعتماد خطة الختمة 📖" else "تحديث خطة الختمة 📖"),
                     color = DeepSlate,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold
                 )
             }
+
+            TextButton(
+                onClick = onOpenMushaf,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    Translator.tr("فتح مخطط الختمة في المصحف"),
+                    color = theme.primary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
         }
     }
 }
+
+/** بداية اليوم (00:00) بتوقيت الجهاز. */
+private fun startOfDayMillis(millis: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = millis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 
 @Composable
 fun HajjUmrahDialog(onDismiss: () -> Unit) {
@@ -663,8 +812,55 @@ private fun FastingStatBox(label: String, value: String, color: Color) {
 fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
     val theme = QabasTheme.current
     val types = listOf("سبحان الله", "الحمد لله", "الله أكبر", "أستغفر الله", "لا إله إلا الله")
-    var selectedType by remember { mutableStateOf(types[0]) }
+    // ق144: النوع المختار يبقى عبر التدوير — كان remember عادياً فيعيد
+    // النوع الأول فيدخل التدوير نقرات لاحقة في ذكر آخر بصمت.
+    var selectedType by rememberSaveable { mutableStateOf(types[0]) }
     var count by remember { mutableIntStateOf(engine.getTasbeehCount(selectedType)) }
+    var showResetConfirm by remember { mutableStateOf(false) }
+    // ق144: العدّاد تراكمي مدى الحياة بلا هدف — جولة 33 (معيار المشكاة
+    // نفسه) عرض مشتق بلا تغيير لسلوك العدّ: تقدّم الجولة الحالية +
+    // عدد الجولات المكتملة، ورسالة إتمام عند مضاعف 33.
+    val tasbeehTarget = 33
+    val roundsDone = count / tasbeehTarget
+    val inRound = when {
+        count <= 0 -> 0
+        count % tasbeehTarget == 0 -> tasbeehTarget
+        else -> count % tasbeehTarget
+    }
+
+    // ق144: التصفير يمسح عدّاداً تراكمياً بلا رجعة — كان بنقرة واحدة
+    // بلا تأكيد؛ الآن تأكيد قبل المسح (سابقة ق128 وق140).
+    if (showResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = {
+                Text(Translator.tr("تصفير العدّاد؟"), color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "سيُصفَّر عدّاد «$selectedType» التراكمي ($count) نهائياً، ولا يمكن التراجع.",
+                    color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    engine.resetTasbeeh(selectedType)
+                    count = 0
+                    showResetConfirm = false
+                    AppSoundManager.playClick()
+                }) {
+                    Text(Translator.tr("تصفير"), color = theme.destructive, fontFamily = CairoFont)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) {
+                    Text(Translator.tr("إلغاء"), color = theme.primary, fontFamily = CairoFont)
+                }
+            },
+            containerColor = theme.cardSurface,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
 
     MuslimToolsGlassDialog(
         title = Translator.tr("المسبحة الذكية"),
@@ -717,11 +913,43 @@ fun SmartTasbeehDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 }
             }
 
+            // تقدّم الجولة الحالية من 33 + الجولات المكتملة (عرض مشتق من
+            // العدّاد التراكمي — لا يغيّر العدّ ولا إجمالي التسبيح).
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    if (count > 0 && count % tasbeehTarget == 0)
+                        "✓ أتممت جولة 33 من $selectedType"
+                    else
+                        "الجولة الحالية: $inRound / $tasbeehTarget",
+                    color = if (count > 0 && count % tasbeehTarget == 0) theme.success else theme.textPrimary.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    fontFamily = CairoFont
+                )
+                LinearProgressIndicator(
+                    progress = { inRound / tasbeehTarget.toFloat() },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = PresetPrimary,
+                    trackColor = theme.textPrimary.copy(alpha = 0.1f),
+                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+                if (roundsDone > 0) {
+                    Text(
+                        "جولات مكتملة: $roundsDone",
+                        color = qabasTextSecondary(),
+                        fontSize = 11.sp,
+                        fontFamily = CairoFont
+                    )
+                }
+            }
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = {
-                        engine.resetTasbeeh(selectedType)
-                        count = 0
+                        showResetConfirm = true
                         AppSoundManager.playClick()
                     },
                     modifier = Modifier.weight(1f),
@@ -782,7 +1010,9 @@ fun HabitsTrackerDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
 @Composable
 fun WorshipAnalyticsDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
     val theme = QabasTheme.current
+    val context = LocalContext.current
     val stats = remember { engine.getWorshipStats() }
+    val hasKhatmaPlan = remember { UserPreferencesManager.getMushafKhatmahPlan(context) != null }
 
     MuslimToolsGlassDialog(
         title = Translator.tr("إحصائيات العبادة"),
@@ -819,7 +1049,10 @@ fun WorshipAnalyticsDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                 border = BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text(Translator.tr("تقدم الختمة"), color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                    Text(
+                        Translator.tr("تقدم الختمة") + " • ${(stats.khatmaProgress * 100).toInt()}%",
+                        color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { stats.khatmaProgress },
@@ -828,6 +1061,13 @@ fun WorshipAnalyticsDialog(onDismiss: () -> Unit, engine: MuslimToolsEngine) {
                         trackColor = theme.textPrimary.copy(alpha = 0.1f),
                         strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                     )
+                    if (!hasKhatmaPlan) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            Translator.tr("لا توجد خطة ختمة بعد — أنشئها من «مخطط الختمة» في المصحف أو من أدوات الحسنات."),
+                            color = qabasTextSecondary(), fontSize = 11.sp, fontFamily = CairoFont
+                        )
+                    }
                 }
             }
         }

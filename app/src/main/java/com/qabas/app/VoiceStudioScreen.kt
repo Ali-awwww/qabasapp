@@ -1,14 +1,11 @@
 package com.qabas.app
 
 import android.media.MediaPlayer
-import android.media.MediaRecorder
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -34,12 +31,12 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
-import android.content.pm.PackageManager
+import java.util.Locale
 
 /**
- * 🎙️ استوديو استنساخ ودبلجة الأصوات السيبراني «VoiceStudio»
+ * 🎙️ استوديو الأنماط الصوتية والدبلجة «VoiceStudio»
  * (Spatial HUD Tech + Cybernetic Glassmorphism)
- * البديل المفتوح المصدر لـ ElevenLabs: استنساخ، دبلجة، وتوليد نصوص بأصوات عصبية.
+ * استوديو أنماط صوتية ودبلجة: أنماط مخصصة من أصوات Edge-Neural، دبلجة، وتوليد نصوص بأصوات عصبية.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,8 +52,8 @@ fun VoiceStudioScreen(
 
     BackHandler { onBack() }
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Clone, 1: TTS, 2: Dubbing
-    val tabs = listOf("🧬 استنساخ الأصوات", "🎙️ توليد الكلام", "🎬 دبلجة الفيديوهات")
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: أنماط صوتية، 1: TTS، 2: دبلجة
+    val tabs = listOf("🎚️ أنماط صوتية", "🎙️ توليد الكلام", "🎬 دبلجة الفيديوهات")
 
     // خادم VoiceStudio
     var serverUrl by remember { mutableStateOf(VoiceStudioService.getSavedServerUrl(context)) }
@@ -64,17 +61,16 @@ fun VoiceStudioScreen(
     var showServerDialog by remember { mutableStateOf(false) }
     var isPingingServer by remember { mutableStateOf(false) }
 
-    // ملفات الأصوات المستنسخة
+    // الأنماط الصوتية المحفوظة
     var clonedProfiles by remember { mutableStateOf(VoiceStudioService.getClonedProfiles(context)) }
     var selectedProfileId by remember { mutableStateOf(clonedProfiles.firstOrNull()?.id ?: "") }
 
-    // حالة الاستنساخ الجديد
+    // حالة النمط الصوتي الجديد: صوت أساسي + نبرة + سرعة.
+    // (كانت هنا عينة مسجلة تُطلب وتُحفظ ثم لا تُستعمل في التوليد أبداً.)
     var newVoiceName by remember { mutableStateOf("") }
+    var selectedBaseVoiceId by remember { mutableStateOf("ar-SA-HamedNeural") }
     var pitchSlider by remember { mutableFloatStateOf(0f) }
     var speedSlider by remember { mutableFloatStateOf(1.0f) }
-    var isRecordingSample by remember { mutableStateOf(false) }
-    var recordedSampleFile by remember { mutableStateOf<File?>(null) }
-    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
 
     // حالة توليد الكلام (TTS)
     var synthesisText by remember { mutableStateOf("إن في خلق السماوات والأرض واختلاف الليل والنهار لآيات لأولي الألباب.") }
@@ -120,48 +116,7 @@ fun VoiceStudioScreen(
             try {
                 mediaPlayer?.stop()
                 mediaPlayer?.release()
-                mediaRecorder?.release()
             } catch (_: Exception) {}
-        }
-    }
-
-    // لاقط ملفات الصوت للاستنساخ
-    val audioPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            coroutineScope.launch {
-                try {
-                    val temp = File(context.cacheDir, "sample_voice_${System.currentTimeMillis()}.mp3")
-                    context.contentResolver.openInputStream(it)?.use { input ->
-                        FileOutputStream(temp).use { output -> input.copyTo(output) }
-                    }
-                    val retriever = MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(temp.absolutePath)
-                        val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                        if (temp.length() <= 0L || durationMs !in 5_000L..10_000L) {
-                            temp.delete()
-                            Toast.makeText(context, "يجب أن تكون العينة بين 5 و10 ثوانٍ وبصيغة صوتية صالحة", Toast.LENGTH_LONG).show()
-                        } else {
-                            recordedSampleFile = temp
-                            Toast.makeText(context, "تم تحميل العينة الصوتية بنجاح", Toast.LENGTH_SHORT).show()
-                        }
-                    } finally {
-                        retriever.release()
-                    }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "خطأ في قراءة الملف: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    val microphonePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            Toast.makeText(context, "يجب السماح بالميكروفون لتسجيل عينة صوتية", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -197,7 +152,7 @@ fun VoiceStudioScreen(
                             )
                         }
                         Text(
-                            text = if (serverStatus?.isOnline == true) "متصل بخادم VoiceStudio المحلي (${serverStatus?.latencyMs}ms)" else "النمط الهجين (16 محرك + F5-TTS + Edge)",
+                            text = if (serverStatus?.isOnline == true) "متصل بخادم VoiceStudio المحلي (${serverStatus?.latencyMs}ms)" else "النمط المحلي (Edge-Neural + FFmpeg)",
                             color = theme.textSecondary,
                             fontSize = 11.sp,
                             fontFamily = CairoFont
@@ -259,7 +214,7 @@ fun VoiceStudioScreen(
                 }
             }
 
-            // ==================== تبويب 0: استنساخ الأصوات (Voice Cloner) ====================
+            // ==================== تبويب 0: أنماط صوتية مخصصة ====================
             if (selectedTab == 0) {
                 item {
                     HudCard(borderColor = hudBorder, backgroundColor = hudGlassBg) {
@@ -270,15 +225,15 @@ fun VoiceStudioScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = hudPurple, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Tune, contentDescription = null, tint = hudPurple, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("بصمة الصوت واستنساخ النبرة", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
+                                    Text("نمط صوتي مخصص", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
                                 }
-                                Text("ZERO-SHOT AI", color = hudCyan, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                                Text("EDGE-NEURAL", color = hudCyan, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "سجل مقطعاً صوتياً مدته 5 إلى 10 ثوانٍ بصوتك أو صوت أي متحدث، وسيقوم المحرك باستخلاص الخصائص الصوتية لإنشاء بصمة صوتية دائمة.",
+                                "اختر صوتاً أساسياً من أصوات Edge-Neural، واضبط نبرته وسرعته — يُحفظ النمط ويُستخدم في التوليد والدبلجة. النمط يختار صوتاً جاهزاً ويعدّل نبرته وسرعته فقط؛ لا يحلّل عينة صوتية ولا ينسخ بصمة أحد.",
                                 color = theme.textSecondary,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
@@ -287,104 +242,45 @@ fun VoiceStudioScreen(
 
                             Spacer(Modifier.height(14.dp))
 
-                            // خيارات رفع أو تسجيل العينة
+                            // الصوت الأساسي: يُبنى النمط عليه مع النبرة والسرعة.
+                            Text("الصوت الأساسي (Edge-Neural):", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
+                            Spacer(Modifier.height(8.dp))
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Button(
-                                    onClick = { audioPickerLauncher.launch("audio/*") },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, theme.cardBorder)
-                                ) {
-                                    Icon(Icons.Default.UploadFile, contentDescription = null, tint = hudPurple, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("رفع ملف صوتي", fontSize = 11.sp, fontFamily = CairoFont, color = theme.textPrimary)
+                                listOf(
+                                    "ar-SA-HamedNeural" to "حامد (سعودي)",
+                                    "ar-SA-ZariyahNeural" to "سلمى (سعودية)",
+                                    "ar-EG-ShakirNeural" to "شاكر (مصري)",
+                                    "ar-EG-SalmaNeural" to "سلمى (مصرية)",
+                                    "ar-AE-HamdanNeural" to "حمدان (إماراتي)",
+                                    "ar-SA-NaayfNeural" to "نايف (سعودي)"
+                                ).forEach { (voiceId, voiceName) ->
+                                    val isVoiceSelected = selectedBaseVoiceId == voiceId
+                                    Surface(
+                                        onClick = { selectedBaseVoiceId = voiceId },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isVoiceSelected) hudPurple.copy(alpha = 0.2f) else theme.secondarySurface,
+                                        border = BorderStroke(1.dp, if (isVoiceSelected) hudPurple else theme.cardBorder)
+                                    ) {
+                                        Text(
+                                            voiceName,
+                                            color = theme.textPrimary,
+                                            fontFamily = CairoFont,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isVoiceSelected) FontWeight.Bold else FontWeight.Normal,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        )
+                                    }
                                 }
-
-                                Button(
-                                    onClick = {
-                                        if (isRecordingSample) {
-                                            try {
-                                                mediaRecorder?.stop()
-                                                mediaRecorder?.release()
-                                                mediaRecorder = null
-                                                isRecordingSample = false
-                                                val sample = recordedSampleFile
-                                                val retriever = MediaMetadataRetriever()
-                                                val durationMs = runCatching {
-                                                    retriever.setDataSource(sample?.absolutePath ?: "")
-                                                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                                                }.getOrDefault(0L)
-                                                retriever.release()
-                                                if (sample == null || sample.length() <= 0L || durationMs !in 5_000L..10_000L) {
-                                                    sample?.delete()
-                                                    recordedSampleFile = null
-                                                    Toast.makeText(context, "يجب أن تكون العينة بين 5 و10 ثوانٍ", Toast.LENGTH_LONG).show()
-                                                } else {
-                                                    Toast.makeText(context, "تم حفظ التسجيل كعينة بنجاح", Toast.LENGTH_SHORT).show()
-                                                }
-                                            } catch (e: Exception) {
-                                                mediaRecorder?.runCatching { release() }
-                                                mediaRecorder = null
-                                                isRecordingSample = false
-                                                recordedSampleFile?.delete()
-                                                recordedSampleFile = null
-                                                Toast.makeText(context, "تعذر حفظ العينة الصوتية، حاول مرة أخرى", Toast.LENGTH_LONG).show()
-                                            }
-                                        } else {
-                                            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                                                microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                                                return@Button
-                                            }
-                                            try {
-                                                val file = File(context.cacheDir, "rec_voice_${System.currentTimeMillis()}.mp3")
-                                                val recorder = MediaRecorder().apply {
-                                                    setAudioSource(MediaRecorder.AudioSource.MIC)
-                                                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                                                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                                                    setOutputFile(file.absolutePath)
-                                                    prepare()
-                                                    start()
-                                                }
-                                                mediaRecorder = recorder
-                                                recordedSampleFile = file
-                                                isRecordingSample = true
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "يتطلب إذن الميكروفون للتسجيل", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isRecordingSample) theme.destructive else theme.secondarySurface
-                                    ),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, if (isRecordingSample) theme.destructive else theme.cardBorder)
-                                ) {
-                                    Icon(if (isRecordingSample) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(if (isRecordingSample) "إيقاف التسجيل" else "تسجيل الآن", fontSize = 11.sp, fontFamily = CairoFont, color = theme.textPrimary)
-                                }
-                            }
-
-                            if (recordedSampleFile != null) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "✓ تم التقاط العينة: ${recordedSampleFile?.name} (${recordedSampleFile?.length()?.div(1024)} KB)",
-                                    color = theme.success,
-                                    fontSize = 11.sp,
-                                    fontFamily = RobotoMonoFont
-                                )
                             }
 
                             Spacer(Modifier.height(14.dp))
                             OutlinedTextField(
                                 value = newVoiceName,
                                 onValueChange = { newVoiceName = it },
-                                label = { Text("اسم الصوت المستنسخ (مثال: صوتي الشخصي، القارئ المفضل)", color = theme.textTertiary, fontSize = 12.sp) },
+                                label = { Text("اسم النمط الصوتي (مثال: تعليق وثائقي، قراءة هادئة)", color = theme.textTertiary, fontSize = 12.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = hudPurple,
@@ -396,7 +292,7 @@ fun VoiceStudioScreen(
                             )
 
                             Spacer(Modifier.height(10.dp))
-                            Text("نبرة الصوت (Pitch Shift):", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
+                            Text("نبرة الصوت (Pitch Shift): ${String.format(Locale.US, "%.1f", pitchSlider)}", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
                             Slider(
                                 value = pitchSlider,
                                 onValueChange = { pitchSlider = it },
@@ -405,21 +301,25 @@ fun VoiceStudioScreen(
                             )
 
                             Spacer(Modifier.height(10.dp))
+                            Text("سرعة الإلقاء: ${String.format(Locale.US, "%.2f", speedSlider)}x", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
+                            Slider(
+                                value = speedSlider,
+                                onValueChange = { speedSlider = it },
+                                valueRange = 0.7f..1.3f,
+                                colors = SliderDefaults.colors(thumbColor = hudPurple, activeTrackColor = hudPurple)
+                            )
+
+                            Spacer(Modifier.height(10.dp))
                             Button(
                                 onClick = {
                                     if (newVoiceName.isBlank()) {
-                                        Toast.makeText(context, "الرجاء إدخال اسم للصوت المستنسخ", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-                                    val sample = recordedSampleFile
-                                    if (sample == null || !sample.exists() || sample.length() <= 0L) {
-                                        Toast.makeText(context, "أضف عينة صوتية صالحة بين 5 و10 ثوانٍ أولاً", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "الرجاء إدخال اسم للنمط الصوتي", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
                                     val profile = ClonedVoiceProfile(
                                         name = newVoiceName,
-                                        description = "صوت مستنسخ بواسطة VoiceStudio AI",
-                                        sampleAudioPath = sample.absolutePath,
+                                        description = "نمط صوتي مخصص — Edge-Neural مع تعديل النبرة والسرعة",
+                                        baseEngine = "Edge-Neural / $selectedBaseVoiceId",
                                         pitchShift = pitchSlider,
                                         speedRate = speedSlider
                                     )
@@ -427,8 +327,7 @@ fun VoiceStudioScreen(
                                     clonedProfiles = VoiceStudioService.getClonedProfiles(context)
                                     selectedProfileId = profile.id
                                     newVoiceName = ""
-                                    recordedSampleFile = null
-                                    Toast.makeText(context, "تم حفظ الصوت المستنسخ في الخزانة الصوتية بنجاح ✓", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "تم حفظ النمط الصوتي بنجاح ✓", Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -438,15 +337,15 @@ fun VoiceStudioScreen(
                             ) {
                                 Icon(Icons.Default.Save, contentDescription = null, tint = theme.textPrimary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("⚡ حفظ واستنساخ البصمة الصوتية", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                Text("حفظ النمط الصوتي", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             }
                         }
                     }
                 }
 
-                // قائمة الأصوات المستنسخة في الخزانة
+                // قائمة الأنماط الصوتية المحفوظة
                 item {
-                    Text("الأصوات المستنسخة المحفوظة:", color = theme.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                    Text("الأنماط الصوتية المحفوظة:", color = theme.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                 }
 
                 items(clonedProfiles) { profile ->
@@ -498,7 +397,7 @@ fun VoiceStudioScreen(
                     HudCard(borderColor = hudCyan, backgroundColor = hudGlassBg) {
                         Column(Modifier.padding(16.dp)) {
                             Text(
-                                "توليد النطق بالصوت المستنسخ المختار",
+                                "توليد النطق بالنمط الصوتي المختار",
                                 color = hudCyan,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
@@ -512,7 +411,7 @@ fun VoiceStudioScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(min = 110.dp),
-                                placeholder = { Text("أدخل النص المراد قراءته بصوت الذكاء الاصطناعي المستنسخ...", color = theme.textTertiary, fontSize = 12.sp) },
+                                placeholder = { Text("أدخل النص المراد قراءته بالنمط الصوتي المختار...", color = theme.textTertiary, fontSize = 12.sp) },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = hudCyan,
                                     unfocusedBorderColor = theme.cardBorder,
@@ -539,7 +438,7 @@ fun VoiceStudioScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Column {
                                         Text(currentActiveProfile?.name ?: "الصوت القياسي", color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                        Text(currentActiveProfile?.baseEngine ?: "F5-TTS Engine", color = theme.textSecondary, fontSize = 10.sp, fontFamily = RobotoMonoFont)
+                                        Text(currentActiveProfile?.baseEngine ?: "Edge-Neural", color = theme.textSecondary, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                                     }
                                 }
                             }
@@ -579,7 +478,7 @@ fun VoiceStudioScreen(
                                 if (isSynthesizing) {
                                     CircularProgressIndicator(color = theme.background, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("جاري استنساخ ونطق الكلام...", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("جاري توليد الكلام...", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 } else {
                                     Icon(Icons.Default.PlayArrow, contentDescription = null, tint = theme.background)
                                     Spacer(Modifier.width(8.dp))
@@ -659,11 +558,11 @@ fun VoiceStudioScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.MovieCreation, contentDescription = null, tint = hudGold, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("دبلجة مقاطع الفيديو بالصوت المستنسخ", color = hudGold, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
+                                Text("دبلجة مقاطع الفيديو بالنمط الصوتي المختار", color = hudGold, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "حدد مقطع فيديو، واكتب النص الجديد أو الترجمة العربية ليتم توليدها بالصوت المستنسخ واستبدال مسار الصوت الأصلي للفيديو بالكامل.",
+                                "حدد مقطع فيديو، واكتب النص الجديد أو الترجمة العربية ليتم توليدها بالنمط الصوتي المختار واستبدال مسار الصوت الأصلي للفيديو بالكامل.",
                                 color = theme.textSecondary,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
@@ -720,8 +619,11 @@ fun VoiceStudioScreen(
                                                 FileOutputStream(tempVideo).use { outStream -> inStream.copyTo(outStream) }
                                             }
 
-                                            // توليد الصوت المستنسخ
-                                            val profile = clonedProfiles.firstOrNull() ?: ClonedVoiceProfile(name = "Standard Voice")
+                                            // توليد الصوت بالنمط المختار فعلاً — لا الأول في
+                                            // القائمة: كان الزر يتجاهل اختيار المستخدم.
+                                            val profile = clonedProfiles.find { it.id == selectedProfileId }
+                                                ?: clonedProfiles.firstOrNull()
+                                                ?: ClonedVoiceProfile(name = "Standard Voice")
                                             val audioRes = VoiceStudioService.synthesizeLocallyWithProfile(context, dubbingScript, profile)
                                             if (audioRes.isSuccess) {
                                                 val audioFile = audioRes.getOrThrow()
@@ -729,8 +631,12 @@ fun VoiceStudioScreen(
                                                 val dubRes = VoiceStudioService.dubVideoTrack(tempVideo, audioFile, outDubbed)
                                                 if (dubRes.isSuccess) {
                                                     dubbedVideoPath = dubRes.getOrThrow().absolutePath
-                                                    Toast.makeText(context, "تمت دبلجة الفيديو بنجاح 100% ✓", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "تمت دبلجة الفيديو بنجاح ✓", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "تعذرت الدبلجة: ${dubRes.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                                                 }
+                                            } else {
+                                                Toast.makeText(context, "تعذر توليد الصوت: ${audioRes.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                                             }
                                         } finally {
                                             isDubbing = false
@@ -751,7 +657,7 @@ fun VoiceStudioScreen(
                                 } else {
                                     Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = theme.background)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("🎬 بدء الدبلجة بالصوت المستنسخ", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("🎬 بدء الدبلجة بالنمط الصوتي", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 }
                             }
 

@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
@@ -119,6 +120,18 @@ fun AppPermissionsHubScreen(
     }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         refreshAllPermissionStates()
+    }
+
+    // (ق64) طلب إذن أو فتح إعدادات النظام عند الرفض النهائي: المنادِي
+    // الميت بلا أثر كان يُطلق دائماً من كل بطاقة. النشاط من سياق التركيب.
+    val activity = context as? Activity
+    fun requestPermissionOrSettings(permission: String, launch: (String) -> Unit) {
+        if (activity != null && BackgroundPermissionManager.isPermissionPermanentlyDenied(activity, permission)) {
+            Toast.makeText(context, "هذا الإذن مرفوض نهائياً — فعّله من إعدادات التطبيق", Toast.LENGTH_LONG).show()
+            BackgroundPermissionManager.openAppSettings(context)
+        } else {
+            launch(permission)
+        }
     }
 
     // Calculate system readiness score
@@ -303,7 +316,18 @@ fun AppPermissionsHubScreen(
                         if (!isCameraGranted) missingRuntime.add(Manifest.permission.CAMERA)
 
                         if (missingRuntime.isNotEmpty()) {
-                            multiplePermissionLauncher.launch(missingRuntime.toTypedArray())
+                            // (ق64) المرفوض نهائياً لا يُطلق عليه المنادِي
+                            // (صامت) — يُستثنى من الدفعة ويُبلَّغ المستخدم
+                            // أن بطاقة الإذن نفسها تفتح الإعدادات.
+                            val (permanent, requestable) = missingRuntime.partition { perm ->
+                                activity != null && BackgroundPermissionManager.isPermissionPermanentlyDenied(activity, perm)
+                            }
+                            if (requestable.isNotEmpty()) {
+                                multiplePermissionLauncher.launch(requestable.toTypedArray())
+                            }
+                            if (permanent.isNotEmpty()) {
+                                Toast.makeText(context, "بعض الأذونات مرفوضة نهائياً — فعّلها من إعدادات التطبيق (زر كل إذن يفتح الإعدادات)", Toast.LENGTH_LONG).show()
+                            }
                         }
 
                         if (!isBatteryIgnored) {
@@ -386,7 +410,7 @@ fun AppPermissionsHubScreen(
                         if (isMicGranted) {
                             isTestingMic = true
                         } else {
-                            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            requestPermissionOrSettings(Manifest.permission.RECORD_AUDIO) { micLauncher.launch(it) }
                         }
                     }
                 )
@@ -404,7 +428,7 @@ fun AppPermissionsHubScreen(
                     actionLabel = if (isCameraGranted) "مفعل وجاهز ✓" else "منح الإذن ⚡",
                     onAction = {
                         if (!isCameraGranted) {
-                            cameraLauncher.launch(Manifest.permission.CAMERA)
+                            requestPermissionOrSettings(Manifest.permission.CAMERA) { cameraLauncher.launch(it) }
                         } else {
                             Toast.makeText(context, "الكاميرا جاهزة للعمل في استوديو الفيديو 📷", Toast.LENGTH_SHORT).show()
                         }
@@ -432,7 +456,7 @@ fun AppPermissionsHubScreen(
                             Toast.makeText(context, "تم إرسال إشعار تجريبي لشريط الحالة 🔔", Toast.LENGTH_SHORT).show()
                         } else {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                requestPermissionOrSettings(Manifest.permission.POST_NOTIFICATIONS) { notifLauncher.launch(it) }
                             } else {
                                 BackgroundPermissionManager.openNotificationSettings(context)
                             }

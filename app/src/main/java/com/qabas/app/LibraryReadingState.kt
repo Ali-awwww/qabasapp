@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
  * حالة قراءة كتاب في المكتبة الإسلامية — على نمط Kindle:
@@ -31,6 +32,20 @@ object LibraryReadingStateStore {
     private const val TAG = "LibraryReadingState"
     private const val PREFS_NAME = "qabas_library_reading"
     private const val KEY_BOOKMARKS = "bookmarked_book_ids"
+    private const val KEY_READER_FONT_SIZE_SP = "reader_font_size_sp"
+    private const val DEFAULT_READER_FONT_SIZE_SP = 15.5f
+
+    /** حجم خط القارئ المحفوظ (ق48): كان يُصفَّر إلى 15.5 مع كل فتح كتاب. */
+    fun getReaderFontSizeSp(context: Context): Float {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getFloat(KEY_READER_FONT_SIZE_SP, DEFAULT_READER_FONT_SIZE_SP)
+            .coerceIn(12f, 23f)
+    }
+
+    fun saveReaderFontSizeSp(context: Context, sizeSp: Float) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putFloat(KEY_READER_FONT_SIZE_SP, sizeSp.coerceIn(12f, 23f)).apply()
+    }
 
     private fun positionKey(bookId: String) = "pos_$bookId"
 
@@ -150,6 +165,10 @@ object LibraryReadingStateStore {
     /**
      * يحفظ آخر موضع قراءة. يحتفظ بأبعد موضع وصل إليه القارئ (لا يرجع
      * التقدم إلى الوراء إذا عاد القارئ لمقطع سابق)، ثم يزامن إلى السحابة.
+     * ق26: كان التقدم وحده يُحفظ بالأبعد بينما الفصل/المقطع يُكتبان
+     * بالقيم الجديدة دائماً — فعودة القارئ لفصل سابق كانت تُرجع
+     * «أكمل القراءة» إلى ذلك الفصل مع نسبة تقدم أعلى منه، فالموضع
+     * والنسبة متناقضان. الآن الفصل/المقطع يبقيان مع الأبعد أيضاً.
      * تُحسب `progressPercent` من المتصل عبر
      * `IslamicLibraryRepository.progressPercent` (موضع عام عبر كل الفصول).
      */
@@ -163,11 +182,18 @@ object LibraryReadingStateStore {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val previous = getState(context, bookId)
-        val progress = maxOf(previous?.progressPercent ?: 0, progressPercent.coerceIn(0, 100))
+        val prevProgress = previous?.progressPercent ?: 0
+        val newProgress = progressPercent.coerceIn(0, 100)
+        val progress = maxOf(prevProgress, newProgress)
+        val (chapter, section) = if (newProgress < prevProgress && previous != null) {
+            previous.lastChapterIndex to previous.lastSectionIndex
+        } else {
+            chapterIndex to sectionIndex
+        }
         val state = LibraryReadingState(
             bookId = bookId,
-            lastChapterIndex = chapterIndex,
-            lastSectionIndex = sectionIndex,
+            lastChapterIndex = chapter,
+            lastSectionIndex = section,
             progressPercent = progress,
             bookmarked = previous?.bookmarked ?: isBookmarked(context, bookId),
             updatedAtMillis = now
@@ -188,22 +214,22 @@ object LibraryReadingStateStore {
         if (willBookmark) currentSet.add(bookId) else currentSet.remove(bookId)
         prefs.edit().putStringSet(KEY_BOOKMARKS, currentSet).apply()
         // مزامنة الحالة الكاملة (مع موضعها إن وجد) حتى لا يضيع الموضع.
-        val state = getState(context, bookId)
-            ?: LibraryReadingState(
-                bookId = bookId,
-                lastChapterIndex = 0,
-                lastSectionIndex = 0,
-                progressPercent = 0,
-                bookmarked = willBookmark,
-                updatedAtMillis = System.currentTimeMillis()
-            )
-        syncToCloud(state.copy(bookmarked = willBookmark))
+        // ق26: بلا موضع محلي لا تُزامن إطلاقاً — الحالة المختلقة
+        // (0/0/0 بطابع «الآن») كانت تُرفع فتمحو موضع السحابة الحقيقي
+        // (من جهاز آخر) بصف 0٪؛ والإشارة نفسها تلحقها أول مزامنة
+        // موضع لاحقة.
+        val raw = prefs.getString(positionKey(bookId), null)
+        raw?.let { decode(bookId, it, willBookmark) }?.let { syncToCloud(it) }
         return willBookmark
     }
 
     /**
-     * يجلب حالات القراءة السحابية للمستخدم الحالي ويدمجها في المحلية:
-     * الحالة المحلية الأحدث تبقى، والسحابية تملأ ما ينقص محلياً فقط.
+     * يجلب حالات القراءة السحابية للمستخدم الحالي ويدمجها في المحلية
+     * بمقارنة الطوابع الزمنية (ق26): كان الدمج يملأ الكتب الغائبة محلياً
+     * فقط ويتجاهل صفاً سحابياً أحدث (قراءة أبعد على جهاز آخر) — فيضيع
+     * تقدّم الجهاز الآخر بصمت؛ وكان «المحلي الأحدث» لا يُدفع للسحابة
+     * أبداً فتبقى السحابة قديمة. الآن: سحابي أحدث يُعتمد، ومحلي أحدث
+     * يُدفع، والإشارة اتحاد (لا تُلغى إشارة محلية بصف سحابي).
      * يعيد قائمة فارغة عند غياب الجدول أو الجلسة أو الشبكة.
      */
     suspend fun fetchAndMergeCloudStates(context: Context): List<LibraryReadingState> {
@@ -213,21 +239,47 @@ object LibraryReadingStateStore {
         val editor = prefs.edit()
         var changed = false
         for (row in cloudRows) {
-            val local = getState(context, row.bookId)
-            if (local == null) {
-                val merged = LibraryReadingState(
-                    bookId = row.bookId,
-                    lastChapterIndex = row.lastChapter,
-                    lastSectionIndex = row.lastSection,
-                    progressPercent = row.progress.coerceIn(0, 100),
-                    bookmarked = row.bookmarked,
-                    updatedAtMillis = System.currentTimeMillis()
-                )
-                editor.putString(positionKey(row.bookId), encode(merged))
-                changed = true
-                if (row.bookmarked) {
-                    val set = prefs.getStringSet(KEY_BOOKMARKS, emptySet())?.toMutableSet() ?: mutableSetOf()
-                    if (set.add(row.bookId)) editor.putStringSet(KEY_BOOKMARKS, set)
+            // موضع محلي حقيقي فقط (سلسلة pos_ موجودة): حالة getState
+            // المختلقة لكتاب مُشار بلا موضع لا تحجب دمج السحابة.
+            val local = prefs.getString(positionKey(row.bookId), null)
+                ?.let { decode(row.bookId, it, isBookmarked(context, row.bookId)) }
+            val cloudTs = row.updatedAt
+                ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
+            when {
+                local == null -> {
+                    val merged = LibraryReadingState(
+                        bookId = row.bookId,
+                        lastChapterIndex = row.lastChapter,
+                        lastSectionIndex = row.lastSection,
+                        progressPercent = row.progress.coerceIn(0, 100),
+                        bookmarked = row.bookmarked || isBookmarked(context, row.bookId),
+                        updatedAtMillis = System.currentTimeMillis()
+                    )
+                    editor.putString(positionKey(row.bookId), encode(merged))
+                    changed = true
+                    if (row.bookmarked) {
+                        val set = prefs.getStringSet(KEY_BOOKMARKS, emptySet())?.toMutableSet() ?: mutableSetOf()
+                        if (set.add(row.bookId)) editor.putStringSet(KEY_BOOKMARKS, set)
+                    }
+                }
+                cloudTs > local.updatedAtMillis -> {
+                    val merged = local.copy(
+                        lastChapterIndex = row.lastChapter,
+                        lastSectionIndex = row.lastSection,
+                        progressPercent = row.progress.coerceIn(0, 100),
+                        bookmarked = local.bookmarked || row.bookmarked,
+                        updatedAtMillis = System.currentTimeMillis()
+                    )
+                    editor.putString(positionKey(row.bookId), encode(merged))
+                    changed = true
+                    if (row.bookmarked) {
+                        val set = prefs.getStringSet(KEY_BOOKMARKS, emptySet())?.toMutableSet() ?: mutableSetOf()
+                        if (set.add(row.bookId)) editor.putStringSet(KEY_BOOKMARKS, set)
+                    }
+                }
+                local.updatedAtMillis > cloudTs -> {
+                    // المحلي أحدث: ادفعه حتى لا تبقى السحابة قديمة.
+                    syncToCloud(local)
                 }
             }
         }

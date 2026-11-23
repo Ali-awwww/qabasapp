@@ -42,17 +42,8 @@ object KeyVault {
 
     val gemini: String get() = resolve("gemini_key")
     val groq: String get() = resolve("groq_key")
-    val openai: String get() = resolve("openai_key")
-    val huggingface: String get() = resolve("huggingface_key")
-    val azureSpeechKey: String get() = resolve("azure_speech_key")
-    val azureSpeechRegion: String get() = resolve("azure_speech_region")
-    val elevenlabs: String get() = resolve("elevenlabs_key")
     val openrouter: String get() = resolve("openrouter_key")
-    val anthropic: String get() = resolve("anthropic_key")
-    val opencode: String get() = resolve("opencode_key")
-    val pexels: String get() = resolve("pexels_key")
     val pixabay: String get() = resolve("pixabay_key")
-    val coverr: String get() = (prefs().getString("coverr_key", "") ?: "").trim()
     // قيم Supabase العلنية بطبيعتها (URL والمفتاح العلني anon) — تبقى عبر SupabaseConfig.
     val supabaseUrl: String get() = resolve("supabase_url").ifBlank { SupabaseConfig.DEFAULT_SUPABASE_URL }
     val supabaseAnonKey: String get() = resolve("supabase_anon_key").ifBlank { SupabaseConfig.DEFAULT_SUPABASE_KEY }
@@ -61,17 +52,11 @@ object KeyVault {
     fun effective(prefsKey: String): String = when (prefsKey) {
         "gemini_key", "gemini" -> gemini
         "groq_key", "groq" -> groq
-        "openai_key", "openai" -> openai
-        "huggingface_key", "huggingface" -> huggingface
-        "azure_speech_key", "azure" -> azureSpeechKey
-        "azure_speech_region" -> azureSpeechRegion
-        "elevenlabs_key", "elevenlabs" -> elevenlabs
         "openrouter_key", "openrouter" -> openrouter
-        "pexels_key", "pexels" -> pexels
         "pixabay_key", "pixabay" -> pixabay
         "supabase_url" -> supabaseUrl
         "supabase_anon_key" -> supabaseAnonKey
-        else -> (prefs().getString(prefsKey, "") ?: "").trim()
+        else -> KeyPoolManager.sanitizeApiKey(prefs().getString(prefsKey, "") ?: "")
     }
 }
 
@@ -95,13 +80,56 @@ object SharedHttpClient {
 
 object RealGeminiService {
     private val client = SharedHttpClient.instance
-        
+
+    // ق160: تسجيل استهلاك Gemini المباشر — كانت دوال هذا الكائن الخمس
+    // (تحليل فكرة/نمط، توليد مشاهد، محادثة، خطة تطوير) تمر بلا أثر في
+    // تتبع التكلفة (ق44) بينما مسار Groq يسجّل منذ ق53؛ فلوحة التكلفة
+    // وحدّها كانا أعمى عن كل استدعاءات Gemini هذه رغم أنها المزوّد
+    // الافتراضي لكثير منها. التسجيل هنا في المصدر نفسه لا عند المنادين
+    // (وهم عشرات) فيسجَّل كل استدعاء مرة واحدة: فرع Firebase تقديرياً
+    // (بلا usage حقيقي — يبقى «غير مقاس» كما في ق44)، وفرع REST
+    // بتفصيل usageMetadata عند إرساله. التسجيل runCatching فلا يسقط
+    // استدعاء ناجحاً أبداً، والسياق AppServices.appContext كمسار Groq.
+    // داخلي لا خاص: chatWithAssistant في RealMediaLibraryService
+    // يسجّل بهما أيضاً (ق160) فلا يراهما private هنا.
+    internal fun recordGeminiRest(prompt: String, responseJson: JSONObject, responseText: String?, mission: String?) {
+        if (responseText.isNullOrBlank()) return
+        runCatching {
+            val ctx = AppServices.appContext
+            val usage = responseJson.optJSONObject("usageMetadata")
+            val promptTokens = usage?.optInt("promptTokenCount", 0) ?: 0
+            val completionTokens = usage?.optInt("candidatesTokenCount", 0) ?: 0
+            if (promptTokens + completionTokens > 0) {
+                val total = usage?.optInt("totalTokenCount", 0)?.takeIf { it > 0 }
+                    ?: (promptTokens + completionTokens)
+                VibeCostTracker.record(
+                    ctx, "gemini", "gemini-2.5-flash",
+                    RealAgentResponse(responseText, total, promptTokens, completionTokens),
+                    mission
+                )
+            } else {
+                VibeCostTracker.recordEstimated(ctx, "gemini", "gemini-2.5-flash", prompt, responseText, mission)
+            }
+        }
+    }
+
+    internal fun recordFirebaseEstimated(prompt: String, responseText: String, mission: String?) {
+        if (responseText.isBlank()) return
+        runCatching {
+            VibeCostTracker.recordEstimated(
+                AppServices.appContext, "gemini", "gemini-3.8-flash", prompt, responseText, mission
+            )
+        }
+    }
+
     
     suspend fun analyzeIdea(idea: String): IdeaAnalysis = withContext(Dispatchers.IO) {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbResult = FirebaseAiService.analyzeIdea(idea)
             SystemLogsManager.addLog("INFO", "تم تحليل الفكرة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
+            // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+            recordFirebaseEstimated(idea, (fbResult.hookSuggestions + fbResult.proposedScenes).joinToString("\n").ifBlank { fbResult.summary }, "تحليل فكرة")
             return@withContext fbResult
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic idea analysis attempt, falling back: ${e.message}")
@@ -171,6 +199,8 @@ object RealGeminiService {
                 val responseJson = JSONObject(responseData)
                 val text = extractGeminiText(responseJson)
                 if (!text.isNullOrBlank()) {
+                        // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                        recordGeminiRest("$systemPrompt\n\n--- الفكرة ---\n$idea", responseJson, text, "تحليل فكرة")
                         val cleanJson = text.replace("```json", "").replace("```", "").trim()
                         val resultObj = JSONObject(cleanJson)
                         
@@ -246,6 +276,12 @@ object RealGeminiService {
                 TasteManager.registerPreference(AppServices.appContext, "AUDIO", analysisResult.audioStyle, 2)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch(e: Exception) {}
 
+            // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+            recordFirebaseEstimated(
+                url,
+                listOf(analysisResult.dominantColors, analysisResult.transitionSpeed, analysisResult.movementPatterns, analysisResult.overallRhythm, analysisResult.audioStyle, analysisResult.typographyStyle, analysisResult.contentTone, analysisResult.targetAudience).joinToString(" | "),
+                "تحليل نمط فيديو"
+            )
             return@withContext analysisResult
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic video style analysis attempt, falling back: ${e.message}")
@@ -308,6 +344,8 @@ object RealGeminiService {
                 val jsonResponse = JSONObject(responseBodyString)
                 val text = extractGeminiText(jsonResponse)
                 if (!text.isNullOrBlank()) {
+                        // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                        recordGeminiRest(prompt, jsonResponse, text, "تحليل نمط فيديو")
                         val cleanJson = text.replace("```json", "").replace("```", "").trim()
                         val obj = JSONObject(cleanJson)
                         
@@ -402,6 +440,8 @@ object RealGeminiService {
             try {
                 val fbScenes = FirebaseAiService.generateScriptScenes(idea, styleDescription, contentType, contentTone)
                 if (fbScenes.size >= 2) {
+                    // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+                    recordFirebaseEstimated(prompt, fbScenes.joinToString("\n") { it.title + ": " + it.description }, "توليد مشاهد")
                     SceneEngineMonitor.report("Gemini 3.8 Flash")
                     SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini 3.8 Flash (Firebase AI Logic) أنتج ${fbScenes.size} مشاهد ✨", PresetPrimary)
                     return fbScenes
@@ -422,22 +462,10 @@ object RealGeminiService {
             return null
         }
 
-        suspend fun tryOpenAI(): List<Scene>? {
-            val openaiText = try { RealOpenAIService.chatOrGenerate("$prompt\n\nأخرج JSON فقط بلا أي شرح.") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-            val openaiScenes = parseScenesJson(openaiText)
-            if (openaiScenes.size >= 2) {
-                SceneEngineMonitor.report("OpenAI")
-                SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: OpenAI أنتج ${openaiScenes.size} مشاهد 🟢", ThemeSuccess)
-                return openaiScenes
-            }
-            return null
-        }
-
         // الترتيب حسب المحرك الأسرع لحظياً
         val prioritizedEngines = when (preferredEngine) {
-            "Groq" -> listOf(::tryGroq, ::tryGemini, ::tryOpenAI)
-            "OpenAI" -> listOf(::tryOpenAI, ::tryGroq, ::tryGemini)
-            else -> listOf(::tryGemini, ::tryGroq, ::tryOpenAI)
+            "Groq" -> listOf(::tryGroq, ::tryGemini)
+            else -> listOf(::tryGemini, ::tryGroq)
         }
 
         val rawResult = try {
@@ -483,6 +511,8 @@ object RealGeminiService {
                 if (!response.isSuccessful) return@safeApiCall emptyList<Scene>()
                 val responseJson = JSONObject(response.body?.string() ?: "")
                 val textResponse = extractGeminiText(responseJson) ?: return@safeApiCall emptyList<Scene>()
+                // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                recordGeminiRest(prompt, responseJson, textResponse, "توليد مشاهد")
                 parseScenesJson(textResponse)
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyList() }
@@ -498,7 +528,7 @@ object RealGeminiService {
                 val item = jsonArray.getJSONObject(i)
                 scenes.add(
                     Scene(
-                        title = item.optString("title", Translator.tr("مشهد ${i + 1}")),
+                        title = item.optString("title", Translator.trf("مشهد {0}", i + 1)),
                         description = item.optString("description", ""),
                         durationInSeconds = item.optInt("durationInSeconds", 5),
                         transitionType = item.optString("transitionType", "Fade"),
@@ -700,6 +730,8 @@ object RealGeminiService {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbPlan = FirebaseAiService.generateDeveloperPlan(if (description.isNotBlank()) description else title)
+            // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+            recordFirebaseEstimated(if (description.isNotBlank()) description else title, fbPlan, "خطة تطوير")
             SystemLogsManager.addLog("INFO", "تم توليد خطة التطوير بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
             return@withContext fbPlan
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
@@ -773,7 +805,11 @@ object RealGeminiService {
                 val parts = contentObj?.optJSONArray("parts")
                 if (parts != null && parts.length() > 0) {
                     val text = parts.getJSONObject(0).optString("text", "")
-                    if (text.isNotBlank()) return@safeApiCall text
+                    if (text.isNotBlank()) {
+                        // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                        recordGeminiRest(systemPrompt, jsonResponse, text, "خطة تطوير")
+                        return@safeApiCall text
+                    }
                 }
             }
             OpenRouterService.generatePlanPooled(title, description)?.let { return@safeApiCall it }
@@ -801,7 +837,6 @@ object RealMediaLibraryService {
             }
         ) {
             val pixabayKey = KeyVault.pixabay
-            val pexelsKey = KeyVault.pexels
 
             if (type == "audio") {
                 val audioQuery = ContentFilterService.filterAudioQuery(cleanQuery)
@@ -821,50 +856,8 @@ object RealMediaLibraryService {
                 return@safeApiCall ContentFilterService.getFallbackAudio(audioQuery)
             }
             
-            // 1. Try Pexels API with translated visual concepts first
-            if (pexelsKey.isNotEmpty() && pexelsKey != "YOUR_PEXELS_API_KEY") {
-                val searchQueries = listOf(visualKeywords, cleanQuery)
-                for (searchQ in searchQueries) {
-                    val encodedQ = java.net.URLEncoder.encode(searchQ, "UTF-8")
-                    val url = if (type == "video") "https://api.pexels.com/videos/search?query=$encodedQ&per_page=3&orientation=portrait" else "https://api.pexels.com/v1/search?query=$encodedQ&per_page=3&orientation=portrait"
-                    val request = Request.Builder()
-                        .url(url)
-                        .addHeader("Authorization", pexelsKey)
-                        .build()
-                    val response = ApiUsageTracker.track(AppServices.appContext, "Pexels") { client.newCall(request).execute() }
-                    if (response.isSuccessful) {
-                        val responseJson = JSONObject(response.body?.string() ?: "")
-                        if (type == "video") {
-                            val videos = responseJson.optJSONArray("videos")
-                            if (videos != null && videos.length() > 0) {
-                                val videoFiles = videos.getJSONObject(0).optJSONArray("video_files")
-                                if (videoFiles != null && videoFiles.length() > 0) {
-                                    // Choose HD quality file if possible
-                                    var chosenLink = videoFiles.getJSONObject(0).optString("link")
-                                    for (vIdx in 0 until videoFiles.length()) {
-                                        val fObj = videoFiles.getJSONObject(vIdx)
-                                        val quality = fObj.optString("quality", "")
-                                        if (quality == "hd" || quality == "sd") {
-                                            chosenLink = fObj.optString("link")
-                                            break
-                                        }
-                                    }
-                                    if (chosenLink.isNotBlank()) return@safeApiCall chosenLink
-                                }
-                            }
-                        } else {
-                            val photos = responseJson.optJSONArray("photos")
-                            if (photos != null && photos.length() > 0) {
-                                val photoSrc = photos.getJSONObject(0).getJSONObject("src")
-                                val photoUrl = photoSrc.optString("large", photoSrc.optString("portrait"))
-                                if (photoUrl.isNotBlank()) return@safeApiCall photoUrl
-                            }
-                        }
-                    }
-                }
-            }
     
-            // 2. Try Pixabay API
+            // 1. Try Pixabay API
             if (pixabayKey.isNotEmpty() && pixabayKey != "YOUR_PIXABAY_API_KEY") {
                 val searchQueries = listOf(visualKeywords, cleanQuery)
                 for (searchQ in searchQueries) {
@@ -890,15 +883,6 @@ object RealMediaLibraryService {
                 }
             }
 
-            // 3. Coverr (مفتاح مجاني اختياري) ثم مصادر حرة بلا مفاتيح (Wikimedia/NASA) قبل المكتبة المحلية
-            try {
-                val ck = KeyVault.coverr
-                if (ck.isNotEmpty() && type == "video") {
-                    val free = FreeStockSources.searchCoverr(visualKeywords, ck)
-                    val u = free.firstOrNull()?.videoUrl ?: ""
-                    if (u.startsWith("http")) return@safeApiCall u
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
             try {
                 val free = FreeStockSources.searchFree(cleanQuery)
                 val pick = free.firstOrNull { it.videoUrl.startsWith("http") || it.thumbnailUrl.startsWith("http") }
@@ -908,18 +892,13 @@ object RealMediaLibraryService {
                 }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
 
-            // 4. High-Quality Curated B-Roll Library Fallback (Instant & Free)
+            // 2. High-Quality Curated B-Roll Library Fallback (Instant & Free)
             val matchedBRoll = BRollEngine.matchBRoll(cleanQuery)
             val matchedUrl = if (type == "video") matchedBRoll.videoUrl else matchedBRoll.thumbnailUrl
             if (matchedUrl.isNotBlank()) {
                 return@safeApiCall matchedUrl
             }
 
-            // 4. Check HuggingFace for AI generated image fallback if photo requested
-            if (type == "image") {
-                val hfImage = RealHuggingFaceService.generateImage(cleanQuery)
-                if (hfImage != null) return@safeApiCall hfImage
-            }
 
             ""
         }
@@ -934,6 +913,8 @@ object RealMediaLibraryService {
             val systemPrompt = customSystemInstruction ?: TasteManager.getTasteContext(AppServices.appContext)
             val fbReply = FirebaseAiService.chat(messages, systemPrompt)
             if (fbReply.isNotBlank()) {
+                // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+                RealGeminiService.recordFirebaseEstimated(messages.joinToString("\n") { it.second }, fbReply, "محادثة المساعد")
                 SystemLogsManager.addLog("INFO", "رد المحادثة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
                 return@withContext fbReply
             }
@@ -947,10 +928,8 @@ object RealMediaLibraryService {
             if (lastUserPrompt.isNotBlank()) {
                 val groqReply = try { RealGroqService.chatOrGenerate(lastUserPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 if (!groqReply.isNullOrBlank()) return@withContext groqReply
-                val openaiReply = try { RealOpenAIService.chatOrGenerate(lastUserPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-                if (!openaiReply.isNullOrBlank()) return@withContext openaiReply
             }
-            return@withContext "يرجى إعداد مفتاح Gemini أو Groq أو OpenAI من شاشة مفاتيح API."
+            return@withContext "يرجى إعداد مفتاح Gemini أو Groq من شاشة مفاتيح API."
         }
         
         return@withContext NetworkUtils.safeApiCallWithRetry(
@@ -995,6 +974,8 @@ object RealMediaLibraryService {
                 val responseJson = org.json.JSONObject(responseData)
                 val text = extractGeminiText(responseJson)
                 if (!text.isNullOrBlank()) {
+                    // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                    RealGeminiService.recordGeminiRest(messages.joinToString("\n") { it.second }, responseJson, text, "محادثة المساعد")
                     return@safeApiCallWithRetry text
                 }
             }
@@ -1011,9 +992,8 @@ object RealGroqService {
         if (apiKey.isBlank()) return@withContext null
 
         try {
-            val isXai = apiKey.startsWith("xai-", ignoreCase = true)
-            val apiUrl = if (isXai) "https://api.x.ai/v1/chat/completions" else "https://api.groq.com/openai/v1/chat/completions"
-            val modelName = if (isXai) "grok-2-latest" else "llama-3.3-70b-versatile"
+            val apiUrl = "https://api.groq.com/openai/v1/chat/completions"
+            val modelName = "llama-3.3-70b-versatile"
 
             val jsonBody = JSONObject().apply {
                 put("model", modelName)
@@ -1042,7 +1022,29 @@ object RealGroqService {
                 val choices = resObj.optJSONArray("choices")
                 if (choices != null && choices.length() > 0) {
                     val message = choices.getJSONObject(0).optJSONObject("message")
-                    return@withContext message?.optString("content")
+                    val content = message?.optString("content")
+                    if (!content.isNullOrBlank()) {
+                        // ق53: تسجيل الاستهلاك — كان مسار Groq (الأول في غرفة
+                        // المخرج وغيرها) يمر بلا أثر في تتبع التكلفة (ق44)،
+                        // بينما مسار Gemini يسجّل؛ والسعر موثق للنموذج.
+                        val usage = resObj.optJSONObject("usage")
+                        val promptTokens = usage?.optInt("prompt_tokens", 0) ?: 0
+                        val completionTokens = usage?.optInt("completion_tokens", 0) ?: 0
+                        if (promptTokens + completionTokens > 0) {
+                            val total = usage?.optInt("total_tokens", 0)?.takeIf { it > 0 }
+                                ?: (promptTokens + completionTokens)
+                            VibeCostTracker.record(
+                                AppServices.appContext, "groq", modelName,
+                                RealAgentResponse(content, total, promptTokens, completionTokens),
+                                null
+                            )
+                        } else {
+                            VibeCostTracker.recordEstimated(
+                                AppServices.appContext, "groq", modelName, prompt, content, null
+                            )
+                        }
+                    }
+                    return@withContext content
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
@@ -1052,216 +1054,9 @@ object RealGroqService {
     }
 }
 
-object RealOpenAIService {
-    private val client = SharedHttpClient.instance
 
-    suspend fun chatOrGenerate(prompt: String): String? = withContext(Dispatchers.IO) {
-        var apiKey = KeyVault.openai
-        if (apiKey.isBlank()) return@withContext null
 
-        try {
-            val jsonBody = JSONObject().apply {
-                put("model", "gpt-4o-mini")
-                put("messages", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "system")
-                        put("content", "أنت مساعد ذكي متخصص في صناعة المحتوى الإسلامي والدعوي الهادف.")
-                    })
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", prompt)
-                    })
-                })
-                put("temperature", 0.7)
-            }
 
-            val request = Request.Builder()
-                .url("https://api.openai.com/v1/chat/completions")
-                .addHeader("Authorization", "Bearer $apiKey")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = ApiUsageTracker.track(AppServices.appContext, "OpenAI") { client.newCall(request).execute() }
-            if (response.isSuccessful) {
-                val resObj = JSONObject(response.body?.string() ?: "")
-                val choices = resObj.optJSONArray("choices")
-                if (choices != null && choices.length() > 0) {
-                    val message = choices.getJSONObject(0).optJSONObject("message")
-                    return@withContext message?.optString("content")
-                }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return@withContext null
-    }
-}
-
-object RealHuggingFaceService {
-    private val client = SharedHttpClient.instance
-
-    suspend fun generateImage(prompt: String): String? = withContext(Dispatchers.IO) {
-        val apiKey = KeyVault.huggingface
-        if (apiKey.isBlank()) return@withContext null
-
-        try {
-            val jsonBody = JSONObject().apply {
-                put("inputs", "$prompt, high quality islamic background art, cinematic lighting, photorealistic 8k")
-            }
-
-            val request = Request.Builder()
-                .url("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell")
-                .addHeader("Authorization", "Bearer $apiKey")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = ApiUsageTracker.track(AppServices.appContext, "HuggingFace") { client.newCall(request).execute() }
-            if (response.isSuccessful) {
-                val imageBytes = response.body?.bytes()
-                if (imageBytes != null && imageBytes.isNotEmpty()) {
-                    val file = java.io.File(AppServices.appContext.cacheDir, "hf_${System.currentTimeMillis()}.jpg")
-                    file.writeBytes(imageBytes)
-                    return@withContext file.absolutePath
-                }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return@withContext null
-    }
-}
-
-object RealAzureSpeechService {
-    private val client = SharedHttpClient.instance
-
-    suspend fun synthesizeSpeech(
-        text: String,
-        voiceName: String = "ar-SA-HamedNeural",
-        rate: String = "+0%",
-        pitch: String = "+0%"
-    ): String? = withContext(Dispatchers.IO) {
-        val apiKey = KeyVault.azureSpeechKey
-        var region = KeyVault.azureSpeechRegion.ifBlank { "eastus" }
-
-        if (apiKey.isBlank()) {
-            SystemLogsManager.addLog("WARN", "مفتاح Azure Speech غير مضبوط في الإعدادات.", QabasGold)
-            return@withContext null
-        }
-
-        try {
-            SystemLogsManager.addLog("INFO", "بدء توليد الصوت عبر Azure Neural Speech ($voiceName)...", PresetPrimary)
-            val escapedText = text
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&apos;")
-
-            val ssml = """
-                <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='ar-SA'>
-                    <voice name='$voiceName'>
-                        <prosody rate='$rate' pitch='$pitch'>
-                            $escapedText
-                        </prosody>
-                    </voice>
-                </speak>
-            """.trimIndent()
-
-            val url = "https://$region.tts.speech.microsoft.com/cognitiveservices/v1"
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Ocp-Apim-Subscription-Key", apiKey)
-                .addHeader("Content-Type", "application/ssml+xml")
-                .addHeader("X-Microsoft-OutputFormat", "audio-16khz-128kbitrate-mono-mp3")
-                .addHeader("User-Agent", "QabasApp")
-                .post(ssml.toRequestBody("application/ssml+xml; charset=utf-8".toMediaType()))
-                .build()
-
-            val response = ApiUsageTracker.track(AppServices.appContext, "Azure TTS") { client.newCall(request).execute() }
-            if (response.isSuccessful) {
-                val bytes = response.body?.bytes()
-                if (bytes != null && bytes.isNotEmpty()) {
-                    val audioDir = File(AppServices.appContext.filesDir, "audio_projects")
-                    if (!audioDir.exists()) audioDir.mkdirs()
-                    val outFile = File(audioDir, "azure_tts_${System.currentTimeMillis()}.mp3")
-                    outFile.writeBytes(bytes)
-                    SystemLogsManager.addLog("SUCCESS", "تم توليد الصوت بنجاح عبر Azure (${outFile.name}) ✅", ThemeSuccess)
-                    return@withContext outFile.absolutePath
-                }
-            } else {
-                val errBody = response.body?.string() ?: ""
-                Log.e("AzureSpeech", "Azure TTS failed: ${response.code} $errBody")
-                SystemLogsManager.addLog("ERROR", "فشل توليد Azure: كود ${response.code}", ThemeDestructive)
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            Log.e("AzureSpeech", "Error synthesizing with Azure", e)
-            SystemLogsManager.addLog("ERROR", "خطأ في اتصال Azure: ${e.message}", ThemeDestructive)
-        }
-        return@withContext null
-    }
-}
-
-object RealElevenLabsService {
-    private val client = SharedHttpClient.instance
-
-    suspend fun synthesizeSpeech(
-        text: String,
-        voiceId: String = "21m00Tcm4TlvDq8ikWAM",
-        stability: Double = 0.5,
-        similarityBoost: Double = 0.75
-    ): String? = withContext(Dispatchers.IO) {
-        val apiKey = KeyVault.elevenlabs
-
-        if (apiKey.isBlank()) {
-            SystemLogsManager.addLog("WARN", "مفتاح ElevenLabs غير مضبوط في الإعدادات.", QabasGold)
-            return@withContext null
-        }
-
-        try {
-            SystemLogsManager.addLog("INFO", "بدء توليد الصوت عبر ElevenLabs Studio ($voiceId)...", PresetPrimary)
-            val jsonBody = JSONObject().apply {
-                put("text", text)
-                put("model_id", "eleven_multilingual_v2")
-                put("voice_settings", JSONObject().apply {
-                    put("stability", stability)
-                    put("similarity_boost", similarityBoost)
-                    put("style", 0.35)
-                    put("use_speaker_boost", true)
-                })
-            }
-
-            val url = "https://api.elevenlabs.io/v1/text-to-speech/$voiceId"
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("xi-api-key", apiKey)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "audio/mpeg")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = ApiUsageTracker.track(AppServices.appContext, "ElevenLabs") { client.newCall(request).execute() }
-            if (response.isSuccessful) {
-                val bytes = response.body?.bytes()
-                if (bytes != null && bytes.isNotEmpty()) {
-                    val audioDir = File(AppServices.appContext.filesDir, "audio_projects")
-                    if (!audioDir.exists()) audioDir.mkdirs()
-                    val outFile = File(audioDir, "elevenlabs_${System.currentTimeMillis()}.mp3")
-                    outFile.writeBytes(bytes)
-                    SystemLogsManager.addLog("SUCCESS", "تم توليد الصوت بنجاح عبر ElevenLabs (${outFile.name}) ✅", ThemeSuccess)
-                    return@withContext outFile.absolutePath
-                }
-            } else {
-                val errBody = response.body?.string() ?: ""
-                Log.e("ElevenLabs", "ElevenLabs TTS failed: ${response.code} $errBody")
-                SystemLogsManager.addLog("ERROR", "فشل توليد ElevenLabs: كود ${response.code}", ThemeDestructive)
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            Log.e("ElevenLabs", "Error synthesizing with ElevenLabs", e)
-            SystemLogsManager.addLog("ERROR", "خطأ في اتصال ElevenLabs: ${e.message}", ThemeDestructive)
-        }
-        return@withContext null
-    }
-}
 
 object RealFFmpegService {
     suspend fun mergeVideo(segments: List<String>, outputPath: String, templateCommand: String): String = withContext(Dispatchers.IO) {
@@ -1291,7 +1086,7 @@ object RealFFmpegService {
 
 /**
  * Android built-in TextToSpeech — الدائم والمجاني تماماً (لا يحتاج مفتاح API).
- * يُستخدم كـ fallback عندما تغيب مفاتيح Azure/ElevenLabs أو تفشل الشبكة.
+ * يُستخدم كـ fallback عندما تفشل الشبكة أو محركات الصوت المحلية.
  * يحوّل النص إلى ملف صوتي WAV عبر محرك النظام المحلي.
  */
 object AndroidTTSService {
@@ -1512,10 +1307,8 @@ object AppServices {
             }
         }
 
-        // 2) السحابي: OpenAI → Groq → Gemini
+        // 2) السحابي: Groq → Gemini
         if (messages.size == 1 && customSystemInstruction.isNullOrBlank()) {
-            val openaiResponse = RealOpenAIService.chatOrGenerate(messages[0].second)
-            if (!openaiResponse.isNullOrBlank()) return openaiResponse
             val fastResponse = RealGroqService.chatOrGenerate(messages[0].second)
             if (!fastResponse.isNullOrBlank()) return fastResponse
         }
@@ -1544,12 +1337,10 @@ object AppServices {
 
         suspend fun callGroq(): String? = try { RealGroqService.chatOrGenerate(prompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         suspend fun callGemini(): String? = try { RealGeminiService.chatWithAssistant(listOf(Pair(true, prompt)), null) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-        suspend fun callOpenAI(): String? = try { RealOpenAIService.chatOrGenerate(prompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
 
         val prioritizedCalls = when (preferred) {
-            "Groq" -> listOf(::callGroq, ::callGemini, ::callOpenAI)
-            "OpenAI" -> listOf(::callOpenAI, ::callGroq, ::callGemini)
-            else -> listOf(::callGemini, ::callGroq, ::callOpenAI)
+            "Groq" -> listOf(::callGroq, ::callGemini)
+            else -> listOf(::callGemini, ::callGroq)
         }
 
         for (caller in prioritizedCalls) {
@@ -1593,7 +1384,7 @@ object AppServices {
 
             val outVideoFile = File(appContext.cacheDir, "scene_clip_${System.currentTimeMillis()}_${(1000..9999).random()}.mp4")
             
-            // 1. Fetch relevant media/image from Pexels / Pixabay
+            // 1. Fetch relevant media/image from Pixabay
             var downloadedImage: File? = null
             val imageUrl = RealMediaLibraryService.fetchMedia(sceneDescription, "image")
             if (imageUrl.isNotBlank()) {
@@ -1779,14 +1570,13 @@ object AppServices {
 
     /**
      * Real AI Voiceover synthesis — أولوية: Kokoro محلي (مجاني، بلا مفتاح، بلا نت)
-     * ثم Azure Neural Speech → ElevenLabs → Android TTS المدمج.
+     * ثم Edge-TTS المجاني → Android TTS المدمج.
      * لا محتوى مزيف أبداً — فشل صريح = null.
      */
     suspend fun generateVoiceover(
         text: String,
         tone: String = "وثائقي",
         voiceId: String = "ar-SA-HamedNeural",
-        engine: String = "AZURE",
         customVoiceName: String? = null,
         rate: String = "+0%",
         pitch: String = "+0%"
@@ -1817,20 +1607,6 @@ object AppServices {
             Log.w("AppServices", "Edge-TTS attempt: ${e.message}")
         }
 
-        // 3) Azure / ElevenLabs السحابية (في حال توفر المفاتيح والرغبة بتوليد سحابي بديل)
-        var generatedPath: String? = null
-        if (engine.equals("ELEVENLABS", ignoreCase = true)) {
-            val elevenVoiceId = if (voiceId.contains("Neural") || voiceId.isBlank()) "21m00Tcm4TlvDq8ikWAM" else voiceId
-            generatedPath = RealElevenLabsService.synthesizeSpeech(text, elevenVoiceId)
-        } else {
-            val azureVoice = if (!voiceId.contains("Neural") && voiceId.length < 15) "ar-SA-HamedNeural" else voiceId
-            generatedPath = RealAzureSpeechService.synthesizeSpeech(text, azureVoice, rate, pitch)
-        }
-
-        if (!generatedPath.isNullOrBlank() && File(generatedPath).exists() && File(generatedPath).length() > 500) {
-            return@withContext generatedPath
-        }
-
         // 3) Android TTS المدمج (fallback أخير، بلا مفتاح، بلا نت)
         try {
             val systemTts = AndroidTTSService.synthesizeSpeech(text)
@@ -1843,7 +1619,7 @@ object AppServices {
 
         SystemLogsManager.addLog(
             "WARN",
-            "تعذر توليد التعليق الصوتي (لا مفاتيح سحابية، ولا Kokoro، ولا محرك نظام) — المشهد بدون صوت",
+            "تعذر توليد التعليق الصوتي (لا Kokoro، ولا Edge-TTS، ولا محرك نظام) — المشهد بدون صوت",
             QabasGold
         )
         Log.w("AppServices", "generateVoiceover failed for text length=${text.length} — returning null (no fake narration)")
@@ -1851,19 +1627,18 @@ object AppServices {
     }
 
     suspend fun generateAiImage(prompt: String): String? {
-        val hfImage = RealHuggingFaceService.generateImage(prompt)
-        if (hfImage != null) return hfImage
-
-        val pollinationsImage = PollinationsAiService.generateAndDownload(
+        // ق135: بلا بديل بصورة مخزون — كان فشل Pollinations يعيد
+        // صورة Pixabay جاهزة على أنها «مولّدة»: فتُعرض في الاستوديو
+        // وتُسجَّل في السجل بمزوّد «pollinations» كذباً، بينما عقد
+        // الدالة (ووصف أداة generate_image) «مسار ملف محلي مولّد».
+        // الفشل الآن صادق (null) وكل المنادين يعالجونه بتنبيه صادق.
+        return PollinationsAiService.generateAndDownload(
             context = appContext,
             prompt = prompt,
             width = 1080,
             height = 1920,
             model = "flux"
         )
-        if (pollinationsImage != null) return pollinationsImage
-
-        return fetchMedia(prompt, "image")
     }
 
     suspend fun fetchMedia(query: String, type: String = "video"): String {

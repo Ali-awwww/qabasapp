@@ -192,9 +192,10 @@ object ThemeManager {
             .apply()
 
         if (mode != AppThemeMode.SYSTEM) {
-            val resolved = (mode == AppThemeMode.DARK)
-            isDarkState = resolved
-            prefs.edit().putBoolean("app_dark_theme", resolved).apply()
+            // isDarkState مصدره الوضع هنا؛ وMyApplicationTheme يعيد
+            // حسابه من الوضع/النظام عند كل تركيب (syncResolvedDark).
+            // (حُذفت كتابة app_dark_theme: لا قارئ لها في أي موضع.)
+            isDarkState = (mode == AppThemeMode.DARK)
         }
         if (playSfx) {
             AppSoundManager.playClick()
@@ -314,6 +315,7 @@ object QabasTheme {
 @Composable
 fun MyApplicationTheme(
     highContrastMode: Boolean = false,
+    oledHighContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val preset = ThemeManager.currentPreset.collectAsState().value
@@ -326,10 +328,14 @@ fun MyApplicationTheme(
         AppThemeMode.DARK -> true
     }
 
-    // Keep global state synchronized for legacy top-level Color getters & non-Compose readers
-    ThemeManager.syncResolvedDark(darkTheme)
+    // Keep global state synchronized for legacy top-level Color getters & non-Compose readers.
+    // (كانت كتابة مباشرة أثناء التركيب — مخالفة لقواعد Compose تطلق
+    // إعادة تركيب إضافية؛ SideEffect هو الموضع الصحيح بعد التركيب.)
+    SideEffect {
+        ThemeManager.syncResolvedDark(darkTheme)
+    }
 
-    val designTheme = remember(preset, darkTheme, highContrastMode) {
+    val designTheme = remember(preset, darkTheme, highContrastMode, oledHighContrast) {
         val primary = if (highContrastMode) {
             if (darkTheme) Color.White else Color.Black
         } else if (darkTheme) preset.darkPrimaryColor else preset.lightPrimaryColor
@@ -341,6 +347,9 @@ fun MyApplicationTheme(
         val bg = when {
             highContrastMode && darkTheme -> Color.Black
             highContrastMode && !darkTheme -> Color.White
+            // السواد المطلق OLED: خلفية سوداء نقية في الداكن فقط،
+            // بلا تغيير الألوان الأساسية والنصوص (خلاف التباين العالي).
+            oledHighContrast && darkTheme -> Color.Black
             darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkBackground
             !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightBackground
             darkTheme -> AppleDarkBackground
@@ -350,6 +359,7 @@ fun MyApplicationTheme(
         val cardBg = when {
             highContrastMode && darkTheme -> Color(0xFF141416)
             highContrastMode && !darkTheme -> Color(0xFFF5F5F7)
+            oledHighContrast && darkTheme -> Color(0xFF141416)
             darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberDarkSurface
             !darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE -> CyberLightSurface
             darkTheme -> AppleDarkSurface

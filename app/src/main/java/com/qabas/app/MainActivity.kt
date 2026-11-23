@@ -25,8 +25,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -110,7 +108,6 @@ class MainActivity : ComponentActivity() {
         
         // Launch heavy or IO-dependent initializations in background
         lifecycleScope.launch(Dispatchers.IO) {
-            runCatching { AiModelRegistry.init(this@MainActivity) }
             runCatching { AppSoundManager.init(this@MainActivity) }
             runCatching { NotificationPreferencesManager.init(this@MainActivity) }
             runCatching { SpatialCameraPreferencesManager.init(this@MainActivity) }
@@ -157,6 +154,7 @@ class MainActivity : ComponentActivity() {
             }
 
             val highContrast by UserPreferencesManager.highContrastMode.collectAsState()
+            val oledHighContrast by UserPreferencesManager.oledHighContrast.collectAsState()
             val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
             var showSplash by rememberSaveable { mutableStateOf(true) }
             val globalTextScale by UserPreferencesManager.globalTextScale.collectAsState()
@@ -169,7 +167,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            MyApplicationTheme(highContrastMode = highContrast) {
+            MyApplicationTheme(highContrastMode = highContrast, oledHighContrast = oledHighContrast) {
                 CompositionLocalProvider(
                     LocalLayoutDirection provides layoutDirection,
                     LocalContext provides localizedContext,
@@ -221,7 +219,12 @@ class MainActivity : ComponentActivity() {
                             }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                         }
                     }
-                    AppStartupPermissionHandler()
+                    AppStartupPermissionHandler(
+                        // زر «مركز الأذونات الكامل» في حوار الأذونات كان
+                        // بلا مستدعٍ (القيمة الافتراضية {}): يُغلق الحوار
+                        // ولا يفتح شيئاً. الآن ينتقل لمركز الأذونات.
+                        onOpenPermissionsHub = { AppNavigator.navigateTo(AppState.PERMISSIONS_HUB) }
+                    )
                     
                     val pendingUpdate by UpdateManager.pendingUpdate.collectAsState()
 
@@ -845,41 +848,91 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLink(intent: android.content.Intent) {
         val uri = intent.data
-        if (uri != null && uri.host == QabasWebConfig.OFFICIAL_WEB_HOST) {
-            val path = uri.path.orEmpty()
+        // رابط الموقع الرسمي: كان المضيف في البيان (نطاق run.app
+        // التجريبي) لا يطابق مضيف QabasWebConfig (github.io) فلا يصل
+        // الرابط إلى هنا أبداً؛ وحتى عند المطابقة كان تنبيهاً فقط
+        // والمسار يُرمى. الآن: المضيفان (الرسمي والقديم) يفتحان
+        // التطبيق على الرئيسية — فالإقلاع البارد يهبط عليها أصلاً،
+        // والرابط الدافئ يعيد المستخدم إليها من أي شاشة.
+        // (لا توجيه حسب المسار: الموقع بلا مخطط مسارات موثّق للتطبيق.)
+        if (uri != null && (uri.host == QabasWebConfig.OFFICIAL_WEB_HOST || uri.host == QabasWebConfig.LEGACY_WEB_HOST)) {
             android.widget.Toast.makeText(this, "مرحباً بك في تطبيق خادم المسلم عبر الموقع الرسمي 🌐", android.widget.Toast.LENGTH_SHORT).show()
-        }
-
-        if (uri != null && uri.scheme == "qabas" && uri.host == "github-callback") {
-            val code = uri.getQueryParameter("code")
-            if (!code.isNullOrBlank()) {
-                lifecycleScope.launch {
-                    val token = GitHubAuthManager.exchangeCodeForToken(code)
-                    if (token != null) {
-                        GitHubAuthManager.saveAccessToken(this@MainActivity, token)
-                        Toast.makeText(this@MainActivity, "تم ربط حساب GitHub بنجاح! 🐙", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this@MainActivity, "فشل ربط حساب GitHub ❌", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            return
+            AppNavigator.navigateTo(AppState.HOME)
         }
 
         if (uri != null &&
             uri.scheme == SupabaseConfig.PASSWORD_RESET_SCHEME &&
             uri.host == SupabaseConfig.PASSWORD_RESET_HOST
         ) {
+            // ق85: qabas://auth كان يُصنَّف استعادةً دائماً لمجرد تطابق
+            // المضيف — فرابط تأكيد البريد الواصل للتطبيق كان يهبط على
+            // شاشة «نسيت كلمة المرور» ويُسلِّح حالة الاستعادة؛ والرابط
+            // الضمني (#access_token) كان يُرفض برسالة «منتهي الصلاحية»
+            // كاذبة قبل أي تبادل. التصنيف الآن بنوع الرابط الصريح أو
+            // بنية استعادة مسجلة عند الطلب؛ وما عداه تأكيد بريد.
+            val isRecovery = classifyQabasAuthLink(
+                uri.toString(),
+                PasswordRecoveryManager.isRecoveryRequested(this)
+            )
             val callbackError = uri.getQueryParameter("error_description")
                 ?: uri.getQueryParameter("error")
             if (!callbackError.isNullOrBlank()) {
-                Toast.makeText(this, "تعذّر التحقق من رابط الاستعادة. أرسل رابطاً جديداً.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    if (isRecovery) "تعذّر التحقق من رابط الاستعادة. أرسل رابطاً جديداً."
+                    else "تعذّر التحقق من رابط تأكيد البريد. أعد إرسال رسالة التحقق.",
+                    Toast.LENGTH_LONG
+                ).show()
+                if (isRecovery) PasswordRecoveryManager.clearRequested(this)
                 return
             }
 
-            val code = uri.getQueryParameter("code")
-            if (code.isNullOrBlank()) {
+            if (!isRecovery) {
+                // رابط تأكيد بريد: تبادل الرمز (أو الرمز الضمني في
+                // الشظية) لجلسة، ثم تحديث حالة التأكيد والعودة للرئيسية.
+                val code = uri.getQueryParameter("code")
+                val hasImplicitToken = uri.fragment?.contains("access_token=") == true
+                if (code.isNullOrBlank() && !hasImplicitToken) {
+                    Toast.makeText(this, "رابط التأكيد غير مكتمل أو منتهي الصلاحية. أعد إرسال رسالة التحقق من الإعدادات.", Toast.LENGTH_LONG).show()
+                    return
+                }
+                SupabaseConfig.client.handleDeeplinks(
+                    intent = intent,
+                    onSessionSuccess = {
+                        lifecycleScope.launch {
+                            SupabaseServices.Auth.refreshEmailConfirmationState()
+                            runOnUiThread {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "تم تأكيد بريدك — المزامنة السحابية مفعّلة الآن",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                AppNavigator.navigateTo(AppState.HOME)
+                            }
+                        }
+                    },
+                    onError = { error ->
+                        android.util.Log.e("EmailConfirmation", "Supabase confirmation callback failed", error)
+                        runOnUiThread {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "انتهت صلاحية رابط التأكيد أو تعذّر التحقق منه. أعد إرسال رسالة تحقق جديدة.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                )
+                return
+            }
+
+            // رابط استعادة: الرمز في الاستعلام (PKCE) أو الشظية
+            // (التدفق الضمني) — غيابهما معاً رابط غير مكتمل، لا
+            // استدعاء تبادل بلا شيء يتبادله.
+            val recoveryCode = uri.getQueryParameter("code")
+            val hasRecoveryToken = uri.fragment?.contains("access_token=") == true
+            if (recoveryCode.isNullOrBlank() && !hasRecoveryToken) {
                 Toast.makeText(this, "رابط الاستعادة غير مكتمل أو منتهي الصلاحية. أرسل رابطاً جديداً.", Toast.LENGTH_LONG).show()
+                PasswordRecoveryManager.clearRequested(this)
                 return
             }
 
@@ -888,6 +941,7 @@ class MainActivity : ComponentActivity() {
                 intent = intent,
                 onSessionSuccess = {
                     PasswordRecoveryManager.markVerified(this@MainActivity)
+                    PasswordRecoveryManager.clearRequested(this@MainActivity)
                     AppNavigator.navigateFromNotification(AppState.FORGOT_PASSWORD)
                     runOnUiThread {
                         Toast.makeText(
@@ -899,6 +953,7 @@ class MainActivity : ComponentActivity() {
                 },
                 onError = { error ->
                     PasswordRecoveryManager.clear(this@MainActivity)
+                    PasswordRecoveryManager.clearRequested(this@MainActivity)
                     android.util.Log.e("PasswordRecovery", "Supabase recovery callback failed", error)
                     runOnUiThread {
                         Toast.makeText(
@@ -934,7 +989,36 @@ class MainActivity : ComponentActivity() {
                 }
             }
             "validate" -> {
-                android.widget.Toast.makeText(this, "جاري التحقق من جميع المفاتيح...", android.widget.Toast.LENGTH_SHORT).show()
+                // كان تنبيهاً فقط («جاري التحقق...») بلا أي تحقق.
+                // التحقق الحقيقي: فحص المفاتيح الأربعة المضبوطة فعلاً
+                // عبر ApiKeyValidator (HTTP حي لكل مزود) وعرض النتيجة.
+                lifecycleScope.launch {
+                    val specs = listOf(
+                        "gemini" to KeyVault.gemini,
+                        "groq" to KeyVault.groq,
+                        "openrouter" to KeyVault.openrouter,
+                        "pixabay" to KeyVault.pixabay
+                    ).filter { it.second.isNotBlank() }
+                    if (specs.isEmpty()) {
+                        android.widget.Toast.makeText(
+                            this@MainActivity,
+                            "لا مفاتيح مضبوطة للتحقق منها — أضف مفتاحاً أولاً.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        return@launch
+                    }
+                    var valid = 0
+                    specs.forEach { (service, key) ->
+                        runCatching {
+                            if (ApiKeyValidator.validateKey(this@MainActivity, service, key).isValid) valid++
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    }
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        "التحقق اكتمل: $valid من ${specs.size} مفتاحاً صالحاً ✅",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }
@@ -953,7 +1037,6 @@ fun QabasBottomNavigation(
     onNavigate: (AppState) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
     val theme = QabasTheme.current
     val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
     val navItems = remember {
@@ -1021,7 +1104,9 @@ fun QabasBottomNavigation(
                         },
                         selected = isSelected,
                         onClick = {
-                            runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                            // ق103: الاهتزاز يأتي من playTabRouteSound
+                            // (withHaptic=true)؛ كان performHapticFeedback
+                            // هنا يهزّ الجهاز مرة ثانية مع كل نقرة تبويب.
                             AppSoundManager.playTabRouteSound(item.route)
                             onNavigate(item.route)
                         },
@@ -1333,4 +1418,23 @@ class ProjectViewModelFactory(private val context: Context) : ViewModelProvider.
 @Composable
 fun QabasStudioScreen() {
     QabasApp()
+}
+
+/**
+ * ق85: تصنيف رابط qabas://auth من نصه وحده (دالة خالصة قابلة
+ * للاختبار بلا أندرويد). يعيد true لرابط استعادة كلمة مرور:
+ * نوع صريح type=recovery في الاستعلام أو الشظية، أو رابط بلا
+ * نوع مع طلب استعادة مسجل حديثاً (PasswordRecoveryManager).
+ * ما عداه — ومنه type=signup الصريح — رابط تأكيد بريد.
+ */
+fun classifyQabasAuthLink(uriString: String, recoveryRequested: Boolean): Boolean {
+    val query = uriString.substringAfter('?', "").substringBefore('#')
+    val fragment = uriString.substringAfter('#', "")
+    val type = sequenceOf(query, fragment).flatMap { part ->
+        part.split('&').mapNotNull { kv ->
+            val eq = kv.split('=', limit = 2)
+            if (eq.size == 2 && eq[0] == "type") eq[1] else null
+        }
+    }.firstOrNull()
+    return type == "recovery" || (type == null && recoveryRequested)
 }

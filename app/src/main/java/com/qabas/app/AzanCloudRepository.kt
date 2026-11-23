@@ -36,13 +36,21 @@ object AzanCloudRepository {
     const val BUCKET = "azan-voices"
     const val TABLE = "azan_voices"
 
-    suspend fun fetchCloudVoices(): List<AzanVoice> = withContext(Dispatchers.IO) {
+    /**
+     * يجلب الأصوات السحابية النشطة. يعيد [Result] (ق50): الفشل كان
+     * يُبتلع إلى قائمة فارغة فيُعامل كهو «لا أصوات في الجدول» تماماً،
+     * فتُمسح ذاكرة الكاش المحلية بقائمة فارغة عند كل إعادة جلب فاشلة
+     * (بعد رفع أو تعديل أو حذف ناجح)، ويُعرض للمستخدم «لا أصوات عامة»
+     * عند انقطاع الشبكة. النجاح بقائمة فارغة يعني فعلاً جدولاً فارغاً.
+     */
+    suspend fun fetchCloudVoices(): Result<List<AzanVoice>> = withContext(Dispatchers.IO) {
         try {
-            val client = SupabaseServices.client ?: return@withContext emptyList()
+            val client = SupabaseServices.client
+                ?: return@withContext Result.failure(IllegalStateException("Supabase غير مهيأ"))
             val rows = client.from(TABLE).select {
                 filter { eq("is_active", true) }
             }.decodeList<AzanVoiceRow>()
-            rows.map {
+            Result.success(rows.map {
                 AzanVoice(
                     id = "cloud_${it.id}",
                     nameAr = it.nameAr,
@@ -51,10 +59,10 @@ object AzanCloudRepository {
                     streamUrl = it.audioUrl,
                     isFajrSpecific = it.isFajrSpecific
                 )
-            }
+            })
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "fetch failed: ${e.message}")
-            emptyList()
+            Result.failure(e)
         }
     }
 
@@ -120,11 +128,11 @@ object AzanCloudRepository {
                     IllegalStateException("تعذّر حفظ الصوت في قاعدة البيانات: ${e.message}")
                 )
             }
-            // تحديث الكاش المحلي فوراً
-            MuezzinVoiceManager.cacheCloudVoices(
-                context,
-                fetchCloudVoices()
-            )
+            // تحديث الكاش المحلي فوراً — عند نجاح إعادة الجلب فقط (ق50):
+            // فشلها كان يمسح الكاش بقائمة فارغة بعد رفع ناجح.
+            fetchCloudVoices().onSuccess {
+                MuezzinVoiceManager.cacheCloudVoices(context, it)
+            }
             Result.success(publicUrl)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "upload failed", e)
@@ -144,7 +152,10 @@ object AzanCloudRepository {
             client.from(TABLE).update(AzanVoiceDescriptionUpdate(description.trim())) {
                 filter { eq("id", rowId) }
             }
-            MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
+            // الكاش يُحدَّث عند نجاح إعادة الجلب فقط (ق50) لا بقائمة فارغة.
+            fetchCloudVoices().onSuccess {
+                MuezzinVoiceManager.cacheCloudVoices(context, it)
+            }
             true
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "description update failed: ${e.message}", e)
@@ -167,7 +178,10 @@ object AzanCloudRepository {
                 }
             }
             client.from(TABLE).delete { filter { eq("id", rowId) } }
-            MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
+            // الكاش يُحدَّث عند نجاح إعادة الجلب فقط (ق50) لا بقائمة فارغة.
+            fetchCloudVoices().onSuccess {
+                MuezzinVoiceManager.cacheCloudVoices(context, it)
+            }
             true
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "delete failed: ${e.message}", e)

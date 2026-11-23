@@ -224,6 +224,27 @@ object LocalAccountRegistry {
         return updatedRecord
     }
 
+    /**
+     * ق156: إزالة حساب من السجل المحلي (عند حذف الحساب نهائياً) —
+     * كان السجل بلا حذف إطلاقاً، فيبقى الحساب المحذوف في مبدّل
+     * الحسابات ولوحة المطورين كأنه قائم ويُعرض للتبديل إليه.
+     * المطابقة بالبريد أو بالمعرّف لأن السجل يخلطهما (id قد
+     * يكون البريد نفسه في السجلات المضافة ذاتياً).
+     */
+    @Synchronized
+    fun removeAccount(context: Context, emailOrId: String): Boolean {
+        val key = emailOrId.trim()
+        if (key.isBlank()) return false
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val current = getAllAccounts(context)
+        val next = current.filterNot { it.email.equals(key, ignoreCase = true) || it.id == key }
+        if (next.size == current.size) return false
+        saveListToPrefs(prefs, next)
+        _accountsFlow.value = next
+        Log.i(TAG, "Account removed from registry: $key (remaining: ${next.size})")
+        return true
+    }
+
     private fun syncFromPrefs(context: Context) {
         getAllAccounts(context)
     }

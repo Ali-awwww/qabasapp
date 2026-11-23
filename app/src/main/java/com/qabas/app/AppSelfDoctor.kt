@@ -88,41 +88,28 @@ object AppSelfDoctor {
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
     private suspend fun groqCheck(key: String) = withTimeoutOrNull(12_000) {
-        val url = if (key.startsWith("xai-", ignoreCase = true)) "https://api.x.ai/v1/models"
-        else "https://api.groq.com/openai/v1/models"
+        val url = "https://api.groq.com/openai/v1/models"
         httpCheck(
             Request.Builder().url(url).header("Authorization", "Bearer $key").build()
         )
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun azureCheck(key: String, region: String) = withTimeoutOrNull(12_000) {
+    // ق161: كان الطبيب يفحص Gemini وGroq وPixabay وSupabase وHiggsfield
+    // ويتجاهل OpenRouter تماماً — وهو مزود نماذج قائم في شاشة المفاتيح
+    // (وبديل Gemini في نواة الوكيل)، فمن يعتمد عليه وحده لا يُشخَّص
+    // مفتاحه أبداً.
+    private suspend fun openrouterCheck(key: String) = withTimeoutOrNull(12_000) {
         httpCheck(
             Request.Builder()
-                .url("https://$region.tts.speech.microsoft.com/cognitiveservices/voices/list")
-                .header("Ocp-Apim-Subscription-Key", key)
+                .url("https://openrouter.ai/api/v1/models")
+                .header("Authorization", "Bearer $key")
                 .build()
         )
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun elevenLabsCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(Request.Builder().url("https://api.elevenlabs.io/v1/user").header("xi-api-key", key).build())
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun huggingFaceCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(
-            Request.Builder().url("https://huggingface.co/api/whoami-v2")
-                .header("Authorization", "Bearer $key").build()
-        )
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
-    private suspend fun pexelsCheck(key: String) = withTimeoutOrNull(12_000) {
-        httpCheck(
-            Request.Builder()
-                .url("https://api.pexels.com/videos/search?query=nature&per_page=1")
-                .header("Authorization", key)
-                .build()
-        )
-    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
+
 
     private suspend fun pixabayCheck(key: String) = withTimeoutOrNull(12_000) {
         httpCheck(
@@ -200,11 +187,7 @@ object AppSelfDoctor {
         // المفاتيح الفعّالة عبر KeyVault (شاشة المفاتيح أولاً ثم BuildConfig من Secrets)
         val geminiKey = KeyVault.gemini
         val groqKey = KeyVault.groq
-        val elevenLabsKey = KeyVault.elevenlabs
-        val azureKey = KeyVault.azureSpeechKey
-        val azureRegion = KeyVault.azureSpeechRegion.ifBlank { "eastus" }
-        val huggingFaceKey = KeyVault.huggingface
-        val pexelsKey = KeyVault.pexels
+        val openrouterKey = KeyVault.openrouter
         val pixabayKey = KeyVault.pixabay
 
         // 1) فحوص الاتصال الحقيقية بالتوازي — طلب واحد خفيف لكل خدمة
@@ -215,14 +198,8 @@ object AppSelfDoctor {
                 jobs += async { "gemini" to geminiCheck(geminiKey) }
             if (isKeyValid(groqKey))
                 jobs += async { "groq" to groqCheck(groqKey) }
-            if (isKeyValid(azureKey))
-                jobs += async { "azure" to azureCheck(azureKey, azureRegion) }
-            if (isKeyValid(elevenLabsKey))
-                jobs += async { "elevenlabs" to elevenLabsCheck(elevenLabsKey) }
-            if (isKeyValid(huggingFaceKey))
-                jobs += async { "huggingface" to huggingFaceCheck(huggingFaceKey) }
-            if (isKeyValid(pexelsKey))
-                jobs += async { "pexels" to pexelsCheck(pexelsKey) }
+            if (isKeyValid(openrouterKey))
+                jobs += async { "openrouter" to openrouterCheck(openrouterKey) }
             if (isKeyValid(pixabayKey))
                 jobs += async { "pixabay" to pixabayCheck(pixabayKey) }
             if (SupabaseConfig.isConfigured)
@@ -281,65 +258,53 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
-        if (!isKeyValid(elevenLabsKey) && !isKeyValid(azureKey)) {
+        // ق161: تقرير OpenRouter — كان المفتاح بلا أي تشخيص (انظر openrouterCheck).
+        if (!isKeyValid(openrouterKey)) {
             reports.add(
                 DoctorReport(
-                    severity = "مهم",
-                    title = "التعليق الصوتي العصبي غير مفعل",
-                    message = "لا يوجد أي محرك صوتي سحابي (Azure Speech أو ElevenLabs) مفعل. يتم استخدام محرك الصوت المحلي الافتراضي (TTS أندرويد) — يعمل بلا مفاتيح لكن بجودة أقل.",
-                    category = "خدمات",
-                    suggestedAction = "أضف مفتاح Azure Speech (نوصي به للفصحى) أو ElevenLabs في إعدادات التطبيق أو GitHub Secrets.",
+                    severity = "تحسين",
+                    title = "بديل النماذج غير مهيأ (OpenRouter)",
+                    message = "مفتاح OpenRouter غير متوفر. يتم الاعتماد حالياً على Gemini وGroq؛ وإضافة OpenRouter تفتح نماذج Claude وGPT-4o وLlama عبر بوابة واحدة.",
+                    category = "مفاتيح API",
+                    suggestedAction = "أضف مفتاح OpenRouter المجاني من شاشة مفاتيح API لفتح النماذج البديلة.",
                     suggestedFixCode = null
                 )
             )
         } else {
-            if (isKeyValid(azureKey)) {
-                reports.add(
-                    liveStatusReport(
-                        serviceName = "Azure Speech",
-                        category = "خدمات",
-                        check = liveResults["azure"] ?: LiveCheck(false, false, true),
-                        onOk = "خدمة الصوت العصبي من Azure تستجيب فعلياً — التعليق العربي الفصيح متاح.",
-                        actionOk = "جاهز لإنتاج التعليق الصوتي."
-                    )
+            reports.add(
+                liveStatusReport(
+                    serviceName = "OpenRouter",
+                    category = "مفاتيح API",
+                    check = liveResults["openrouter"] ?: LiveCheck(false, false, true),
+                    onOk = "بوابة OpenRouter تستجيب فعلياً — نماذج Claude وGPT-4o وLlama البديلة متاحة.",
+                    actionOk = "استفد من نماذج OpenRouter البديلة."
                 )
-            }
-            if (isKeyValid(elevenLabsKey)) {
-                reports.add(
-                    liveStatusReport(
-                        serviceName = "ElevenLabs",
-                        category = "خدمات",
-                        check = liveResults["elevenlabs"] ?: LiveCheck(false, false, true),
-                        onOk = "خدمة ElevenLabs تستجيب فعلياً — الأصوات الجبارة متاحة.",
-                        actionOk = "يمكن اختيار أصوات ElevenLabs في إعدادات الصوت."
-                    )
-                )
-            }
+            )
         }
 
-        if (!isKeyValid(pexelsKey) && !isKeyValid(pixabayKey)) {
+        reports.add(
+            DoctorReport(
+                severity = "معلومة",
+                title = "التعليق الصوتي يعمل محلياً",
+                message = "التعليق الصوتي يولَّد محلياً عبر Kokoro وEdge-TTS ومحرك النظام (TTS أندرويد) — بلا مفاتيح سحابية.",
+                category = "خدمات",
+                suggestedAction = "لا إجراء مطلوب."
+            )
+        )
+
+
+        if (!isKeyValid(pixabayKey)) {
             reports.add(
                 DoctorReport(
                     severity = "مهم",
                     title = "مكتبة الوسائط الحية متوقفة",
-                    message = "لم يتم إضافة مفاتيح Pexels أو Pixabay. التطبيق يعتمد على الإطارات السينمائية المحلية (المولدة بعنوان كل مشهد) بدل مقاطع B-Roll حقيقية.",
+                    message = "لم يتم إضافة مفتاح Pixabay. التطبيق يعتمد على الإطارات السينمائية المحلية (المولدة بعنوان كل مشهد) بدل مقاطع B-Roll حقيقية.",
                     category = "تكامل",
-                    suggestedAction = "أضف مفاتيح Pexels أو Pixabay المجانية لتمكين جلب مقاطع B-Roll وصور المعالم الإسلامية بجودة HD.",
+                    suggestedAction = "أضف مفتاح Pixabay المجاني لتمكين جلب مقاطع B-Roll وصور المعالم الإسلامية بجودة HD.",
                     suggestedFixCode = null
                 )
             )
         } else {
-            if (isKeyValid(pexelsKey)) {
-                reports.add(
-                    liveStatusReport(
-                        serviceName = "Pexels",
-                        category = "تكامل",
-                        check = liveResults["pexels"] ?: LiveCheck(false, false, true),
-                        onOk = "مكتبة Pexels تستجيب فعلياً — جلب B-Roll حقيقي متاح.",
-                        actionOk = "جاهز لجلب الوسائط."
-                    )
-                )
-            }
             if (isKeyValid(pixabayKey)) {
                 reports.add(
                     liveStatusReport(
@@ -353,21 +318,16 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             }
         }
 
-        if (isKeyValid(huggingFaceKey)) {
-            reports.add(
-                liveStatusReport(
-                    serviceName = "HuggingFace",
-                    category = "تكامل",
-                    check = liveResults["huggingface"] ?: LiveCheck(false, false, true),
-                    onOk = "توليد الصور الذكي من HuggingFace يستجيب فعلياً.",
-                    actionOk = "جاهز لتوليد الخلفيات."
-                )
-            )
-        }
 
-        val higgsfieldConfiguredOnServer = runCatching {
-            PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
+        // مهلة 12 ثانية كباقي الفحوص: عميل البوابة بلا مهلة هنا
+        // (30ث اتصال + 60ث قراءة) فكان فحص واحد متعثر يعلّق
+        // التشخيص كله حتى 90 ثانية. الإلغاء عند المهلة يحرر
+        // الطبيب؛ الطلب نفسه قد يكمل في الخلفية حتى مهلته.
+        val higgsfieldConfiguredOnServer = withTimeoutOrNull(12_000L) {
+            runCatching {
+                PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
+        } ?: false
         if (higgsfieldConfiguredOnServer) {
             reports.add(
                 DoctorReport(
@@ -376,6 +336,19 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
                     message = "تم تأكيد وجود إعداد المزود في الخزنة الخادمية. هذا الفحص لا يختبر صلاحية بيانات الاعتماد أو نجاح توليد الفيديو.",
                     category = "تكامل",
                     suggestedAction = "نفّذ اختبار توليد فعلياً من الاستوديو عند توفر الاعتماد والرصيد."
+                )
+            )
+        } else if (PlatformGatewayClient.lastError != null) {
+            // ق71: فشل الفحص كان صامتاً تماماً (لا تقرير إطلاقاً) —
+            // يُبلَّغ الآن بسبب الفشل الحقيقي؛ أما غياب المفتاح نفسه
+            // فليس عيباً (قد لا يستعمل المستخدم Higgsfield أصلاً).
+            reports.add(
+                DoctorReport(
+                    severity = "مهم",
+                    title = "تعذّر تأكيد مفتاح Higgsfield",
+                    message = "فحص بوابة الخادم لم يكمل: ${PlatformGatewayClient.lastError}",
+                    category = "تكامل",
+                    suggestedAction = "تحقق من الشبكة وجلسة الدخول ثم أعد التشخيص."
                 )
             )
         }
@@ -485,16 +458,20 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
-        // 6) أخطاء النظام الأخيرة
-        val lastError = OperationalReadinessManager.getLastError()
+        // 6) أخطاء النظام الأخيرة — من سجل الانهيارات الحقيقي
+        // (QabasCrashGuard). النسخة السابقة كانت تقرأ
+        // OperationalReadinessManager.getLastError() وهو null دائماً
+        // (lastRecordedError لا يسنده أحد في الكود كله) فلم يظهر
+        // هذا القسم أبداً — طبيب بلا ذاكرة أعطال.
+        val lastError = QabasCrashGuard.lastCrashSummary(context)
         if (lastError != null) {
             reports.add(
                 DoctorReport(
                     severity = "مهم",
                     title = "أخطاء مسجلة مؤخراً في النظام",
-                    message = "تم رصد أخيرة في سجلات النظام (Logs): $lastError. هذا قد يشير إلى انهيار خدمة معينة أو مشكلة اتصال.",
+                    message = "آخر عطل مسجل: $lastError. قد يشير إلى انهيار متكرر أو مشكلة اتصال.",
                     category = "أداء",
-                    suggestedAction = "راجع شاشة 'سجلات النظام' لمعرفة تفاصيل الخطأ ومعالجته.",
+                    suggestedAction = "راجع «سجلات النظام الحية» في لوحة المطور لمعرفة التفاصيل ومعالجته.",
                     suggestedFixCode = null
                 )
             )

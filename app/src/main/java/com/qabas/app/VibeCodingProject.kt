@@ -118,11 +118,21 @@ object VibeCodingProjects {
     }
 
     /**
+     * نتيجة الإنشاء: null القديمة كانت تخلط «لا شيء يربط» بفشل الحفظ
+     * فتظهر رسالة «لا توجد جلسة» حتى حين توجد جلسة ويفشل الحفظ.
+     */
+    sealed interface CreateResult {
+        data class Created(val project: VibeCodingProject) : CreateResult
+        object NothingToLink : CreateResult
+        object SaveFailed : CreateResult
+    }
+
+    /**
      * ينشئ مشروع فايب كودينج من الجلسة النشطة + المستودع النشط + المهمة
      * النشطة المحفوظة (active_mission_json: الموجه + الملفات المعدلة).
-     * يُعيد null إن لم توجد جلسة ولا مهمة ولا مستودع يربطها — لا مشروع فارغ.
+     * يُعيد NothingToLink إن لم توجد جلسة ولا مهمة ولا مستودع يربطها — لا مشروع فارغ.
      */
-    suspend fun createFromActiveSession(context: Context): VibeCodingProject? =
+    suspend fun createFromActiveSession(context: Context): CreateResult =
         withContext(Dispatchers.IO) {
             val sessionId = AgentChatSessionManager.activeSessionId.value
             val session = AgentChatSessionManager.sessions.value
@@ -148,7 +158,7 @@ object VibeCodingProjects {
                     }
                 }
             }
-            if (session == null && prompt.isBlank() && repo == null) return@withContext null
+            if (session == null && prompt.isBlank() && repo == null) return@withContext CreateResult.NothingToLink
             val now = System.currentTimeMillis()
             val title = session?.title
                 ?.takeIf { it.isNotBlank() && !it.startsWith("محادثة جديدة") }
@@ -165,13 +175,23 @@ object VibeCodingProjects {
                 createdAt = now,
                 updatedAt = now
             )
-            runCatching { ProjectService(context).saveProject(toServiceProject(vibe)) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                .getOrNull() ?: return@withContext null
-            vibe
+            val saved = runCatching { ProjectService(context).saveProject(toServiceProject(vibe)) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .isSuccess
+            if (!saved) return@withContext CreateResult.SaveFailed
+            CreateResult.Created(vibe)
         }
 
-    suspend fun delete(context: Context, id: String) = withContext(Dispatchers.IO) {
-        runCatching { ProjectService(context).deleteProject(id) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+    /** يحذف المشروع، ويُعيد true فقط إن اختفى فعلاً من Room بعدها. */
+    suspend fun delete(context: Context, id: String): Boolean = withContext(Dispatchers.IO) {
+        val service = ProjectService(context)
+        val deleted = runCatching { service.deleteProject(id) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.isSuccess
+        if (!deleted) return@withContext false
+        // deleteProject يبتلع التأجيل داخلياً (يعيد Unit حتى حين يتأجل
+        // الحذف) — فالتحقق هنا بقراءة الصف لا بنجاح الاستدعاء.
+        runCatching { service.getProject(id) }.fold(
+            onSuccess = { it == null },
+            onFailure = { false }
+        )
     }
 
     /**
@@ -192,7 +212,12 @@ object VibeCodingProjects {
             sessionId = null,
             repoFullName = null,
             branch = null,
-            modifiedFiles = template.files.keys.toList(),
+            // (ق66) ملفات القالب بادئة لا معدّلة: وضع أسمائها في
+            // modifiedFiles كان يعرض «ملفات معدلة: 3» لمشروع جديد لم
+            // يُعدَّل فيه شيء، ويجعل التصدير يحاول جلبها من GitHub
+            // (404)، وقد ينسب مهمة غريبة للمشروع بمطابقة الاسم. البادئة
+            // مكانها starterFiles وحدها.
+            modifiedFiles = emptyList(),
             appliedPaths = emptyList(),
             createdAt = now,
             updatedAt = now,
@@ -236,7 +261,23 @@ object VibeCodingProjects {
             root.put("kind", "vibe_coding_export")
             root.put("version", 1)
             root.put("exportedAt", System.currentTimeMillis())
-            root.put("project", JSONObject(vibe.toJson()))
+            // ق110: موجه المشروع وذاكرته وملفاته البادئة نصوص حرة قد تحوي
+            // مفاتيح لُصقت — كانت تُصدَّر خاماً داخل "project" رغم تنقيح
+            // نسخة starterFiles المنفصلة؛ تُنقَّح هنا قبل الإدراج.
+            val projectObj = JSONObject(vibe.toJson())
+            projectObj.put("prompt", redactSecrets(vibe.prompt))
+            projectObj.put("memory", JSONObject().apply {
+                put("summary", redactSecrets(vibe.memory.summary))
+                put("decisions", JSONArray(vibe.memory.decisions.map { redactSecrets(it) }))
+                put("importantFiles", JSONArray(vibe.memory.importantFiles))
+                put("updatedAt", vibe.memory.updatedAt)
+            })
+            if (vibe.starterFiles.isNotEmpty()) {
+                val starterObj = JSONObject()
+                vibe.starterFiles.forEach { (path, content) -> starterObj.put(path, redactSecrets(content)) }
+                projectObj.put("starterFiles", starterObj)
+            }
+            root.put("project", projectObj)
             if (vibe.starterFiles.isNotEmpty()) {
                 val starterArr = JSONArray()
                 vibe.starterFiles.forEach { (path, content) ->
@@ -249,15 +290,44 @@ object VibeCodingProjects {
                 }
                 root.put("starterFiles", starterArr)
             }
+            // المهمة النشطة عمومية لا مشروعية: بلا رابط جلسة/مشروع في
+            // JSON، وقد تخص مشروعاً آخر تماماً. تُضمَّن فقط حين يطابق
+            // موجهها موجه المشروع أو تتداخل ملفاتها مع ملفاته؛ وإلا
+            // تُحذف بملاحظة صادقة بدل نسبة مهمة غريبة للمشروع.
             val missionRaw = AgentPrefs.loadActiveMission(context)
             if (missionRaw.isNotBlank()) {
-                runCatching { root.put("mission", JSONObject(missionRaw)) }
+                runCatching {
+                    val missionObj = JSONObject(missionRaw)
+                    val missionPrompt = missionObj.optString("userPrompt", "")
+                    val missionFiles = mutableListOf<String>()
+                    missionObj.optJSONArray("modifiedFiles")?.let { arr ->
+                        for (i in 0 until arr.length()) {
+                            arr.optString(i).takeIf { it.isNotBlank() }?.let { missionFiles += it }
+                        }
+                    }
+                    val belongsToProject =
+                        (missionPrompt.isNotBlank() && missionPrompt == vibe.prompt) ||
+                            missionFiles.any { it in vibe.modifiedFiles || it in vibe.appliedPaths }
+                    if (belongsToProject) {
+                        root.put("mission", redactMission(missionObj))
+                    } else {
+                        root.put("missionNote", "المهمة النشطة حالياً تخص مشروعاً آخر فلم تُضمَّن في هذا التصدير.")
+                    }
+                }
             }
             val messagesArr = JSONArray()
             vibe.sessionId?.let { sessionId ->
-                runCatching { AgentChatSessionManager.loadSessionMessages(context, sessionId) }
+                val allMessages = runCatching { AgentChatSessionManager.loadSessionMessages(context, sessionId) }
                     .getOrDefault(emptyList())
-                    .take(50)
+                // ق110: اقتطاع صامت — فوق 50 رسالة كانت الأقدم تسقط بلا
+                // أي إشارة فيُقرأ التصدير كاملاً وهو ناقص.
+                if (allMessages.size > 50) {
+                    root.put("sessionMessagesNote", "عُرضت أحدث 50 رسالة من ${allMessages.size} — الأقدم لم تُضمَّن.")
+                }
+                allMessages
+                    // الرسائل زمنية (الأقدم أولاً) فـ take(50) القديمة كانت
+                    // تأخذ الأقدم وتسقط الأحدث — الأهم في السياق.
+                    .takeLast(50)
                     .forEach { msg ->
                         messagesArr.put(
                             JSONObject().apply {
@@ -273,7 +343,13 @@ object VibeCodingProjects {
             val parts = vibe.repoFullName?.split("/")?.filter { it.isNotBlank() }
             if (repo != null && parts != null && parts.size == 2 && repo.fullName == vibe.repoFullName) {
                 val client = GitHubRepoClient(repo.owner, repo.repo, repo.token)
-                val paths = (vibe.modifiedFiles + vibe.appliedPaths).distinct().take(8)
+                val allPaths = (vibe.modifiedFiles + vibe.appliedPaths).distinct()
+                // ق110: اقتطاع صامت — فوق 8 ملفات كانت الباقية تسقط بلا
+                // أي إشارة فيُقرأ التصدير كاملاً وهو ناقص.
+                if (allPaths.size > 8) {
+                    root.put("filesNote", "عُرضت أول 8 ملفات من ${allPaths.size} — باقي الملفات لم تُضمَّن.")
+                }
+                val paths = allPaths.take(8)
                 for (path in paths) {
                     val obj = JSONObject().apply { put("path", path) }
                     val content = runCatching {
@@ -307,6 +383,32 @@ object VibeCodingProjects {
             root.toString()
         }
 
+    /**
+     * ق110: المهمة نصوص حرة (الموجه، التقرير النهائي، عناوين الخطوات
+     * ومقتطفات مخرجاتها، نصوص الفروقات) — كانت تُدرج خاماً في التصدير
+     * رغم أن الرسائل والملفات تُنقَّح؛ تُنسخ وتُنقَّح هنا قبل الإدراج.
+     */
+    private fun redactMission(missionObj: JSONObject): JSONObject {
+        val out = JSONObject(missionObj.toString())
+        out.optString("userPrompt").takeIf { it.isNotBlank() }?.let { out.put("userPrompt", redactSecrets(it)) }
+        out.optString("finalReport").takeIf { it.isNotBlank() }?.let { out.put("finalReport", redactSecrets(it)) }
+        out.optJSONArray("steps")?.let { steps ->
+            for (i in 0 until steps.length()) {
+                val step = steps.optJSONObject(i) ?: continue
+                step.optString("title").takeIf { it.isNotBlank() }?.let { step.put("title", redactSecrets(it)) }
+                step.optString("description").takeIf { it.isNotBlank() }?.let { step.put("description", redactSecrets(it)) }
+                step.optString("outputSnippet").takeIf { it.isNotBlank() }?.let { step.put("outputSnippet", redactSecrets(it)) }
+            }
+        }
+        out.optJSONArray("proposedDiffs")?.let { diffs ->
+            for (i in 0 until diffs.length()) {
+                val diff = diffs.optJSONObject(i) ?: continue
+                diff.optString("diffText").takeIf { it.isNotBlank() }?.let { diff.put("diffText", redactSecrets(it)) }
+            }
+        }
+        return out
+    }
+
     /** يخفي صيغ مفاتيح API الشائعة من نص قبل تصديره. */
     fun redactSecrets(text: String): String {
         var out = text
@@ -318,7 +420,15 @@ object VibeCodingProjects {
             Regex("AIza[A-Za-z0-9_\\-]{10,}"),
             Regex("ghp_[A-Za-z0-9_\\-]{8,}"),
             Regex("github_pat_[A-Za-z0-9_]{8,}"),
-            Regex("sk-[A-Za-z0-9_\\-]{8,}")
+            Regex("sk-[A-Za-z0-9_\\-]{8,}"),
+            // مفتاح خدمة Supabase (service_role) بصيغة sbp_ — كان يُصدَّر
+            // واضحاً إن لُصق في محادثة أو كود.
+            Regex("sbp_[A-Za-z0-9]{20,}"),
+            // رمز JWT (مفتاح Supabase المجهول/الخدمة بصيغة eyJ...) — كان
+            // يُصدَّر واضحاً إن لُصق في محادثة أو كود.
+            Regex("eyJ[A-Za-z0-9_\\-]+\\.eyJ[A-Za-z0-9_\\-]+\\.[A-Za-z0-9_\\-]+"),
+            // مفتاح خاص PEM: يُخفى الترويسة والجسم كاملاً لا السطر الأول فقط.
+            Regex("-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----")
         )
         for (pattern in patterns) {
             out = pattern.replace(out, "[مفتاح مخفي]")
@@ -333,8 +443,18 @@ object VibeCodingProjects {
             putExtra(android.content.Intent.EXTRA_SUBJECT, "مشروع فايب كودينج: $title")
             putExtra(android.content.Intent.EXTRA_TEXT, json)
         }
-        context.startActivity(
-            android.content.Intent.createChooser(intent, "مشاركة مشروع فايب كودينج")
-        )
+        // بلا حماية كان فشل المشاركة (لا تطبيق يستقبل، أو حزمة تتجاوز
+        // حد Binder ~1MB) يسقط التطبيق؛ الآن رسالة صادقة بدل الانهيار.
+        runCatching {
+            context.startActivity(
+                android.content.Intent.createChooser(intent, "مشاركة مشروع فايب كودينج")
+            )
+        }.onFailure {
+            android.widget.Toast.makeText(
+                context,
+                "تعذرت المشاركة — جرّب تطبيق مشاركة آخر، أو صدّر مشروعاً أصغر.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 }

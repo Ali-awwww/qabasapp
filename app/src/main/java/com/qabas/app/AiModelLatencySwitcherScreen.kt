@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * ⚡ شاشة توجيه وتبديل نماذج الذكاء الاصطناعي الذكية حسب سرعة الاستجابة الحية (Latency Benchmark & Model Router)
  *
  * تسمح للمطور بـ:
- * 1. قياس سرعة استجابة (Latency) الخوادم الفعلية في اللحظة الحالية لـ Gemini و Groq و OpenAI.
+ * 1. قياس سرعة استجابة (Latency) الخوادم الفعلية في اللحظة الحالية لـ Gemini و Groq.
  * 2. التبديل التلقائي للمحرك الأسرع لحظياً أو تثبيت محرك يدوي بضغطة زر.
  * 3. تشغيل سباق ومقارنة حية (Head-to-Head Race) بين النماذج لنفس الفكرة ورؤية فارق الميلي ثانية.
  */
@@ -202,7 +202,7 @@ fun AiModelLatencySwitcherScreen(
                 }
             }
 
-            // 4. بطاقات النماذج الأربعة (Groq, Gemini, OpenAI, Pollinations)
+            // 3. بطاقات النماذج الثلاثة (Groq, Gemini, Pollinations)
             val modelsList = listOf(
                 ModelUiConfig(
                     id = "Groq",
@@ -215,23 +215,15 @@ fun AiModelLatencySwitcherScreen(
                 ModelUiConfig(
                     id = "Gemini",
                     title = "Google Gemini",
-                    spec = "Gemini 2.5 Flash / 2.0 Flash",
+                    spec = "Gemini 2.5 Flash", // ق93: كان «2.5 / 2.0» والفحص يقيس 2.0 وحده — صار النموذج الافتراضي وحده
                     icon = Icons.Default.AutoAwesome,
                     accentColor = theme.primary,
                     description = "سياق فائق الضخامة، فهم لغوي عالي الدقة وتنسيق المشاهد السينمائية المعقدة."
                 ),
                 ModelUiConfig(
-                    id = "OpenAI",
-                    title = "OpenAI Platform",
-                    spec = "GPT-4o Mini",
-                    icon = Icons.Default.Psychology,
-                    accentColor = theme.accent,
-                    description = "محرك متزن جداً في التفكير الإبداعي والمنطقي والدعم اللغوي العام."
-                ),
-                ModelUiConfig(
                     id = "Pollinations",
                     title = "Pollinations AI (Free)",
-                    spec = "Mistral Large / Free Engine",
+                    spec = "Free Engine (Default Model)", // ق93: كان «Mistral Large» — والخدمة لا تطلب نموذجاً محدداً أصلاً
                     icon = Icons.Default.Public,
                     accentColor = theme.warning,
                     description = "يعمل تلقائياً بدون أي مفتاح API أو اشتراك كشبكة أمان مجانية."
@@ -378,7 +370,6 @@ private fun ActiveEngineHeroCard(
                             text = when (activeEngine) {
                                 "Groq" -> "محرك LPU فائق السرعة • Llama 3.3 70B"
                                 "Gemini" -> "محرك Google متعدد الوسائط • Gemini 2.5 Flash"
-                                "OpenAI" -> "محرك GPT-4o Mini المتزن"
                                 else -> "المحرك المجاني بلا مفتاح"
                             },
                             color = theme.textPrimary,
@@ -399,7 +390,6 @@ private fun ActiveEngineHeroCard(
                             imageVector = when (activeEngine) {
                                 "Groq" -> Icons.Default.Bolt
                                 "Gemini" -> Icons.Default.AutoAwesome
-                                "OpenAI" -> Icons.Default.Psychology
                                 else -> Icons.Default.Public
                             },
                             contentDescription = null,
@@ -632,7 +622,10 @@ private fun ModelBenchmarkCard(
             ) {
                 OutlinedButton(
                     onClick = onSelectManual,
-                    enabled = !isActive && (result == null || result.isSuccess),
+                    // ق93: التعيين اليدوي لا يشترط نجاح الفحص — كان فشل
+                    // الفحص (عابر غالباً) يقفل الزر نهائياً حتى فحص ناجح
+                    // جديد، ولا طريق آخر للتعيين اليدوي أصلاً.
+                    enabled = !isActive,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = if (isActive) theme.textTertiary else config.accentColor
@@ -756,11 +749,13 @@ private fun HeadToHeadRaceSection(
                 HorizontalDivider(color = theme.secondarySurface, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // إعلان الفائز
+                // إعلان الفائز (ق93: بلا فائز لا لافتة نجاح خضراء — كان
+                // «لا يوجد فائز» يُعرض بشارة نجاح خضراء مع زمن ‎-1ms)
+                val noWinner = comparisonResult.winner == "لا يوجد فائز"
                 Surface(
-                    color = theme.success.copy(alpha = 0.15f),
+                    color = if (noWinner) theme.warning.copy(alpha = 0.15f) else theme.success.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, theme.success.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, if (noWinner) theme.warning.copy(alpha = 0.5f) else theme.success.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -771,7 +766,7 @@ private fun HeadToHeadRaceSection(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("🏆 الفائز بالسرعة:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(comparisonResult.winner, color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(comparisonResult.winner, color = if (noWinner) theme.warning else theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         if (comparisonResult.timeSavedMs > 0) {
                             Text(
@@ -805,7 +800,8 @@ private fun HeadToHeadRaceSection(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Groq LPU", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("${comparisonResult.groqLatencyMs}ms", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                // ق93: الفاشل زمنه ‎-1 فلا يُعرض «‎-1ms» كزمن حقيقي
+                                Text(if (comparisonResult.groqLatencyMs < 0) "—" else "${comparisonResult.groqLatencyMs}ms", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -832,7 +828,8 @@ private fun HeadToHeadRaceSection(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Gemini", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("${comparisonResult.geminiLatencyMs}ms", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                // ق93: الفاشل زمنه ‎-1 فلا يُعرض «‎-1ms» كزمن حقيقي
+                                Text(if (comparisonResult.geminiLatencyMs < 0) "—" else "${comparisonResult.geminiLatencyMs}ms", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(

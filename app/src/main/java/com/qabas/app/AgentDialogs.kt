@@ -68,7 +68,6 @@ fun ApiKeySetupDialog(
     var smartSave by remember { mutableStateOf<UniversalKeyBrain.SmartSaveResult?>(null) }
     val currentEngine = remember { UniversalKeyBrain.getActiveEngine() }
     val autoDetected = remember(rawKey) { UniversalKeyBrain.detect(rawKey) }
-    // تجاوز يدوي: مفاتيح OpenCode Zen بصيغة sk- تُكتشف كـ OpenAI — اختر المزود يدوياً عند الحاجة
     var forcedProvider by remember { mutableStateOf<DetectedProvider?>(null) }
     val detectedProvider = forcedProvider ?: autoDetected
 
@@ -191,23 +190,6 @@ fun ApiKeySetupDialog(
                                 color = detectedProvider.color,
                                 fontWeight = FontWeight.Bold
                             )
-                            // مفتاح Zen بصيغة sk-؟ أجبر المزود على OpenCode
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("تصحيح المزود:", fontSize = 10.sp, color = QabasTheme.current.textSecondary)
-                                FilterChip(
-                                    selected = forcedProvider == null,
-                                    onClick = { forcedProvider = null; smartSave = null },
-                                    label = { Text("تلقائي", fontSize = 10.sp) }
-                                )
-                                FilterChip(
-                                    selected = forcedProvider == DetectedProvider.OPENCODE,
-                                    onClick = { forcedProvider = DetectedProvider.OPENCODE; smartSave = null },
-                                    label = { Text("OpenCode Zen", fontSize = 10.sp) }
-                                )
-                            }
                             val existingPool = remember(rawKey, detectedProvider) {
                                 val pk = UniversalKeyBrain.prefsKeyFor(detectedProvider)
                                 if (pk.isNotBlank()) KeyPoolManager.getKeys(pk).size else 0
@@ -1470,13 +1452,13 @@ fun AgentRequirementDialog(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     RequirementInputSection(
                         title = "1. مفتاح الذكاء الاصطناعي 🧠",
-                        description = "سيتم التعرّف على المزود تلقائياً (Gemini, Groq, OpenAI...)",
+                        description = "سيتم التعرّف على المزود تلقائياً (Gemini, Groq, OpenRouter...)",
                         value = apiKey,
                         onValueChange = { 
                             apiKey = it
                             errorMessage = null
                         },
-                        placeholder = "AIza... أو Aq... (Gemini), gsk_... (Groq), sk-... (OpenAI)"
+                        placeholder = "AIza... أو Aq... (Gemini), gsk_... (Groq), sk-or-... (OpenRouter)"
                     )
                     
                     if (apiKey.isNotBlank()) {
@@ -1513,54 +1495,18 @@ fun AgentRequirementDialog(
                 
                 Spacer(modifier = Modifier.height(20.dp))
                 
-                // Section 2: GitHub Integration
+                // Section 2: GitHub Integration (PAT only — OAuth flow deleted)
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "2. مستودع GitHub 🐙",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = QabasTheme.current.textPrimary,
-                            fontFamily = CairoFont
-                        )
-                        
-                        val oauthToken = remember { GitHubAuthManager.getAccessToken(context) }
-                        if (oauthToken.isNullOrBlank()) {
-                            TextButton(
-                                onClick = { 
-                                    GitHubAuthManager.launchAuth(context)
-                                    onDismiss() 
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Login, contentDescription = null, modifier = Modifier.size(14.dp), tint = QabasTheme.current.primary)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("ربط الحساب تلقائياً", fontSize = 10.sp, color = QabasTheme.current.primary, fontFamily = CairoFont)
-                            }
-                        } else {
-                            Surface(
-                                color = QabasTheme.current.success.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(Icons.Default.Link, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(12.dp))
-                                    Text("تم الربط 🐙", color = QabasTheme.current.success, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                }
-                            }
-                        }
-                    }
-                    
                     Text(
-                        text = "رابط المستودع (مثال: owner/repo) أو اختر من حسابك بعد الربط",
+                        text = "2. مستودع GitHub 🐙",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = QabasTheme.current.textPrimary,
+                        fontFamily = CairoFont
+                    )
+
+                    Text(
+                        text = "رابط المستودع (مثال: owner/repo) — أدخل رمز PAT أدناه لجلب قائمة مستودعاتك",
                         fontSize = 10.sp,
                         color = QabasTheme.current.textSecondary,
                         fontFamily = CairoFont,
@@ -1580,8 +1526,7 @@ fun AgentRequirementDialog(
                             unfocusedBorderColor = QabasTheme.current.separator
                         ),
                         trailingIcon = {
-                            val oauthTokenStored = remember { GitHubAuthManager.getAccessToken(context) }
-                            if (!oauthTokenStored.isNullOrBlank() || githubToken.isNotBlank()) {
+                            if (githubToken.isNotBlank()) {
                                 IconButton(
                                     onClick = { 
                                         showRepoSelector = true 
@@ -1597,26 +1542,6 @@ fun AgentRequirementDialog(
                             }
                         }
                     )
-                }
-                
-                if (repoUrl.isBlank()) {
-                    val oauthManager = GitHubAuthManager
-                    val isOauthConfigured = remember { oauthManager.isConfigured() }
-                    
-                    if (isOauthConfigured) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = { showRepoSelector = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Default.CloudSync, null, modifier = Modifier.size(18.dp))
-                                Text("جلب مستودعاتي تلقائياً 🐙", fontFamily = CairoFont, fontSize = 12.sp)
-                            }
-                        }
-                    }
                 }
                 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -1727,8 +1652,8 @@ fun AgentRequirementDialog(
                                         return@launch
                                     }
                                     
-                                    // 2. فحص GitHub
-                                    val effectiveToken = if (githubToken.isNotBlank()) githubToken.trim() else GitHubAuthManager.getAccessToken(context).orEmpty()
+                                    // 2. فحص GitHub (PAT فقط)
+                                    val effectiveToken = githubToken.trim()
                                     val githubHealth = AgentConnectivityEngine.pingGitHubLive(effectiveToken, repoUrl.trim())
                                     if (!githubHealth.isConnected && effectiveToken.isNotBlank()) {
                                         isVerifying = false
@@ -1780,13 +1705,12 @@ fun AgentRequirementDialog(
     }
 
     if (showRepoSelector) {
-        val oauthToken = GitHubAuthManager.getAccessToken(context)
-        val effectiveToken = if (githubToken.isNotBlank()) githubToken else oauthToken.orEmpty()
-        
+        // PAT فقط: لا يوجد مسار OAuth بعد الآن. لا يمكن فتح المنتقي بلا PAT،
+        // لكن زر الجلب لا يظهر أصلاً إلا عند وجود PAT، فهذا حارس احتياطي فقط.
+        val effectiveToken = githubToken
+
         if (effectiveToken.isBlank()) {
-            // إذا لم يكن هناك توكن، نطلب تسجيل الدخول أولاً
             LaunchedEffect(Unit) {
-                GitHubAuthManager.startAuth(context)
                 showRepoSelector = false
             }
         } else {

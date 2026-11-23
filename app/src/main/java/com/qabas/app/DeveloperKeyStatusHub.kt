@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -40,7 +41,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class SecretKeySpec(
     val envName: String,
@@ -68,6 +68,177 @@ fun isKeyConfigured(value: String): Boolean {
             t != "\"\""
 }
 
+/**
+ * قائمة جميع المفاتيح الـ 10 المعتمدة في بنية التطبيق — مستوى أعلى
+ * (لا داخل المركّب) حتى تستطيع تنبيهات المطور فحص المفاتيح المهيأة
+ * حياً (ق24): كان الفحص الحي محبوساً داخل DeveloperKeyStatusHub
+ * فلم يصل مدخل تنبيه «فشل مفتاح API» أبداً.
+ */
+val secretKeySpecs: List<SecretKeySpec> = listOf(
+    SecretKeySpec(
+        envName = "GEMINI_API_KEY",
+        displayName = "Google Gemini 2.5 / Pro",
+        provider = "Google AI Studio",
+        category = "AI",
+        icon = Icons.Default.AutoAwesome,
+        howItWorks = "توليد السيناريوهات الدعوية وصياغة خطافات الريلز، والتحليل البصري والتخطيط الإخراجي للمشاهد.",
+        whyNeeded = "المحرك الأساسي لكتابة النصوص الإسلامية وفصل المقاطع إلى مشاهد مرئية تفاعلية بذكاء فائق.",
+        serviceType = "gemini",
+        preferenceKey = "gemini_key",
+        docUrl = "https://aistudio.google.com/app/apikey",
+        keyFormatHint = "يبدأ بـ AIzaSy..."
+    ),
+    SecretKeySpec(
+        envName = "GROQ_API_KEY",
+        displayName = "Groq LPU Ultra-Fast",
+        provider = "Groq Cloud",
+        category = "AI",
+        icon = Icons.Default.Bolt,
+        howItWorks = "محرك استدلال فائق السرعة يتخذ قرارات المونتاج اللحظية واقتطاع المشاهد وتوليد العناوين.",
+        whyNeeded = "يمنح التطبيق سرعة استجابة خاطفة بدون أي انتظار أثناء تحرير ومراجعة الفيديو.",
+        serviceType = "groq",
+        preferenceKey = "groq_key",
+        docUrl = "https://console.groq.com/keys",
+        keyFormatHint = "يبدأ بـ gsk_..."
+    ),
+    SecretKeySpec(
+        envName = "OPENROUTER_API_KEY",
+        displayName = "OpenRouter Multi-LLM",
+        provider = "OpenRouter",
+        category = "AI",
+        icon = Icons.Default.AltRoute,
+        howItWorks = "بوابة موحدة تتيح الوصول إلى نماذج متعددة بمفتاح واحد، بديل جاهز عند انقطاع مزود آخر.",
+        whyNeeded = "يوفر بديلاً جاهزاً عند انقطاع مزود آخر.",
+        serviceType = "openrouter",
+        preferenceKey = "openrouter_key",
+        docUrl = "https://openrouter.ai/keys",
+        keyFormatHint = "يبدأ بـ sk-or-v1-..."
+    ),
+    SecretKeySpec(
+        envName = "PIXABAY_API_KEY",
+        displayName = "Pixabay Cinematic Assets",
+        provider = "Pixabay API",
+        category = "MEDIA",
+        icon = Icons.Default.Collections,
+        howItWorks = "استدعاء لقطات بديلة وخلفيات إسلامية وأنسجة مرئية هادئة مكملة لمشاهد المونتاج.",
+        whyNeeded = "مكتبة وسائط ضخمة تثري تنوع المشاهد البصرية في الفيديوهات الطويلة والقصيرة.",
+        serviceType = "pixabay",
+        preferenceKey = "pixabay_key",
+        docUrl = "https://pixabay.com/api/docs/",
+        keyFormatHint = "أرقام ومفاتيح من لوحة Pixabay"
+    ),
+    SecretKeySpec(
+        envName = "LEONARDO_API_KEY",
+        displayName = "Leonardo.ai",
+        provider = "Leonardo.ai",
+        category = "MEDIA",
+        icon = Icons.Default.Image,
+        howItWorks = "توليد صور سينمائية ومشاهد فنية للريلز.",
+        whyNeeded = "صور مولّدة بجودة عالية لمشاهد الفيديو.",
+        serviceType = "leonardo",
+        preferenceKey = "leonardo_api_key",
+        docUrl = "https://app.leonardo.ai/api-access",
+        keyFormatHint = "مفتاح Leonardo API"
+    ),
+    SecretKeySpec(
+        envName = "QF_CLIENT_ID",
+        displayName = "Quran Foundation Client ID",
+        provider = "Quran.com / QF",
+        category = "QURAN",
+        icon = Icons.Default.MenuBook,
+        howItWorks = "الربط الرسمي مع واجهات Quran Foundation لتلاوة العفاسي مع توقيت الكلمات آية بآية.",
+        whyNeeded = "يتيح تمييز الكلمة الجارية أثناء تلاوة العفاسي — وبلا الزوج تعمل التلاوة من EveryAyah بلا توقيت كلمات.",
+        serviceType = "qf",
+        preferenceKey = "qf_client_id",
+        docUrl = "https://quran.com",
+        keyFormatHint = "معرف العميل (Client ID)"
+    ),
+    SecretKeySpec(
+        envName = "QF_CLIENT_SECRET",
+        displayName = "Quran Foundation Secret",
+        provider = "Quran.com / QF",
+        category = "QURAN",
+        icon = Icons.Default.VpnKey,
+        howItWorks = "التوثيق والتشفير الأمني لجلسات استرجاع توقيتات الكلمات والتلاوات الصوتية آية بآية.",
+        whyNeeded = "يتيح مطابقة تلاوة القارئ مع النص القرآني المتزامن كلمة بكلمة في استوديو التجويد.",
+        serviceType = "qf",
+        preferenceKey = "qf_client_secret",
+        docUrl = "https://quran.com",
+        keyFormatHint = "المفتاح السري (Client Secret)"
+    ),
+    SecretKeySpec(
+        envName = "SUPABASE_URL",
+        displayName = "Supabase Cloud Endpoint",
+        provider = "Supabase PostgreSQL",
+        category = "BACKEND",
+        icon = Icons.Default.CloudQueue,
+        howItWorks = "نقطة الاتصال المركزية بقاعدة البيانات ومجلدات التخزين Storage لمزامنة التسجيلات والمشاريع.",
+        whyNeeded = "العمود الفقري للسحابة الذي يربط تطبيقك بالسيرفر الحي ويستقبل التسجيلات ومشاريع المستخدمين.",
+        serviceType = "supabase",
+        preferenceKey = "supabase_url",
+        docUrl = "https://supabase.com",
+        keyFormatHint = "https://your-id.supabase.co"
+    ),
+    SecretKeySpec(
+        envName = "SUPABASE_ANON_KEY",
+        displayName = "Supabase Anon Public Key",
+        provider = "Supabase Auth & RLS",
+        category = "BACKEND",
+        icon = Icons.Default.Security,
+        howItWorks = "مفتاح المصادقة العام المشفر الذي يسمح للتطبيق بقراءة وجلب الصوتيات والتسجيلات السحابية بأمان تام.",
+        whyNeeded = "يتيح للمستخدمين الاستماع الفوري والتنزيل المباشر للتسجيلات التي يرفعها المطور.",
+        serviceType = "supabase",
+        preferenceKey = "supabase_anon_key",
+        docUrl = "https://supabase.com",
+        keyFormatHint = "JWT يبدأ بـ eyJhbGci..."
+    ),
+    SecretKeySpec(
+        envName = "GOOGLE_WEB_CLIENT_ID",
+        displayName = "Google Web Client ID (OAuth / Supabase)",
+        provider = "Google Cloud Console",
+        category = "BACKEND",
+        icon = Icons.Default.AccountCircle,
+        howItWorks = "معرف العميل لتسجيل الدخول التلقائي بحساب Google وربطه مع Supabase Auth باستخدام Credential Manager.",
+        whyNeeded = "يتيح للمستخدمين تسجيل الدخول والمصادقة بزر Google الموحد بنقرة واحدة.",
+        serviceType = "google_auth",
+        preferenceKey = "google_web_client_id",
+        docUrl = "https://supabase.com/dashboard/project/egkgygbvoeevakwkbvfu/auth/providers",
+        keyFormatHint = "معرف OAuth Web Client ID"
+    )
+)
+
+/** جلب القيمة الحقيقية للمفتاح من SharedPreferences أولاً ثم من متغيرات البيئة (مستوى أعلى — ق24). */
+fun getSecretKeyActualValue(context: Context, spec: SecretKeySpec): String {
+    val sp = AgentPrefs.instance(context)
+    val fromSp = sp.getString(spec.preferenceKey, "")?.trim() ?: ""
+    if (fromSp.isNotBlank()) return fromSp
+
+    return when (spec.envName) {
+        // مفاتيح المزودين لا تُقرأ من BuildConfig أبداً (أمان الدفعة 1):
+        // المصدر الوحيد هو ما أدخله المستخدم في الواجهة (يُقرأ أعلاه من SharedPreferences).
+        "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "PIXABAY_API_KEY",
+        "LEONARDO_API_KEY" -> ""
+        "QF_CLIENT_ID" -> runCatching { BuildConfig.QF_CLIENT_ID }.getOrDefault("")
+        "QF_CLIENT_SECRET" -> runCatching { BuildConfig.QF_CLIENT_SECRET }.getOrDefault("")
+        "SUPABASE_URL" -> SupabaseConfig.url
+        "SUPABASE_ANON_KEY" -> SupabaseConfig.key
+        "GOOGLE_WEB_CLIENT_ID" -> GoogleAuthHelper.getWebClientId(context)
+        else -> ""
+    }.trim()
+}
+
+/** (r17) التلميح الذي يحتاجه فحص كل مفتاح: رابط Supabase لمفتاحه،
+ * ومعرف QF عند فحص سره (به يصير الفحص طلب توكن حقيقياً لا فحص
+ * وصول). (مستوى أعلى — ق24). */
+fun secretKeyHintFor(context: Context, spec: SecretKeySpec): String? = when (spec.envName) {
+    "SUPABASE_ANON_KEY" -> getSecretKeyActualValue(context, secretKeySpecs.first { it.envName == "SUPABASE_URL" })
+    // ق94: مرآة السابقة — فحص الرابط يحتاج مفتاح Anon معه (كان
+    // بلا تلميح فيُفحص الرابط بنفسه كمفتاح فيرد 401 دائماً).
+    "SUPABASE_URL" -> getSecretKeyActualValue(context, secretKeySpecs.first { it.envName == "SUPABASE_ANON_KEY" })
+    "QF_CLIENT_SECRET" -> getSecretKeyActualValue(context, secretKeySpecs.first { it.envName == "QF_CLIENT_ID" })
+    else -> null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperKeyStatusHub(
@@ -79,271 +250,12 @@ fun DeveloperKeyStatusHub(
     val clipboardManager = LocalClipboardManager.current
     val theme = QabasTheme.current
 
-    // قائمة جميع المفاتيح الـ 18 المعتمدة في بنية التطبيق
-    val secretSpecs = remember {
-        listOf(
-            SecretKeySpec(
-                envName = "GEMINI_API_KEY",
-                displayName = "Google Gemini 2.5 / Pro",
-                provider = "Google AI Studio",
-                category = "AI",
-                icon = Icons.Default.AutoAwesome,
-                howItWorks = "توليد السيناريوهات الدعوية وصياغة خطافات الريلز، والتحليل البصري والتخطيط الإخراجي للمشاهد.",
-                whyNeeded = "المحرك الأساسي لكتابة النصوص الإسلامية وفصل المقاطع إلى مشاهد مرئية تفاعلية بذكاء فائق.",
-                serviceType = "gemini",
-                preferenceKey = "gemini_key",
-                docUrl = "https://aistudio.google.com/app/apikey",
-                keyFormatHint = "يبدأ بـ AIzaSy..."
-            ),
-            SecretKeySpec(
-                envName = "OPENAI_API_KEY",
-                displayName = "OpenAI GPT",
-                provider = "OpenAI",
-                category = "AI",
-                icon = Icons.Default.Psychology,
-                howItWorks = "نماذج GPT للدردشة وكتابة النصوص.",
-                whyNeeded = "خيار إضافي لكتابة النصوص والدردشة عند تفضيل نماذج OpenAI.",
-                serviceType = "openai",
-                preferenceKey = "openai_key",
-                docUrl = "https://platform.openai.com/api-keys",
-                keyFormatHint = "يبدأ بـ sk-..."
-            ),
-            SecretKeySpec(
-                envName = "GROQ_API_KEY",
-                displayName = "Groq LPU Ultra-Fast",
-                provider = "Groq Cloud / xAI",
-                category = "AI",
-                icon = Icons.Default.Bolt,
-                howItWorks = "محرك استدلال فائق السرعة يتخذ قرارات المونتاج اللحظية واقتطاع المشاهد وتوليد العناوين.",
-                whyNeeded = "يمنح التطبيق سرعة استجابة خاطفة بدون أي انتظار أثناء تحرير ومراجعة الفيديو.",
-                serviceType = "groq",
-                preferenceKey = "groq_key",
-                docUrl = "https://console.groq.com/keys",
-                keyFormatHint = "يبدأ بـ gsk_..."
-            ),
-            SecretKeySpec(
-                envName = "OPENROUTER_API_KEY",
-                displayName = "OpenRouter Multi-LLM",
-                provider = "OpenRouter",
-                category = "AI",
-                icon = Icons.Default.AltRoute,
-                howItWorks = "بوابة احتياطية ذكية تضم Claude و DeepSeek R1 و Mistral للتبديل التلقائي في حال انقطاع أي مزود.",
-                whyNeeded = "يوفر بديلاً جاهزاً عند انقطاع مزود آخر.",
-                serviceType = "openrouter",
-                preferenceKey = "openrouter_key",
-                docUrl = "https://openrouter.ai/keys",
-                keyFormatHint = "يبدأ بـ sk-or-v1-..."
-            ),
-            // (r17) كان المركز يعرض 14 مفتاحاً فقط بينما «مفاتيحي»
-            // تتيح 4 مفاتيح أخرى (Anthropic وOpenCode وAzure وLeonardo)
-            // — فادعاء «جميع المفاتيح» كان كاذباً. أُضيفت هنا بفروع
-            // فحصها الحية الموجودة في ApiKeyValidator.
-            SecretKeySpec(
-                envName = "ANTHROPIC_API_KEY",
-                displayName = "Anthropic Claude",
-                provider = "Anthropic",
-                category = "AI",
-                icon = Icons.Default.SmartToy,
-                howItWorks = "نماذج Claude للدردشة وكتابة النصوص وتحليلها.",
-                whyNeeded = "خيار إضافي لنماذج Claude عند تفضيلها على غيرها.",
-                serviceType = "anthropic",
-                preferenceKey = "anthropic_key",
-                docUrl = "https://console.anthropic.com/settings/keys",
-                keyFormatHint = "يبدأ بـ sk-ant-..."
-            ),
-            SecretKeySpec(
-                envName = "OPENCODE_API_KEY",
-                displayName = "OpenCode Inference",
-                provider = "OpenCode",
-                category = "AI",
-                icon = Icons.Default.Terminal,
-                howItWorks = "بوابة استدلال لنماذج مفتوحة عبر OpenCode.",
-                whyNeeded = "خيار إضافي للاستدلال بنماذج مفتوحة المصدر.",
-                serviceType = "opencode",
-                preferenceKey = "opencode_key",
-                docUrl = "https://opencode.ai",
-                keyFormatHint = "مفتاح OpenCode API"
-            ),
-            SecretKeySpec(
-                envName = "ELEVENLABS_API_KEY",
-                displayName = "ElevenLabs Neural Voice",
-                provider = "ElevenLabs",
-                category = "AUDIO",
-                icon = Icons.Default.RecordVoiceOver,
-                howItWorks = "توليد التعليق الصوتي البشري عالي النقاء بنبرات إسلامية وقورة تحاكي كبار المعلقين والشيوخ.",
-                whyNeeded = "يمنح الفيديوهات صوتاً احترافياً واقعياً يرفع نسب المشاهدة والتأثير الدعوي.",
-                serviceType = "elevenlabs",
-                preferenceKey = "elevenlabs_key",
-                docUrl = "https://elevenlabs.io",
-                keyFormatHint = "مفتاح API مكون من 32 محرفاً"
-            ),
-            SecretKeySpec(
-                envName = "HUGGINGFACE_API_KEY",
-                displayName = "Hugging Face Hub",
-                provider = "Hugging Face",
-                category = "AI",
-                icon = Icons.Default.Hub,
-                howItWorks = "تشكيل وضبط النصوص العربية وتوليد التضمين الشعاعي للبحث التراثي ونماذج الأحاديث مفتوحة المصدر.",
-                whyNeeded = "معالجة اللغة الطبيعية والتدقيق الصرفي للنصوص التراثية.",
-                serviceType = "huggingface",
-                preferenceKey = "huggingface_key",
-                docUrl = "https://huggingface.co/settings/tokens",
-                keyFormatHint = "يبدأ بـ hf_..."
-            ),
-            SecretKeySpec(
-                envName = "AZURE_SPEECH_KEY",
-                displayName = "Azure Speech",
-                provider = "Microsoft Azure",
-                category = "AUDIO",
-                icon = Icons.Default.Mic,
-                howItWorks = "نطق صوتي فصيح بنبرات عربية واقعية لمقاطع الريلز.",
-                whyNeeded = "تعليق صوتي عربي فصيح بجودة احترافية.",
-                serviceType = "azure",
-                preferenceKey = "azure_speech_key",
-                docUrl = "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices",
-                keyFormatHint = "32 محرف hex + منطقة (Region)"
-            ),
-            SecretKeySpec(
-                envName = "PEXELS_API_KEY",
-                displayName = "Pexels 4K Video Library",
-                provider = "Pexels API",
-                category = "MEDIA",
-                icon = Icons.Default.VideoLibrary,
-                howItWorks = "جلب مقاطع فيديو سينمائية طبيعية ومعمارية بدقة 4K لاستخدامها كـ B-Roll خلفي في المونتاج.",
-                whyNeeded = "توفير محتوى مرئي حقيقي خالي تماماً من حقوق الملكية الفكرية.",
-                serviceType = "pexels",
-                preferenceKey = "pexels_key",
-                docUrl = "https://www.pexels.com/api/",
-                keyFormatHint = "مفتاح Pexels المكون من 56 محرفاً"
-            ),
-            SecretKeySpec(
-                envName = "PIXABAY_API_KEY",
-                displayName = "Pixabay Cinematic Assets",
-                provider = "Pixabay API",
-                category = "MEDIA",
-                icon = Icons.Default.Collections,
-                howItWorks = "استدعاء لقطات بديلة وخلفيات إسلامية وأنسجة مرئية هادئة مكملة لمشاهد المونتاج.",
-                whyNeeded = "مكتبة وسائط ضخمة تثري تنوع المشاهد البصرية في الفيديوهات الطويلة والقصيرة.",
-                serviceType = "pixabay",
-                preferenceKey = "pixabay_key",
-                docUrl = "https://pixabay.com/api/docs/",
-                keyFormatHint = "أرقام ومفاتيح من لوحة Pixabay"
-            ),
-            SecretKeySpec(
-                envName = "COVERR_API_KEY",
-                displayName = "Coverr HD B-Roll Video",
-                provider = "Coverr.co",
-                category = "MEDIA",
-                icon = Icons.Default.SlowMotionVideo,
-                howItWorks = "توفير مقاطع فيديو عالية الجودة مخصصة للمشاهد الخلفية واللقطات التمهيدية في الريلز.",
-                whyNeeded = "توسيع خيارات المشاهد السينمائية للمونتير وضمان وجود لقطة مناسبة لكل معنى إسلامي.",
-                serviceType = "coverr",
-                preferenceKey = "coverr_key",
-                docUrl = "https://coverr.co",
-                keyFormatHint = "مفتاح Coverr API"
-            ),
-            SecretKeySpec(
-                envName = "LEONARDO_API_KEY",
-                displayName = "Leonardo.ai",
-                provider = "Leonardo.ai",
-                category = "MEDIA",
-                icon = Icons.Default.Image,
-                howItWorks = "توليد صور سينمائية ومشاهد فنية للريلز.",
-                whyNeeded = "صور مولّدة بجودة عالية لمشاهد الفيديو.",
-                serviceType = "leonardo",
-                preferenceKey = "leonardo_api_key",
-                docUrl = "https://app.leonardo.ai/api-access",
-                keyFormatHint = "مفتاح Leonardo API"
-            ),
-            SecretKeySpec(
-                envName = "QF_CLIENT_ID",
-                displayName = "Quran Foundation Client ID",
-                provider = "Quran.com / QF",
-                category = "QURAN",
-                icon = Icons.Default.MenuBook,
-                howItWorks = "الربط الرسمي مع واجهات Quran Foundation لجلب نصوص الآيات بدقة المصحف العثماني وتفاسيرها المعتمدة.",
-                whyNeeded = "يتيح الوصول إلى نصوص الآيات والتفاسير المعتمدة رسمياً من Quran Foundation.",
-                serviceType = "qf",
-                preferenceKey = "qf_client_id",
-                docUrl = "https://quran.com",
-                keyFormatHint = "معرف العميل (Client ID)"
-            ),
-            SecretKeySpec(
-                envName = "QF_CLIENT_SECRET",
-                displayName = "Quran Foundation Secret",
-                provider = "Quran.com / QF",
-                category = "QURAN",
-                icon = Icons.Default.VpnKey,
-                howItWorks = "التوثيق والتشفير الأمني لجلسات استرجاع توقيتات الكلمات والتلاوات الصوتية آية بآية.",
-                whyNeeded = "يتيح مطابقة تلاوة القارئ مع النص القرآني المتزامن كلمة بكلمة في استوديو التجويد.",
-                serviceType = "qf",
-                preferenceKey = "qf_client_secret",
-                docUrl = "https://quran.com",
-                keyFormatHint = "المفتاح السري (Client Secret)"
-            ),
-            SecretKeySpec(
-                envName = "SUPABASE_URL",
-                displayName = "Supabase Cloud Endpoint",
-                provider = "Supabase PostgreSQL",
-                category = "BACKEND",
-                icon = Icons.Default.CloudQueue,
-                howItWorks = "نقطة الاتصال المركزية بقاعدة البيانات ومجلدات التخزين Storage لمزامنة التسجيلات والمشاريع.",
-                whyNeeded = "العمود الفقري للسحابة الذي يربط تطبيقك بالسيرفر الحي ويستقبل التسجيلات ومشاريع المستخدمين.",
-                serviceType = "supabase",
-                preferenceKey = "supabase_url",
-                docUrl = "https://supabase.com",
-                keyFormatHint = "https://your-id.supabase.co"
-            ),
-            SecretKeySpec(
-                envName = "SUPABASE_ANON_KEY",
-                displayName = "Supabase Anon Public Key",
-                provider = "Supabase Auth & RLS",
-                category = "BACKEND",
-                icon = Icons.Default.Security,
-                howItWorks = "مفتاح المصادقة العام المشفر الذي يسمح للتطبيق بقراءة وجلب الصوتيات والتسجيلات السحابية بأمان تام.",
-                whyNeeded = "يتيح للمستخدمين الاستماع الفوري والتنزيل المباشر للتسجيلات التي يرفعها المطور.",
-                serviceType = "supabase",
-                preferenceKey = "supabase_anon_key",
-                docUrl = "https://supabase.com",
-                keyFormatHint = "JWT يبدأ بـ eyJhbGci..."
-            ),
-            SecretKeySpec(
-                envName = "GOOGLE_WEB_CLIENT_ID",
-                displayName = "Google Web Client ID (OAuth / Supabase)",
-                provider = "Google Cloud Console",
-                category = "BACKEND",
-                icon = Icons.Default.AccountCircle,
-                howItWorks = "معرف العميل لتسجيل الدخول التلقائي بحساب Google وربطه مع Supabase Auth باستخدام Credential Manager.",
-                whyNeeded = "يتيح للمستخدمين تسجيل الدخول والمصادقة بزر Google الموحد بنقرة واحدة.",
-                serviceType = "google_auth",
-                preferenceKey = "google_web_client_id",
-                docUrl = "https://supabase.com/dashboard/project/egkgygbvoeevakwkbvfu/auth/providers",
-                keyFormatHint = "معرف OAuth Web Client ID"
-            )
-        )
-    }
+    // قائمة جميع المفاتيح الـ 10 المعتمدة في بنية التطبيق
+    // قائمة جميع المفاتيح الـ 10 المعتمدة في بنية التطبيق (مستوى أعلى — انظر secretKeySpecs)
+    val secretSpecs = remember { secretKeySpecs }
 
-    // جلب القيمة الحقيقية للمفتاح من SharedPreferences أولاً ثم من متغيرات البيئة
-    fun getKeyActualValue(spec: SecretKeySpec): String {
-        val sp = AgentPrefs.instance(context)
-        val fromSp = sp.getString(spec.preferenceKey, "")?.trim() ?: ""
-        if (fromSp.isNotBlank()) return fromSp
-
-        return when (spec.envName) {
-            // مفاتيح المزودين لا تُقرأ من BuildConfig أبداً (أمان الدفعة 1):
-            // المصدر الوحيد هو ما أدخله المستخدم في الواجهة (يُقرأ أعلاه من SharedPreferences).
-            "GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
-            "ELEVENLABS_API_KEY", "HUGGINGFACE_API_KEY", "PEXELS_API_KEY", "PIXABAY_API_KEY",
-            "COVERR_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_API_KEY", "AZURE_SPEECH_KEY",
-            "LEONARDO_API_KEY" -> ""
-            "QF_CLIENT_ID" -> runCatching { BuildConfig.QF_CLIENT_ID }.getOrDefault("")
-            "QF_CLIENT_SECRET" -> runCatching { BuildConfig.QF_CLIENT_SECRET }.getOrDefault("")
-            "SUPABASE_URL" -> SupabaseConfig.url
-            "SUPABASE_ANON_KEY" -> SupabaseConfig.key
-            "GOOGLE_WEB_CLIENT_ID" -> GoogleAuthHelper.getWebClientId(context)
-            else -> ""
-        }.trim()
-    }
+    // جلب القيمة الحقيقية للمفتاح — يفوَّض إلى getSecretKeyActualValue (مستوى أعلى، ق24)
+    fun getKeyActualValue(spec: SecretKeySpec): String = getSecretKeyActualValue(context, spec)
 
     // حالات الفحص والحوارات
     var validationStatuses by remember { mutableStateOf<Map<String, KeyValidationResult>>(emptyMap()) }
@@ -359,16 +271,9 @@ fun DeveloperKeyStatusHub(
 
     /** (r17) التلميح الذي يحتاجه فحص كل مفتاح: رابط Supabase لمفتاحه،
      * ومعرف QF عند فحص سره (به يصير الفحص طلب توكن حقيقياً لا فحص
-     * وصول)، والمنطقة المحفوظة عند فحص Azure. تُستخدم في الفحص
-     * الجماعي وفي حوار التعديل معاً — السابق كان يمرر التلميح في
-     * الفحص الجماعي فقط فكان فحص الحوار أضعف. */
-    fun hintFor(spec: SecretKeySpec): String? = when (spec.envName) {
-        "SUPABASE_ANON_KEY" -> getKeyActualValue(secretSpecs.first { it.envName == "SUPABASE_URL" })
-        "QF_CLIENT_SECRET" -> getKeyActualValue(secretSpecs.first { it.envName == "QF_CLIENT_ID" })
-        "AZURE_SPEECH_KEY" -> AgentPrefs.instance(context)
-            .getString("azure_speech_region", "")?.trim()?.ifBlank { null }
-        else -> null
-    }
+     * وصول). تُستخدم في الفحص الجماعي وفي حوار التعديل معاً — السابق
+     * كان يمرر التلميح في الفحص الجماعي فقط فكان فحص الحوار أضعف. */
+    fun hintFor(spec: SecretKeySpec): String? = secretKeyHintFor(context, spec)
 
     suspend fun testSingleKey(spec: SecretKeySpec): KeyValidationResult {
         val rawValue = getKeyActualValue(spec)
@@ -379,17 +284,22 @@ fun DeveloperKeyStatusHub(
         if (isCheckingAll) return
         isCheckingAll = true
         coroutineScope.launch {
-            val results = mutableMapOf<String, KeyValidationResult>()
-            secretSpecs.map { spec ->
-                async(Dispatchers.IO) {
-                    val res = testSingleKey(spec)
-                    spec.envName to res
-                }
-            }.awaitAll().forEach { (k, v) -> results[k] = v }
+            try {
+                val results = mutableMapOf<String, KeyValidationResult>()
+                secretSpecs.map { spec ->
+                    async(Dispatchers.IO) {
+                        val res = testSingleKey(spec)
+                        spec.envName to res
+                    }
+                }.awaitAll().forEach { (k, v) -> results[k] = v }
 
-            validationStatuses = results
-            isCheckingAll = false
-            Toast.makeText(context, "اكتمل الفحص الحي الصادق لجميع المفاتيح ⚡", Toast.LENGTH_SHORT).show()
+                validationStatuses = results
+                Toast.makeText(context, "اكتمل الفحص الحي الصادق لجميع المفاتيح ⚡", Toast.LENGTH_SHORT).show()
+            } finally {
+                // ق94: بلا finally كان أي رمي (حتى الإلغاء) يترك زر
+                // الفحص معلقاً على «جاري فحص...» بلا نتيجة.
+                isCheckingAll = false
+            }
         }
     }
 
@@ -401,12 +311,12 @@ fun DeveloperKeyStatusHub(
     val totalKeys = secretSpecs.size
     val connectedCount = validationStatuses.values.count { it.isValid }
 
-    // حساب متوسط زمن الاستجابة الحقيقي للمفاتيح التي تم فحصها فعلياً فقط
-    var displayAverageLatency by remember { mutableStateOf("—") }
-    LaunchedEffect(validationStatuses, reloadTrigger) {
-        val stats = withContext(Dispatchers.IO) { ApiUsageTracker.snapshot(context) }
-        val latencies = stats.values.map { it.lastLatencyMs }.filter { it > 0 }
-        displayAverageLatency = if (latencies.isNotEmpty()) "${latencies.average().toLong()}ms" else "—"
+    // ق94: متوسط زمن الفحوصات الجارية في هذه الجلسة فقط — كان
+    // يُحسب من لقطة ApiUsageTracker (قيم قديمة عابرة للجلسات ومن
+    // أي استدعاء لا من الفحص) فيعرض رقماً لا علاقة له بالفحص الجاري.
+    val displayAverageLatency = remember(validationStatuses) {
+        val latencies = validationStatuses.values.map { it.latencyMs }.filter { it > 0 }
+        if (latencies.isNotEmpty()) "${latencies.average().toLong()}ms" else "—"
     }
 
     val filteredSpecs = remember(selectedCategoryFilter, secretSpecs, reloadTrigger) {
@@ -516,8 +426,17 @@ fun DeveloperKeyStatusHub(
                             )
                             TelemetryMetricCard(
                                 title = "اتصال سليم وفعال",
-                                value = "$connectedCount / $totalKeys",
-                                color = if (connectedCount > 0) theme.success else theme.destructive,
+                                // ق94: قبل أي فحص كان «0 / 10» أحمر كأن كل
+                                // المفاتيح معطوبة؛ والمقام بعد فحص جزئي
+                                // يجب أن يكون المفحوص لا الكل.
+                                value = if (validationStatuses.isEmpty()) "لم يُفحص"
+                                else "$connectedCount / ${validationStatuses.size}",
+                                color = when {
+                                    validationStatuses.isEmpty() -> theme.textSecondary
+                                    connectedCount == validationStatuses.size -> theme.success
+                                    connectedCount > 0 -> theme.warning
+                                    else -> theme.destructive
+                                },
                                 icon = Icons.Default.CheckCircle,
                                 modifier = Modifier.weight(1f)
                             )
@@ -660,7 +579,9 @@ fun DeveloperKeyStatusHub(
                                 isTestingThis -> "يفحص..."
                                 validation?.isValid == true -> "متصل ✅"
                                 validation != null && !validation.isValid -> "خطأ 🔴"
-                                isConfigured -> "جاهز ⚡"
+                                // ق94: «جاهز» كان يدّعي الجاهزية لمفتاح
+                                // لم يُفحص بعد — الصادق «مدخل» فقط.
+                                isConfigured -> "مدخل ⏳"
                                 else -> "غير مهيأ ⚪"
                             }
                             val badgeColor = when {
@@ -864,13 +785,18 @@ fun DeveloperKeyStatusHub(
                                     onClick = {
                                         testingKeyEnv = spec.envName
                                         coroutineScope.launch {
-                                            val res = testSingleKey(spec)
-                                            validationStatuses = validationStatuses + (spec.envName to res)
-                                            testingKeyEnv = null
-                                            if (res.isValid) {
-                                                Toast.makeText(context, "${spec.displayName}: متصل وسليم بنجاح ✅", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, "${spec.displayName}: ${res.summary}", Toast.LENGTH_LONG).show()
+                                            try {
+                                                val res = testSingleKey(spec)
+                                                validationStatuses = validationStatuses + (spec.envName to res)
+                                                if (res.isValid) {
+                                                    Toast.makeText(context, "${spec.displayName}: متصل وسليم بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "${spec.displayName}: ${res.summary}", Toast.LENGTH_LONG).show()
+                                                }
+                                            } finally {
+                                                // ق94: بلا finally كان أي رمي يترك
+                                                // البطاقة على «يفحص...» والزر معطلاً.
+                                                testingKeyEnv = null
                                             }
                                         }
                                     },
@@ -936,6 +862,21 @@ fun DeveloperKeyStatusHub(
                             }
                         }
                     }
+                }
+            }
+
+            // ق94: قسم «الصوتيات» بلا أي مفتاح في القائمة — كان المرشح
+            // يعرض قائمة فارغة بلا أي تفسير.
+            if (filteredSpecs.isEmpty()) {
+                item {
+                    Text(
+                        text = "لا مفاتيح في هذا القسم بعد — الصوتيات (Kokoro وEdge TTS) تعمل بلا مفتاح API.",
+                        color = TextSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             }
         }
@@ -1166,7 +1107,9 @@ fun DeveloperKeyStatusHub(
                     onClick = {
                         val trimmed = inputVal.trim()
                         if (trimmed.isBlank()) {
-                            activeEditSpec = null
+                            // ق94: كان الإغلاق صامتاً فيظن المستخدم أنه
+                            // حفظ فراغاً — يُبقى الحوار مفتوحاً مع تنبيه.
+                            Toast.makeText(context, "يرجى كتابة أو لصق المفتاح أولاً", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         // (r17) الحفظ بعد فحص حي فقط: زر «حفظ» السابق كان
@@ -1207,7 +1150,7 @@ fun DeveloperKeyStatusHub(
         )
     }
 
-    // دليل المعمارية وتوظيف المفاتيح الـ 18
+    // دليل المعمارية وتوظيف المفاتيح الـ 10
     if (showArchitectureGuide) {
         AlertDialog(
             onDismissRequest = { showArchitectureGuide = false },
@@ -1215,7 +1158,7 @@ fun DeveloperKeyStatusHub(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AccountTree, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("خريطة التوظيف المعماري للمفاتيح الـ 18", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
+                    Text("خريطة التوظيف المعماري للمفاتيح الـ 10", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
                 }
             },
             text = {
@@ -1226,7 +1169,7 @@ fun DeveloperKeyStatusHub(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        "تتوزع المفاتيح الـ 18 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة:",
+                        "تتوزع المفاتيح الـ 10 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة:",
                         fontFamily = NotoSansFont,
                         color = TextSecondary,
                         fontSize = 11.sp
@@ -1234,19 +1177,19 @@ fun DeveloperKeyStatusHub(
 
                     ArchitectureLayerItem(
                         layerName = "1. طبقة العقول والذكاء الاصطناعي (AI Brains)",
-                        description = "تشمل Gemini, OpenAI, Groq, OpenRouter, HuggingFace, Anthropic, OpenCode لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات فائقة السرعة.",
+                        description = "تشمل Gemini, Groq, OpenRouter لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات فائقة السرعة.",
                         color = PresetPrimary
                     )
 
                     ArchitectureLayerItem(
                         layerName = "2. طبقة الصوتيات وتلاوة القرآن (Audio & Voice)",
-                        description = "تشمل ElevenLabs وAzure Speech للأصوات السينمائية، و Quran Foundation لنصوص وتلاوات القرآن المعتمدة رسمياً آية بآية.",
+                        description = "تشمل Kokoro وEdge TTS والأصوات المحلية، و Quran Foundation لنصوص وتلاوات القرآن المعتمدة رسمياً آية بآية.",
                         color = theme.success
                     )
 
                     ArchitectureLayerItem(
                         layerName = "3. طبقة الوسائط والفيديو الواقعي (Media B-Roll)",
-                        description = "تشمل Pexels, Pixabay, Coverr, Leonardo لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق وصور مولّدة.",
+                        description = "تشمل Pixabay وLeonardo لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق وصور مولّدة.",
                         color = theme.primary
                     )
 
@@ -1370,7 +1313,6 @@ fun DeveloperKeyStatusHub(
                         try {
                             val obj = org.json.JSONObject(trimmed)
                             val allowed = secretSpecs.associateBy { it.preferenceKey }
-                            val region = obj.optString("azure_speech_region", "").trim()
                             val targets = mutableListOf<Pair<SecretKeySpec, String>>()
                             val keys = obj.keys()
                             while (keys.hasNext()) {
@@ -1379,10 +1321,6 @@ fun DeveloperKeyStatusHub(
                                 if (v.isNotBlank()) {
                                     allowed[k]?.let { targets.add(it to v) }
                                 }
-                            }
-                            if (region.isNotBlank()) {
-                                AgentPrefs.instance(context).edit()
-                                    .putString("azure_speech_region", region).apply()
                             }
                             if (targets.isEmpty()) {
                                 Toast.makeText(context, "لم يتم العثور على مفاتيح معروفة في النص", Toast.LENGTH_LONG).show()
@@ -1442,7 +1380,7 @@ fun DeveloperKeyStatusHub(
             },
             text = {
                 Text(
-                    "هل أنت متأكد من مسح جميع المفاتيح الـ 18 المخزنة في النظام؟\nسيتم حذفها من الذاكرة المحلية وإعادة التعيين إلى الحالة الافتراضية.",
+                    "هل أنت متأكد من مسح جميع المفاتيح الـ 10 المخزنة في النظام؟\nسيتم حذفها من الذاكرة المحلية وإعادة التعيين إلى الحالة الافتراضية.",
                     fontFamily = NotoSansFont,
                     color = TextSecondary,
                     fontSize = 12.sp,

@@ -267,6 +267,14 @@ object CreatorFollowManager {
             .edit().putString(key, state).apply()
     }
 
+    // ق154: حالة المزامنة كانت تُكتب فقط («pending» ثم «synced»/«failed»)
+    // ولا يقرؤها أحد — فقراءة سحابية قديمة (أو تحديث الورقة نفسها
+    // بعد النقر) كانت تُبطل متابعة/إلغاءً محلياً لم يصل السحابة بعد.
+    private fun getCloudState(context: Context, userId: String, creatorId: String): String? {
+        val key = userScopedPreferenceKey(CLOUD_STATE_PREFIX + creatorId, userId) ?: return null
+        return context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE).getString(key, null)
+    }
+
     /** Applies the owner-scoped following rows returned by the profile snapshot without another request. */
     fun applyProfileSnapshot(
         context: Context,
@@ -473,7 +481,14 @@ object CreatorFollowManager {
 
         var localFollowing = isFollowing(context.applicationContext, creatorId)
         val remoteFollowing = if (isOwn) null else cloudIsFollowing(viewer.id, creatorId)
-        if (remoteFollowing != null && remoteFollowing != localFollowing) {
+        // ق154: السحابة مرجع عند التعارض بين الأجهزة — إلا إن كان
+        // آخر فعل محلي لم يُزامَن بعد («pending» أو «failed»)،
+        // فالقراءة السحابية حينها أقدم من نقرة المستخدم حتماً،
+        // وإبطالها بها يلغي المتابعة/الإلغاء بصمت (ومنه تحديث
+        // ورقة الملف نفسها بعد النقر مباشرة).
+        val hasUnsyncedLocalChange =
+            getCloudState(context.applicationContext, viewer.id, creatorId) in setOf("pending", "failed")
+        if (remoteFollowing != null && remoteFollowing != localFollowing && !hasUnsyncedLocalChange) {
             // السحابة هي المرجع عند التعارض بين الأجهزة، مع بقاء الاستجابة محلية أولاً.
             if (SupabaseServices.Auth.getCurrentUserId() == viewer.id) {
                 val appPrefs = context.applicationContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)

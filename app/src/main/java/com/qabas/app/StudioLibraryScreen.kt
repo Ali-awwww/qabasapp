@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +48,11 @@ import kotlinx.coroutines.launch
  * - التكلفة الفعلية في سجل التوليدات 0 حتى تُقاس من المزود؛ تُعرض
  *   «غير مقاسة بعد» عند الصفر.
  * - طابور المهام وسجل التوليدات يقرآن جدولي `studio_jobs` و`ai_generations`
- *   (الدفعة 4) ويفشلان بلطف إلى فارغ عند غياب الجدولين قبل تطبيق الترحيل.
+ *   (الدفعة 4)؛ وnull من القارئ تعني فشل التحميل فتُعرض رسالة خطأ لا
+ *   «لا مهام بعد» (ق41).
+ * - المهام الحية قيد التنفيذ (توليد متزامن داخل العملية) تظهر من
+ *   [StudioLiveJobs] بتقدمها الحقيقي فوق السجل السحابي — السجل السحابي
+ *   نفسه للمنتهيات فقط بالتصميم (بلا تحديث من العميل).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,9 +66,10 @@ fun StudioLibraryScreen(
     val scope = rememberCoroutineScope()
     var projects by remember { mutableStateOf<List<ProjectService.Project>>(emptyList()) }
     var vibeCount by remember { mutableStateOf(0) }
-    var jobs by remember { mutableStateOf<List<SupabaseServices.StudioJobRow>>(emptyList()) }
-    var generations by remember { mutableStateOf<List<SupabaseServices.AiGenerationRow>>(emptyList()) }
+    var jobs by remember { mutableStateOf<List<SupabaseServices.StudioJobRow>?>(null) }
+    var generations by remember { mutableStateOf<List<SupabaseServices.AiGenerationRow>?>(null) }
     var loading by remember { mutableStateOf(true) }
+    val liveJobs by StudioLiveJobs.jobs.collectAsState()
 
     fun reload() {
         scope.launch {
@@ -166,10 +172,29 @@ fun StudioLibraryScreen(
             }
 
             item { Text("طابور مهام الفيديو", style = MaterialTheme.typography.titleMedium) }
-            if (jobs.isEmpty() && !loading) {
+            // (ق41) المهام الحية أولاً: كانت المكتبة تعرض المنتهيات فقط
+            // فلا يرى المستخدم توليده الجاري (حتى ~6 دقائق) أبداً.
+            liveJobs.forEach { live ->
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(live.prompt.ifBlank { "مهمة فيديو" }, style = MaterialTheme.typography.titleSmall)
+                            Text("جارٍ التنفيذ الآن — ${live.statusText}", style = MaterialTheme.typography.bodySmall)
+                            LinearProgressIndicator(
+                                progress = { live.progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+            if (jobs == null && !loading) {
+                item { Text("تعذّر تحميل طابور المهام — تحقق من الاتصال ثم حدّث.", color = MaterialTheme.colorScheme.error) }
+            }
+            if (jobs != null && jobs!!.isEmpty() && !loading) {
                 item { Text("لا مهام فيديو مسجلة بعد — يظهر هنا طابور التوليد بعد تطبيق ترحيل studio_jobs.") }
             }
-            items(jobs, key = { it.id }) { job ->
+            items(jobs.orEmpty(), key = { it.id }) { job ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(job.prompt.ifBlank { "مهمة فيديو" }, style = MaterialTheme.typography.titleSmall)
@@ -192,10 +217,13 @@ fun StudioLibraryScreen(
             }
 
             item { Text("سجل التوليدات", style = MaterialTheme.typography.titleMedium) }
-            if (generations.isEmpty() && !loading) {
+            if (generations == null && !loading) {
+                item { Text("تعذّر تحميل سجل التوليدات — تحقق من الاتصال ثم حدّث.", color = MaterialTheme.colorScheme.error) }
+            }
+            if (generations != null && generations!!.isEmpty() && !loading) {
                 item { Text("لا توليدات مسجلة بعد.") }
             }
-            items(generations, key = { it.id }) { gen ->
+            items(generations.orEmpty(), key = { it.id }) { gen ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("${gen.type} — ${gen.provider}", style = MaterialTheme.typography.titleSmall)

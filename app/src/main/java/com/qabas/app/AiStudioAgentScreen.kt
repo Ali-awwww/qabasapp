@@ -137,7 +137,10 @@ fun AiStudioAgentScreen(
     var executionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var lastExecutedPrompt by remember { mutableStateOf("") }
     var showModelPicker by remember { mutableStateOf(false) }
-    var selectedModel by remember { mutableStateOf("") }
+    // ق93: مصدر الحقيقة الوحيد للنموذج هو AgentPrefs.model — كان
+    // remember("") فيُنسى الاختيار بمغادرة الشاشة، بينما منتقي
+    // الإعدادات يحفظ في AgentPrefs ولا يقرؤه أحد فكان زراً ميتاً.
+    var selectedModel by remember { mutableStateOf(AgentPrefs.model(context) ?: "") }
     var applyingDiffPath by remember { mutableStateOf<String?>(null) }
     var showRequirementDialog by remember { mutableStateOf(false) }
 
@@ -230,7 +233,9 @@ fun AiStudioAgentScreen(
     LaunchedEffect(keyResolution.first) {
         val models = keyResolution.first.models
         if (selectedModel.isBlank() || selectedModel !in models) {
-            models.firstOrNull()?.let { selectedModel = it }
+            // ق93: التصحيح لمزود آخر يُحفظ أيضاً — وإلا عاد منتقي
+            // الإعدادات يعرض نموذجاً لا يعمل مع المفتاح الحالي.
+            models.firstOrNull()?.let { selectedModel = it; AgentPrefs.putModel(context, it) }
         }
     }
 
@@ -346,6 +351,10 @@ fun AiStudioAgentScreen(
                     }
                 } else if (isTeamMode) {
                     val team = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
+                    // (ق37) السجل السابق للطلب الحالي (أُضيفت رسالة المستخدم للتو
+                    // فتُستثنى — وقبل رسالة «جاري تفعيل الفريق» الآتية) — كما في
+                    // المسار الفردي في الفرع المقابل أدناه.
+                    val teamHistory = chatMessages.dropLast(1).toList()
                     val teamStepsList = mutableListOf<TeamStepEvent>()
                     val agentMsg = AgentChatMessage(
                         sender = AgentChatSender.AGENT,
@@ -360,6 +369,7 @@ fun AiStudioAgentScreen(
                         context = context,
                         prompt = clean,
                         team = team,
+                        history = teamHistory,
                         onUpdate = { updateText ->
                             teamProgressText = updateText
                         },
@@ -408,7 +418,11 @@ fun AiStudioAgentScreen(
                             prompt = clean,
                             spec = selectedSpec,
                             repo = activeRepo,
-                            selectedModel = selectedModel.ifBlank { "gemini-3.8-flash" },
+                            // ق93: الملاذ نموذج المزود النشط لا Gemini ثابتاً —
+                            // كان مفتاح Groq بلا اختيار يرسل نموذج Gemini.
+                            selectedModel = selectedModel.ifBlank { keyResolution.first.defaultModel },
+                            // السجل السابق للطلب الحالي (أُضيفت رسالة المستخدم للتو فتُستثنى).
+                            history = chatMessages.dropLast(1).toList(),
                             onUpdate = { partialMission ->
                                 currentMission = partialMission
                             },
@@ -489,7 +503,10 @@ fun AiStudioAgentScreen(
                     prompt = planCard.prompt,
                     spec = selectedSpec,
                     repo = activeRepo,
-                    selectedModel = selectedModel.ifBlank { "gemini-3.8-flash" },
+                    // ق93: الملاذ نموذج المزود النشط لا Gemini ثابتاً (كما في مسار الإرسال).
+                    selectedModel = selectedModel.ifBlank { keyResolution.first.defaultModel },
+                    // السجل السابق لملاحظة الاعتماد (أُضيفت للتو فتُستثنى).
+                    history = chatMessages.dropLast(1).toList(),
                     onUpdate = { currentMission = it },
                     onFinished = { finalMissionResult = it; currentMission = it }
                 )
@@ -1145,11 +1162,11 @@ fun AiStudioAgentScreen(
                                             val job = coroutineScope.launch {
                                                 try {
                                                     if (isTeamMode) {
-                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
+                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, history = chatMessages.toList(), onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
                                                         currentMission = mission
                                                         missionHistory = listOf(mission) + missionHistory
                                                     } else {
-                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, { currentMission = it }, { finalMission ->
+                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, history = chatMessages.toList(), onUpdate = { currentMission = it }, onFinished = { finalMission ->
                                                             currentMission = finalMission
                                                             missionHistory = listOf(finalMission) + missionHistory
                                                         })
@@ -1192,11 +1209,11 @@ fun AiStudioAgentScreen(
                                             val job = coroutineScope.launch {
                                                 try {
                                                     if (isTeamMode) {
-                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
+                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, history = chatMessages.toList(), onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
                                                         currentMission = mission
                                                         missionHistory = listOf(mission) + missionHistory
                                                     } else {
-                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, { currentMission = it }, { finalMission ->
+                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, history = chatMessages.toList(), onUpdate = { currentMission = it }, onFinished = { finalMission ->
                                                             currentMission = finalMission
                                                             missionHistory = listOf(finalMission) + missionHistory
                                                         })
@@ -1976,7 +1993,9 @@ fun AiStudioAgentScreen(
                             }
                             
                             Surface(
-                                onClick = { selectedModel = m; showModelPicker = false },
+                                // ق93: اختيار المنتقي يُحفظ في AgentPrefs (مصدر
+                                // الحقيقة الوحيد) — كان يُنسى بمغادرة الشاشة.
+                                onClick = { selectedModel = m; AgentPrefs.putModel(context, m); showModelPicker = false },
                                 shape = RoundedCornerShape(12.dp),
                                 color = if (isSelected) QabasTheme.current.primary.copy(alpha = 0.12f) else QabasTheme.current.secondarySurface,
                                 border = BorderStroke(1.dp, if (isSelected) QabasTheme.current.primary.copy(alpha = 0.6f) else QabasTheme.current.separator),

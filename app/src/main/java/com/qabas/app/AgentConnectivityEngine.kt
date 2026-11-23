@@ -74,26 +74,6 @@ object AgentConnectivityEngine {
             return Triple(DetectedProvider.GROQ, groqPrefs, KeySource.KEY_VAULT)
         }
 
-        val openaiPrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENAI_KEY, ""))
-        if (openaiPrefs.isNotEmpty() && !openaiPrefs.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.OPENAI, openaiPrefs, KeySource.KEY_VAULT)
-        }
-
-        val anthropicPrefs = clean(AgentPrefs.getString(context, AgentPrefs.ANTHROPIC_KEY, ""))
-        if (anthropicPrefs.isNotEmpty() && !anthropicPrefs.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.ANTHROPIC, anthropicPrefs, KeySource.KEY_VAULT)
-        }
-
-        val huggingfacePrefs = clean(AgentPrefs.getString(context, AgentPrefs.HUGGINGFACE_KEY, ""))
-        if (huggingfacePrefs.isNotEmpty() && !huggingfacePrefs.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.HUGGINGFACE, huggingfacePrefs, KeySource.KEY_VAULT)
-        }
-
-        val opencodePrefs = clean(AgentPrefs.getString(context, AgentPrefs.OPENCODE_KEY, ""))
-        if (opencodePrefs.isNotEmpty() && !opencodePrefs.lowercase().startsWith("your_")) {
-            return Triple(DetectedProvider.OPENCODE, opencodePrefs, KeySource.KEY_VAULT)
-        }
-
         // لا يقبل إلا المفاتيح المدخلة من المستخدم — لا قراءة لمفاتيح المزودين
         // من BuildConfig أبداً (أمان الدفعة 1: مفاتيح .env لا تُولَّد في BuildConfig).
         return Triple(DetectedProvider.NONE, "", KeySource.NONE)
@@ -127,28 +107,8 @@ object AgentConnectivityEngine {
                 provider = provider,
                 apiKey = clean,
                 keySource = keySource,
-                url = if (clean.startsWith("xai-", ignoreCase = true))
-                    "https://api.x.ai/v1/models" else "https://api.groq.com/openai/v1/models"
+                url = "https://api.groq.com/openai/v1/models"
             )
-            DetectedProvider.OPENAI -> pingGenericBearerLive(
-                provider = provider,
-                apiKey = clean,
-                keySource = keySource,
-                url = "https://api.openai.com/v1/models"
-            )
-            DetectedProvider.OPENCODE -> pingGenericBearerLive(
-                provider = provider,
-                apiKey = clean,
-                keySource = keySource,
-                url = "https://opencode.ai/inference/v1/models"
-            )
-            DetectedProvider.HUGGINGFACE -> pingGenericBearerLive(
-                provider = provider,
-                apiKey = clean,
-                keySource = keySource,
-                url = "https://huggingface.co/api/whoami-v2"
-            )
-            DetectedProvider.ANTHROPIC -> pingAnthropicLive(clean, keySource)
             else -> LiveHealthStatus(
                 serviceName = provider.displayName,
                 isConnected = false,
@@ -240,7 +200,7 @@ object AgentConnectivityEngine {
     }
 
     /**
-     * فحص عام لمزودي Bearer (Groq/OpenAI): GET /models + عرض النموذج الافتراضي.
+     * فحص عام لمزودي Bearer (Groq): GET /models + عرض النموذج الافتراضي.
      */
     suspend fun pingGenericBearerLive(
         provider: DetectedProvider,
@@ -301,57 +261,6 @@ object AgentConnectivityEngine {
         }
     }
 
-    /**
-     * فحص حي لمفاتيح Anthropic (ترويسة x-api-key بدل Bearer).
-     */
-    suspend fun pingAnthropicLive(apiKey: String, keySource: KeySource): LiveHealthStatus = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-        try {
-            val request = Request.Builder()
-                .url("https://api.anthropic.com/v1/models")
-                .header("x-api-key", apiKey)
-                .header("anthropic-version", "2023-06-01")
-                .header("User-Agent", "Qabas-Studio")
-                .get()
-                .build()
-            val response = SharedHttpClient.instance.newCall(request).execute()
-            val latency = System.currentTimeMillis() - startTime
-            val code = response.code
-            response.close()
-            if (response.isSuccessful) {
-                LiveHealthStatus(
-                    serviceName = DetectedProvider.ANTHROPIC.displayName,
-                    isConnected = true,
-                    latencyMs = latency,
-                    statusDetail = "متصل بنجاح (${latency}ms) • استجابة حية",
-                    keySource = keySource,
-                    httpCode = code,
-                    modelName = DetectedProvider.ANTHROPIC.defaultModel
-                )
-            } else {
-                LiveHealthStatus(
-                    serviceName = DetectedProvider.ANTHROPIC.displayName,
-                    isConnected = false,
-                    latencyMs = latency,
-                    statusDetail = "رفض الخادم (HTTP $code)",
-                    keySource = keySource,
-                    httpCode = code,
-                    modelName = DetectedProvider.ANTHROPIC.defaultModel
-                )
-            }
-        } catch (e: Exception) {
-            val latency = System.currentTimeMillis() - startTime
-            LiveHealthStatus(
-                serviceName = DetectedProvider.ANTHROPIC.displayName,
-                isConnected = false,
-                latencyMs = latency,
-                statusDetail = "تعذر الاتصال بالشبكة: ${e.localizedMessage ?: e.message}",
-                keySource = keySource,
-                httpCode = -1,
-                modelName = DetectedProvider.ANTHROPIC.defaultModel
-            )
-        }
-    }
 
     /**
      * فحص حي حقيقي لسيرفرات Google Gemini دون أي تأخير مصطنع
@@ -535,7 +444,6 @@ object AgentConnectivityEngine {
     fun prefsKeyToProvider(prefsKey: String): DetectedProvider = when (prefsKey) {
         "gemini_key" -> DetectedProvider.GEMINI
         "groq_key" -> DetectedProvider.GROQ
-        "openai_key" -> DetectedProvider.OPENAI
         "openrouter_key" -> DetectedProvider.OPENROUTER
         else -> DetectedProvider.NONE
     }

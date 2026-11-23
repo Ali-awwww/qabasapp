@@ -122,6 +122,8 @@ fun StudioAgentScreen(
     onOpenKeys: () -> Unit = {},
     onOpenProject: (ProjectService.Project) -> Unit = {},
     initialBrief: String? = null,
+    /** (ق41) يُستدعى عند استهلاك initialBrief مرة واحدة، فيمسحها المالك. */
+    onBriefConsumed: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
     /**
      * يُخفى الشريط العلوي عند التضمين في تبويب «المحادثة» بقسم فايب
@@ -151,6 +153,9 @@ fun StudioAgentScreen(
     LaunchedEffect(initialBrief) {
         if (!initialBrief.isNullOrBlank() && input.isBlank() && messages.isEmpty()) {
             input = initialBrief
+            // (ق41) الموجز يُستهلك مرة واحدة: كان يبقى في حالة التنقل
+            // فيعيد تعبئة الإدخال في كل زيارة لاحقة للوكيل.
+            onBriefConsumed()
         }
     }
     LaunchedEffect(messages.size) {

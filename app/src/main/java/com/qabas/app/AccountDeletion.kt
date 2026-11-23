@@ -42,16 +42,22 @@ import java.util.Locale
  *    (`supabase/functions/delete-account/index.ts`, deployed by the owner —
  *    see `supabase/seed/delete_account_APPLY.md`) is authoritative: using
  *    the service_role key it deletes the caller's Auth user and their
- *    user-owned rows (`users`, `user_settings`, `user_api_keys`,
- *    `user_push_tokens`, `saved_items`, `library_reading_state`, and their
- *    reel likes/bookmarks/history/comments). The anon key cannot delete its
- *    own Auth user, so without this function deletion can never be complete.
+ *    user-owned rows (`users`, `profiles`, `verified_creators`,
+ *    `user_settings`, `user_api_keys`, `user_push_tokens`, `saved_items`,
+ *    `library_reading_state`, `user_points`, `points_ledger`,
+ *    `review_helpful_votes`, `analytics_events`, `studio_jobs`,
+ *    `ai_generations`, `app_reviews`, `projects`, their reel
+ *    likes/bookmarks/history/comments, and their follow rows in both
+ *    directions). The anon key cannot delete its own Auth user, so without
+ *    this function deletion can never be complete.
  * 2. The client additionally deletes its own rows directly
  *    (`SupabaseServices.Auth.deleteOwnAccountRows`) as a fallback and as
- *    defence-in-depth; each table is reported separately because RLS may
- *    legitimately deny some deletes.
+ *    defence-in-depth, with the same table list; each table is reported
+ *    separately because RLS may legitimately deny some deletes.
  * 3. Local account data is cleared (session fields in `qabas_prefs` and the
- *    account-scoped preferences file) and the user is signed out.
+ *    account-scoped preferences file, the local account registry record, and
+ *    the account's reel activity in `qabas_reels_preferences`) and the user
+ *    is signed out.
  *
  * What is NOT deleted, stated honestly in the confirmation dialog: content
  * the user published as public (their reels stay public unless they delete
@@ -87,9 +93,20 @@ object AccountDeletionService {
         val serverDeleted = SupabaseServices.Auth.invokeDeleteAccountFunction()
         val ownRowsDeleted = SupabaseServices.Auth.deleteOwnAccountRows(userId)
 
+        // ق156: البريد يُلتقط قبل المسح المحلي — فهو مفتاح سجل
+        // الحسابات والملف المعزول، وclearLocalAccountData يزيله.
+        val deletedEmail = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getString("user_email", null)
         val localCleared = runCatching {
             clearLocalAccountData(context)
             SupabaseServices.Auth.logout()
+            // ق156: سجل الحسابات المحلي ونشاط الريلز الخاص بالحساب —
+            // كانا يبقيان بعد الحذف: الأول يُبقي الحساب المحذوف في
+            // مبدّل الحسابات ولوحة المطورين، والثاني يُبقي مشاهداته
+            // ومحفوظاته وإعجاباته على الجهاز لحساب آخر يدخل بعده.
+            LocalAccountRegistry.removeAccount(context, userId)
+            if (!deletedEmail.isNullOrBlank()) LocalAccountRegistry.removeAccount(context, deletedEmail)
+            ReelPreferencesManager.clearAccountActivity(context)
             true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 

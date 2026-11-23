@@ -103,7 +103,7 @@ fun ReelAudioDetailsSheet(
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "بصوت: ${reel.userName ?: "صانع محتوى خادم المسلم"}",
+                            text = "الناشر: ${reel.userName ?: "صانع محتوى خادم المسلم"}",
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp,
                             color = theme.textSecondary
@@ -124,8 +124,8 @@ fun ReelAudioDetailsSheet(
 
             AppleGroupedSection(header = "الإجراءات المتاحة") {
                 AppleListRow(
-                    title = "نسخ نص الآية أو العنوان",
-                    subtitle = "نسخ كلمات المقطع لمشاركتها كرسالة أو تذكير",
+                    title = "نسخ عنوان المقطع ووصفه",
+                    subtitle = "نسخ عنوان المقطع ووصفه لمشاركتهما كرسالة أو تذكير",
                     icon = Icons.Default.MenuBook,
                     iconBackground = theme.primary,
                     onClick = {

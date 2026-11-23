@@ -18,6 +18,20 @@ object LeagueService {
             val now = Date()
             val endMillis = prefs.getLong("league_end_date_ms", 0L)
 
+            // ق61 — إصلاح أثر خطأ قديم: المكافأة الميتة أدناه كانت تكتب
+            // has_league_reward=true وتقلب علم is_relative (مفتاح يخص
+            // مسار تسجيل الدخول) لأي مستخدم تجاوزت نقاطه 100. العلم لا
+            // يضعه أحد غيرها، وhas_league_reward=true بصمتها وحدها،
+            // فتُمسح مع العلم مرة واحدة.
+            if (prefs.getBoolean("has_league_reward", false)) {
+                prefs.edit()
+                    .remove("has_league_reward")
+                    .remove("league_reward_expiry_ms")
+                    .putBoolean("is_relative", false)
+                    .apply()
+                Log.d(TAG, "Repaired legacy league-reward flag flip (q61).")
+            }
+
             // إذا لم يكن هناك دوري مسبق (أول مرة يعمل فيها النظام)، نقوم بإنشائه لمدة 7 أيام
             if (endMillis == 0L) {
                 val calendar = Calendar.getInstance()
@@ -32,47 +46,18 @@ object LeagueService {
                 val newCalendar = Calendar.getInstance()
                 newCalendar.add(Calendar.DAY_OF_YEAR, 7)
                 prefs.edit().putLong("league_end_date_ms", newCalendar.timeInMillis).apply()
-
-                // التحقق من تصدر المستخدم الحالي ومكافأته
-                val userPoints = prefs.getInt("local_user_points", 0)
-                if (userPoints > 100) {
-                    val rewardExpiry = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
-                    prefs.edit()
-                        .putBoolean("has_league_reward", true)
-                        .putBoolean("is_relative", true)
-                        .putLong("league_reward_expiry_ms", rewardExpiry)
-                        .putInt("local_user_points", 0)
-                        .apply()
-                }
+                // ق61: لا شيء آخر هنا. المنافسة الأسبوعية الحقيقية
+                // تُحسب من سجل التدقيق (ISO) في لوحة الشرف؛ أما هذا
+                // الفرع فكان يُصفّر إجمالي النقاط المحلية (كل الأوقات
+                // لا نقاط الأسبوع) كل 7 أيام من أول تشغيل، فيختفي
+                // رصيد المستخدم من ملفه ولوحة الشرف بلا سبب، ويكتب
+                // مكافأة ميتة لا قارئ لها (has_league_reward).
             }
-
-            // فحص صلاحية المكافأة
-            checkCurrentUserReward(context)
 
             // Score updates are handled by PointsManager through Supabase.
 
         } catch (e: Exception) {
             Log.w(TAG, "Note on processing weekly league: ${e.message}")
-        }
-    }
-
-    private fun checkCurrentUserReward(context: Context) {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val hasReward = prefs.getBoolean("has_league_reward", false)
-        val expiryMs = prefs.getLong("league_reward_expiry_ms", 0L)
-        val now = System.currentTimeMillis()
-
-        if (hasReward && expiryMs > 0L) {
-            if (now < expiryMs) {
-                Log.d(TAG, "User has active league reward until $expiryMs")
-            } else {
-                Log.d(TAG, "User league reward expired.")
-                val isActuallyRelative = prefs.getBoolean("is_relative_permanent", false)
-                prefs.edit()
-                    .putBoolean("has_league_reward", false)
-                    .putBoolean("is_relative", isActuallyRelative)
-                    .apply()
-            }
         }
     }
 }

@@ -69,6 +69,11 @@ fun ReelPlayer(
     onDoubleTapLike: (() -> Unit)? = null,
     onSingleTap: (() -> Unit)? = null,
     onActualPlayingChanged: ((Boolean) -> Unit)? = null,
+    // ق81: استئناف المشاهدة — موضع البدء المحفوظ من جلسة سابقة
+    // لهذا المقطع (0 = من البداية)، واستدعاء يُبلَّغ به الموضع
+    // دورياً وعند التخلص ليحفظه الوالد عبر دورات حياة الصفحة.
+    startPositionMs: Long = 0L,
+    onPositionChanged: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -82,6 +87,9 @@ fun ReelPlayer(
     var isActuallyPlaying by remember { mutableStateOf(false) }
     var progressFraction by remember { mutableFloatStateOf(0f) }
     var videoDurationMs by remember { mutableLongStateOf(C.TIME_UNSET) }
+    // ق81: آخر موضع تشغيل معروف في نسخة المشغّل هذه — يُستأنف
+    // منه عند إعادة التحضير (خطأ/إعادة محاولة)، ويُبلَّغ للوالد.
+    var lastPositionMs by remember { mutableLongStateOf(0L) }
 
     // Vertical gesture HUD (left half = brightness, right half = volume)
     var gestureKind by remember { mutableStateOf(GestureKind.NONE) }
@@ -93,6 +101,7 @@ fun ReelPlayer(
     val currentOnDoubleTapLike by rememberUpdatedState(onDoubleTapLike)
     val currentOnSingleTap by rememberUpdatedState(onSingleTap)
     val currentOnActualPlaying by rememberUpdatedState(onActualPlayingChanged)
+    val currentOnPositionChanged by rememberUpdatedState(onPositionChanged)
 
     // Guardrail: Safe ExoPlayer allocation with custom User-Agent and fallback
     val exoPlayer = remember(context) {
@@ -108,7 +117,10 @@ fun ReelPlayer(
         if (exoPlayer == null) {
             hasError = true
             isBuffering = false
-            return@DisposableEffect onDispose {}
+            // ق81: retainPlayer() في remember يعمل حتى عند فشل إنشاء
+            // المشغّل — بلا تحرير هنا يتسرب العدّاد +1 لكل فشل
+            // فيمنع إغلاق الكاش المؤجل (onLowMemory) إلى الأبد.
+            return@DisposableEffect onDispose { VideoCacheService.releasePlayer() }
         }
 
         val listener = object : Player.Listener {
@@ -118,6 +130,11 @@ fun ReelPlayer(
                     hasError = false
                     val d = exoPlayer.duration
                     if (d != C.TIME_UNSET) videoDurationMs = d
+                    // ق81: شريط التقدم يصحح فور الجاهزية (لا بعد 500ms)
+                    // حتى لا يومض من الصفر عند الاستئناف من موضع محفوظ.
+                    if (d != C.TIME_UNSET && d > 0) {
+                        progressFraction = (exoPlayer.currentPosition.toFloat() / d).coerceIn(0f, 1f)
+                    }
                 }
                 if (state == Player.STATE_ENDED) {
                     currentOnVideoEnded?.invoke()
@@ -140,6 +157,14 @@ fun ReelPlayer(
         exoPlayer.addListener(listener)
         onDispose {
             runCatching {
+                // ق81: حفظ موضع الاستئناف قبل الإيقاف — الصفحة التي
+                // تغادر نطاق الـ Pager تُحرَّر فيُفقد موضعها بلا هذا.
+                // موضع قريب من النهاية (ثانية) يُحفظ صفراً ليعيد
+                // المقطع من بدايته لا من لحظة انتهائه.
+                val pos = exoPlayer.currentPosition
+                val dur = exoPlayer.duration
+                val save = if (dur != C.TIME_UNSET && dur > 0 && pos >= dur - 1000L) 0L else pos
+                currentOnPositionChanged?.invoke(save)
                 exoPlayer.removeListener(listener)
                 exoPlayer.stop()
                 exoPlayer.clearMediaItems()
@@ -164,12 +189,17 @@ fun ReelPlayer(
     }
 
     LaunchedEffect(videoUrl, exoPlayer) {
+        // ق81: startPositionMs ليس مفتاحاً عمداً — تغيّره أثناء حياة
+        // المشغّل (إعادة تركيب من الوالد) يجب ألا يعيد تحضير المقطع
+        // من جديد؛ يُقرأ مرة واحدة عند التحضير الأول فقط، وseekTo
+        // بعد prepare مسموح في ExoPlayer (يُطبَّق عند الجاهزية).
         // مقطع جديد: صفّر حالة الإيقاف اليدوي — لا يرث المستخدم إيقاف المقطع السابق
         isUserPaused = false
         hasError = false
         isBuffering = true
         progressFraction = 0f
         videoDurationMs = C.TIME_UNSET
+        lastPositionMs = startPositionMs
         if (exoPlayer == null || !ReelSafetyGuardrails.isValidSecureVideoUrl(videoUrl)) {
             hasError = true
             isBuffering = false
@@ -179,6 +209,7 @@ fun ReelPlayer(
             val mediaItem = MediaItem.fromUri(videoUrl)
             exoPlayer.setMediaItem(mediaItem)
             exoPlayer.prepare()
+            if (startPositionMs > 0L) exoPlayer.seekTo(startPositionMs)
         }.onFailure {
             hasError = true
             isBuffering = false
@@ -197,6 +228,9 @@ fun ReelPlayer(
                         player.clearMediaItems()
                         player.setMediaItem(MediaItem.fromUri(videoUrl))
                         player.prepare()
+                        // ق81: إعادة التحضير بعد خطأ تستأنف من آخر
+                        // موضع معروف لا من البداية.
+                        if (lastPositionMs > 0L) player.seekTo(lastPositionMs)
                     }
                     player.play()
                 } else {
@@ -234,6 +268,10 @@ fun ReelPlayer(
             if (d != C.TIME_UNSET && d > 0) {
                 progressFraction = (player.currentPosition.toFloat() / d).coerceIn(0f, 1f)
             }
+            // ق81: تتبّع موضع الاستئناف أثناء التشغيل (كل 500ms) —
+            // بلا هذا لا يُحفظ شيء إن قُتلت الصفحة قبل التخلص النظيف.
+            lastPositionMs = player.currentPosition
+            currentOnPositionChanged?.invoke(player.currentPosition)
             delay(500)
         }
     }
@@ -400,6 +438,9 @@ fun ReelPlayer(
                                         p.clearMediaItems()
                                         p.setMediaItem(MediaItem.fromUri(videoUrl))
                                         p.prepare()
+                                        // ق81: إعادة المحاولة اليدوية تستأنف
+                                        // من آخر موضع معروف لا من البداية.
+                                        if (lastPositionMs > 0L) p.seekTo(lastPositionMs)
                                         if (isPlaying) {
                                             p.play()
                                         }

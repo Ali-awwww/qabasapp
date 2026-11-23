@@ -8,6 +8,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,13 +77,23 @@ fun LeaderboardScreen(
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var timeFilter by remember { mutableStateOf("الأسبوع") }
+    // ق99: التبويب والفلتر وحالة السجل تنجو من تدوير الشاشة — كانت
+    // remember عادية فيفقد المستخدم موضعه في اللوحة بعد كل تدوير.
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    var timeFilter by rememberSaveable { mutableStateOf("الأسبوع") }
 
     var topCreators by remember { mutableStateOf<List<CreatorStats>>(emptyList()) }
     var feedProjects by remember { mutableStateOf<List<FeedItem>>(emptyList()) }
     var currentMission by remember { mutableStateOf<PointsManager.WeeklyMission?>(null) }
     var isMissionCompleted by remember { mutableStateOf(false) }
+
+    // نقاطي: الإجماليات (أسبوع/شهر/كل الأوقات) وسجل المنح — null
+    // للزائر فيُخفى القسم كله.
+    var myPointsTotals by remember { mutableStateOf<SupabaseServices.Database.MyPointsTotals?>(null) }
+    var myPointsLedger by remember { mutableStateOf<List<SupabaseServices.Database.PointsLedgerRow>>(emptyList()) }
+    var myHistoryExpanded by rememberSaveable { mutableStateOf(false) }
+    // ق99: ترتيبي في النافذة المعروضة — null بلا نقاط فيها أو للزائر.
+    var myRank by rememberSaveable { mutableStateOf<Int?>(null) }
 
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
@@ -132,8 +144,11 @@ fun LeaderboardScreen(
                 // يُلحق صفاً واحداً موسوماً بوضوح "نقاط محلية لم تُزامن بعد"
                 // ولا يُعطى ترتيباً وهمياً حين لا نقاط له إطلاقاً. إلحاقه
                 // يبدّل الترتيب، فتُحجب أسهم الحراك (محسوبة على ترتيب
-                // السحابة وحده) بدل عرض أسهم خاطئة.
-                val list = if (!hasUser && currentUserPoints > 0) {
+                // السحابة وحده) بدل عرض أسهم خاطئة. ق61: الإلحاق في نافذة
+                // «الكل» فقط — النقاط المحلية إجمالي كل الأوقات، وإلحاقها
+                // في لوحة الأسبوع/الشهر كان يمنحها ترتيباً وهمياً بنقاط
+                // ليست نقاط تلك النافذة.
+                val list = if (!hasUser && currentUserPoints > 0 && timeFilter == "الكل") {
                     (fetchedCreators + CreatorStats(
                         name = currentUserName,
                         rank = fetchedCreators.size + 1,
@@ -151,8 +166,10 @@ fun LeaderboardScreen(
                 topCreators = list.mapIndexed { idx, item -> item.copy(rank = idx + 1) }
             } else {
                 // فراغ صادق: لا متصدر وهمي بالمرتبة الأولى حين لا نقاط
-                // لأحد. صف محلي واحد فقط إن كانت للمستخدم نقاط محلية.
-                topCreators = if (currentUserPoints > 0) {
+                // لأحد. صف محلي واحد فقط إن كانت للمستخدم نقاط محلية
+                // والنافذة «الكل» (النقاط المحلية إجمالي كل الأوقات —
+                // ق61: عرضها مرتبة أولى أسبوعية كان وهمياً).
+                topCreators = if (currentUserPoints > 0 && timeFilter == "الكل") {
                     listOf(
                         CreatorStats(
                             name = currentUserName,
@@ -167,6 +184,23 @@ fun LeaderboardScreen(
                 } else {
                     emptyList()
                 }
+            }
+
+            // نقاطي: الإجماليات (أسبوع/شهر/كل الأوقات) وسجل المنح من
+            // السحابة نفسها؛ للزائر تبقى null فيُخفى القسم كله. ق61:
+            // كان السجل يُكتب عند كل منح لكن لا شاشة تعرضه.
+            if (CloudServices.Auth.getCurrentUserId() != null) {
+                myPointsTotals = CloudServices.Database.getMyPointsTotals()
+                myPointsLedger = CloudServices.Database.getMyPointsLedger()
+                // ق99: ترتيبي — من الصف المعروض إن كنت ضمن الخمسين
+                // فيطابق الصف المميز حرفياً، وإلا من حساب النافذة
+                // الكامل؛ null بلا نقاط في النافذة.
+                myRank = topCreators.firstOrNull { it.isCurrentUser }?.rank
+                    ?: CloudServices.Database.getMyLeaderboardRank(timeFilter)
+            } else {
+                myPointsTotals = null
+                myPointsLedger = emptyList()
+                myRank = null
             }
 
             val cloudProjects = CloudServices.Database.getFeedProjects()
@@ -315,7 +349,12 @@ fun LeaderboardScreen(
                             topCreators = topCreators,
                             timeFilter = timeFilter,
                             daysLeft = daysLeft,
-                            onTimeFilterChanged = { timeFilter = it }
+                            onTimeFilterChanged = { timeFilter = it },
+                            myTotals = myPointsTotals,
+                            myLedger = myPointsLedger,
+                            myRank = myRank,
+                            historyExpanded = myHistoryExpanded,
+                            onHistoryExpandedChange = { myHistoryExpanded = it }
                         )
                         1 -> InspirationFeedTab(
                             feedProjects = feedProjects,
@@ -338,7 +377,12 @@ private fun LeaderboardTab(
     topCreators: List<CreatorStats>,
     timeFilter: String,
     daysLeft: Int,
-    onTimeFilterChanged: (String) -> Unit
+    onTimeFilterChanged: (String) -> Unit,
+    myTotals: SupabaseServices.Database.MyPointsTotals?,
+    myLedger: List<SupabaseServices.Database.PointsLedgerRow>,
+    myRank: Int?,
+    historyExpanded: Boolean,
+    onHistoryExpandedChange: (Boolean) -> Unit
 ) {
     val theme = QabasTheme.current
 
@@ -393,29 +437,35 @@ private fun LeaderboardTab(
                             }
                         }
 
-                        Surface(
-                            color = theme.warning.copy(alpha = 0.14f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                        // ق61: العدّ التنازلي يخصّ أسبوع الدوري الحالي
+                        // فقط؛ عرضه مع الشهر/الكل/الأسبوع الماضي كان كذباً
+                        // (تلك النوافذ بلا نهاية قادمة). ويوم الأحد الأخير
+                        // «ينتهي اليوم» لا «متبقي 0 أيام».
+                        if (timeFilter == "الأسبوع") {
+                            Surface(
+                                color = theme.warning.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.HourglassBottom,
-                                    contentDescription = null,
-                                    tint = theme.warning,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "متبقي $daysLeft أيام",
-                                    color = theme.warning,
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    maxLines = 1
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.HourglassBottom,
+                                        contentDescription = null,
+                                        tint = theme.warning,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (daysLeft <= 0) "ينتهي اليوم" else "متبقي $daysLeft أيام",
+                                        color = theme.warning,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -436,12 +486,28 @@ private fun LeaderboardTab(
             }
         }
 
+        // ق61: إجمالياتي وسجل منحي — كان السجل يُكتب عند كل منح لكن
+        // لا شاشة تعرضه. يظهر فقط للمستخدم المسجّل (myTotals != null).
+        if (myTotals != null) {
+            item {
+                MyPointsCard(
+                    totals = myTotals,
+                    ledger = myLedger,
+                    myRank = myRank,
+                    timeFilter = timeFilter,
+                    historyExpanded = historyExpanded,
+                    onHistoryExpandedChange = onHistoryExpandedChange
+                )
+            }
+        }
+
         if (topCreators.size >= 3) {
             item {
                 PodiumSection(
                     first = topCreators[0],
                     second = topCreators[1],
-                    third = topCreators[2]
+                    third = topCreators[2],
+                    timeFilter = timeFilter
                 )
             }
         } else if (topCreators.isNotEmpty()) {
@@ -665,6 +731,195 @@ private fun LeaderboardTab(
     }
 }
 
+/** ق61: بطاقة «نقاطي» — إجماليات المستخدم (أسبوع/شهر/كل الأوقات)
+ * من سجل التدقيق، وسجل منح النقاط (السبب + التاريخ) قابل للطي. */
+@Composable
+private fun MyPointsCard(
+    totals: SupabaseServices.Database.MyPointsTotals,
+    ledger: List<SupabaseServices.Database.PointsLedgerRow>,
+    myRank: Int?,
+    timeFilter: String,
+    historyExpanded: Boolean,
+    onHistoryExpandedChange: (Boolean) -> Unit
+) {
+    val theme = QabasTheme.current
+    AppleCard(cornerRadius = 16.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = Translator.tr("نقاطي"),
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = Translator.tr("من سجل التدقيق السحابي"),
+                    color = theme.textSecondary,
+                    fontFamily = NotoSansFont,
+                    fontSize = 11.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                MyPointsTotalCell(
+                    label = "هذا الأسبوع",
+                    value = totals.week,
+                    modifier = Modifier.weight(1f)
+                )
+                MyPointsTotalCell(
+                    label = "هذا الشهر",
+                    value = totals.month,
+                    modifier = Modifier.weight(1f)
+                )
+                MyPointsTotalCell(
+                    label = "كل الأوقات",
+                    value = totals.allTime,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ق99: ترتيبي في النافذة المعروضة — رقم لا وهمي: «بلا
+            // نقاط في هذه النافذة» حين لا نقاط لي فيها.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = Translator.tr("ترتيبي") + " ($timeFilter)",
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = if (myRank != null) "#$myRank" else Translator.tr("بلا نقاط في هذه النافذة"),
+                    color = if (myRank != null) theme.primary else theme.textSecondary,
+                    fontFamily = RobotoMonoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = theme.separator.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onHistoryExpandedChange(!historyExpanded) }
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = Translator.tr("سجل نقاطي") + " (${ledger.size})",
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Icon(
+                    imageVector = if (historyExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = theme.textSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            if (historyExpanded) {
+                if (ledger.isEmpty()) {
+                    Text(
+                        text = Translator.tr("لا توجد نقاط مسجلة بعد — تُكتسب النقاط من إنشاء فيديو أو إكمال اختبار أو الدخول اليومي."),
+                        color = theme.textSecondary,
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                } else {
+                    ledger.forEach { row ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "+${row.pointsDelta}",
+                                color = theme.success,
+                                fontFamily = RobotoMonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = PointAction.entries.firstOrNull { it.name == row.reason }?.description
+                                        ?: row.reason.ifBlank { Translator.tr("منح نقاط") },
+                                    color = theme.textPrimary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                val dateText = formatLedgerDate(row.createdAt)
+                                if (dateText.isNotBlank()) {
+                                    Text(
+                                        text = dateText,
+                                        color = theme.textSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MyPointsTotalCell(label: String, value: Long, modifier: Modifier = Modifier) {
+    val theme = QabasTheme.current
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "$value",
+            color = theme.primary,
+            fontFamily = RobotoMonoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = Translator.tr(label),
+            color = theme.textSecondary,
+            fontFamily = NotoSansFont,
+            fontSize = 11.sp
+        )
+    }
+}
+
+/** تنسيق تاريخ صف سجل بتوقيت الجهاز؛ الخام عند تعذّر التحليل. */
+private fun formatLedgerDate(iso: String?): String {
+    if (iso.isNullOrBlank()) return ""
+    return runCatching {
+        java.time.Instant.parse(iso)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+    }.getOrDefault(iso)
+}
+
 @Composable
 private fun SingleLeaderHeroCard(creator: CreatorStats) {
     val theme = QabasTheme.current
@@ -710,7 +965,9 @@ private fun SingleLeaderHeroCard(creator: CreatorStats) {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "رصيدك الحالي: ${creator.points} نقطة أثر • الوسام: ${creator.badge}",
+                // ق99: رصيد المتصدر لا رصيد القارئ — كان النص «رصيدك
+                // الحالي» حتى حين يكون المتصدر شخصاً آخر.
+                text = if (creator.isCurrentUser) "رصيدك الحالي: ${creator.points} نقطة أثر • الوسام: ${creator.badge}" else "رصيد المتصدر الحالي: ${creator.points} نقطة أثر • الوسام: ${creator.badge}",
                 color = theme.primary,
                 fontFamily = CairoFont,
                 fontSize = 12.sp
@@ -731,7 +988,8 @@ private fun SingleLeaderHeroCard(creator: CreatorStats) {
 private fun PodiumSection(
     first: CreatorStats,
     second: CreatorStats,
-    third: CreatorStats
+    third: CreatorStats,
+    timeFilter: String
 ) {
     val theme = QabasTheme.current
     AppleCard {
@@ -750,7 +1008,16 @@ private fun PodiumSection(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = Translator.tr("فرسان الصدارة لهذا الأسبوع"),
+                    // ق99: عنوان المنصة يتبع النافذة المعروضة — كان
+                    // «لهذا الأسبوع» ثابتاً حتى مع الشهر/الكل/الماضي.
+                    text = Translator.tr(
+                        when (timeFilter) {
+                            "الأسبوع الماضي" -> "فرسان الصدارة للأسبوع الماضي"
+                            "الشهر" -> "فرسان الصدارة لهذا الشهر"
+                            "الكل" -> "فرسان الصدارة لكل الأوقات"
+                            else -> "فرسان الصدارة لهذا الأسبوع"
+                        }
+                    ),
                     color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,

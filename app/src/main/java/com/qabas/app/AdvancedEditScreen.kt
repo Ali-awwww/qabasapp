@@ -1855,7 +1855,7 @@ fun CutAndMergeToolPanel(
                 modifier = Modifier
                     .weight(1f)
                     .clickable {
-                        Toast.makeText(context, Translator.tr("تم تحديد بداية المقطع عند: ${currentTime.toInt()}s"), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, Translator.trf("تم تحديد بداية المقطع عند: {0}s", currentTime.toInt()), Toast.LENGTH_SHORT).show()
                     }
             ) {
                 Row(
@@ -1876,7 +1876,7 @@ fun CutAndMergeToolPanel(
                 modifier = Modifier
                     .weight(1f)
                     .clickable {
-                        Toast.makeText(context, Translator.tr("تم تحديد نهاية المقطع عند: ${currentTime.toInt()}s"), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, Translator.trf("تم تحديد نهاية المقطع عند: {0}s", currentTime.toInt()), Toast.LENGTH_SHORT).show()
                     }
             ) {
                 Row(

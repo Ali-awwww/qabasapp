@@ -23,11 +23,7 @@ object ServiceAvailabilityRegistry {
     fun hasCloudLlmKey(context: Context): Boolean {
         return KeyVault.gemini.isNotBlank() ||
             KeyVault.groq.isNotBlank() ||
-            KeyVault.openai.isNotBlank() ||
-            KeyVault.openrouter.isNotBlank() ||
-            KeyVault.huggingface.isNotBlank() ||
-            KeyVault.anthropic.isNotBlank() ||
-            KeyVault.opencode.isNotBlank()
+            KeyVault.openrouter.isNotBlank()
     }
 
     fun hasLocalAiModel(context: Context): Boolean = OnDeviceModelManager.hasAnyInstalledModel(context)
@@ -36,14 +32,11 @@ object ServiceAvailabilityRegistry {
         return hasCloudLlmKey(context) || hasLocalAiModel(context) || (isSupabaseReady() && isUserSignedIn())
     }
 
-    fun hasCloudTtsKey(): Boolean {
-        return KeyVault.elevenlabs.isNotBlank() || KeyVault.azureSpeechKey.isNotBlank()
-    }
+    /** النطق المحلي يعمل دائماً بلا مفتاح سحابي (Kokoro / Edge TTS / نطق النظام). */
+    fun hasLocalVoiceEngine(): Boolean = true
 
     fun hasStockMediaKey(): Boolean {
-        return KeyVault.pexels.isNotBlank() ||
-            KeyVault.pixabay.isNotBlank() ||
-            KeyVault.coverr.isNotBlank()
+        return KeyVault.pixabay.isNotBlank()
     }
 
     fun hasLeonardoKey(context: Context): Boolean = ApiKeyManager.getLeonardoKey(context).isNotBlank()
@@ -54,8 +47,6 @@ object ServiceAvailabilityRegistry {
         val manager = BillingManager.getInstance(context)
         return manager.isReady.value && manager.products.value.isNotEmpty()
     }
-
-    fun isGitHubOAuthConfigured(): Boolean = GitHubAuthManager.isConfigured()
 
     fun canPublishDirectlyViaSocialApi(): Boolean {
         // Direct REST upload requires verified per-platform OAuth client credentials & upload endpoints.
@@ -77,7 +68,7 @@ object ServiceAvailabilityRegistry {
                 displayName = "الذكاء الاصطناعي السحابي (LLM)",
                 isAvailable = hasCloudLlmKey(context),
                 modeLabel = if (hasCloudLlmKey(context)) "مفتاح API نشط" else "غير مفعّل",
-                missingReason = "أدخل مفتاح Gemini أو Groq أو OpenAI أو OpenRouter في شاشة مفاتيح API."
+                missingReason = "أدخل مفتاح Gemini أو Groq أو OpenRouter في شاشة مفاتيح API."
             ),
             ServiceStatus(
                 id = "local_ai",
@@ -88,10 +79,10 @@ object ServiceAvailabilityRegistry {
             ),
             ServiceStatus(
                 id = "stock_media",
-                displayName = "مكتبات الفيديو والصور (Pexels / Pixabay)",
+                displayName = "مكتبات الفيديو والصور (Pixabay)",
                 isAvailable = hasStockMediaKey(),
                 modeLabel = if (hasStockMediaKey()) "مفعّل" else "يتطلب مفتاح API",
-                missingReason = "أدخل مفتاح Pexels أو Pixabay أو Coverr في شاشة مفاتيح API."
+                missingReason = "أدخل مفتاح Pixabay في شاشة مفاتيح API."
             ),
             ServiceStatus(
                 id = "leonardo",
@@ -101,11 +92,11 @@ object ServiceAvailabilityRegistry {
                 missingReason = "أدخل مفتاح Leonardo AI من شاشة مفاتيح API."
             ),
             ServiceStatus(
-                id = "cloud_tts",
-                displayName = "الأصوات العصبية السحابية (ElevenLabs / Azure)",
-                isAvailable = hasCloudTtsKey(),
-                modeLabel = if (hasCloudTtsKey()) "مفعّل" else "محرك النظام فقط",
-                missingReason = "التعليق الصوتي السحابي يتطلب مفتاح ElevenLabs أو Azure Speech، مع توفر نطق النظام المحلي دائماً."
+                id = "local_tts",
+                displayName = "الأصوات المحلية (Kokoro / Edge TTS / نظام Android)",
+                isAvailable = hasLocalVoiceEngine(),
+                modeLabel = if (hasLocalVoiceEngine()) "متاح دائماً" else "غير متاح",
+                missingReason = "النطق المحلي يعمل دائماً دون مفتاح سحابي."
             ),
             ServiceStatus(
                 id = "play_billing",
@@ -113,13 +104,6 @@ object ServiceAvailabilityRegistry {
                 isAvailable = billingReady,
                 modeLabel = if (billingReady) "جاهز" else "غير متاح",
                 missingReason = "متجر Google Play Billing غير متصل أو لم يتم جلب المنتجات على هذا الجهاز."
-            ),
-            ServiceStatus(
-                id = "github",
-                displayName = "تكامل GitHub OAuth",
-                isAvailable = isGitHubOAuthConfigured(),
-                modeLabel = if (isGitHubOAuthConfigured()) "مُهيّأ" else "غير مهيأ",
-                missingReason = "يتطلب مفاتيح AW_CLIENT_ID و AW_CLIENT_SECRET في أسرار البناء."
             )
         )
     }

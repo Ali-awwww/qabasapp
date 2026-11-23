@@ -112,9 +112,14 @@ fun ReelCreatorProfileSheet(
     }
     val totalLikes = remember(creatorReels) { creatorReels.sumOf { it.likesCount } }
     val totalViews = remember(creatorReels) { creatorReels.sumOf { it.viewsCount } }
-    val isDevCreator = remember(creatorId, displayName) {
-        creatorId.contains("dev") || creatorId.contains("admin") || displayName.contains("خادم المسلم")
+    // ق154: كان أي اسم عرض يحوي «خادم المسلم» (أو معرّف يحوي
+    // dev/admin) يمنح شارة «مطور وموثق» — والتوثيق الحقيقي في
+    // جدول verified_creators عبر VerificationManager (يُزامَن
+    // عند فتح الريلز)؛ و«مطور» للمطوّر نفسه وحده.
+    val isVerifiedCreator = remember(creatorId, isOwnProfile) {
+        VerificationManager.isVerified(context, creatorId)
     }
+    val isDevCreator = isOwnProfile && VerificationManager.isDeveloper(context)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -191,7 +196,7 @@ fun ReelCreatorProfileSheet(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = if (isDevCreator) Icons.Default.Verified else Icons.Default.Check,
+                                imageVector = if (isVerifiedCreator) Icons.Default.Verified else Icons.Default.Check,
                                 contentDescription = null,
                                 tint = theme.onPrimary,
                                 modifier = Modifier.size(14.dp)
@@ -234,14 +239,14 @@ fun ReelCreatorProfileSheet(
                     fontSize = 17.sp,
                     color = theme.textPrimary
                 )
-                if (isDevCreator) {
+                if (isVerifiedCreator) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = theme.primary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
-                            text = "مطور وموثق",
+                            text = if (isDevCreator) "مطور وموثق" else "موثّق",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,

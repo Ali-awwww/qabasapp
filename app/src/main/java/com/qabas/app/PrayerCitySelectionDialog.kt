@@ -27,6 +27,24 @@ import com.qabas.app.ui.theme.*
 /**
  * نافذة تفاعلية نظيفة وفق معايير Apple HIG لاختيار الدولة والمدينة لمواقيت الصلاة والقبلة
  */
+
+// ق143: تطبيع عربي للبحث — مرآة normalizeArabicText في QuranDataProvider
+// (خاص هناك): بلا تطبيع كان «عمان» يعيد صفر نتيجة لأن المخزن «عمّان»
+// بالشدة، و«القاهره» يفشل لأن المخزن «القاهرة» بالتاء المربوطة —
+// الصنف نفسه الذي قُتل في بحث السور ق138.
+private val CITY_SEARCH_STRIP_REGEX = Regex("[\\u064B-\\u0652\\u0640\\u0670]")
+private fun normalizeCitySearchText(text: String): String =
+    text.replace(CITY_SEARCH_STRIP_REGEX, "")
+        .replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ٱ", "ا")
+        .replace("ى", "ي").replace("ة", "ه")
+
+// ق143: المدينة نفسها تُعرف بالاسم لا بالمساواة الكاملة — Geocoder يعيد
+// اسم الدولة الطويل («المملكة العربية السعودية» مقابل «السعودية» في
+// القائمة) فيفشل == فيعرض صف «الموقع الحالي (الرياض)» مكرراً مع صف
+// «الرياض» نفسه، وصف القائمة بلا شارة «مختارة».
+private fun isSameCity(a: CityLocation, b: CityLocation): Boolean =
+    a.nameAr == b.nameAr || a.nameEn.equals(b.nameEn, ignoreCase = true)
+
 @Composable
 fun PrayerCitySelectionDialog(
     currentSelectedCity: CityLocation,
@@ -38,29 +56,39 @@ fun PrayerCitySelectionDialog(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCountryFilter by remember { mutableStateOf("الكل") }
 
-    val allCountries = remember(currentSelectedCity.countryAr) {
-        listOf("الكل") + (PrayerCalculationHelper.popularCities.map { it.countryAr } + currentSelectedCity.countryAr)
+    val needle = remember(searchQuery) { normalizeCitySearchText(searchQuery.trim()) }
+
+    val isCurrentCityCustom = remember(currentSelectedCity) {
+        PrayerCalculationHelper.popularCities.none { isSameCity(it, currentSelectedCity) }
+    }
+
+    val allCountries = remember(currentSelectedCity, isCurrentCityCustom) {
+        // ق143: دولة المدينة الحالية تُضاف للشرائح فقط حين تكون مدينة
+        // مخصصة (GPS خارج القائمة) — وإلا كان اسم Geocoder الطويل
+        // («المملكة العربية السعودية») شريحة ميتة تصفّي لصفر مدينة.
+        val extraCountry =
+            if (isCurrentCityCustom) listOf(currentSelectedCity.countryAr) else emptyList()
+        listOf("الكل") + (PrayerCalculationHelper.popularCities.map { it.countryAr } + extraCountry)
             .distinct()
             .sorted()
     }
 
-    val filteredCities = remember(searchQuery, selectedCountryFilter) {
+    val filteredCities = remember(needle, selectedCountryFilter) {
         PrayerCalculationHelper.popularCities.filter { city ->
-            val matchesSearch = searchQuery.isBlank() ||
-                city.nameAr.contains(searchQuery.trim(), ignoreCase = true) ||
+            val matchesSearch = needle.isBlank() ||
+                normalizeCitySearchText(city.nameAr).contains(needle, ignoreCase = true) ||
                 city.nameEn.contains(searchQuery.trim(), ignoreCase = true) ||
-                city.countryAr.contains(searchQuery.trim(), ignoreCase = true)
+                normalizeCitySearchText(city.countryAr).contains(needle, ignoreCase = true)
 
             val matchesCountry = selectedCountryFilter == "الكل" || city.countryAr == selectedCountryFilter
             matchesSearch && matchesCountry
         }
     }
 
-    val isCurrentCityCustom = PrayerCalculationHelper.popularCities.none { it == currentSelectedCity }
-    val currentCityMatchesSearch = searchQuery.isBlank() ||
-        currentSelectedCity.nameAr.contains(searchQuery.trim(), ignoreCase = true) ||
+    val currentCityMatchesSearch = needle.isBlank() ||
+        normalizeCitySearchText(currentSelectedCity.nameAr).contains(needle, ignoreCase = true) ||
         currentSelectedCity.nameEn.contains(searchQuery.trim(), ignoreCase = true) ||
-        currentSelectedCity.countryAr.contains(searchQuery.trim(), ignoreCase = true)
+        normalizeCitySearchText(currentSelectedCity.countryAr).contains(needle, ignoreCase = true)
     val currentCityMatchesCountry = selectedCountryFilter == "الكل" ||
         currentSelectedCity.countryAr == selectedCountryFilter
     val showCurrentLocation = isCurrentCityCustom && currentCityMatchesSearch && currentCityMatchesCountry
@@ -235,7 +263,7 @@ fun PrayerCitySelectionDialog(
                             }
                         }
                         items(filteredCities, key = { it.nameAr + it.countryAr }) { city ->
-                            val isCurrent = city == currentSelectedCity
+                            val isCurrent = isSameCity(city, currentSelectedCity)
                             val (_, distanceKm) = remember(city) {
                                 PrayerCalculationHelper.calculateQibla(city.latitude, city.longitude)
                             }

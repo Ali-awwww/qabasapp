@@ -148,6 +148,28 @@ class FullSahihHadithRepositoryTest {
     }
 
     @Test
+    fun `bukhari multi-word search finds hadith 1 with non-contiguous words`() {
+        // ق82: «بالنيات» و«هجرته» في حديث #1 لكن غير متجاورتين —
+        // contains على العبارة كاملة كان يعيد صفراً.
+        val book = loadBook("sahih_bukhari.json.gz")
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "بالنيات هجرته")
+            }
+        assertTrue("البحث «بالنيات هجرته» يجب أن يجد حديث #1 (وجدنا ${results.size})", results.contains(1))
+    }
+
+    @Test
+    fun `bukhari multi-word search with one absent word returns empty`() {
+        val book = loadBook("sahih_bukhari.json.gz")
+        val results = HadithSearchNormalizer.buildSearchIndex(book.hadiths)
+            .let { index ->
+                HadithSearchNormalizer.searchWithIndex(index, "بالنيات كلمةغيرموجودة")
+            }
+        assertTrue("كلمة غائبة واحدة يجب أن تُفرغ النتائج (حصل ${results.size})", results.isEmpty())
+    }
+
+    @Test
     fun `muslim search finds known text (faith iman)`() {
         val book = loadBook("sahih_muslim.json.gz")
 

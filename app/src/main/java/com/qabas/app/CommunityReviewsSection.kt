@@ -42,9 +42,7 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun CommunityReviewsCard(
-    modifier: Modifier = Modifier,
-    onOpenAllReviews: () -> Unit = {},
-    onOpenSubmitReview: () -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
@@ -281,6 +279,7 @@ fun CommunityReviewsCard(
             reviews = reviewsList,
             averageRating = averageRating,
             isLoading = isLoading,
+            errorMessage = errorMessage,
             currentUserId = currentUserId,
             myHelpfulVotes = myHelpfulVotes,
             onDismiss = { showReviewsDialog = false },
@@ -461,6 +460,9 @@ fun CommunityReviewsListDialog(
     reviews: List<SupabaseServices.AppReviewDto>,
     averageRating: Double,
     isLoading: Boolean,
+    // رسالة فشل الجلب (ق49): بلا هذا يعرض الحوار «لا توجد مراجعات»
+    // عند انقطاع الشبكة — نفس صنف عيب الجولة 41 في طابور الاستوديو.
+    errorMessage: String? = null,
     currentUserId: String? = null,
     myHelpfulVotes: Set<String> = emptySet(),
     onDismiss: () -> Unit,
@@ -472,12 +474,6 @@ fun CommunityReviewsListDialog(
     onReportReview: (SupabaseServices.AppReviewDto) -> Unit = {}
 ) {
     val theme = QabasTheme.current
-    var selectedCategoryFilter by remember { mutableStateOf("الكل") }
-
-    val filteredReviews = remember(reviews, selectedCategoryFilter) {
-        if (selectedCategoryFilter == "الكل") reviews
-        else reviews.filter { it.categoryRating == selectedCategoryFilter }
-    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -563,7 +559,7 @@ fun CommunityReviewsListDialog(
                             Text("جاري الاتصال بسحابة خادم المسلم...", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
-                } else if (filteredReviews.isEmpty()) {
+                } else if (reviews.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -571,13 +567,25 @@ fun CommunityReviewsListDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.textSecondary.copy(alpha = 0.5f), modifier = Modifier.size(54.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("لا توجد مراجعات حتى الآن", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("كن أول من يشارك رأيه وتجربته مع التطبيق.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            ApplePrimaryButton(text = "كتابة أول تقييم", onClick = onOpenSubmit)
+                            if (errorMessage != null) {
+                                // فشل الجلب لا «صفر مراجعات»: رسالة صادقة مع
+                                // إعادة محاولة، بدل دعوة «كن أول من يقيّم».
+                                Icon(Icons.Default.CloudOff, contentDescription = null, tint = theme.textSecondary.copy(alpha = 0.5f), modifier = Modifier.size(54.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("تعذّر تحميل المراجعات", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("تحقق من اتصالك بالإنترنت ثم أعد المحاولة.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                ApplePrimaryButton(text = "إعادة المحاولة", onClick = onRefresh)
+                            } else {
+                                Icon(Icons.Default.RateReview, contentDescription = null, tint = theme.textSecondary.copy(alpha = 0.5f), modifier = Modifier.size(54.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("لا توجد مراجعات حتى الآن", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("كن أول من يشارك رأيه وتجربته مع التطبيق.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                ApplePrimaryButton(text = "كتابة أول تقييم", onClick = onOpenSubmit)
+                            }
                         }
                     }
                 } else {
@@ -586,7 +594,7 @@ fun CommunityReviewsListDialog(
                         contentPadding = PaddingValues(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(filteredReviews, key = { it.id }) { review ->
+                        items(reviews, key = { it.id }) { review ->
                             ReviewItemCard(
                                 review = review,
                                 isMine = currentUserId != null && review.userId == currentUserId,
@@ -839,7 +847,10 @@ fun SubmitAppReviewDialog(
     }
 
     var currentUserId by remember { mutableStateOf(SupabaseServices.Auth.getCurrentUserId()) }
-    var rating by remember { mutableIntStateOf(existingReview?.rating?.coerceIn(1, 5) ?: 5) }
+    // بلا نجوم مختارة مسبقاً (ق49): الافتراضي 5 كان يرسل «ممتاز» بنقرة
+    // بلا اختيار من المستخدم فيضخّم المتوسط؛ والوضع التحريري يملأ
+    // التقييم الحقيقي من المراجعة أو من الجلب أدناه.
+    var rating by remember { mutableIntStateOf(existingReview?.rating?.coerceIn(1, 5) ?: 0) }
     var comment by remember { mutableStateOf(existingReview?.comment ?: "") }
     var selectedCategory by remember { mutableStateOf(existingReview?.categoryRating ?: "overall") }
     var editingReviewId by remember { mutableStateOf(existingReview?.id) }
@@ -940,13 +951,14 @@ fun SubmitAppReviewDialog(
                 ) {
                     Text(
                         text = when (rating) {
+                            0 -> "اختر عدد النجوم"
                             5 -> "ممتاز جداً (٥ من ٥)"
                             4 -> "جيد جداً (٤ من ٥)"
                             3 -> "جيد ومفيد (٣ من ٥)"
                             2 -> "متوسط (٢ من ٥)"
                             else -> "يحتاج تحسين (١ من ٥)"
                         },
-                        color = theme.warning,
+                        color = if (rating == 0) theme.textSecondary else theme.warning,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -1055,6 +1067,7 @@ fun SubmitAppReviewDialog(
                         when {
                             isGuest -> errorMessage =
                                 "سجّل الدخول أولاً لإرسال تقييمك — لا يمكن للضيوف التقييم"
+                            rating == 0 -> errorMessage = "اختر عدد النجوم أولاً"
                             comment.isBlank() -> errorMessage = "اكتب تعليقاً قبل الإرسال"
                             else -> {
                                 isSubmitting = true

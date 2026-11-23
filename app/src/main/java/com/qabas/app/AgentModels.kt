@@ -17,13 +17,10 @@ import java.util.UUID
  *
  * [models] هو مصدر أسماء النماذج السحابية الوحيد (12.x): أُلغيت القائمة
  * المتوازية agentModelsFor من AiStudioAgentScreen ودُمجت هنا — النموذج
- * الافتراضي أولاً ثم أسماء القائمة القديمة. أسماء لم يُتحقق من وجودها
- * حياً في هذا الفحص تُبقى في القائمة لكنها غير موثّقة (انظر تقرير التسليم):
- * o1-preview، llama-3.3-70b-versatile،
- * llama-3.1-8b-instant، mixtral-8x7b، claude-3.5-sonnet، claude-3.5-haiku،
- * claude-3-5-sonnet-20241022، gemini-2.5-flash، gemini-3.5-pro،
- * Qwen/Qwen2.5-Coder-32B، meta-llama/Llama-3.3-70B-Instruct،
- * big-pickle، opencode/grok-code.
+ * الافتراضي أولاً ثم أسماء القائمة القديمة. أسماء في هذه القوائم لم
+ * يُتحقق من وجودها حياً في هذا الفحص فتبقى غير موثّقة (انظر تقرير
+ * التسليم): llama-3.3-70b-versatile، llama-3.1-8b-instant، mixtral-8x7b،
+ * gemini-2.5-flash، gemini-3.5-pro.
  * حُذفا من قائمة OpenRouter بعد فحص حي 2026-11-23 (القائمة العامة 476
  * نموذجاً لا تحويهما): anthropic/claude-3.5-sonnet وmeta-llama/llama-3.3-70b
  * (استُبدل الثاني بالصيغة الموثقة meta-llama/llama-3.3-70b-instruct).
@@ -46,14 +43,6 @@ enum class DetectedProvider(
         listOf("gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-pro")),
     GROQ("groq", "Groq Lightning Llama", "gsk_", "llama-3.3-70b-versatile", Color(0xFFF59E0B),
         listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")),
-    OPENAI("openai", "OpenAI GPT-4o", "sk-", "gpt-4o", Color(0xFF10B981),
-        listOf("gpt-4o", "gpt-4o-mini", "o1-preview")),
-    ANTHROPIC("anthropic", "Anthropic Claude", "sk-ant-", "claude-3-5-sonnet-20241022", Color(0xFFA855F7),
-        listOf("claude-3-5-sonnet-20241022", "claude-sonnet-4.5", "claude-3.5-sonnet", "claude-3.5-haiku")),
-    HUGGINGFACE("huggingface", "HuggingFace Hub", "hf_", "Qwen/Qwen2.5-Coder-32B", Color(0xFFFCD34D),
-        listOf("Qwen/Qwen2.5-Coder-32B", "meta-llama/Llama-3.3-70B-Instruct")),
-    OPENCODE("opencode", "OpenCode Zen (125 نموذجاً)", "oc-", "big-pickle", Color(0xFF7C3AED),
-        listOf("big-pickle", "opencode/grok-code")),
     NONE("none", "لا يوجد مفتاح نشط", "", "local_sandbox", Color(0xFF94A3B8))
 }
 

@@ -157,9 +157,9 @@ object QabasTipsRepository {
         QabasTipItem(
             id = "sg6",
             category = TipCategory.CREATIVE_STUDIO,
-            text = "استوديو الصوت يوفّر مسارات لاستنساخ الأصوات وتوليد الكلام ودبلجة الفيديوهات.",
+            text = "استوديو الصوت يوفّر أنماطاً صوتية Edge-Neural وتوليد الكلام ودبلجة الفيديوهات.",
             sourceOrBadge = "VoiceStudio 🎙️",
-            actionableHint = "اختر المسار المناسب، وجهّز العينة الصوتية أو النص أو الفيديو المطلوب، ثم استمع إلى الناتج وراجعه."
+            actionableHint = "اختر النمط الصوتي المناسب، وجهّز النص أو الفيديو المطلوب، ثم استمع إلى الناتج وراجعه."
         ),
         QabasTipItem(
             id = "sg7",

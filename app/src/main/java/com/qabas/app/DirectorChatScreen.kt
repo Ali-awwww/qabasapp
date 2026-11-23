@@ -17,6 +17,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,7 +53,7 @@ data class DirectorBrief(
     }
 }
 
-private data class DirectorMsg(val fromDirector: Boolean, val text: String)
+internal data class DirectorMsg(val fromDirector: Boolean, val text: String)
 
 private val SlotOptions = mapOf(
     "type" to listOf("قصة", "تدبر قرآني", "حديث شريف", "موعظة", "سيرة"),
@@ -67,32 +69,120 @@ private val SlotQuestion = mapOf(
     "duration" to "بقي شيء واحد عملي: المدة التقريبية والنسبة (عمودي/أفقي)؟"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DirectorChatScreen(
-    initialText: String = "",
-    onComplete: (DirectorBrief) -> Unit,
-    onBack: () -> Unit
+// ق70: حالة حوار المخرج مرفوعة إلى الوالد (UnifiedBriefScreen) —
+// تبديل التبويب كان يُخرج DirectorChatScreen من التركيب فيسقط حتى
+// rememberSaveable (ق53 أصلح التدوير فقط). الحامل يعيش في الوالد
+// فينجو من تبديل التبويبات، ويُحفظ بـ Saver فينجو من التدوير أيضاً،
+// ويموت مع مغادرة تدفق الموجز فيبدأ مشروع جديد بحوار نظيف.
+internal class DirectorChatState(
+    brief: DirectorBrief,
+    messages: List<DirectorMsg>,
+    input: String,
+    treatment: String
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val briefState = mutableStateOf(brief)
+    val messagesState = mutableStateOf(messages)
+    val inputState = mutableStateOf(input)
+    val treatmentState = mutableStateOf(treatment)
+    /**
+     * ق180: علامة «دور ذكاء جارٍ» مرفوعة مع الحالة لا في الشاشة الابنة —
+     * الإرسال صار يُطلق من نطاق الوالد (ينجو من تبديل التبويب) فلو
+     * بقيت العلامة remember في الابنة لانطفأت عند التبديل وقبلت
+     * الشاشة إرسالاً ثانياً متزامناً فوق الدور الجاري فيُسقط أحد
+     * الردين عند الكتابة المتزامنة على القائمة. لا تُحفظ في Saver
+     * (عابرة؛ والمستعادة تبدأ بلا دور جارٍ لأن الدور مات معها أصلاً).
+     */
+    val thinkingState = mutableStateOf(false)
 
-    var brief by remember { mutableStateOf(DirectorBrief(idea = initialText)) }
-    var messages by remember {
-        mutableStateOf(
-            listOf(
+    /** بلا أي رسالة مستخدم بعد — آمن لبذر فكرة جديدة. */
+    fun isFresh(): Boolean = messagesState.value.none { !it.fromDirector }
+
+    fun seedIdea(text: String) {
+        briefState.value = briefState.value.copy(idea = text)
+    }
+}
+
+private val directorChatStateSaver = Saver<DirectorChatState, List<String>>(
+    save = { s ->
+        listOf(
+            s.briefState.value.idea,
+            s.briefState.value.contentType,
+            s.briefState.value.contentTone,
+            s.briefState.value.videoDuration,
+            s.briefState.value.selectedRatio,
+            s.inputState.value,
+            s.treatmentState.value
+        ) + s.messagesState.value.map { (if (it.fromDirector) "D" else "U") + "\u0001" + it.text }
+    },
+    restore = { list ->
+        DirectorChatState(
+            brief = DirectorBrief(
+                idea = list.getOrElse(0) { "" },
+                contentType = list.getOrElse(1) { "" },
+                contentTone = list.getOrElse(2) { "" },
+                videoDuration = list.getOrElse(3) { "" },
+                selectedRatio = list.getOrElse(4) { "9:16" }
+            ),
+            messages = list.drop(7).mapNotNull { raw ->
+                val sep = raw.indexOf('\u0001')
+                if (sep < 0) null else DirectorMsg(raw[0] == 'D', raw.substring(sep + 1))
+            }.ifEmpty {
+                listOf(DirectorMsg(true, "أهلاً بك في غرفة المخرج. احكِ لي فكرتك وسأجهز كل شيء."))
+            },
+            input = list.getOrElse(5) { "" },
+            treatment = list.getOrElse(6) { "" }
+        )
+    }
+)
+
+@Composable
+internal fun rememberDirectorChatState(initialText: String): DirectorChatState =
+    rememberSaveable(saver = directorChatStateSaver) {
+        DirectorChatState(
+            brief = DirectorBrief(idea = initialText),
+            messages = listOf(
                 DirectorMsg(
                     true,
                     if (initialText.isBlank()) "أهلاً بك في غرفة المخرج. احكِ لي فكرتك وسأجهز كل شيء."
                     else "ممتاز، استلمت هذه البداية. أخبرني المزيد أو أجب عن أسئلتي لأكمل الموجز."
                 )
-            )
+            ),
+            input = "",
+            treatment = ""
         )
     }
-    var input by remember { mutableStateOf("") }
-    var thinking by remember { mutableStateOf(false) }
-    var treatment by remember { mutableStateOf("") }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DirectorChatScreen(
+    state: DirectorChatState,
+    onComplete: (DirectorBrief) -> Unit,
+    onBack: () -> Unit,
+    /**
+     * ق180: نطاق الوالد (UnifiedBriefScreen) لا نطاق الابنة — إطلاق
+     * دور الذكاء من rememberCoroutineScope() الخاص بالابنة كان
+     * يُلغى عند تبديل التبويب (الابنة تخرج من التركيب) فتبقى رسالة
+     * المستخدم بلا رد وبلا خطأ، رغم أن الحالة نفسها تنجو (ق70).
+     * نطاق الوالد يبقى مركّباً عند التبديل فيكمل الدور ويُلحق الرد،
+     * ويموت مع مغادرة تدفق الموجز فيُلغى الدور كما يجب. التدوير
+     * ما زال يلغي الدور (الوالد نفسه يُعاد إنشاؤه) كما في ق53.
+     */
+    sendScope: kotlinx.coroutines.CoroutineScope
+) {
+    val context = LocalContext.current
+    val listState = rememberLazyListState()
+
+    // ق70: الحالة من الحامل المرفوع للوالد (تنجو من تبديل التبويب
+    // والتدوير معاً)؛ وthinking مرفوعة في الحامل نفسه (ق180)؛ و
+    // buildingTreatment عابرة فتبقى remember — تنطفئ عند العودة
+    // من تبديل التبويب بلا ضرر لأن العلاج نفسه يُحفظ في الحالة
+    // المرفوعة فيظهر عند العودة، والكوروتين صار في نطاق الوالد
+    // فيكمل بناءه حتى والتبويب مبدَّل.
+    var brief by state.briefState
+    var messages by state.messagesState
+    var input by state.inputState
+    var treatment by state.treatmentState
+    var thinking by state.thinkingState
     var buildingTreatment by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { AppServices.getAnalyticsService(context).logScreenView("DirectorChat") }
@@ -151,7 +241,6 @@ fun DirectorChatScreen(
             القيم الفارغة null. النسبة الافتراضية 9:16. reply بالعربية الفصيحة المبسطة، جملتان كحد أقصى.
         """.trimIndent()
         val raw = try { RealGroqService.chatOrGenerate(extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-            ?: try { RealOpenAIService.chatOrGenerate(extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             ?: try { geminiChat(context, extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         if (raw.isNullOrBlank() || !raw.contains("{")) return@withContext b to ""
         try {
@@ -174,10 +263,16 @@ fun DirectorChatScreen(
         input = ""
         messages = messages + DirectorMsg(false, clean)
         thinking = true
-        scope.launch {
+        // ق180: يُطلق في نطاق الوالد فينجو من تبديل التبويب؛ وfinally
+        // تُطفئ thinking حتى عند الإلغاء (مغادرة التدفق) فلا تبقى
+        // العلامة المرفوعة عالقة تمنع كل إرسال لاحق.
+        sendScope.launch {
+            try {
             var nb = localExtract(clean, brief)
             var reply = ""
-            val history = (messages + DirectorMsg(false, clean)).takeLast(8).joinToString("\n") {
+            // ق53: الرسالة أُضيفت إلى messages قبل إطلاق الكوروتين، فلا
+            // تُلحق مرة ثانية هنا — كانت تظهر مكررة في السجل المرسل للنموذج.
+            val history = messages.takeLast(8).joinToString("\n") {
                 (if (it.fromDirector) "المخرج: " else "المستخدم: ") + it.text
             }
             val ai = aiTurn(clean, nb, history)
@@ -198,7 +293,13 @@ fun DirectorChatScreen(
             brief = nb
             messages = messages + DirectorMsg(true, reply)
             thinking = false
-            try { listState.animateScrollToItem(messages.size) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
+            // ق180: التمرير فقط إن كانت القائمة مركّبة — بعد تبديل
+            // التبويب تكون listState منفصلة (totalItemsCount == 0)
+            // وanimateScrollToItem يعلّق الكوروتين إلى الأبد منتظراً
+            // تخطيطاً لن يأتي، فيموت بناء العلاج الحي بعده.
+            if (listState.layoutInfo.totalItemsCount > 0) {
+                try { listState.animateScrollToItem(messages.size) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
+            }
             // معاينة حية: ابنِ العلاج السينمائي أمام عين المستخدم بعد كل دور
             if (nb.idea.length >= 10) {
                 buildingTreatment = true
@@ -214,10 +315,13 @@ fun DirectorChatScreen(
                     بلا مقدمات.
                 """.trimIndent()
                 val t = try { RealGroqService.chatOrGenerate(tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-                    ?: try { RealOpenAIService.chatOrGenerate(tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                     ?: try { geminiChat(context, tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 if (!t.isNullOrBlank()) treatment = t.take(900)
                 else if (treatment.isBlank()) treatment = "الخطاف: «${nb.idea.take(50)}…»\nالمشهد 1: صوت يطرح السؤال + صورة سماء واسعة\nالمشهد 2: صوت يعمّق المعنى + صورة نور يخترق غيوماً\nالمشهد 3: صوت الذروة + صورة مسجد وقت الغروب\nالخاتمة: دعوة للمشاركة والنشر"
+                buildingTreatment = false
+            }
+            } finally {
+                thinking = false
                 buildingTreatment = false
             }
         }
@@ -287,6 +391,7 @@ fun DirectorChatScreen(
                 Spacer(Modifier.height(8.dp))
                 ProdPrimaryButton(
                     text = if (brief.idea.isBlank()) "اكتب الفكرة أولاً" else "اعتمد وابدأ",
+                    enabled = brief.idea.isNotBlank(),
                     onClick = {
                         if (brief.idea.isNotBlank()) {
                             onComplete(brief.copy(videoDuration = brief.videoDuration.ifBlank { "30 ثانية" }))
@@ -364,7 +469,12 @@ private suspend fun geminiChat(context: android.content.Context, prompt: String)
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash via App Check)
         try {
             val fbText = FirebaseAiService.generateText(prompt)
-            if (fbText.isNotBlank()) return@withContext fbText
+            if (fbText.isNotBlank()) {
+                // ق44: تسجيل الاستهلاك — كان هذا المسار يمر بلا أثر في
+                // تتبع التكلفة (رموز تقديرية فتبقى «غير مقاسة»).
+                VibeCostTracker.recordEstimated(context, "gemini", "gemini-3.8-flash", prompt, fbText, "دردشة المخرج")
+                return@withContext fbText
+            }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
 
         val key = KeyVault.gemini
@@ -383,9 +493,28 @@ private suspend fun geminiChat(context: android.content.Context, prompt: String)
             val resp = ApiUsageTracker.track(context, "Gemini") { SharedHttpClient.instance.newCall(req).execute() }
             if (!resp.isSuccessful) return@withContext null
             val json = JSONObject(resp.body?.string() ?: "")
-            json.optJSONArray("candidates")?.optJSONObject(0)
+            val text = json.optJSONArray("candidates")?.optJSONObject(0)
                 ?.optJSONObject("content")?.optJSONArray("parts")
                 ?.optJSONObject(0)?.optString("text")
+            if (!text.isNullOrBlank()) {
+                // ق44: تسجيل الاستهلاك — بتفصيل الرموز الحقيقي عند
+                // إرساله، وإلا تقديرياً («غير مقاسة»).
+                val usage = json.optJSONObject("usageMetadata")
+                val promptTokens = usage?.optInt("promptTokenCount", 0) ?: 0
+                val completionTokens = usage?.optInt("candidatesTokenCount", 0) ?: 0
+                if (promptTokens + completionTokens > 0) {
+                    val total = usage?.optInt("totalTokenCount", 0)?.takeIf { it > 0 }
+                        ?: (promptTokens + completionTokens)
+                    VibeCostTracker.record(
+                        context, "gemini", "gemini-2.0-flash",
+                        RealAgentResponse(text, total, promptTokens, completionTokens),
+                        "دردشة المخرج"
+                    )
+                } else {
+                    VibeCostTracker.recordEstimated(context, "gemini", "gemini-2.0-flash", prompt, text, "دردشة المخرج")
+                }
+            }
+            text
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
     }
 

@@ -611,6 +611,27 @@ object IslamicLibraryRepository {
         return (read * 100 / total).coerceIn(0, 100)
     }
 
+    /**
+     * كبسولة حكمة اليوم: تدور على كبسولات الفائدة في الكتب بيوم السنة
+     * (ق48) — فـ«اليومية» تتغير فعلاً كل يوم، بدل الاقتباس الواحد
+     * المثبت الذي كان يُعرض كل يوم بالعنوان نفسه. تعيد
+     * (النص، عنوان الكتاب، اسم المؤلف)، أو null إن خلت الكتب منها.
+     */
+    fun dailyWisdomCapsule(dayOfYear: Int): Triple<String, String, String>? {
+        val all = ArrayList<Triple<String, String, String>>()
+        for (book in books) {
+            for (chapter in book.chapters) {
+                for (section in chapter.sections) {
+                    if (section.wisdomCapsule.isNotBlank()) {
+                        all.add(Triple(section.wisdomCapsule, book.title, book.authorName))
+                    }
+                }
+            }
+        }
+        if (all.isEmpty()) return null
+        return all[(dayOfYear - 1).mod(all.size)]
+    }
+
     // ════════════════════════════════════════════════════════════════════
     // البحث النصي الكامل داخل نص الكتب (لا العناوين فقط)
     // ════════════════════════════════════════════════════════════════════

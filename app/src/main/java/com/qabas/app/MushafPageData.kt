@@ -141,6 +141,20 @@ object MushafPageData {
         return juz
     }
 
+    /** رقم الحزب (1-60) الذي تنتمي إليه الصفحة حسب أول آية فيها. */
+    fun getHizbForPage(page: Int): Int {
+        val hizbFirst = hizbFirstRefs ?: return -1
+        if (hizbFirst.isEmpty()) return -1
+        val refs = getPageRefs(page)
+        if (refs.isEmpty()) return -1
+        val order = refOrder(refs.first())
+        var hizb = 1
+        for (j in hizbFirst.indices) {
+            if (refOrder(hizbFirst[j]) <= order) hizb = j + 1 else break
+        }
+        return hizb
+    }
+
     /** أول صفحة في جزء معين (1-30). -1 عند الغياب. */
     fun getPageForJuz(juz: Int): Int {
         val juzFirst = juzFirstRefs ?: return -1
@@ -157,6 +171,20 @@ object MushafPageData {
             if (refs.isNotEmpty() && refOrder(refs.first()) >= order) return p + 1
         }
         return -1
+    }
+
+    /** أول آية في جزء معين (1-30). null عند الغياب. */
+    fun getJuzFirstRef(juz: Int): Pair<Int, Int>? {
+        val juzFirst = juzFirstRefs ?: return null
+        if (juz < 1 || juz > juzFirst.size) return null
+        return juzFirst[juz - 1]
+    }
+
+    /** أول آية في حزب معين (1-60). null عند الغياب. */
+    fun getHizbFirstRef(hizb: Int): Pair<Int, Int>? {
+        val hizbFirst = hizbFirstRefs ?: return null
+        if (hizb < 1 || hizb > hizbFirst.size) return null
+        return hizbFirst[hizb - 1]
     }
 
     /** أول صفحة في حزب معين (1-60). -1 عند الغياب. */

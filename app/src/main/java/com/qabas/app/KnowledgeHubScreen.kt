@@ -287,7 +287,6 @@ fun KnowledgeHubScreen(
     var currentQuizIdx by remember { mutableIntStateOf(0) }
     var selectedAnswerIdx by remember { mutableStateOf<Int?>(null) }
     var isAnswerSubmitted by remember { mutableStateOf(false) }
-    var quizScore by remember { mutableIntStateOf(0) }
     var isQuizCompleted by remember { mutableStateOf(false) }
 
     var audienceTopicInput by remember { mutableStateOf("غزوة بدر والدروس الاستراتيجية") }
@@ -371,7 +370,7 @@ fun KnowledgeHubScreen(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
-                                "+${completedTasksCount * 30} XP",
+                                "+${completedTasksCount * PointsManager.DAILY_TASK_POINTS} XP",
                                 color = theme.primary,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
@@ -414,7 +413,11 @@ fun KnowledgeHubScreen(
                                     if (!taskReadToday) {
                                         taskReadToday = true
                                         markTaskDone("task_read_today")
-                                        PointsManager.awardPoints(context, PointAction.DAILY_LOGIN)
+                                        PointsManager.awardCustomPoints(
+                                            context,
+                                            PointsManager.DAILY_TASK_POINTS,
+                                            "مهمة يومية: قراءة فائدة اليوم"
+                                        )
                                         Toast.makeText(context, "تم إنجاز قراءة فائدة اليوم! +10 XP", Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -475,6 +478,11 @@ fun KnowledgeHubScreen(
                                     if (!taskScriptCreatedToday) {
                                         taskScriptCreatedToday = true
                                         markTaskDone("task_script_today")
+                                        PointsManager.awardCustomPoints(
+                                            context,
+                                            PointsManager.DAILY_TASK_POINTS,
+                                            "مهمة يومية: إنشاء سيناريو"
+                                        )
                                     }
                                 },
                                 onOpenTeleprompter = {
@@ -619,6 +627,11 @@ fun KnowledgeHubScreen(
                                                         if (!taskScriptCreatedToday) {
                                                             taskScriptCreatedToday = true
                                                             markTaskDone("task_script_today")
+                                                            PointsManager.awardCustomPoints(
+                                                                context,
+                                                                PointsManager.DAILY_TASK_POINTS,
+                                                                "مهمة يومية: إنشاء سيناريو"
+                                                            )
                                                         }
                                                     }
                                                 } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
@@ -812,9 +825,6 @@ fun KnowledgeHubScreen(
                                                 onClick = {
                                                     if (selectedAnswerIdx != null) {
                                                         isAnswerSubmitted = true
-                                                        if (selectedAnswerIdx == question.correctAnswerIndex) {
-                                                            quizScore += 30
-                                                        }
                                                     } else {
                                                         Toast.makeText(context, "يرجى اختيار إجابة أولاً", Toast.LENGTH_SHORT).show()
                                                     }
@@ -833,7 +843,11 @@ fun KnowledgeHubScreen(
                                                         if (!taskQuizToday) {
                                                             taskQuizToday = true
                                                             markTaskDone("task_quiz_today")
-                                                            PointsManager.awardPoints(context, PointAction.DAILY_LOGIN)
+                                                            PointsManager.awardCustomPoints(
+                                                                context,
+                                                                PointsManager.DAILY_TASK_POINTS,
+                                                                "مهمة يومية: تحدي الفرسان العلمي"
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -848,7 +862,7 @@ fun KnowledgeHubScreen(
                                         ) {
                                             Text("أحسنت! أتممت تحدي الفرسان العلمي", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            Text("حصلت على +$quizScore XP", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
+                                            Text("حصلت على +${PointsManager.DAILY_TASK_POINTS} XP", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
                                             Spacer(modifier = Modifier.height(14.dp))
                                             ApplePrimaryButton(
                                                 text = "إعادة التحدي",
@@ -858,7 +872,6 @@ fun KnowledgeHubScreen(
                                                     selectedAnswerIdx = null
                                                     isAnswerSubmitted = false
                                                     isQuizCompleted = false
-                                                    quizScore = 0
                                                 }
                                             )
                                         }

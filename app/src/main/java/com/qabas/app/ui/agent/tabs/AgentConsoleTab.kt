@@ -241,6 +241,10 @@ internal fun AgentLiveConsoleTab(
 
         val (provider, key) = activeEngineInfo
 
+        // (ق31) سجل الجلسة السابق — يُحسب قبل إضافة رسالتي الأمر الحالي
+        // (كانت تُرسل بلا أي سياق فينسى النموذج التبادلات السابقة).
+        val priorHistoryBlock = AgentChatSessionManager.historyBlock(chatMessages.toList())
+
         if (chatMessages.isEmpty() || chatMessages.lastOrNull()?.text != cmd.prompt) {
             chatMessages.add(AgentChatMessage(sender = AgentChatSender.USER, text = cmd.prompt))
             chatMessages.add(
@@ -265,7 +269,7 @@ internal fun AgentLiveConsoleTab(
         runningJob = scope.launch {
             // 1. التحقق الصريح من وجود المفتاح
             if (key.isBlank() || provider == DetectedProvider.NONE) {
-                val errorMsg = "لم يتم إدخال أو تكوين أي مفتاح API نشط. يرجى إدخال مفتاح (Gemini / OpenRouter / OpenAI / Groq) في قسم المفاتيح للاتصال بالسيرفر."
+                val errorMsg = "لم يتم إدخال أو تكوين أي مفتاح API نشط. يرجى إدخال مفتاح (Gemini / Groq / OpenRouter) في قسم المفاتيح للاتصال بالسيرفر."
                 steps = steps + AgentStep(
                     id = 1,
                     turn = 1,
@@ -303,7 +307,7 @@ internal fun AgentLiveConsoleTab(
                 أنت الوكيل البرمجي المستقل لتطبيق خادم المسلم (نمط ${selectedSpecialization.title}).
                 قم بتحليل طلب المطور وطبّق التعديل البرمجي أو أجب بدقة هندسية عالية باللغة العربية.
                 إذا كان الطلب يتضمن إنشاء أو تعديل كود، اعرض الكود المستهدف بشكل واضح مع توضيح الفروقات.
-            """.trimIndent()
+            """.trimIndent() + if (priorHistoryBlock.isNotBlank()) "\n\n$priorHistoryBlock" else ""
 
             val startTime = System.currentTimeMillis()
             // تجاوز تلقائي عبر المسبح مرتباً حسب الأسرع المتصل
@@ -770,7 +774,7 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            "الصق أي مفتاح ذكاء اصطناعي (Gemini, Groq, OpenRouter, OpenAI, Claude) — سيكتشفه النظام تلقائياً:",
+                            "الصق أي مفتاح ذكاء اصطناعي (Gemini, Groq, OpenRouter) — سيكتشفه النظام تلقائياً:",
                             color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp

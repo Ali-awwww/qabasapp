@@ -46,11 +46,14 @@ import java.util.Locale
 private fun todayKey(): String =
     SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-/** حديث اليوم: من hadith_presets أولاً، ورجوع محلي للصحيحين دون اتصال. */
+/** حديث اليوم: مصدر حقيقة واحد — DailyHadithRepository نفسه الذي
+ * يقرؤه إشعار حديث اليوم والمولّد (انظر تعليق generateBatch) — فلا
+ * يختلف حديث البطاقة عن حديث الإشعار في اليوم نفسه. */
 data class HomeHadithOfDay(
     val title: String,
     val text: String,
-    val source: String
+    val source: String,
+    val benefit: String = ""
 )
 
 /** حالة بطاقة اليوم؛ تُحدَّث من التفضيلات المحلية والسحابة. */
@@ -159,26 +162,29 @@ class HomeTodayState(private val appContext: Context) {
             prefs.edit().putInt("mishkat_tasbeeh_count", next).apply()
             tasbeehCount = next
         }
+        // نقرة حقيقية واحدة تدخل إجمالي التسبيح التراكمي (إحصائيات العبادة).
+        MuslimToolsEngine(appContext).recordExternalTasbeehTap()
     }
 
-    /** تحميل آية اليوم وحديث اليوم (آية من uthmani.json، وحديث من السحابة أو محلياً). */
+    /** تحميل آية اليوم وحديث اليوم (آية من uthmani.json، وحديث من مستودع
+     * الحديث اليومي الموحّد) — ق116: كان للبطاقة محددان آخران
+     * (hadith_presets السحابية ثم getRandomDailyHadith بصيغة سنة×366)
+     * فيختلف حديثها عن حديث إشعار اليوم نفسه؛ والآن المصدر واحد. */
     suspend fun loadDailyContent() {
         val (verse, hadith) = withContext(Dispatchers.IO) {
             runCatching { QuranDataProvider.ensureQuranLoaded(appContext) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             val loadedVerse = runCatching { QuranDataProvider.getVerseOfDay() }.getOrNull()
-            val presets = runCatching {
-                SupabaseServices.Database.getHadithPresets()
-            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
-            val loadedHadith = if (presets.isNotEmpty()) {
+            val loadedHadith = runCatching {
                 val dayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-                val preset = presets[dayOfYear % presets.size]
-                HomeHadithOfDay(title = preset.title, text = preset.text, source = preset.source)
-            } else {
-                runCatching {
-                    val local = SahihHadithsRepository.getRandomDailyHadith()
-                    HomeHadithOfDay(title = local.title, text = local.matn, source = local.reference)
-                }.getOrNull()
-            }
+                DailyHadithRepository.getHadithForDay(appContext, dayOfYear)?.let { daily ->
+                    HomeHadithOfDay(
+                        title = daily.title.ifBlank { daily.book },
+                        text = daily.text,
+                        source = "${daily.narrator} (${daily.book})",
+                        benefit = daily.benefit
+                    )
+                }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
             loadedVerse to loadedHadith
         }
         verseOfDay = verse
@@ -269,14 +275,14 @@ fun HomeTodayCard(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "الصلاة القادمة: ${state.nextPrayerName}",
+                            text = PrayerCalculationHelper.nextEventTitle(state.nextPrayerName),
                             color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "الأذان ${state.nextPrayerTime}",
+                            text = PrayerCalculationHelper.nextEventTimeLabel(state.nextPrayerName, state.nextPrayerTime),
                             color = theme.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp
@@ -322,7 +328,8 @@ fun HomeTodayCard(
                 }
             }
 
-            // حديث اليوم (من hadith_presets، ورجوع محلي للصحيحين).
+            // حديث اليوم (من مستودع الحديث اليومي الموحّد — نفسه الذي
+            // يقرؤه إشعار اليوم، فلا حديثان مختلفان بذات التسمية).
             state.hadithOfDay?.let { hadith ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
@@ -352,6 +359,16 @@ fun HomeTodayCard(
                         fontFamily = CairoFont,
                         fontSize = 12.sp
                     )
+                    // ومضة الفائدة نفسها التي يحملها إشعار اليوم.
+                    if (hadith.benefit.isNotBlank()) {
+                        Text(
+                            text = "ومضة: ${hadith.benefit}",
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 12.sp,
+                            lineHeight = 19.sp
+                        )
+                    }
                 }
             }
 
@@ -539,11 +556,27 @@ fun HomeContinueRow(
                     onClick = onOpenAzkar
                 )
             }
+            // العدّاد التراكمي المشترك بلا سقف (مشكاة/حسنات)؛ المقام 33 هدف
+            // الدورة الواحدة لا المجموع الكلي — بعد 33 نقرة كان العرض
+            // «127 / 33» كاذباً. الآن يُعرض موضع النقرة داخل دورتها الحالية
+            // وعدد الدورات المكتملة، دون تغيير العدّاد نفسه.
+            val tasbeehCycles = state.tasbeehCount / 33
+            val tasbeehInCycle = state.tasbeehCount % 33
+            val tasbeehTitle = when {
+                tasbeehCycles == 0 -> "التسبيح: ${state.tasbeehCount} / 33"
+                tasbeehInCycle == 0 -> "التسبيح: 33 / 33"
+                else -> "التسبيح: $tasbeehInCycle / 33"
+            }
+            val tasbeehSubtitle = if (tasbeehCycles > 0) {
+                "دورة مكتملة $tasbeehCycles — اضغط للزيادة"
+            } else {
+                "اضغط للزيادة"
+            }
             item {
                 HomeContinueChip(
                     icon = Icons.Default.Fingerprint,
-                    title = "التسبيح: ${state.tasbeehCount} / 33",
-                    subtitle = "اضغط للزيادة",
+                    title = tasbeehTitle,
+                    subtitle = tasbeehSubtitle,
                     onClick = { state.incrementTasbeeh() }
                 )
             }
@@ -596,7 +629,7 @@ private fun HomeContinueChip(
 private data class HomeSearchResults(
     val quran: List<QuranVerseDetail> = emptyList(),
     val hadith: List<SahihHadithItem> = emptyList(),
-    val library: List<IslamicBook> = emptyList(),
+    val library: List<IslamicLibraryRepository.LibrarySearchResult> = emptyList(),
     val reels: List<SupabaseServices.ReelRow> = emptyList(),
     val creators: List<Pair<String, String>> = emptyList()
 ) {
@@ -607,9 +640,13 @@ private data class HomeSearchResults(
 
 /**
  * بحث عام حقيقي: تأخير 350ms، حد أدنى حرفان، نتائج مجمّعة (حد 4 لكل مجموعة).
- * - قرآن عبر QuranDataProvider.searchVerses (يحتاج 3 أحرف فأكثر حسب المزوّد).
- * - حديث عبر SahihHadithsRepository (القائمة المنقّاة المحلية).
- * - مكتبة بنفس محدد IslamicLibraryScreen (العنوان/المؤلف/الوصف/العنوان التشويقي).
+ * - قرآن عبر QuranDataProvider.searchVerses (يحتاج 3 أحرف فأكثر حسب المزوّد)،
+ *   بعد ضمان تحميل النص العثماني أولاً — وإلا وجد البحث السريع الفهرس
+ *   فارغاً فأعاد صفر نتائج قرآنية صامتاً.
+ * - حديث عبر SahihHadithsRepository (القائمة المنقّاة المحلية، مطابقة مطبَّعة).
+ * - مكتبة عبر IslamicLibraryRepository.searchBooks — بحث نصي كامل مطبَّع
+ *   (لا مرشّح خام مكرر على 4 حقول فقط كان يفوّت المطابقات داخل المقاطع
+ *   والمطابقات مع اختلاف التشكيل/الهمزة).
  * - ريلز من الذاكرة المحلية أولاً ثم جلب سحابي مع تعقيم ReelSafetyGuardrails.
  * - صنّاع من صانعي الريلز المطابقين للاستعلام.
  * الروابط العميقة 5 دوال اختيارية افتراضها فتح القسم المالك؛ الربط الحقيقي
@@ -668,6 +705,17 @@ fun HomeGlobalSearch(
             shape = RoundedCornerShape(14.dp)
         )
 
+        // استعلام من حرفين لا يبحث في القرآن أبداً (المزوّد يشترط 3) —
+        // يُقال ذلك صراحة بدل غياب المجموعة صامتاً.
+        if (query.trim().length == 2) {
+            Text(
+                "البحث في القرآن يحتاج 3 أحرف فأكثر.",
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 11.sp
+            )
+        }
+
         if (isSearching) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -712,11 +760,11 @@ fun HomeGlobalSearch(
             }
             if (results.library.isNotEmpty()) {
                 HomeSearchGroup(title = "المكتبة (${results.library.size})") {
-                    results.library.forEach { book ->
+                    results.library.forEach { result ->
                         HomeSearchRow(
-                            title = book.title,
-                            subtitle = book.authorName,
-                            onClick = { onOpenLibraryBook(book.id) }
+                            title = result.book.title,
+                            subtitle = result.matchPreview.ifBlank { result.book.authorName },
+                            onClick = { onOpenLibraryBook(result.book.id) }
                         )
                     }
                 }
@@ -749,7 +797,10 @@ fun HomeGlobalSearch(
 
 private suspend fun searchHomeContent(context: Context, query: String): HomeSearchResults {
     // قرآن: المزوّد يحتاج 3 أحرف فأكثر؛ دونها تبقى المجموعة فارغة.
+    // يُضمَن تحميل النص أولاً: بحث سريع بعد فتح الرئيسية كان يجد
+    // versesMap فارغاً فيعيد صفر نتائج قرآنية دون أي تفسير.
     val quranResults = if (query.length >= 3) {
+        runCatching { QuranDataProvider.ensureQuranLoaded(context) }.getOrNull()
         runCatching { QuranDataProvider.searchVerses(query, limit = 4) }.getOrNull().orEmpty()
     } else {
         emptyList()
@@ -757,12 +808,13 @@ private suspend fun searchHomeContent(context: Context, query: String): HomeSear
     val hadithResults = runCatching {
         SahihHadithsRepository.searchHadiths(null, null, query).take(4)
     }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
-    val libraryResults = IslamicLibraryRepository.books.filter { book ->
-        book.title.contains(query, ignoreCase = true) ||
-            book.authorName.contains(query, ignoreCase = true) ||
-            book.description.contains(query, ignoreCase = true) ||
-            book.hookTitle.contains(query, ignoreCase = true)
-    }.take(4)
+    // مكتبة: بحث نصي كامل مطبَّع من المستودع نفسه — لا مرشّح خام مكرر.
+    // نتيجة واحدة لكل مقطع مطابق؛ تُميَّز الكتب وتُؤخذ 4.
+    val libraryResults = runCatching {
+        IslamicLibraryRepository.searchBooks(query, limit = 20)
+            .distinctBy { it.book.id }
+            .take(4)
+    }.getOrNull().orEmpty()
 
     // ريلز: الذاكرة المحلية أولاً، ثم جلب سحابي عند الحاجة.
     // review-r13: كان الجلب السحابي يقتصر على أول 20 مقطعاً، فالبحث عن
@@ -782,7 +834,9 @@ private suspend fun searchHomeContent(context: Context, query: String): HomeSear
     }
     val reelResults = (localMatches + cloudMatches).take(4)
     val creatorResults = (localMatches + cloudMatches)
-        .filter { it.userName.contains(query, ignoreCase = true) }
+        // ق151: مطابقة مطبَّعة كالريلز أدناه — كان contains خاماً فيفوت
+        // اسم صانع بهمزة/تشكيل (الصنف نفسه في بحث السور ق138 والمدن ق143).
+        .filter { HadithSearchNormalizer.matches(it.userName ?: "", query) }
         .distinctBy { it.userId.ifBlank { it.userName } }
         .map { it.userId to it.userName }
         .take(4)
@@ -796,11 +850,22 @@ private suspend fun searchHomeContent(context: Context, query: String): HomeSear
     )
 }
 
+/**
+ * مطابقة ريل للاستعلام — مطبَّعة عبر HadithSearchNormalizer.matches
+ * (إزالة التشكيل وتوحيد الألف والهمزة والتطويل + AND على الكلمات)،
+ * كباقي مجموعات البحث العام.
+ *
+ * ق151: كان contains خاماً على الحقول الأربعة، فيفوت «القران» مقاطع
+ * «القرآن» و«أعمال» مقاطع «الأعمال» — بينما مجموعات القرآن والحديث
+ * والمكتبة في البحث نفسه مطبَّعة؛ فمجموعة الريلز وحدها كانت تكذّب
+ * «لا توجد نتائج» على استعلام صحيح. (الصنف نفسه الذي قُتل في بحث
+ * السور ق138 وبحث المدن ق143 وبحث المكتبة.)
+ */
 private fun reelMatches(reel: SupabaseServices.ReelRow, query: String): Boolean =
-    reel.title.contains(query, ignoreCase = true) ||
-        (reel.description?.contains(query, ignoreCase = true) == true) ||
-        (reel.userName?.contains(query, ignoreCase = true) == true) ||
-        reel.tags.any { it.contains(query, ignoreCase = true) }
+    HadithSearchNormalizer.matches(reel.title, query) ||
+        HadithSearchNormalizer.matches(reel.description ?: "", query) ||
+        HadithSearchNormalizer.matches(reel.userName ?: "", query) ||
+        reel.tags.any { HadithSearchNormalizer.matches(it, query) }
 
 @Composable
 private fun HomeSearchGroup(

@@ -81,20 +81,36 @@ fun AppRealVersionFooterBadge(
                         isChecking = true
                         Toast.makeText(context, "🔍 جاري فحص تحديثات خادم المسلم الرسمية...", Toast.LENGTH_SHORT).show()
                         try {
-                            val update = UpdateManager.checkForUpdate(context, force = true)
-                            if (update != null) {
-                                Toast.makeText(
-                                    context,
-                                    "🚀 يتوفر تحديث جديد: v${update.versionName} (${update.versionCode})!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                onViewDownloads()
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "✨ تطبيق خادم المسلم محدث لأحدث إصدار رسمي: v$versionName Build $versionCode",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                            // ق46: فحص مميِّز — كان checkForUpdate يعيد null
+                            // لـ«لا تحديث» و«تعذّر الوصول» معاً فكانت الشارة
+                            // تدّعي «محدث لأحدث إصدار» دون اتصال (نفس صنف
+                            // عيب الجولة 24 الذي أُصلح في مركز التنزيلات
+                            // وشاشة «عن التطبيق» وبقي هنا).
+                            when (val result = VersionManager.checkRemoteVersionDetailed(context, force = true)) {
+                                is UpdateManager.UpdateCheckResult.Available -> {
+                                    val update = result.info
+                                    Toast.makeText(
+                                        context,
+                                        "🚀 يتوفر تحديث جديد: v${update.versionName} (${update.versionCode})!",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    onViewDownloads()
+                                }
+                                UpdateManager.UpdateCheckResult.UpToDate -> {
+                                    Toast.makeText(
+                                        context,
+                                        "✨ تطبيق خادم المسلم محدث لأحدث إصدار رسمي: v$versionName Build $versionCode",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                UpdateManager.UpdateCheckResult.Failed,
+                                UpdateManager.UpdateCheckResult.Skipped -> {
+                                    Toast.makeText(
+                                        context,
+                                        "تعذّر الاتصال بخادم التحديثات، تحقق من الإنترنت وحاول لاحقاً.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             }
                         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                             Toast.makeText(

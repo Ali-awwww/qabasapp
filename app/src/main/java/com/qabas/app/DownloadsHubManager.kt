@@ -7,13 +7,17 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -123,7 +127,15 @@ data class ReelDownloadProgress(
     val speedKbps: Long = 0L,
     val isCompleted: Boolean = false,
     val isError: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** ق119: رابط إعادة التنزيل + تسمية العنصر — بدونهما كان إدخال
+     * الوسائط الفاشل في اللوحة بلا إعادة محاولة (إزالة فقط). */
+    val sourceUrl: String? = null,
+    val subtitle: String = "",
+    /** ق168: صانع الريل ومصغّرته — بدونهما كانت إعادة تنزيل ريل فاشل
+     * تسجّل الصانع «صانع محتوى» بدل صاحبه الحقيقي. */
+    val author: String = "",
+    val thumbnailUrl: String? = null
 )
 
 /**
@@ -372,6 +384,30 @@ object DownloadsHubManager {
             .getBoolean(KEY_WIFI_ONLY_DOWNLOADS, false)
     }
 
+    /**
+     * ق168: تفعيل/إيقاف «التنزيل عبر Wi-Fi فقط» — كان الخيار يُقرأ
+     * في قيود العامل وحارس المسار المباشر، لكن لا كاتب له في الشجرة
+     * كلها ولا مبدّل في أي واجهة، فبقي دائماً على الافتراضي (إيقاف)
+     * وكانت الميزة ميتة عملياً؛ يقرؤه مبدّل مركز التنزيلات الآن،
+     * ويسري على التنزيلات الجديدة (قيود WorkManager تُثبَّت عند الإدراج).
+     */
+    fun setWifiOnlyDownloads(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_WIFI_ONLY_DOWNLOADS, enabled).apply()
+    }
+
+    /** هل الشبكة النشطة غير محدودة (Wi-Fi عادة)؟ بلا شبكة نشطة = لا. */
+    private fun isUnmeteredNetwork(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+                ?: return true
+            val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        } catch (e: Exception) {
+            true
+        }
+    }
+
     /** ملف الوسائط الموحّد لمعرّف ما — نفس المفتاح لكل مسارات تنزيل الصوت. */
     internal fun mediaFileForId(context: Context, mediaId: String, extension: String): File {
         val safeId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
@@ -436,6 +472,29 @@ object DownloadsHubManager {
             .remove(KEY_RESUME_META_PREFIX + fileKey).apply()
     }
 
+    // قفل واحد لكل ملف وجهة: تنزيلان متزامنان للملف نفسه (مسار مباشر
+    // + عامل WorkManager، أو استدعاءان لحلّال صوت الأذان) كانا يكتبان
+    // في الملف الجزئي نفسه بوضع الإلحاق فيفسد الملف. القفل يُؤخذ على
+    // المسار الكامل فيغطي كل المسارات؛ ولا تداخل (لا استدعاء متداخل
+    // للمحرك نفسه)، فلا جمود. الخريطة محدودة بعدد الملفات المنزّلة.
+    private val downloadMutexes = mutableMapOf<String, Mutex>()
+    private fun mutexForFile(path: String): Mutex =
+        synchronized(downloadMutexes) { downloadMutexes.getOrPut(path) { Mutex() } }
+
+    // ق113: سجل مهام التنزيلات المباشرة — كان cancelMediaDownload يلغي
+    // عامل WorkManager وحده، فزر «إلغاء» في لوحة التنزيلات لا يوقف تنزيلاً
+    // مباشراً (حلقة تلاوة المصحف مثلاً)؛ والآية التالية تعيد تسجيل نفسها
+    // فيعيد العنصر «الملغى» الظهور. تُسجَّل مهمة المتصل هنا ويُلغيها الإلغاء.
+    private val directMediaDownloadJobs = mutableMapOf<String, Job>()
+    private fun registerDirectMediaDownload(mediaId: String, job: Job) {
+        synchronized(directMediaDownloadJobs) { directMediaDownloadJobs[mediaId] = job }
+    }
+    private fun unregisterDirectMediaDownload(mediaId: String, job: Job) {
+        synchronized(directMediaDownloadJobs) {
+            if (directMediaDownloadJobs[mediaId] == job) directMediaDownloadJobs.remove(mediaId)
+        }
+    }
+
     /**
      * محرك التنزيل القابل للاستئناف المشترك للريلز والوسائط (يستخدمه عامل
      * WorkManager والمسار المباشر معاً):
@@ -451,6 +510,18 @@ object DownloadsHubManager {
      *   بإجراء حذف صريح من المستخدم.
      */
     internal suspend fun downloadFileResumable(
+        context: Context,
+        fileUrl: String,
+        destFile: File,
+        maxBytes: Long = Long.MAX_VALUE,
+        onProgress: (suspend (downloaded: Long, total: Long) -> Unit)? = null
+    ): ResumableDownloadResult = withContext(Dispatchers.IO) {
+        mutexForFile(destFile.absolutePath).withLock {
+            downloadFileResumableLocked(context, fileUrl, destFile, maxBytes, onProgress)
+        }
+    }
+
+    private suspend fun downloadFileResumableLocked(
         context: Context,
         fileUrl: String,
         destFile: File,
@@ -504,10 +575,15 @@ object DownloadsHubManager {
             val response = httpClient.newCall(requestBuilder.build()).execute()
             if (!response.isSuccessful) {
                 saveResumeMeta(appContext, fileKey, ResumeMeta(resumeBytes, expectedTotal, fileUrl, savedMeta?.etag, savedMeta?.lastModified))
-                return@withContext ResumableDownloadResult(false, resumeBytes, expectedTotal, "فشل التنزيل: كود ${response.code}")
+                // بلا إغلاق كان الاتصال يتسرب (الجسم لا يُغلق في مساري
+                // الفشل المبكرين، خلاف مسار النجاح الذي يغلقه use).
+                val code = response.code
+                response.close()
+                return@withContext ResumableDownloadResult(false, resumeBytes, expectedTotal, "فشل التنزيل: كود $code")
             }
             val body = response.body ?: run {
                 saveResumeMeta(appContext, fileKey, ResumeMeta(resumeBytes, expectedTotal, fileUrl, savedMeta?.etag, savedMeta?.lastModified))
+                response.close()
                 return@withContext ResumableDownloadResult(false, resumeBytes, expectedTotal, "المحتوى فارغ")
             }
 
@@ -573,6 +649,17 @@ object DownloadsHubManager {
                 return@withContext ResumableDownloadResult(false, downloadedBytes, totalBytes, "اكتمل التنزيل ناقصاً — سيُستأنف تلقائياً")
             }
 
+            // ق168: سلامة التثبيت — إن تغيّر الملف الجزئي أثناء التنزيل
+            // (حذفه تنظيف الكاش مثلاً بين قراءة موضع الاستئناف وفتح
+            // المجرى) صار طوله مخالفاً للعدّاد، وتثبيته يركّب ملفاً
+            // مبتوراً على أنه مكتمل؛ يُحذف وتُمسح حالته فيُعاد صادقاً
+            // من الصفر بدل تركيب ناقص. في المسار السليم يساوي الطول
+            // العدّاد دائماً (جزئي سابق + مقروء، أو مقروء من الصفر).
+            if (tmpFile.exists() && tmpFile.length() != downloadedBytes) {
+                tmpFile.delete()
+                clearResumeMeta(appContext, fileKey)
+                return@withContext ResumableDownloadResult(false, 0L, totalBytes, "تغيّر الملف الجزئي أثناء التنزيل — سيُعاد من البداية")
+            }
             if (tmpFile.exists() && tmpFile.length() > 0) {
                 if (destFile.exists()) destFile.delete()
                 tmpFile.renameTo(destFile)
@@ -597,10 +684,15 @@ object DownloadsHubManager {
     // ---- تقارير تقدّم عامل WorkManager إلى تدفقات الواجهة الحالية ----
 
     internal fun reportWorkerProgress(kind: String, id: String, title: String, downloaded: Long, total: Long, speedKbps: Long = 0L) {
+        // ق119: تحديثات العامل الحية لا تمحو رابط الإعادة والتسمية.
+        val prev = if (kind == DownloadWorker.KIND_MEDIA) _activeMediaDownloads.value[id] else _activeReelDownloads.value[id]
         val progress = ReelDownloadProgress(
             reelId = id, title = title,
             progress = if (total > 0) (downloaded.toFloat() / total).coerceIn(0f, 1f) else 0f,
-            downloadedBytes = downloaded, totalBytes = total, speedKbps = speedKbps
+            downloadedBytes = downloaded, totalBytes = total, speedKbps = speedKbps,
+            sourceUrl = prev?.sourceUrl, subtitle = prev?.subtitle ?: "",
+            // ق168: تحديثات العامل الحية لا تمحو صانع الريل ومصغّرته.
+            author = prev?.author ?: "", thumbnailUrl = prev?.thumbnailUrl
         )
         if (kind == DownloadWorker.KIND_MEDIA) {
             _activeMediaDownloads.value = _activeMediaDownloads.value + (id to progress)
@@ -609,8 +701,20 @@ object DownloadsHubManager {
         }
     }
 
-    internal fun reportWorkerError(kind: String, id: String, title: String, message: String) {
-        val progress = ReelDownloadProgress(reelId = id, title = title, isError = true, errorMessage = message)
+    internal fun reportWorkerError(
+        kind: String, id: String, title: String, message: String,
+        sourceUrl: String? = null, subtitle: String = ""
+    ) {
+        // ق119: خطأ العامل يحمل رابط الإعادة والتسمية — بدونهما كان
+        // إدخال الوسائط الفاشل عبر WorkManager بلا إعادة أيضاً.
+        val prev = if (kind == DownloadWorker.KIND_MEDIA) _activeMediaDownloads.value[id] else _activeReelDownloads.value[id]
+        val progress = ReelDownloadProgress(
+            reelId = id, title = title, isError = true, errorMessage = message,
+            sourceUrl = sourceUrl ?: prev?.sourceUrl,
+            subtitle = subtitle.ifBlank { prev?.subtitle ?: "" },
+            // ق168: خطأ العامل لا يمحو صانع الريل ومصغّرته (تحتاجهما الإعادة).
+            author = prev?.author ?: "", thumbnailUrl = prev?.thumbnailUrl
+        )
         if (kind == DownloadWorker.KIND_MEDIA) {
             _activeMediaDownloads.value = _activeMediaDownloads.value + (id to progress)
         } else {
@@ -793,7 +897,9 @@ object DownloadsHubManager {
         }
 
         if (StatFs(getReelsDirectory(context).path).availableBytes < MIN_FREE_SPACE_FOR_REEL_BYTES) {
-            updateDownloadError(reelId, title, "المساحة الحرة غير كافية لتنزيل الريل")
+            // ق168: فشل المساحة عارض — يُحفظ الرابط لزر «إعادة» بعد
+            // تحرير مساحة؛ أما رفض الرابط أعلاه فحتمي فلا رابط إعادة له.
+            updateDownloadError(reelId, title, "المساحة الحرة غير كافية لتنزيل الريل", videoUrl)
             onComplete?.invoke(false)
             return
         }
@@ -801,7 +907,12 @@ object DownloadsHubManager {
         _activeReelDownloads.value = _activeReelDownloads.value + (reelId to ReelDownloadProgress(
             reelId = reelId,
             title = title,
-            progress = 0f
+            progress = 0f,
+            // ق168: رابط الريل وصانعه ومصغّرته من البداية — بدونها كان
+            // إدخال الريل الفاشل بلا إعادة (إزالة فقط، ق119 للوسائط وحده).
+            sourceUrl = videoUrl,
+            author = author,
+            thumbnailUrl = thumbnailUrl
         ))
         val workId = DownloadWorker.enqueueReel(context, reelId, title, videoUrl, thumbnailUrl, author)
         observeWorkCompletion(context, DownloadWorker.reelWorkName(reelId), workId, onComplete)
@@ -833,7 +944,8 @@ object DownloadsHubManager {
             return
         }
         _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-            reelId = mediaId, title = title, progress = 0f
+            reelId = mediaId, title = title, progress = 0f,
+            sourceUrl = fileUrl, subtitle = subtitle
         ))
         val workId = DownloadWorker.enqueueMedia(context, mediaId, title, fileUrl, extension, subtitle)
         observeWorkCompletion(context, DownloadWorker.mediaWorkName(mediaId), workId, onComplete)
@@ -858,12 +970,14 @@ object DownloadsHubManager {
         }
     }
 
-    private fun updateDownloadError(reelId: String, title: String, message: String) {
+    private fun updateDownloadError(reelId: String, title: String, message: String, sourceUrl: String? = null) {
         _activeReelDownloads.value = _activeReelDownloads.value + (reelId to ReelDownloadProgress(
             reelId = reelId,
             title = title,
             isError = true,
-            errorMessage = message
+            errorMessage = message,
+            // ق168: رابط إعادة المحاولة للفشل العارض (مساحة مثلاً).
+            sourceUrl = sourceUrl
         ))
     }
 
@@ -892,32 +1006,60 @@ object DownloadsHubManager {
         title: String,
         fileUrl: String,
         extension: String = "mp3",
+        /** ق119: تسمية العنصر المكتمل في اللوحة — كانت «صوت أذان» مثبّتة
+         * لكل الوسائط (ومنها تلاوة المصحف)؛ الافتراضي يحفظ منادي الأذان. */
+        subtitle: String = "صوت أذان",
         onProgress: ((sent: Long, total: Long) -> Unit)? = null
     ): String? {
-        val retryDelaysMillis = longArrayOf(2_000L, 5_000L, 10_000L)
-        var result: String? = null
-        repeat(3) { attempt ->
-            result = downloadMediaOnce(context, mediaId, title, fileUrl, extension, onProgress)
-            if (!result.isNullOrBlank()) return result
-            if (attempt < retryDelaysMillis.lastIndex) {
-                Log.w(TAG, "Adhan download failed; retry ${attempt + 1}/3 for $mediaId")
-                // (ر21) لا يُصفَّر شريط التقدم عند إعادة المحاولة: الملف الجزئي
-                // باقٍ على القرص والاستئناف يبدأ منه — كان progress = 0f فيكذب
-                // الشريط (0٪) بينما البايتات المنزّلة محفوظة فعلاً.
-                val prev = _activeMediaDownloads.value[mediaId]
-                _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-                    reelId = mediaId,
-                    title = title,
-                    progress = prev?.progress ?: 0f,
-                    downloadedBytes = prev?.downloadedBytes ?: 0L,
-                    totalBytes = prev?.totalBytes ?: 0L,
-                    isError = false,
-                    errorMessage = "إعادة المحاولة تلقائيًا (${attempt + 2}/3)…"
-                ))
-                delay(retryDelaysMillis[attempt])
-            }
+        // قيد «Wi-Fi فقط» كان يُحترم في مسار WorkManager وحده؛ أما
+        // المسار المباشر (حلّال صوت الأذان) فكان ينزّل عبر بيانات الهاتف
+        // رغم تفعيل المستخدم للقيد. يُرفض قبل أي محاولة ولا يُعاد.
+        if (isWifiOnlyDownloads(context) && !isUnmeteredNetwork(context)) {
+            _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                reelId = mediaId, title = title, isError = true,
+                sourceUrl = fileUrl, subtitle = subtitle,
+                errorMessage = "التنزيل مقيد بشبكة Wi-Fi — فعّل Wi-Fi أو أوقف قيد «Wi-Fi فقط» من إعدادات التنزيلات"
+            ))
+            return null
         }
-        return result
+        val retryDelaysMillis = longArrayOf(2_000L, 5_000L, 10_000L)
+        // ق113: تسجيل مهمة المتصل المباشر لتكون قابلة للإلغاء من اللوحة —
+        // المهمة هي مهمة سلسلة المتصل نفسها (حلقة المصحف مثلاً) فإلغاؤها
+        // يوقف السلسلة كلها؛ وتُزال من السجل في finally فلا إلغاء لعمل منتهٍ.
+        // (المسار المباشر وحده هنا: مهلة Wi-Fi أعلاه ترجع قبل أي تنزيل.)
+        val callerJob = currentCoroutineContext()[Job]
+        if (callerJob != null) registerDirectMediaDownload(mediaId, callerJob)
+        try {
+            var result: String? = null
+            repeat(3) { attempt ->
+                result = downloadMediaOnce(context, mediaId, title, fileUrl, extension, subtitle, onProgress)
+                if (!result.isNullOrBlank()) return result
+                if (attempt < retryDelaysMillis.lastIndex) {
+                    Log.w(TAG, "Adhan download failed; retry ${attempt + 1}/3 for $mediaId")
+                    // (ر21) لا يُصفَّر شريط التقدم عند إعادة المحاولة: الملف الجزئي
+                    // باقٍ على القرص والاستئناف يبدأ منه — كان progress = 0f فيكذب
+                    // الشريط (0٪) بينما البايتات المنزّلة محفوظة فعلاً.
+                    val prev = _activeMediaDownloads.value[mediaId]
+                    _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
+                        reelId = mediaId,
+                        title = title,
+                        progress = prev?.progress ?: 0f,
+                        downloadedBytes = prev?.downloadedBytes ?: 0L,
+                        totalBytes = prev?.totalBytes ?: 0L,
+                        isError = false,
+                        // ق119: رابط إعادة المحاولة وتسمية العنصر يبقيان
+                        // مع الإدخال عبر المحاولات التلقائية لا يُمحيان.
+                        sourceUrl = prev?.sourceUrl ?: fileUrl,
+                        subtitle = prev?.subtitle ?: subtitle,
+                        errorMessage = "إعادة المحاولة تلقائيًا (${attempt + 2}/3)…"
+                    ))
+                    delay(retryDelaysMillis[attempt])
+                }
+            }
+            return result
+        } finally {
+            if (callerJob != null) unregisterDirectMediaDownload(mediaId, callerJob)
+        }
     }
 
     private suspend fun downloadMediaOnce(
@@ -926,6 +1068,7 @@ object DownloadsHubManager {
         title: String,
         fileUrl: String,
         extension: String = "mp3",
+        subtitle: String = "صوت أذان",
         onProgress: ((sent: Long, total: Long) -> Unit)? = null
     ): String? = withContext(Dispatchers.IO) {
         try {
@@ -937,7 +1080,7 @@ object DownloadsHubManager {
                     DownloadedMediaItem(
                         id = mediaId,
                         title = title,
-                        subtitle = "صوت أذان",
+                        subtitle = subtitle,
                         localFilePath = existing.absolutePath,
                         fileSizeBytes = existing.length(),
                         sourceUrl = fileUrl
@@ -952,7 +1095,8 @@ object DownloadsHubManager {
             if (fileUrl.startsWith("file://") || fileUrl.startsWith("/")) return@withContext fileUrl
 
             _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-                reelId = mediaId, title = title, progress = 0f
+                reelId = mediaId, title = title, progress = 0f,
+                sourceUrl = fileUrl, subtitle = subtitle
             ))
             var lastStateUpdate = System.currentTimeMillis()
             val start = lastStateUpdate
@@ -962,10 +1106,14 @@ object DownloadsHubManager {
                 val now = System.currentTimeMillis()
                 if (now - lastStateUpdate >= 250) {
                     val speed = if (now > start) ((done / 1024) / ((now - start) / 1000.0)).toLong() else 0L
+                    val prev = _activeMediaDownloads.value[mediaId]
                     _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
                         reelId = mediaId, title = title,
                         progress = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f,
-                        downloadedBytes = done, totalBytes = total, speedKbps = speed
+                        downloadedBytes = done, totalBytes = total, speedKbps = speed,
+                        // ق119: تحديثات التقدم الحية لا تمحو رابط الإعادة والتسمية.
+                        sourceUrl = prev?.sourceUrl ?: fileUrl,
+                        subtitle = prev?.subtitle ?: subtitle
                     ))
                     lastStateUpdate = now
                 }
@@ -976,7 +1124,7 @@ object DownloadsHubManager {
                     DownloadedMediaItem(
                         id = mediaId,
                         title = title,
-                        subtitle = "صوت أذان",
+                        subtitle = subtitle,
                         localFilePath = existing.absolutePath,
                         fileSizeBytes = existing.length(),
                         sourceUrl = fileUrl
@@ -989,6 +1137,10 @@ object DownloadsHubManager {
                 // الخطأ يُبقي الملف الجزئي ليُستأنف لاحقاً — لا حذف للتقدم.
                 _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
                     reelId = mediaId, title = title, isError = true,
+                    // ق119: شريط الخطأ يعرض نسبة الجزئي لا 0٪، ورابط
+                    // الإعادة والتسمية يبقيان لزر «إعادة» في اللوحة.
+                    progress = if (result.totalBytes > 0) (result.downloadedBytes.toFloat() / result.totalBytes).coerceIn(0f, 1f) else 0f,
+                    sourceUrl = fileUrl, subtitle = subtitle,
                     errorMessage = result.errorMessage, downloadedBytes = result.downloadedBytes,
                     totalBytes = result.totalBytes
                 ))
@@ -1001,7 +1153,8 @@ object DownloadsHubManager {
         } catch (e: Exception) {
             Log.e(TAG, "Media download failed: ${e.message}")
             _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
-                reelId = mediaId, title = title, isError = true, errorMessage = e.localizedMessage
+                reelId = mediaId, title = title, isError = true, errorMessage = e.localizedMessage,
+                sourceUrl = fileUrl, subtitle = subtitle
             ))
             null
         }
@@ -1012,6 +1165,9 @@ object DownloadsHubManager {
      * على الملف الجزئي ليُستأنف لاحقاً — الإلغاء لا يحذف التقدم أبداً.
      */
     fun cancelMediaDownload(mediaId: String) {
+        // ق113: إلغاء مهمة المسار المباشر أيضاً — كان الإلغاء يقتصر على
+        // عامل WorkManager فيبقى التنزيل المباشر جارياً ويعيد العنصر الظهور.
+        synchronized(directMediaDownloadJobs) { directMediaDownloadJobs.remove(mediaId) }?.cancel()
         appContextRef?.let { DownloadWorker.cancelMedia(it, mediaId) }
         _activeMediaDownloads.value = _activeMediaDownloads.value - mediaId
     }
@@ -1091,14 +1247,25 @@ object DownloadsHubManager {
 
     private fun collectSafeTempDownloadFiles(context: Context): List<File> = buildList {
         // لا تلمس ملفات التحديث أو النماذج؛ قد تكون مكتملة أو قابلة للاستئناف.
+        // ق168 (قيد ق16 ما زال قائماً حتى هذا الإصلاح): الحارس القديم
+        // كان خرائط الذاكرة وحدها — وبعد موت العملية تكون فارغة رغم
+        // بقاء عمل WorkManager منتظراً (Wi-Fi مثلاً) أو معيداً المحاولة،
+        // فيحذف تنظيف الكاش ملفه الجزئي ويضيّع بايتاته. الملف الجزئي
+        // الذي له حالة استئناف محفوظة ليس «مؤقتاً آمناً» أبداً — يُستثنى
+        // هنا؛ ولا يُحذف إلا الجزئي اليتيم بلا حالة استئناف.
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        fun hasResumeMeta(tmp: File): Boolean {
+            val destName = tmp.name.replace(Regex("\\.tmp$", RegexOption.IGNORE_CASE), "")
+            return destName.isNotBlank() && prefs.contains(KEY_RESUME_META_PREFIX + destName)
+        }
         if (_activeReelDownloads.value.isEmpty()) {
             getReelsDirectory(context).walkTopDown()
-                .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) }
+                .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) && !hasResumeMeta(it) }
                 .forEach(::add)
         }
         if (_activeMediaDownloads.value.isEmpty()) {
             getMediaDirectory(context).walkTopDown()
-                .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) }
+                .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) && !hasResumeMeta(it) }
                 .forEach(::add)
         }
     }.distinct()

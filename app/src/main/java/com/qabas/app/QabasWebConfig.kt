@@ -11,6 +11,10 @@ object QabasWebConfig {
     const val OFFICIAL_WEBSITE_URL = "https://alippappa7-maker.github.io/Website-/"
     const val OFFICIAL_WEB_HOST = "alippappa7-maker.github.io"
 
+    /** مضيف النشر التجريبي القديم (run.app) — محتفظ به كاحتياطي
+     * للروابط العميقة فقط، وليس الموقع الرسمي. */
+    const val LEGACY_WEB_HOST = "ais-pre-4m7ngsd7prdvbhwsiegpif-753796887195.europe-west2.run.app"
+
     /** رابط مجموعة ومجتمع خادم المسلم الرسمي (WhatsApp / Telegram) */
     const val DEFAULT_COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=sh&p=a&mlu=4&ilr=4&iam=2"
 

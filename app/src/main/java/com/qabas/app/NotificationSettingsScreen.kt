@@ -68,6 +68,12 @@ fun NotificationSettingsScreen(
     val morningTime by NotificationPreferencesManager.morningTime.collectAsState()
     val eveningTime by NotificationPreferencesManager.eveningTime.collectAsState()
     val streakCount by NotificationPreferencesManager.wiradStreak.collectAsState()
+    val quietHoursEnabled by NotificationPreferencesManager.quietHoursEnabled.collectAsState()
+    val quietStart by NotificationPreferencesManager.quietStart.collectAsState()
+    val quietEnd by NotificationPreferencesManager.quietEnd.collectAsState()
+
+    // منتقي وقت الهدوء: "start" أو "end" أو null (لا حوار).
+    var quietPickerTarget by remember { mutableStateOf<String?>(null) }
 
     var hasPostNotificationPermission by remember {
         mutableStateOf(
@@ -213,7 +219,14 @@ fun NotificationSettingsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Button(
                                         onClick = {
-                                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            // (ق64) عند الرفض النهائي المنادِي ميت — الزر يفتح الإعدادات.
+                                            val hostActivity = context as? android.app.Activity
+                                            if (hostActivity != null && BackgroundPermissionManager.isPermissionPermanentlyDenied(hostActivity, Manifest.permission.POST_NOTIFICATIONS)) {
+                                                Toast.makeText(context, "الإشعارات مرفوضة نهائياً — فعّلها من إعدادات التطبيق", Toast.LENGTH_LONG).show()
+                                                BackgroundPermissionManager.openAppSettings(context)
+                                            } else {
+                                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = theme.destructive),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -240,8 +253,15 @@ fun NotificationSettingsScreen(
                             onClick = {
                                 AppSoundManager.playClick()
                                 if (!hasPostNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    sendTestNotificationAfterPermission = true
-                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    // (ق64) عند الرفض النهائي لا تُطلق منادِياً ميتاً — افتح الإعدادات.
+                                    val hostActivity = context as? android.app.Activity
+                                    if (hostActivity != null && BackgroundPermissionManager.isPermissionPermanentlyDenied(hostActivity, Manifest.permission.POST_NOTIFICATIONS)) {
+                                        Toast.makeText(context, "الإشعارات مرفوضة نهائياً — فعّلها من إعدادات التطبيق", Toast.LENGTH_LONG).show()
+                                        BackgroundPermissionManager.openAppSettings(context)
+                                    } else {
+                                        sendTestNotificationAfterPermission = true
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
                                 } else {
                                     QabasNotificationHelper.sendInteractiveTestNotification(context)
                                 }
@@ -452,6 +472,45 @@ fun NotificationSettingsScreen(
                 }
             }
 
+            // ساعات الهدوء (ق75): كتم التذكيرات الإيمانية ليلاً.
+            // الأذان ومواقيت الصلاة خارج نطاقها — لا تُكتم أبداً.
+            item {
+                AppleGroupedSection(header = "ساعات الهدوء") {
+                    NotificationSwitchRow(
+                        title = "ساعات الهدوء الليلية",
+                        subtitle = "كتم التذكيرات الإيمانية ليلاً — الأذان ومواقيت الصلاة لا تتأثر أبداً",
+                        icon = Icons.Default.Bedtime,
+                        iconTint = PresetAccent,
+                        checked = quietHoursEnabled && masterEnabled,
+                        enabled = masterEnabled,
+                        onCheckedChange = {
+                            AppSoundManager.playToggle()
+                            NotificationPreferencesManager.setQuietHoursEnabled(context, it)
+                        }
+                    )
+                    if (quietHoursEnabled && masterEnabled) {
+                        AppleInsetDivider()
+                        AppleListRow(
+                            title = "بدء الهدوء",
+                            subtitle = "من هذا الوقت تُكتم التذكيرات",
+                            icon = Icons.Default.NightsStay,
+                            iconBackground = theme.primary,
+                            trailingText = formatQuietTime(quietStart.first, quietStart.second),
+                            onClick = { quietPickerTarget = "start" }
+                        )
+                        AppleInsetDivider()
+                        AppleListRow(
+                            title = "انتهاء الهدوء",
+                            subtitle = "من هذا الوقت تعود التذكيرات",
+                            icon = Icons.Default.WbSunny,
+                            iconBackground = theme.primary,
+                            trailingText = formatQuietTime(quietEnd.first, quietEnd.second),
+                            onClick = { quietPickerTarget = "end" }
+                        )
+                    }
+                }
+            }
+
             // Sound & Vibration
             item {
                 AppleGroupedSection(header = "الصوت والاهتزاز") {
@@ -482,6 +541,38 @@ fun NotificationSettingsScreen(
                     )
                 }
             }
+
+            // قنوات النظام (ق75): التحكم الدقيق (صوت كل قناة وأهميتها)
+            // يعيش في إعدادات أندرويد — زر يفتح قناة التذكيرات هناك.
+            item {
+                AppleGroupedSection(header = "قنوات النظام") {
+                    AppleListRow(
+                        title = "إدارة قنوات الإشعارات",
+                        subtitle = "أصوات كل قناة وأهميتها من إعدادات نظام أندرويد",
+                        icon = Icons.Default.Settings,
+                        iconBackground = theme.primary,
+                        onClick = { openNotificationChannelSettings(context) }
+                    )
+                }
+            }
+        }
+
+        quietPickerTarget?.let { target ->
+            val (initialHour, initialMinute) = if (target == "start") quietStart else quietEnd
+            QuietTimePickerDialog(
+                title = if (target == "start") "بدء ساعات الهدوء" else "انتهاء ساعات الهدوء",
+                initialHour = initialHour,
+                initialMinute = initialMinute,
+                onDismiss = { quietPickerTarget = null },
+                onConfirm = { h, m ->
+                    if (target == "start") {
+                        NotificationPreferencesManager.setQuietStart(context, h, m)
+                    } else {
+                        NotificationPreferencesManager.setQuietEnd(context, h, m)
+                    }
+                    quietPickerTarget = null
+                }
+            )
         }
     }
 }
@@ -571,4 +662,80 @@ private fun TimePresetSelector(
             }
         }
     }
+}
+
+// تنسيق وقت الهدوء على نمط منتقي الأوقات في هذه الشاشة (24 ساعة + ص/م).
+private fun formatQuietTime(hour: Int, minute: Int): String =
+    String.format(Locale.US, "%02d:%02d %s", hour, minute, if (hour < 12) "ص" else "م")
+
+// فتح قناة التذكيرات الإيمانية في إعدادات نظام أندرويد (صوت القناة
+// وأهميتها لا يملكهما التطبيق — يملكهما النظام لكل قناة على حدة).
+private fun openNotificationChannelSettings(context: android.content.Context) {
+    try {
+        val intent = android.content.Intent(
+            android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+        ).apply {
+            putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            putExtra(
+                android.provider.Settings.EXTRA_CHANNEL_ID,
+                QabasNotificationHelper.CHANNEL_SPIRITUAL
+            )
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        Toast.makeText(context, "تعذّر فتح إعدادات القناة", Toast.LENGTH_SHORT).show()
+    }
+}
+
+// منتقي وقت الهدوء (ساعة 24) — Material3 TimePicker.
+@Composable
+private fun QuietTimePickerDialog(
+    title: String,
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Int) -> Unit
+) {
+    val theme = QabasTheme.current
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = theme.cardSurface,
+        title = {
+            Text(
+                text = title,
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        },
+        text = {
+            TimePicker(state = state)
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                Text(
+                    text = "حفظ",
+                    color = theme.primary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "إلغاء",
+                    color = theme.primary,
+                    fontFamily = CairoFont
+                )
+            }
+        }
+    )
 }

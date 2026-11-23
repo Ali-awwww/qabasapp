@@ -3,7 +3,6 @@ package com.qabas.app
 import android.util.Log
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -23,8 +22,22 @@ data class PlatformGatewayResponse(
 object PlatformGatewayClient {
     private const val TAG = "PlatformGatewayClient"
 
+    /**
+     * ق71: سبب آخر فشل — كان callGatewaySuspend يرجع null لكل الأسباب
+     * (بلا إعداد/بلا جلسة/انقطاع شبكة/خطأ خادم) فيكذب المنادون على
+     * المستخدم («لم يُضبط مفتاح» بينما السبب انقطاع شبكة أو خروج من
+     * الحساب). null هنا تعني «لم يصل جواب قابل للاستعمال» فقط؛ أما
+     * 200 مع إجابة «لا» (مثل configured=false) فيُبقيه null.
+     */
+    @Volatile
+    var lastError: String? = null
+        private set
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
+        // ق71: بلا writeTimeout كان الافتراضي 10 ثوانٍ — رفع صورة
+        // base64 (ميغابايتات) على اتصال بطيء يفشل قبل اكتمال الكتابة.
+        .writeTimeout(60, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
@@ -33,23 +46,30 @@ object PlatformGatewayClient {
         return if (url.isBlank()) null else "$url/functions/v1/qabas-gateway"
     }
 
-    private fun currentAccessToken(): String? {
-        val session = runCatching { SupabaseConfig.client.auth.currentSessionOrNull() }.getOrNull() ?: return null
-        val methods = session.javaClass.methods.filter { it.parameterTypes.isEmpty() }
-        val tokenMethod = methods.firstOrNull { method ->
-            method.name.lowercase().replace("_", "").contains("accesstoken")
-        } ?: return null
-        return runCatching { tokenMethod.invoke(session) as? String }.getOrNull()
-            ?.takeIf { it.isNotBlank() }
-    }
+    // ق71: قراءة الرمز مباشرة من الجلسة — كان انعكاساً (reflection)
+    // يبحث عن أي دالة بلا معاملات اسمها يحوي accesstoken؛ هشّ أمام
+    // أي تغيير في صنف الجلسة، والخاصية المباشرة مستعملة أصلاً في
+    // SupabaseRepository على العميل نفسه (client.auth
+    // .currentSessionOrNull()?.accessToken).
+    private fun currentAccessToken(): String? =
+        runCatching { SupabaseConfig.client.auth.currentSessionOrNull()?.accessToken }
+            .getOrNull()?.takeIf { it.isNotBlank() }
 
     private suspend fun callGatewaySuspend(body: JSONObject): PlatformGatewayResponse? = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured) return@withContext null
-        val token = currentAccessToken() ?: run {
-            Log.w(TAG, "No active Supabase session for gateway request")
+        lastError = null
+        if (!SupabaseConfig.isConfigured) {
+            lastError = "لم تُضبط خدمة Supabase في التطبيق"
             return@withContext null
         }
-        val functionUrl = getFunctionUrl() ?: return@withContext null
+        val token = currentAccessToken() ?: run {
+            Log.w(TAG, "No active Supabase session for gateway request")
+            lastError = "لا توجد جلسة دخول نشطة — سجّل الدخول أولاً"
+            return@withContext null
+        }
+        val functionUrl = getFunctionUrl() ?: run {
+            lastError = "تعذّر تحديد عنوان بوابة خادم المسلم"
+            return@withContext null
+        }
 
         try {
             val request = Request.Builder()
@@ -62,21 +82,20 @@ object PlatformGatewayClient {
             client.newCall(request).execute().use { response ->
                 val raw = response.body?.string().orEmpty()
                 val json = raw.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
+                if (!response.isSuccessful) {
+                    lastError = "رفضت بوابة خادم المسلم الطلب (HTTP ${response.code})"
+                }
                 PlatformGatewayResponse(response.code, json)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "Gateway request failed", e)
+            lastError = if (e is java.io.IOException) {
+                "تعذّر الاتصال ببوابة خادم المسلم — تحقق من الشبكة"
+            } else {
+                "تعذّر طلب بوابة خادم المسلم"
+            }
             null
         }
-    }
-
-    suspend fun proxySuspend(provider: String, payload: JSONObject): JSONObject? {
-        val response = callGatewaySuspend(JSONObject().apply {
-            put("action", "proxy")
-            put("provider", provider.trim().lowercase())
-            put("payload", payload)
-        }) ?: return null
-        return response.body?.takeIf { response.isSuccessful }
     }
 
     suspend fun proxyHiggsfieldSuspend(payload: JSONObject): PlatformGatewayResponse? =
@@ -113,7 +132,7 @@ object PlatformGatewayClient {
         return response.isSuccessful && response.body?.optBoolean("configured", false) == true
     }
 
-    fun proxy(provider: String, payload: JSONObject): JSONObject? =
-        runCatching { runBlocking { proxySuspend(provider, payload) } }.getOrNull()
-
+    // (ق38) حُذفت الواجهة العامة proxy()/proxySuspend() من هنا: فرع البروكسي
+    // العام (gemini/groq/openrouter) قُتل في الدالة نفسها فصارتا تستدعيان
+    // فرعاً ميتاً يرجع 400 دائماً — إبقاؤهما فخ صامت لمستدعٍ مستقبلي.
 }

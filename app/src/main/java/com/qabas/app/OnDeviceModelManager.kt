@@ -80,14 +80,45 @@ object OnDeviceModelManager {
     @Volatile
     private var isCancelled = false
 
+    /**
+     * (ق62) حارس الرحلة الواحدة: معرّف النموذج الذي يجري تنزيله الآن، أو null.
+     * السبب الجذري: حالة التنزيل StateFlow واحدة وعلم إلغاء واحد عام
+     * يشاركهما كل النماذج — فبدء تنزيل ثانٍ أثناء الأول كان يشغّل
+     * كوروتينين يكتبان في الحالة نفسها (وميض تقدم)، وإلغاء أحدهما
+     * يلغي الآخر، وانتهاء الأول يستدعي stopSelf فيقتل الثاني بصمت
+     * عبر scope.cancel() في onDestroy. الآن: تنزيل واحد فقط في كل مرة،
+     * وأي بدء ثانٍ يُرفض دون مساس بالحالة الجارية.
+     */
+    @Volatile
+    private var activeDownloadId: String? = null
+
+    /** هل يجري تنزيل أي نموذج الآن؟ */
+    fun isDownloadActive(): Boolean = activeDownloadId != null
+
+    /**
+     * يستهلك حالة نهائية (نجاح/خطأ) لهذا النموذج بعد عرضها ومعالجتها
+     * في الواجهة — يمنع إعادة إطلاقها عند إعادة فتح المركز: حالة Success
+     * باقية في الـ singleton كانت تعيد تفعيل الوضع المحلي وإظهار توست
+     * «تم تنزيل وتفعيل» في كل مرة يُفتح فيها المركز من جديد.
+     */
+    fun consumeTerminalState(modelId: String) {
+        val s = _downloadState.value
+        // التحويل الذكي لا يعبر ||: s بعد (is Success || is Error)
+        // بلا نوع يحمل modelId — فيُفحص كل فرع على حدة.
+        if ((s is ModelDownloadState.Success && s.modelId == modelId) ||
+            (s is ModelDownloadState.Error && s.modelId == modelId)) {
+            _downloadState.value = ModelDownloadState.Idle
+        }
+    }
+
     // قائمة النماذج البرمجية المتوازنة والمختارة بدقة
     val availableModels: List<OnDeviceModelInfo> = listOf(
         OnDeviceModelInfo(
             id = "qwen_2_5_coder_0_5b",
             name = "Qwen 2.5 Coder 0.5B",
             tag = "الأسرع والأخف برمجياً ⚡",
-            sizeBytes = 398_458_880L,
-            sizeFormatted = "390 MB",
+            sizeBytes = 491_400_064L,
+            sizeFormatted = "469 MB",
             downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
             fileName = "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
             ramRequirement = "1.2 GB RAM",
@@ -112,8 +143,8 @@ object OnDeviceModelManager {
             id = "smollm2_coder_1_7b",
             name = "SmolLM2 Coder 1.7B",
             tag = "شامل ومتقدم 💻",
-            sizeBytes = 891_289_600L,
-            sizeFormatted = "850 MB",
+            sizeBytes = 1_055_609_536L,
+            sizeFormatted = "1007 MB",
             downloadUrl = "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/smollm2-1.7b-instruct-q4_k_m.gguf",
             fileName = "smollm2-1.7b-instruct-q4_k_m.gguf",
             ramRequirement = "2.2 GB RAM",
@@ -125,8 +156,8 @@ object OnDeviceModelManager {
             id = "llama_3_2_1b_instruct",
             name = "Meta Llama 3.2 1B",
             tag = "فائق المرونة والسرعة 🦙",
-            sizeBytes = 815_000_000L,
-            sizeFormatted = "775 MB",
+            sizeBytes = 807_694_464L,
+            sizeFormatted = "770 MB",
             downloadUrl = "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
             fileName = "llama-3.2-1b-instruct-q4_k_m.gguf",
             ramRequirement = "1.5 GB RAM",
@@ -138,8 +169,8 @@ object OnDeviceModelManager {
             id = "deepseek_r1_distill_1_5b",
             name = "DeepSeek R1 Distill 1.5B",
             tag = "تفكير استدلالي عميق 🔬",
-            sizeBytes = 1_180_000_000L,
-            sizeFormatted = "1.12 GB",
+            sizeBytes = 1_117_320_800L,
+            sizeFormatted = "1.04 GB",
             downloadUrl = "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
             fileName = "deepseek-r1-distill-qwen-1.5b-q4_k_m.gguf",
             ramRequirement = "2.5 GB RAM",
@@ -171,11 +202,14 @@ object OnDeviceModelManager {
 
     /**
      * هل النموذج منزّل وجاهز في الهاتف؟
+     * (ق40) أرضية 100MB كانت تعدّ أي ملف مبتور «مثبتاً» فيُفتح وضع
+     * الأوفلاين ثم يفشل llamaInit بخطأ مبهم. الآن: الطول لا يقل عن الحجم
+     * المعلن المُصحح (الأحجام الحقيقية من Hugging Face) — البتر لا يكبّر
+     * ملفاً أبداً، فإن غيّر المنبع حجمه لاحقاً أُعيد التنزيل تلقائياً.
      */
     fun isModelInstalled(context: Context, modelInfo: OnDeviceModelInfo): Boolean {
         val file = getModelFile(context, modelInfo)
-        // التحقق من وجود الملف وأن حجمه حقيقي يتجاوز الحد الأدنى (على الأقل 100 ميجابايت)
-        return file.exists() && file.length() >= 100_000_000L
+        return file.exists() && file.length() >= modelInfo.sizeBytes
     }
 
     /**
@@ -314,9 +348,31 @@ object OnDeviceModelManager {
     }
 
     /**
-     * تنزيل النموذج المختار مباشرة من Hugging Face مع تتبع البايتات الحقيقية
+     * تنزيل النموذج المختار مباشرة من Hugging Face مع تتبع البايتات الحقيقية.
+     * (ق62) غلاف الحارس: يرفض أي بدء ثانٍ أثناء تنزيل جارٍ دون مساس
+     * بالحالة — الحماية هنا لكل المنادين (الخدمة والاستئناف المباشر).
      */
     suspend fun downloadModel(
+        context: Context,
+        modelInfo: OnDeviceModelInfo
+    ): Boolean {
+        synchronized(this) {
+            if (activeDownloadId != null) {
+                Log.w(TAG, "Download already active (${activeDownloadId}); ignoring start for ${modelInfo.id}")
+                return false
+            }
+            activeDownloadId = modelInfo.id
+        }
+        return try {
+            downloadModelInternal(context, modelInfo)
+        } finally {
+            synchronized(this) {
+                if (activeDownloadId == modelInfo.id) activeDownloadId = null
+            }
+        }
+    }
+
+    private suspend fun downloadModelInternal(
         context: Context,
         modelInfo: OnDeviceModelInfo
     ): Boolean = withContext(Dispatchers.IO) {
@@ -434,6 +490,9 @@ object OnDeviceModelManager {
                 totalBytes = body.contentLength().takeIf { it > 0 } ?: expectedTotalBytes
             }
             expectedTotalBytes = totalBytes
+            // (ق40) سرعة الجلسة لا سرعة الملف: البايتات المستأنفة كانت
+            // تُحسب كأنها نُزّلت في هذه الجلسة فتضخّمت السرعة المعروضة.
+            val sessionStartBytes = downloadedBytes
             val startTime = System.currentTimeMillis()
             var lastUpdateTime = startTime
 
@@ -461,7 +520,7 @@ object OnDeviceModelManager {
                     if (now - lastUpdateTime >= 250) { // update 4 times per second
                         val progress = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else 0f
                         val elapsedSec = (now - startTime) / 1000.0
-                        val speedKbps = if (elapsedSec > 0) ((downloadedBytes / 1024) / elapsedSec).toLong() else 0L
+                        val speedKbps = if (elapsedSec > 0) (((downloadedBytes - sessionStartBytes) / 1024) / elapsedSec).toLong() else 0L
 
                         _downloadState.value = ModelDownloadState.Downloading(
                             modelId = modelInfo.id,
@@ -524,6 +583,10 @@ object OnDeviceModelManager {
 
         if (savedResume <= 0) return false
 
+        // (ق62) لا تُعرض حالة «جارٍ التنزيل» إن رفض الحارس البدء (تنزيل
+        // آخر جارٍ) — وإلا بقي شريط تقدم وهمي لا يتحرك لأن لا تنزيل خلفه.
+        if (isDownloadActive()) return false
+
         // إعادة تعيين الحالة إلى Downloading وتمهيد التنزيل من النقطة المحفوظة
         _downloadState.value = ModelDownloadState.Downloading(
             modelId = modelInfo.id,
@@ -540,6 +603,14 @@ object OnDeviceModelManager {
      */
     fun deleteModel(context: Context, modelInfo: OnDeviceModelInfo): Boolean {
         val file = getModelFile(context, modelInfo)
+        // (ق62) الحذف كان يترك الملف الجزئي .tmp وحالة الاستئناف: إعادة
+        // تنزيل لاحقة تستأنف من بقايا نسخة قديمة بلا بصمة ETag محفوظة
+        // فيُقبل الجزء القديم أعمى ويُبنى ملف GGUF تالف يجتاز فحص الحجم.
+        val tempFile = File(file.parentFile, "${file.name}.tmp")
+        if (tempFile.exists()) tempFile.delete()
+        val importTempFile = File(file.parentFile, "${file.name}.import.tmp")
+        if (importTempFile.exists()) importTempFile.delete()
+        clearResumeState(context, modelInfo)
         return if (file.exists()) {
             val deleted = file.delete()
             if (deleted) {
@@ -571,7 +642,9 @@ object OnDeviceModelManager {
     ): ModelFileResult = withContext(Dispatchers.IO) {
         try {
             val src = getModelFile(context, modelInfo)
-            if (!src.exists() || src.length() < 100_000_000L) {
+            // (ق40) أرضية 100MB كانت تصدّر ملفاً مبتوراً على أنه مكتمل —
+            // نفس قاعدة isModelInstalled: الطول لا يقل عن الحجم المعلن.
+            if (!src.exists() || src.length() < modelInfo.sizeBytes) {
                 return@withContext ModelFileResult.Err("النموذج غير مكتمل — نزّله أولاً")
             }
             val total = src.length()
@@ -646,11 +719,16 @@ object OnDeviceModelManager {
         try {
             val resolver = context.contentResolver
             val srcSize = resolver.openFileDescriptor(sourceUri, "r")?.use { it.statSize } ?: -1L
-            if (srcSize != modelInfo.sizeBytes) {
+            // (ق62) بعض مزودي المحتوى (Drive ونحوه) يعيدون statSize = -1
+            // لحجم مجهول — كان الرفض فورياً «الحجم غير متطابق» لملف صحيح.
+            // الآن: الرفض المبكر فقط عند حجم معلوم مخالف؛ والمجهول يُنسخ
+            // ثم يُتحقق من طوله بعد النسخ (الفحص اللاحق موجود أصلاً).
+            if (srcSize >= 0 && srcSize != modelInfo.sizeBytes) {
                 return@withContext ModelFileResult.Err(
                     "الحجم غير متطابق (الموجود: ${formatBytes(srcSize)}، المطلوب: ${modelInfo.sizeFormatted}) — تأكد أن الملف هو ${modelInfo.fileName}"
                 )
             }
+            val progressTotal = if (srcSize > 0) srcSize else modelInfo.sizeBytes
             val destFile = getModelFile(context, modelInfo)
             val tmpFile = java.io.File(destFile.parentFile, "${destFile.name}.import.tmp")
             if (tmpFile.exists()) tmpFile.delete()
@@ -663,7 +741,7 @@ object OnDeviceModelManager {
                         if (n < 0) break
                         out.write(buf, 0, n)
                         done += n
-                        onProgress(done, srcSize)
+                        onProgress(done, progressTotal)
                     }
                 }
             } ?: return@withContext ModelFileResult.Err("تعذر قراءة الملف المختار")
@@ -676,7 +754,7 @@ object OnDeviceModelManager {
                 tmpFile.copyTo(destFile, overwrite = true)
                 tmpFile.delete()
             }
-            onProgress(srcSize, srcSize)
+            onProgress(modelInfo.sizeBytes, modelInfo.sizeBytes)
             setSelectedModel(context, modelInfo.id)
             prefsCleanupAfterImport(context, modelInfo)
             ModelFileResult.Ok("تم استيراد ${modelInfo.name} وتفعيله ✅")

@@ -13,36 +13,51 @@ import kotlinx.coroutines.withContext
 object AzanVoiceResolver {
     private const val TAG = "AzanVoiceResolver"
 
-    suspend fun resolveVoice(context: Context, requestedVoiceId: String): AzanVoice? =
+    /**
+     * يحلّ صوت الأذان للصلاة المعطاة. صوت «الفجر فقط» لا يُشغَّل لغير
+     * الفجر أبداً: تسجيله يحمل «الصلاة خير من النوم» فتشغيله ظهراً أذان
+     * خاطئ. prayerKey=null (معاينة يدوية بلا صلاة) يسمح بكل الأصوات.
+     */
+    suspend fun resolveVoice(
+        context: Context,
+        requestedVoiceId: String,
+        prayerKey: String? = null
+    ): AzanVoice? =
         withContext(Dispatchers.IO) {
+            val suitable = { voice: AzanVoice ->
+                !voice.isFajrSpecific || prayerKey == null ||
+                    prayerKey == PrayerAlarmManager.PRAYER_FAJR
+            }
             val requested = MuezzinVoiceManager.getVoiceById(context, requestedVoiceId)
-                ?.takeIf { hasPotentialSource(it) }
+                ?.takeIf { hasPotentialSource(it) && suitable(it) }
             if (requested != null) return@withContext requested
 
             val savedDefaultId = MuezzinVoiceManager.getDefaultVoiceId(context)
             MuezzinVoiceManager.getVoiceById(context, savedDefaultId)
-                ?.takeIf { hasPotentialSource(it) }
+                ?.takeIf { hasPotentialSource(it) && suitable(it) }
                 ?.let {
                 return@withContext it
             }
 
             val cachedCloud = MuezzinVoiceManager.getCloudVoices(context)
-                .filter(::hasPotentialSource)
+                .filter { hasPotentialSource(it) && suitable(it) }
             if (cachedCloud.isNotEmpty()) return@withContext cachedCloud.first()
 
             // عند الإقلاع البارد قد لا يكون كاش أصوات المطور موجودًا بعد.
-            val cloud = AzanCloudRepository.fetchCloudVoices()
+            // الفشل يعيد قائمة فارغة (ق50) فيُتخطى كأن لم يكن — لا مسح كاش هنا.
+            val cloud = AzanCloudRepository.fetchCloudVoices().getOrDefault(emptyList())
             if (cloud.isNotEmpty()) {
                 MuezzinVoiceManager.cacheCloudVoices(context, cloud)
-                return@withContext cloud.first()
+                cloud.firstOrNull { hasPotentialSource(it) && suitable(it) }
+                    ?.let { return@withContext it }
             }
 
             // الملاذ الأخير قبل الحالة الصادقة الفارغة: صوت منزّل أو مسجّل
             // من المستخدم له مصدر تشغيل حقيقي.
             val localVoice = MuezzinVoiceManager.getCustomVoices(context)
-                .firstOrNull(::hasPotentialSource)
+                .firstOrNull { hasPotentialSource(it) && suitable(it) }
                 ?: MuezzinVoiceManager.getPersonalCloudVoices(context)
-                    .firstOrNull(::hasPotentialSource)
+                    .firstOrNull { hasPotentialSource(it) && suitable(it) }
             if (localVoice != null) return@withContext localVoice
 
             Log.e(TAG, "No requested, default, cached, or cloud adhan voice is available")

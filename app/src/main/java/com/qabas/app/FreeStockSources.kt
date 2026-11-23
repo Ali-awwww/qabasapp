@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * كنوز مجانية بلا مفاتيح: NASA + Wikimedia + Openverse.
- * تعمل دائماً حتى بدون Pexels/Pixabay. لا وهم: فشل الشبكة = قائمة فارغة.
+ * تعمل دائماً حتى بدون Pixabay. لا وهم: فشل الشبكة = قائمة فارغة.
  */
 object FreeStockSources {
     private val client = OkHttpClient.Builder()
@@ -63,27 +63,6 @@ object FreeStockSources {
         } catch (_: Exception) { emptyList() }
     }
 
-    /** Coverr — مفتاح مجاني اختياري (50 طلب/ساعة). بلا مفتاح = تخطٍ صادق */
-    suspend fun searchCoverr(queryEn: String, apiKey: String, limit: Int = 3): List<BRollItem> = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank() || apiKey.startsWith("your_")) return@withContext emptyList()
-        try {
-            val q = java.net.URLEncoder.encode(queryEn, "UTF-8")
-            val url = "https://api.coverr.co/videos?query=$q&urls=true&sort=popular&page_size=$limit"
-            val req = Request.Builder().url(url).header("Authorization", "Bearer $apiKey").build()
-            val body = client.newCall(req).execute().use { it.body?.string() ?: return@withContext emptyList() }
-            val hits = JSONObject(body).optJSONArray("hits") ?: return@withContext emptyList()
-            val out = mutableListOf<BRollItem>()
-            for (i in 0 until minOf(hits.length(), limit)) {
-                val h = hits.optJSONObject(i) ?: continue
-                val id = h.optString("id", "$i")
-                val mp4 = h.optJSONObject("urls")?.optString("mp4", "") ?: continue
-                if (mp4.isBlank()) continue
-                out.add(BRollItem("coverr_$id", h.optString("title", "Coverr"), "طبيعة وكون وتفكر", listOf("coverr"), "", mp4, "Fade", "Coverr مجاني"))
-            }
-            // ping التنزيل الإلزامي يتم عند التنزيل الفعلي في VideoEngineManager
-            out
-        } catch (_: Exception) { emptyList() }
-    }
 
     /** بحث موحد بلا مفتاح: Wikimedia أولاً ثم NASA، ثم مكتبة Mixkit المحلية كملاذ أخير */
     suspend fun searchFree(queryAr: String): List<BRollItem> {

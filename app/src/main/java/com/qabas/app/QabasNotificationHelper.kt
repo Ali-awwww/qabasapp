@@ -366,7 +366,7 @@ object QabasNotificationHelper {
         message: String,
         navigateTo: String = "notifications"
     ): NotificationCompat.Builder? {
-        initializeChannels(context)
+        ensureChannel(context, channelId)
         NotificationPreferencesManager.init(context)
 
         val appIcon = getAppIconBitmap(context)
@@ -470,12 +470,14 @@ object QabasNotificationHelper {
         builder: NotificationCompat.Builder,
         context: Context,
         notifId: Int,
-        confirmationMessage: String = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد اليومي بنجاح"
+        confirmationMessage: String = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد اليومي بنجاح",
+        countsAsWird: Boolean = false
     ) {
         val intent = Intent(context, NotificationActionReceiver::class.java).apply {
             action = NotificationActionReceiver.ACTION_MARK_DONE
             putExtra(NotificationActionReceiver.EXTRA_NOTIF_ID, notifId)
             putExtra(NotificationActionReceiver.EXTRA_MESSAGE, confirmationMessage)
+            putExtra(NotificationActionReceiver.EXTRA_COUNTS_AS_WIRD, countsAsWird)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,

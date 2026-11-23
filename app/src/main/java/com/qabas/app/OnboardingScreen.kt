@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,7 +40,9 @@ data class CovenantRule(
 fun OnboardingScreen(onFinish: () -> Unit) {
     val theme = QabasTheme.current
     val context = LocalContext.current
-    var isAgreed by remember { mutableStateOf(false) }
+    // ق95: إقرار المستخدم يُحفظ عبر تدوير الشاشة — كان remember
+    // عادياً فيضيع التحديد ويتعطل زر المتابعة فيعيد المستخدم النقر.
+    var isAgreed by rememberSaveable { mutableStateOf(false) }
 
     val covenantRules = remember {
         listOf(

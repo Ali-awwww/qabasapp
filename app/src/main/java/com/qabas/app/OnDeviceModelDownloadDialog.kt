@@ -302,6 +302,10 @@ fun OnDeviceModelsContent(
                             val deviceFits = VibeDeviceCapability.fitsModel(deviceCapability, model)
                             val fitReason = if (deviceFits) null
                                 else VibeDeviceCapability.fitReason(deviceCapability, model)
+                            // (ق62) تنزيل واحد فقط في كل مرة: أثناء تنزيل نموذج
+                            // تُعطَّل أزرار التنزيل/الاستئناف/الاستيراد للنماذج الأخرى.
+                            val isAnotherDownloading = downloadState is ModelDownloadState.Downloading &&
+                                downloadState.modelId != model.id
                             OnDeviceModelCard(
                                 context = context,
                                 model = model,
@@ -310,6 +314,7 @@ fun OnDeviceModelsContent(
                                 deviceFits = deviceFits,
                                 fitReason = fitReason,
                                 isDeviceRecommended = recommendedModel?.id == model.id,
+                                isAnotherDownloading = isAnotherDownloading,
                                 onDownload = {
                                     // الخدمة الأمامية: عدّاد إشعار + يعمل بالخلفية حتى مع الخروج
                                     ModelDownloadService.start(context, model.id)
@@ -318,6 +323,9 @@ fun OnDeviceModelsContent(
                                 onDownloadSuccess = {
                                     selectedModel = model
                                     refreshKey++
+                                    // (ق62) استهلاك حالة النجاح بعد معالجتها — وإلا
+                                    // أعادت كل إعادة فتح للمركز التفعيل والتوست.
+                                    OnDeviceModelManager.consumeTerminalState(model.id)
                                     if (engineAvailable) {
                                         isOfflineMode = true
                                         OnDeviceModelManager.setOfflineModeActive(context, true)
@@ -416,7 +424,9 @@ fun OnDeviceModelCard(
     /** (12.4) ملاءمة الجهاز: false تعني تعطيل التنزيل/الاستيراد/التفعيل مع السبب. */
     deviceFits: Boolean = true,
     fitReason: String? = null,
-    isDeviceRecommended: Boolean = false
+    isDeviceRecommended: Boolean = false,
+    /** (ق62) تنزيل نموذج آخر جارٍ: تُعطَّل بدءات هذا النموذج حتى ينتهي. */
+    isAnotherDownloading: Boolean = false
 ) {
     // نجاح الخلفية: الخدمة الأمامية تُكمل التنزيل وخروج التطبيق لا يلغيه
     // الحارس يمنع إعادة الإطلاق عند كل إعادة تركيب والحالة ما زالت Success
@@ -680,6 +690,7 @@ fun OnDeviceModelCard(
                                     }
                                     Toast.makeText(context, "استكمال التنزيل...", Toast.LENGTH_SHORT).show()
                                 },
+                                enabled = !isAnotherDownloading,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(34.dp),
@@ -796,11 +807,60 @@ fun OnDeviceModelCard(
                         trackColor = theme.secondarySurface
                     )
                 }
+            } else if (downloadState is ModelDownloadState.Error && downloadState.modelId == model.id) {
+                // (ق62) حالة الخطأ كانت غير معروضة إطلاقاً في البطاقة:
+                // يختفي الخطأ ويعود زر التنزيل وحده بلا أي تفسير، رغم أن
+                // رسالة الخطأ موجودة في الحالة. الآن تُعرض مع إعادة محاولة.
+                val errorState = downloadState
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = theme.destructive.copy(alpha = 0.1f),
+                    border = BorderStroke(0.6.dp, theme.destructive.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "فشل التنزيل: ${errorState.message}",
+                        fontSize = 10.sp,
+                        color = theme.destructive,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Button(
+                        onClick = onDownload,
+                        enabled = deviceFits && !isAnotherDownloading,
+                        colors = ButtonDefaults.buttonColors(containerColor = badgeColor, contentColor = Color.Black),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "إعادة المحاولة",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { OnDeviceModelManager.consumeTerminalState(model.id) },
+                        border = BorderStroke(1.dp, theme.separator),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("تجاهل", fontSize = 11.sp, color = theme.textSecondary)
+                    }
+                }
             } else {
                 // Not Installed: Download Button
                 Button(
                     onClick = onDownload,
-                    enabled = deviceFits,
+                    enabled = deviceFits && !isAnotherDownloading,
                     colors = ButtonDefaults.buttonColors(containerColor = badgeColor, contentColor = Color.Black),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier
@@ -820,7 +880,7 @@ fun OnDeviceModelCard(
 
                 OutlinedButton(
                     onClick = { importPicker.launch("*/*") },
-                    enabled = !isFileBusy && deviceFits,
+                    enabled = !isFileBusy && deviceFits && !isAnotherDownloading,
                     border = BorderStroke(1.dp, theme.separator),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier

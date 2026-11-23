@@ -6,8 +6,7 @@ const vaultSecret = Deno.env.get("QABAS_KEY_VAULT_SECRET") ?? "";
 const admin = createClient(supabaseUrl, serviceRoleKey);
 
 const allowedServices = new Set([
-  "gemini_key", "groq_key", "openai_key", "openrouter_key", "huggingface_key",
-  "azure_speech_key", "azure_speech_region", "elevenlabs_key", "pexels_key", "pixabay_key",
+  "gemini_key", "groq_key", "openrouter_key", "pixabay_key",
 ]);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -111,15 +110,22 @@ Deno.serve(async (req) => {
         .limit(20);
       if (error) throw error;
       const keys = [];
+      const failed: string[] = [];
       for (const row of data ?? []) {
         if (!allowedServices.has(row.service)) continue;
-        keys.push({
-          service: row.service,
-          value: await decryptValue(row.encrypted_value),
-          updated_at: row.updated_at,
-        });
+        // (ق38) صف واحد تالف (تدوير السر مثلاً) كان يرمي الاستثناء فيسقط
+        // المزامنة كلها بـ 500 — يُتخطى وحده وتُذكر خدمته في failed.
+        try {
+          keys.push({
+            service: row.service,
+            value: await decryptValue(row.encrypted_value),
+            updated_at: row.updated_at,
+          });
+        } catch {
+          failed.push(row.service);
+        }
       }
-      return json({ ok: true, keys });
+      return json({ ok: true, keys, failed });
     }
 
     if (action === "delete") {
@@ -127,13 +133,15 @@ Deno.serve(async (req) => {
         ? payload.services.filter((service: unknown) => allowedServices.has(String(service))).map(String)
         : [];
       if (services.length === 0) return json({ ok: false, count: 0 });
-      const { error } = await admin
+      const { data, error } = await admin
         .from("user_api_keys")
         .delete()
         .eq("user_id", user.id)
-        .in("service", services);
+        .in("service", services)
+        .select("service");
       if (error) throw error;
-      return json({ ok: true, count: services.length });
+      // (ق38) كان العدد عدد المطلوب لا المحذوف فعلاً — يُحسب من الصفوف المرجَعة.
+      return json({ ok: true, count: data?.length ?? 0 });
     }
 
     return json({ error: "unsupported_action" }, 400);

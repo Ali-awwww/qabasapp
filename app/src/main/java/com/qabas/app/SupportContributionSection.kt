@@ -9,17 +9,23 @@ import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * نموذج بيانات التكوين لدعم واستدامة منصة خادم المسلم.
+ *
+ * ق21: حقلا التبرع كانا يحملان قيمتين كاذبتين — آيبان يفشل في فحص mod-97
+ * وعنوان USDT نائب (43 حرفاً فيه حروف خارج base58) — فأُفرغا: القيم
+ * الحقيقية يزوّدها مالك التطبيق حصراً، ولا تُخترع أبداً. ورابط واتساب
+ * الافتراضي من المصدر الموحد QabasWebConfig حتى لا ينجرف مجدداً.
  */
 data class SupportConfig(
-    val whatsappGroupUrl: String = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
+    val whatsappGroupUrl: String = QabasWebConfig.DEFAULT_COMMUNITY_GROUP_URL,
     val whatsappGroupName: String = "مجتمع خادم المسلم الرسمي",
     val paypalUrl: String = "https://paypal.me/qabas_studio",
-    val usdtTronAddress: String = "TYQabasStudioSupportOfficialTRC20Address99X",
+    val usdtTronAddress: String = "",
     val bankName: String = "مصرف الراجحي / حساب المبادرات التقنية",
-    val bankIban: String = "SA0380000000608010167520",
+    val bankIban: String = "",
     val hadithQuote: String = "«مَنْ دَلَّ عَلَى خَيْرٍ فَلَهُ مِثْلُ أَجْرِ فَاعِلِهِ» — مساهمتكم تضمن بقاء الخوادم مجانية ونقية لكافة المسلمين.",
     val coffeeTierPrice: String = "$3 / 10 ر.س",
     val coffeeTierDesc: String = "مساهمة رمزية تسعد فريق العمل وتدعم شغف التطوير المستمر.",
@@ -29,13 +35,16 @@ data class SupportConfig(
     val serverTierDesc: String = "كفالة تشغيل خوادم قواعد البيانات وتخزين الصوتيات للمستخدمين.",
     val waqfTierPrice: String = "$100+ / 375 ر.س",
     val waqfTierDesc: String = "دعم استراتيجي مستدام يخلد اسمك في لوحة شرف رعاة منصة خادم المسلم.",
-    val shareMessage: String = "✨ أنصحكم بالانضمام لتطبيق ومجتمع «خادم المسلم» الإسلامي الشامل بدون إعلانات:\n📲 https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2",
+    val shareMessage: String = "✨ أنصحكم بالانضمام لتطبيق ومجتمع «خادم المسلم» الإسلامي الشامل بدون إعلانات:\n📲 ${QabasWebConfig.DEFAULT_COMMUNITY_GROUP_URL}",
     val lastUpdated: Long = 0L,
     val updatedBy: String = "admin"
 )
 
 /**
- * مدير تكوين الدعم (SupportConfigManager) — يقرأ ويحفظ في SharedPreferences محلياً
+ * مدير تكوين الدعم (SupportConfigManager) — يقرأ ويحفظ في SharedPreferences
+ * محلياً فقط: لا يوجد مصدر سحابي لهذا التكوين، فتعديل الروابط/المحافظ هنا
+ * يظهر على هذا الجهاز وحده ولا يصل لباقي المستخدمين. النشر السحابي
+ * يحتاج مصدراً سحابياً (جدول app_config مثلاً) أولاً.
  */
 object SupportConfigManager {
     private const val PREF_WHATSAPP_URL = "support_cfg_whatsapp_url"
@@ -60,10 +69,44 @@ object SupportConfigManager {
     @Volatile
     private var cachedConfig: SupportConfig? = null
 
+    /**
+     * ق21: حارسان يمنعان عودة قيم تبرع كاذبة — الآيبان المعروض سابقاً
+     * فشل في mod-97، وعنوان USDT كان نائباً (43 حرفاً). فحص شكلي فقط:
+     * لا يثبت ملكية الحساب ولا وجوده، لكنه يرفض ما يستحيل أن يكون صحيحاً.
+     */
+    fun isValidIban(iban: String): Boolean {
+        val clean = iban.filter { !it.isWhitespace() }.uppercase(Locale.ROOT)
+        if (clean.length < 15 || clean.length > 34) return false
+        if (!clean.all { it.isLetterOrDigit() }) return false
+        if (!clean.substring(0, 2).all { it.isLetter() } || !clean.substring(2, 4).all { it.isDigit() }) return false
+        val rearranged = clean.substring(4) + clean.substring(0, 4)
+        val digits = StringBuilder()
+        for (ch in rearranged) {
+            if (ch.isDigit()) digits.append(ch) else digits.append(ch - 'A' + 10)
+        }
+        var mod = 0
+        val s = digits.toString()
+        var i = 0
+        while (i < s.length) {
+            val chunk = s.substring(i, minOf(i + 7, s.length))
+            mod = ("$mod$chunk").toLong().rem(97).toInt()
+            i += chunk.length
+        }
+        return mod == 1
+    }
+
+    /** عنوان TRON ‏(TRC20): 34 حرفاً من أبجدية base58 يبدأ بـ T. */
+    fun isValidTronAddress(address: String): Boolean {
+        val clean = address.trim()
+        if (clean.length != 34 || !clean.startsWith("T")) return false
+        val base58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        return clean.all { it in base58 }
+    }
+
     fun readLocal(context: Context): SupportConfig {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
         val default = SupportConfig()
-        return SupportConfig(
+        val raw = SupportConfig(
             whatsappGroupUrl = prefs.getString(PREF_WHATSAPP_URL, default.whatsappGroupUrl) ?: default.whatsappGroupUrl,
             whatsappGroupName = prefs.getString(PREF_WHATSAPP_NAME, default.whatsappGroupName) ?: default.whatsappGroupName,
             paypalUrl = prefs.getString(PREF_PAYPAL_URL, default.paypalUrl) ?: default.paypalUrl,
@@ -82,6 +125,17 @@ object SupportConfigManager {
             shareMessage = prefs.getString(PREF_SHARE_MSG, default.shareMessage) ?: default.shareMessage,
             lastUpdated = prefs.getLong(PREF_LAST_UPDATED, 0L),
             updatedBy = prefs.getString(PREF_UPDATED_BY, "admin") ?: "admin"
+        )
+        // ق21: تنظيف عند القراءة — القيم الكاذبة قد تكون محفوظة في
+        // تفضيلات الأجهزة الحالية أصلاً، فتغيير الافتراضيات وحده لا يقتلها.
+        // رابط واتساب يُصحَّح فقط إذا كان نسخة قديمة من المجموعة نفسها
+        // (معرّف الدعوة نفسه)؛ رابط مجموعة مختلفة يبقى كما هو.
+        val staleWhatsapp = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2"
+        return raw.copy(
+            whatsappGroupUrl = if (raw.whatsappGroupUrl.contains("FwpPfcgETYX2qw2XZE9QAF") && raw.whatsappGroupUrl != QabasWebConfig.DEFAULT_COMMUNITY_GROUP_URL) QabasWebConfig.DEFAULT_COMMUNITY_GROUP_URL else raw.whatsappGroupUrl,
+            usdtTronAddress = if (raw.usdtTronAddress.isNotBlank() && !isValidTronAddress(raw.usdtTronAddress)) "" else raw.usdtTronAddress,
+            bankIban = if (raw.bankIban.isNotBlank() && !isValidIban(raw.bankIban)) "" else raw.bankIban,
+            shareMessage = raw.shareMessage.replace(staleWhatsapp, QabasWebConfig.DEFAULT_COMMUNITY_GROUP_URL)
         )
     }
 
@@ -112,11 +166,13 @@ object SupportConfigManager {
         cachedConfig = cfg
     }
 
-    suspend fun refreshFromCloud(context: Context): SupportConfig = withContext(Dispatchers.IO) {
+    /** إعادة تحميل التكوين من التخزين المحلي (لا جلب سحابي — لا مصدر سحابي). */
+    suspend fun reloadLocal(context: Context): SupportConfig = withContext(Dispatchers.IO) {
         readLocal(context)
     }
 
-    suspend fun saveAndPublish(context: Context, newConfig: SupportConfig, adminIdentity: String): Boolean = withContext(Dispatchers.IO) {
+    /** حفظ التكوين محلياً على هذا الجهاز فقط (لا نشر سحابي — لا مصدر سحابي). */
+    suspend fun saveLocal(context: Context, newConfig: SupportConfig, adminIdentity: String): Boolean = withContext(Dispatchers.IO) {
         val stampedConfig = newConfig.copy(
             lastUpdated = System.currentTimeMillis(),
             updatedBy = adminIdentity

@@ -35,7 +35,10 @@ data class KeyValidationResult(
     val errorCode: Int? = null,
     val rawError: String? = null,
     val explanation: String = "",
-    val suggestedFix: String = ""
+    val suggestedFix: String = "",
+    // ق94: زمن الفحص نفسه — كان يُسجَّل في المتعقب فقط فلا يصل
+    // للوحة (متوسطها كان من بيانات قديمة عابرة للجلسات).
+    val latencyMs: Long = 0L
 )
 
 object ApiKeyValidator {
@@ -44,26 +47,36 @@ object ApiKeyValidator {
         .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
+    // ق94: الفحص يرجع نتيجة دائماً ولا يرمي أبداً (عدا الإلغاء) —
+    // كان أي رمي من التنظيف أو التسجيل يُسقط فحص الكل في المركز
+    // ويترك زر «جاري فحص...» معلقاً بلا نتيجة.
     suspend fun validateKey(context: Context, serviceType: String, key: String, hint: String? = null): KeyValidationResult = withContext(Dispatchers.IO) {
         val t0 = System.nanoTime()
-        val result = executeValidation(context, serviceType, key, hint)
+        val result = runCatching { executeValidation(context, serviceType, key, hint) }.getOrElse { e ->
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            KeyValidationResult(
+                isValid = false,
+                summary = "تعذر إكمال الفحص ⚠️",
+                explanation = e.localizedMessage ?: "خطأ غير متوقع أثناء الفحص.",
+                suggestedFix = "أعد المحاولة؛ وإن تكرر فأعد تشغيل التطبيق."
+            )
+        }
         val latencyMs = ((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(1L)
         val apiName = when (serviceType.lowercase()) {
             "gemini" -> "Gemini"
-            "groq", "grok", "xai" -> "Groq"
-            "openai" -> "OpenAI"
+            "groq" -> "Groq"
             "openrouter" -> "OpenRouter"
-            "huggingface" -> "HuggingFace"
-            "pexels" -> "Pexels"
             "pixabay" -> "Pixabay"
-            "azure" -> "Azure TTS"
-            "elevenlabs" -> "ElevenLabs"
             "leonardo" -> "Leonardo.ai"
             "firebase" -> "Firebase"
+            // ق136: اسمان قياسيان لا آليان — كان «qf» يُسجَّل «Qf»
+            // فيشتّت إحصاءات Quran Foundation، و«google_auth» «Google_auth».
+            "qf" -> "Quran Foundation"
+            "google_auth" -> "Google Auth"
             else -> serviceType.replaceFirstChar { it.uppercase() }
         }
-        ApiUsageTracker.recordValidationResult(context, apiName, latencyMs, result)
-        result
+        runCatching { ApiUsageTracker.recordValidationResult(context, apiName, latencyMs, result) }
+        result.copy(latencyMs = latencyMs)
     }
 
     private suspend fun executeValidation(context: Context, serviceType: String, key: String, hint: String? = null): KeyValidationResult = withContext(Dispatchers.IO) {
@@ -149,60 +162,6 @@ object ApiKeyValidator {
                         )
                     }
                 }
-                "openai" -> {
-                    if (!Regex("""sk-[A-Za-z0-9_\-]{20,}""").matches(trimmedKey)) {
-                        SystemLogsManager.addLog("ERROR", "مفتاح OpenAI غير صالح الصيغة - صيغة غير sk-", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "صيغة المفتاح غير صحيحة 🔴",
-                            explanation = "مفتاح OpenAI API الصحيح يبدأ بالبادئة «sk-» ويتكون من 27+ محرفاً. المفتاح الذي أدخلته لا يطابق تلك التركيبة.",
-                            suggestedFix = "افتح platform.openai.com/api-keys ثم اضغط «Create new secret key» وانسخ المفتاح كاملاً (يبدأ بـ sk-…) دون أي مسافات."
-                        )
-                    }
-                    val url = "https://api.openai.com/v1/models"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Authorization", "Bearer $trimmedKey")
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val code = response.code
-                    val bodyStr = response.body?.string().orEmpty()
-
-                    if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح OpenAI API متصل وسليم (OpenAI - 200 OK)", ThemeSuccess)
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (OpenAI API شغال حقيقياً)",
-                            errorCode = code,
-                            explanation = "تم التحقق الفعلي من صحة المفتاح واستجابة خوادم OpenAI بنجاح (200 OK).",
-                            suggestedFix = "المفتاح جاهز للعمل الفوري."
-                        )
-                    } else {
-                        val (exp, fix) = when (code) {
-                            401 -> Pair(
-                                "المفتاح غير صحيح أو منتهي الصلاحية على OpenAI.",
-                                "أنشئ مفتاحاً جديداً من platform.openai.com/api-keys."
-                            )
-                            429 -> Pair(
-                                "تم تجاوز حد الاستخدام أو رصيد الحساب منخفض على OpenAI.",
-                                "تحقق من رصيد الحساب أو أعد المحاولة لاحقاً."
-                            )
-                            else -> Pair(
-                                "استجاب خادم OpenAI بكود خطأ ($code): $bodyStr",
-                                "تحقق من اتصال الإنترنت وحالة خدمات OpenAI."
-                            )
-                        }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح OpenAI API ($code) - $exp", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴 (كود $code)",
-                            errorCode = code,
-                            rawError = bodyStr.take(200),
-                            explanation = exp,
-                            suggestedFix = fix
-                        )
-                    }
-                }
                 "openrouter" -> {
                     if (!trimmedKey.startsWith("sk-or-", ignoreCase = true)) {
                         return@withContext KeyValidationResult(
@@ -231,55 +190,7 @@ object ApiKeyValidator {
                         )
                     }
                 }
-                "groq", "grok", "xai" -> {                    if (trimmedKey.startsWith("xai-", ignoreCase = true)) {
-                        val url = "https://api.x.ai/v1/models"
-                        val request = Request.Builder()
-                            .url(url)
-                            .header("Authorization", "Bearer $trimmedKey")
-                            .build()
-                        val response = client.newCall(request).execute()
-                        val code = response.code
-                        val bodyStr = response.body?.string().orEmpty()
-
-                        if (response.isSuccessful) {
-                            SystemLogsManager.addLog("SUCCESS", "مفتاح xAI Grok متصل وسليم (xAI Cloud - 200 OK)", ThemeSuccess)
-                            return@withContext KeyValidationResult(
-                                isValid = true,
-                                summary = "متصل بالسيرفر ✅ (xAI Grok شغال حقيقياً)",
-                                errorCode = code,
-                                explanation = "تم التحقق الفعلي من خوادم xAI وتوفر رصيد تشغيلي لموديلات Grok بنجاح.",
-                                suggestedFix = "المفتاح جاهز لمعالجة النصوص فائقة السرعة."
-                            )
-                        } else {
-                            val (exp, fix) = when (code) {
-                                401 -> Pair(
-                                    "المفتاح غير معترف به لدى خوادم x.ai (Unauthorized).",
-                                    "تأكد من نسخ المفتاح كاملاً من console.x.ai/keys."
-                                )
-                                403 -> Pair(
-                                    "تم رفض الطلب (403 Forbidden). حسابك على xAI يفتقر إلى رصيد مدفوع (Credits)، حيث أن xAI لا توفر حالياً واجهة برمجية مجانية بدون شحن رصيد.",
-                                    "الحل المجاني الموصى به: استخدم منصة Groq Cloud المجانية (console.groq.com/keys) لإنشاء مفتاح يبدأ بـ gsk_ مجاناً 100% بدون أي بطاقة بنكية. أو اشحن رصيداً في console.x.ai."
-                                )
-                                429 -> Pair(
-                                    "تم استهلاك رصيد الاستخدام المتاح على منصة xAI.",
-                                    "يرجى شحن رصيدك على console.x.ai أو استخدام Groq Cloud المجاني."
-                                )
-                                else -> Pair(
-                                    "استجاب خادم xAI بالخطأ ($code): $bodyStr",
-                                    "تحقق من إعدادات حسابك على console.x.ai."
-                                )
-                            }
-                            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح xAI Grok ($code) - $exp", ThemeDestructive)
-                            return@withContext KeyValidationResult(
-                                isValid = false,
-                                summary = "غير متصل 🔴 (كود $code)",
-                                errorCode = code,
-                                rawError = bodyStr.take(200),
-                                explanation = exp,
-                                suggestedFix = fix
-                            )
-                        }
-                    } else {
+                "groq" -> {
                         val url = "https://api.groq.com/openai/v1/models"
                         val request = Request.Builder()
                             .url(url)
@@ -323,93 +234,6 @@ object ApiKeyValidator {
                                 suggestedFix = fix
                             )
                         }
-                    }
-                }
-                "huggingface" -> {
-                    val url = "https://huggingface.co/api/whoami-v2"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Authorization", "Bearer $trimmedKey")
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val code = response.code
-                    val bodyStr = response.body?.string().orEmpty()
-
-                    if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "توكن HuggingFace متصل وسليم (AI Image Studio - 200 OK)", ThemeSuccess)
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (Hugging Face جاهز وفعال)",
-                            errorCode = code,
-                            explanation = "تم التحقق الفعلي من حساب Hugging Face وصلاحيات التوكن لتوليد الصور والمشاهد بالذكاء الاصطناعي.",
-                            suggestedFix = "المفتاح جاهز للعمل الفوري."
-                        )
-                    } else {
-                        val (exp, fix) = when (code) {
-                            401 -> Pair(
-                                "توكن Hugging Face غير صحيح أو تنقصه صلاحية القراءة (Read permissions).",
-                                "ادخل إلى huggingface.co/settings/tokens وأنشئ توكن جديد بنوع 'Read' أو 'Write' والصقه هنا (يبدأ بـ hf_)."
-                            )
-                            else -> Pair(
-                                "استجاب خادم Hugging Face بالخطأ ($code): $bodyStr",
-                                "تحقق من حسابك على منصة Hugging Face."
-                            )
-                        }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من توكن Hugging Face ($code) - $exp", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴 (كود $code)",
-                            errorCode = code,
-                            rawError = bodyStr.take(200),
-                            explanation = exp,
-                            suggestedFix = fix
-                        )
-                    }
-                }
-                "pexels" -> {
-                    val url = "https://api.pexels.com/v1/curated?per_page=1"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Authorization", trimmedKey)
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val code = response.code
-                    val bodyStr = response.body?.string().orEmpty()
-
-                    if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Pexels API متصل وسليم (Media Library - 200 OK)", ThemeSuccess)
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (Pexels Media جاهز وفعال)",
-                            errorCode = code,
-                            explanation = "تم التحقق الفعلي من مكتبة Pexels لجلب مقاطع الفيديو والصور فائقة الدقة للمشاهد والمونتاج الحقيقي.",
-                            suggestedFix = "المفتاح جاهز للعمل الفوري."
-                        )
-                    } else {
-                        val (exp, fix) = when (code) {
-                            401 -> Pair(
-                                "مفتاح Pexels API غير صالح أو غير معتمد.",
-                                "ادخل إلى pexels.com/api واطلب مفتاح مجاني ثم الصقه هنا."
-                            )
-                            403 -> Pair(
-                                "تم تقييد حساب Pexels بسبب تجاوز حد الطلبات.",
-                                "انتظر ساعة لإعادة تعيين الحصة أو أنشئ مفتاحاً جديداً."
-                            )
-                            else -> Pair(
-                                "استجاب خادم Pexels بالخطأ ($code): $bodyStr",
-                                "تأكد من صحة المفتاح."
-                            )
-                        }
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Pexels API ($code) - $exp", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴 (كود $code)",
-                            errorCode = code,
-                            rawError = bodyStr.take(200),
-                            explanation = exp,
-                            suggestedFix = fix
-                        )
-                    }
                 }
                 "pixabay" -> {
                     val url = "https://pixabay.com/api/?key=$trimmedKey&q=nature"
@@ -446,105 +270,6 @@ object ApiKeyValidator {
                             rawError = bodyStr.take(200),
                             explanation = exp,
                             suggestedFix = fix
-                        )
-                    }
-                }
-                "azure" -> {
-                    val region = hint ?: ""
-                    if (region.isBlank()) {
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "أدخل المنطقة أولا 🔴",
-                            explanation = "التحقق من Azure Speech يتطلب كتابة المنطقة (Region) مثل eastus بجانب المفتاح.",
-                            suggestedFix = "في صفحة Keys and Endpoint انسخ قيمة Location/Region والصقها في حقل المنطقة."
-                        )
-                    }
-                    val url = "https://$region.api.cognitive.microsoft.com/sts/v1.0/issuetoken"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("Ocp-Apim-Subscription-Key", trimmedKey)
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val code = response.code
-                    val bodyStr = response.body?.string().orEmpty()
-
-                    if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Azure Speech متصل وسليم (Microsoft - 200 OK)", ThemeSuccess)
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (Azure Speech شغال حقيقياً)",
-                            errorCode = code,
-                            explanation = "تم التحقق الفعلي من مفتاح Azure Speech والمنطقة بنجاح. التعليق الصوتي العربي الفصيح جاهز للعمل.",
-                            suggestedFix = "المفتاح جاهز للاستخدام الفوري."
-                        )
-                    } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Azure Speech ($code) - $bodyStr", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴 (كود $code)",
-                            errorCode = code,
-                            rawError = bodyStr.take(200),
-                            explanation = "استجاب خادم Azure بالخطأ ($code). تأكد من صحة المفتاح والمنطقة معاً.",
-                            suggestedFix = "تأكد من نسخ KEY 1 والمنطقة الصحيحة من صفحة Keys and Endpoint في Azure."
-                        )
-                    }
-                }
-                "elevenlabs" -> {
-                    val url = "https://api.elevenlabs.io/v1/user/subscription"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("xi-api-key", trimmedKey)
-                        .build()
-                    val response = client.newCall(request).execute()
-                    val code = response.code
-                    val bodyStr = response.body?.string().orEmpty()
-
-                    if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح ElevenLabs متصل وسليم (ElevenLabs - 200 OK)", ThemeSuccess)
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (ElevenLabs شغال حقيقياً)",
-                            errorCode = code,
-                            explanation = "تم التحقق الفعلي من مفتاح ElevenLabs بنجاح. الأصوات السينمائية جاهزة للعمل.",
-                            suggestedFix = "المفتاح جاهز للاستخدام الفوري."
-                        )
-                    } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح ElevenLabs ($code) - $bodyStr", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴 (كود $code)",
-                            errorCode = code,
-                            rawError = bodyStr.take(200),
-                            explanation = "استجاب خادم ElevenLabs بالخطأ ($code). تأكد من صحة المفتاح الذي يبدأ بـ xi-.",
-                            suggestedFix = "انسخ المفتاح كاملاً من الإعدادات → API Keys في حساب ElevenLabs."
-                        )
-                    }
-                }
-                "coverr" -> {
-                    val url = "https://api.coverr.co/videos?api_key=$trimmedKey&urls=true"
-                    val request = Request.Builder().url(url).build()
-                    val response = client.newCall(request).execute()
-                    val code = response.code
-                    val bodyStr = response.body?.string().orEmpty()
-
-                    if (response.isSuccessful) {
-                        SystemLogsManager.addLog("SUCCESS", "مفتاح Coverr متصل وسليم (Coverr B-Roll - 200 OK)", ThemeSuccess)
-                        return@withContext KeyValidationResult(
-                            isValid = true,
-                            summary = "متصل بالسيرفر ✅ (Coverr HD B-Roll فعال)",
-                            errorCode = code,
-                            explanation = "تم التحقق الفعلي من مفتاح Coverr واستجابة خوادم الفيديو بنجاح (200 OK). مكتبة مقاطع الـ B-Roll السينمائية جاهزة للمونتاج.",
-                            suggestedFix = "المفتاح جاهز للعمل الفوري."
-                        )
-                    } else {
-                        SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Coverr ($code) - $bodyStr", ThemeDestructive)
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "غير متصل 🔴 (كود $code)",
-                            errorCode = code,
-                            rawError = bodyStr.take(200),
-                            explanation = "استجاب خادم Coverr بكود خطأ ($code).",
-                            suggestedFix = "تأكد من صحة مفتاح Coverr API من لوحة تحكم coverr.co."
                         )
                     }
                 }
@@ -646,7 +371,17 @@ object ApiKeyValidator {
                     }
                 }
                 "supabase" -> {
-                    val supabaseUrl = hint?.takeIf { it.startsWith("https://") } ?: SupabaseConfig.url
+                    // ق94: بطاقة SUPABASE_URL نفسها كانت تُفحص بإرسال
+                    // الرابط نفسه كـ apikey فيرد 401 دائماً — فلا يمكن
+                    // أن تظهر متصلة أبداً (سقف المركز 9/10) ويُحسب
+                    // الرابط فاشلاً في تنبيهات المطور أيضاً. الرابط
+                    // يُفحص هنا بمفتاح Anon الحقيقي (التلميح أو
+                    // الإعداد)، والمفتاح يُفحص بالرابط تلميحاً كما كان.
+                    val keyIsUrl = trimmedKey.startsWith("https://")
+                    val supabaseUrl = if (keyIsUrl) trimmedKey
+                    else hint?.takeIf { it.startsWith("https://") } ?: SupabaseConfig.url
+                    val apiKey = if (keyIsUrl) hint?.takeIf { it.isNotBlank() } ?: SupabaseConfig.key
+                    else trimmedKey
                     if (supabaseUrl.isBlank() || !supabaseUrl.startsWith("https://")) {
                         return@withContext KeyValidationResult(
                             isValid = false,
@@ -655,11 +390,19 @@ object ApiKeyValidator {
                             suggestedFix = "تأكد من ضبط SUPABASE_URL في ملف الإعدادات."
                         )
                     }
+                    if (apiKey.isBlank()) {
+                        return@withContext KeyValidationResult(
+                            isValid = false,
+                            summary = "مفتاح Anon مفقود 🔴",
+                            explanation = "الرابط وحده لا يثبت الاتصال — التحقق يحتاج مفتاح Anon معه.",
+                            suggestedFix = "أدخل SUPABASE_ANON_KEY أولاً ثم أعد فحص الرابط."
+                        )
+                    }
                     val url = "$supabaseUrl/rest/v1/"
                     val request = Request.Builder()
                         .url(url)
-                        .header("apikey", trimmedKey)
-                        .header("Authorization", "Bearer $trimmedKey")
+                        .header("apikey", apiKey)
+                        .header("Authorization", "Bearer $apiKey")
                         .build()
                     val response = client.newCall(request).execute()
                     val code = response.code
@@ -724,26 +467,6 @@ object ApiKeyValidator {
                         )
                     }
                 }
-                "anthropic" -> {
-                    // فحص حي حقيقي: GET /v1/models بترويسة x-api-key (لا يقبل أي نص ≥ 8 أحرف).
-                    if (!trimmedKey.startsWith("sk-ant-", ignoreCase = true)) {
-                        return@withContext KeyValidationResult(
-                            isValid = false,
-                            summary = "صيغة المفتاح غير صحيحة 🔴",
-                            explanation = "مفتاح Anthropic الصحيح يبدأ بالبادئة «sk-ant-».",
-                            suggestedFix = "انسخ المفتاح كاملاً من لوحة تحكم Anthropic (يبدأ بـ sk-ant-…) دون مسافات."
-                        )
-                    }
-                    return@withContext pingAnthropicLive(trimmedKey)
-                }
-                "opencode" -> {
-                    // فحص حي حقيقي: GET /inference/v1/models بترويسة Bearer.
-                    return@withContext pingGenericBearerLive(
-                        trimmedKey,
-                        "https://opencode.ai/inference/v1/models",
-                        "OpenCode"
-                    )
-                }
                 else -> {
                     // ثغرة معروفة موثقة: فرع الخدمات المجهولة يقبل أي نص ≥ 8 أحرف
                     // دون أي فحص شبكي. لا خدمة معروفة تسقط فيه الآن (كل مزودي
@@ -780,101 +503,5 @@ object ApiKeyValidator {
         }
     }
 
-    /**
-     * فحص حي لمفاتيح Anthropic: GET /v1/models بترويسة x-api-key
-     * وترويسة anthropic-version (لا Bearer هنا). لا يُطبع المفتاح أبداً.
-     */
-    private suspend fun pingAnthropicLive(key: String): KeyValidationResult = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("https://api.anthropic.com/v1/models")
-            .header("x-api-key", key)
-            .header("anthropic-version", "2023-06-01")
-            .build()
-        val response = client.newCall(request).execute()
-        val code = response.code
-        val bodyStr = response.body?.string().orEmpty()
-        if (response.isSuccessful) {
-            SystemLogsManager.addLog("SUCCESS", "مفتاح Anthropic متصل وسليم (200 OK)", ThemeSuccess)
-            KeyValidationResult(
-                isValid = true,
-                summary = "متصل بالسيرفر ✅ (Anthropic شغال حقيقياً)",
-                errorCode = code,
-                explanation = "تم التحقق الفعلي من صحة المفتاح واستجابة خوادم Anthropic بنجاح (200 OK).",
-                suggestedFix = "المفتاح جاهز للعمل الفوري."
-            )
-        } else {
-            val (exp, fix) = when (code) {
-                401 -> Pair(
-                    "المفتاح غير صحيح أو منتهي الصلاحية على Anthropic.",
-                    "أنشئ مفتاحاً جديداً من لوحة تحكم Anthropic."
-                )
-                429 -> Pair(
-                    "تم تجاوز حد الاستخدام على Anthropic.",
-                    "انتظر قليلاً وأعد المحاولة."
-                )
-                else -> Pair(
-                    "استجاب خادم Anthropic بكود خطأ ($code): $bodyStr",
-                    "تحقق من اتصال الإنترنت وحالة خدمات Anthropic."
-                )
-            }
-            SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح Anthropic ($code) - $exp", ThemeDestructive)
-            KeyValidationResult(
-                isValid = false,
-                summary = "غير متصل 🔴 (كود $code)",
-                errorCode = code,
-                rawError = bodyStr.take(200),
-                explanation = exp,
-                suggestedFix = fix
-            )
-        }
-    }
 
-    /**
-     * فحص حي عام لمزودي Bearer: GET لقائمة النماذج بترويسة Authorization.
-     * يُستخدم لـ OpenCode (وما يشبهه) — لا يقبل المفتاح دون رد 200 فعلي.
-     */
-    private suspend fun pingGenericBearerLive(key: String, url: String, serviceName: String): KeyValidationResult =
-        withContext(Dispatchers.IO) {
-            val request = Request.Builder()
-                .url(url)
-                .header("Authorization", "Bearer $key")
-                .build()
-            val response = client.newCall(request).execute()
-            val code = response.code
-            val bodyStr = response.body?.string().orEmpty()
-            if (response.isSuccessful) {
-                SystemLogsManager.addLog("SUCCESS", "مفتاح $serviceName متصل وسليم (200 OK)", ThemeSuccess)
-                KeyValidationResult(
-                    isValid = true,
-                    summary = "متصل بالسيرفر ✅ ($serviceName شغال حقيقياً)",
-                    errorCode = code,
-                    explanation = "تم التحقق الفعلي من صحة المفتاح واستجابة خوادم $serviceName بنجاح (200 OK).",
-                    suggestedFix = "المفتاح جاهز للعمل الفوري."
-                )
-            } else {
-                val (exp, fix) = when (code) {
-                    401 -> Pair(
-                        "المفتاح غير صحيح أو منتهي الصلاحية على $serviceName.",
-                        "أنشئ مفتاحاً جديداً من لوحة تحكم $serviceName."
-                    )
-                    429 -> Pair(
-                        "تم تجاوز حد الاستخدام على $serviceName.",
-                        "انتظر قليلاً وأعد المحاولة."
-                    )
-                    else -> Pair(
-                        "استجاب خادم $serviceName بكود خطأ ($code): $bodyStr",
-                        "تحقق من اتصال الإنترنت وحالة خدمات $serviceName."
-                    )
-                }
-                SystemLogsManager.addLog("ERROR", "فشل التحقق من مفتاح $serviceName ($code) - $exp", ThemeDestructive)
-                KeyValidationResult(
-                    isValid = false,
-                    summary = "غير متصل 🔴 (كود $code)",
-                    errorCode = code,
-                    rawError = bodyStr.take(200),
-                    explanation = exp,
-                    suggestedFix = fix
-                )
-            }
-        }
 }

@@ -10,7 +10,7 @@ import java.net.URLEncoder
  * PollinationsTextService — نموذج نصي بلا مفتاح (بدون API).
  * يستخدم endpoint https://text.pollinations.ai/public المجاني المفتوح.
  * لا يحتاج مفتاح، يعمل عبر الإنترنت فقط.
- * يُجرَّب أولًا في سلسلة التوليد (قبل OpenAI/Groq/Gemini).
+ * يُجرَّب أولًا في سلسلة التوليد (قبل Groq/Gemini).
  */
 object PollinationsTextService {
     private val client = OkHttpClient.Builder()

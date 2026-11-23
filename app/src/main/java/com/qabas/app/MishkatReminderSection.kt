@@ -47,6 +47,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -68,6 +69,13 @@ data class MishkatReminderContent(
 )
 
 /**
+ * رقم يوم دورة مشكاة 1–30 من رقم يوم السنة — يتقدم 1 كل يوم، فتذكير
+ * اليوم نفسه يصل كل المستخدمين في اليوم نفسه.
+ */
+private fun mishkatDayNumber(): Int =
+    ((java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR) - 1) % 30) + 1
+
+/**
  * Content shown at the top of Mishkat. It is read only from the cloud;
  * disabled or unavailable content is never replaced with local placeholder data.
  */
@@ -76,15 +84,23 @@ fun MishkatReminderCard() {
     val theme = QabasTheme.current
     var content by remember { mutableStateOf<MishkatReminderContent?>(null) }
 
-    // تذكير اليوم الدائر (الدفعة 3): رقم يوم السنة (1–366) يُطوى على دورة
-    // 1–30، فتذكير اليوم نفسه يصل كل المستخدمين في اليوم نفسه.
-    val todayDayNumber = remember {
-        ((java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR) - 1) % 30) + 1
-    }
+    // (ق39) رقم اليوم حالة لا remember جامد: كان يُحسب مرة واحدة والتحميل
+    // في LaunchedEffect(Unit) — فمن يبقي التطبيق مفتوحاً بعد منتصف الليل
+    // يرى تذكير أمس طوال اليوم التالي. بطاقة الرئيسية أصلحت الصنف نفسه
+    // في review-r13 بحلقة تكتشف تبدّل التاريخ؛ هنا الحلقة نفسها.
+    var todayDayNumber by remember { mutableStateOf(mishkatDayNumber()) }
     var daily by remember { mutableStateOf<SupabaseServices.MishkatDailyRow?>(null) }
     var archiveDays by remember { mutableStateOf<List<SupabaseServices.MishkatDailyRow>>(emptyList()) }
 
     LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            val next = mishkatDayNumber()
+            if (next != todayDayNumber) todayDayNumber = next
+        }
+    }
+
+    LaunchedEffect(todayDayNumber) {
         content = withContext(Dispatchers.IO) {
             SupabaseServices.Database.getMishkatReminderContent()
         }
@@ -293,7 +309,10 @@ private fun MishkatDailyReminderCard(
                 modifier = Modifier.size(18.dp)
             )
             Text(
-                text = "تذكّر اليوم • اليوم ${shown.dayNumber} من 30",
+                // (ق39) العنوان كان يقول «تذكّر اليوم» حتى عند عرض يوم سابق
+                // من الأرشيف — التسمية تتبع المعروض فعلاً.
+                text = if (isShowingToday) "تذكّر اليوم • اليوم ${shown.dayNumber} من 30"
+                else "تذكير اليوم ${shown.dayNumber} من 30",
                 color = theme.gold,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.SemiBold,

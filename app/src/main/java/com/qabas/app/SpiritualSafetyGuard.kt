@@ -101,6 +101,25 @@ object SpiritualSafetyGuard {
     }
 
     /**
+     * مدة فيديو بالمللي ثانية من بياناته نفسها فقط (بلا صورة مصغرة) —
+     * لمسار الرابط المباشر في النشر: مدته لا تُقاس عند الإدخال، فكان
+     * التحقق من حد المدة يُتخطى (0 ثانية تعني «غير معروفة») ويُنشر
+     * بأي طول. 0 تعني تعذّر القياس لا مدة صفر — المتصل يقرر الرفض.
+     */
+    suspend fun measureVideoDurationMs(context: Context, videoUri: Uri): Long =
+        withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, videoUri)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            } catch (_: Exception) {
+                0L
+            } finally {
+                runCatching { retriever.release() }
+            }
+        }
+
+    /**
      * استخراج صورة مصغرة (Thumbnail) ومعلومات الفيديو من ملف محلي
      */
     suspend fun extractVideoMetadata(

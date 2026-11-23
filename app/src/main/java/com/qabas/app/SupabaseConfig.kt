@@ -175,6 +175,41 @@ object SupabaseConfig {
 object PasswordRecoveryManager {
     private const val PREFS_NAME = "qabas_prefs"
     private const val PREF_VERIFIED = "supabase_password_recovery_verified"
+    private const val PREF_REQUESTED_AT = "supabase_password_recovery_requested_at"
+
+    /**
+     * ق85: مدة صلاحية «نية الاستعادة» — روابط الاستعادة صالحة
+     * ساعات؛ 24 ساعة تمنع تصنيف رابط تأكيد بريد متأخر كاستعادة،
+     * وتكفي لوصول رابط الاستعادة نفسه (يُطلب ويُفتح عادة في دقائق).
+     */
+    private const val RECOVERY_REQUEST_TTL_MILLIS = 24L * 60 * 60 * 1000
+
+    /**
+     * ق85: تُسجَّل عند طلب رابط استعادة فعلاً (قبل وصول الرابط).
+     * بها يميّز معالج qabas://auth رابط الاستعادة عن رابط تأكيد
+     * البريد — كانا يُصنَّفان استعادةً دائماً لمجرد تطابق المضيف.
+     */
+    fun markRequested(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(PREF_REQUESTED_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** هل طُلب رابط استعادة مؤخراً ولم يُستهلك بعد؟ */
+    fun isRecoveryRequested(context: Context): Boolean {
+        val at = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getLong(PREF_REQUESTED_AT, 0L)
+        return at > 0L && System.currentTimeMillis() - at < RECOVERY_REQUEST_TTL_MILLIS
+    }
+
+    /** تُستهلك عند وصول رابط الاستعادة (نجاحاً أو فشلاً). */
+    fun clearRequested(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(PREF_REQUESTED_AT)
+            .apply()
+    }
 
     private val _isRecoveryInProgress = MutableStateFlow(false)
     val isRecoveryInProgress: StateFlow<Boolean> = _isRecoveryInProgress.asStateFlow()

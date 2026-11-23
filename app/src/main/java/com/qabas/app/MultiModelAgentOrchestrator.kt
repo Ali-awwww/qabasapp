@@ -252,14 +252,8 @@ object MultiModelAgentOrchestrator {
             AgentTeamMember("leader_1", "القائد المعماري", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط صارم: قسّم أي تطبيق كامل لواجهات ومنطق ومراجعة، ثم ادمج واطلب الدفع."),
             AgentTeamMember("exec_ui", "منفذ الواجهات", DetectedProvider.GEMINI, "gemini-2.5-flash", AgentTeamRole.EXECUTOR, 2, true, rolePresets(AgentTeamRole.EXECUTOR)[0]),
             AgentTeamMember("exec_logic", "منفذ المنطق والبيانات", DetectedProvider.GROQ, "llama-3.3-70b-versatile", AgentTeamRole.EXECUTOR, 3, true, rolePresets(AgentTeamRole.EXECUTOR)[1]),
-            AgentTeamMember("rev_1", "مراجع الجودة", DetectedProvider.OPENAI, "gpt-4o", AgentTeamRole.REVIEWER, 4, true, rolePresets(AgentTeamRole.REVIEWER)[0])
+            AgentTeamMember("rev_1", "مراجع الجودة", DetectedProvider.OPENROUTER, "openai/gpt-4o", AgentTeamRole.REVIEWER, 4, true, rolePresets(AgentTeamRole.REVIEWER)[0])
         ),
-        "⚡ OpenCode" to listOf(
-            AgentTeamMember("leader_1", "القائد سبارك", DetectedProvider.OPENCODE, "muse-spark-1.3", AgentTeamRole.LEADER, 1, true, "مخطط صارم: قسّم العمل لمنفذين سريعين ومراجع دقيق، ثم ادمج واطلب الدفع."),
-            AgentTeamMember("exec_1", "منفذ بيج بيكل", DetectedProvider.OPENCODE, "big-pickle", AgentTeamRole.EXECUTOR, 2, true, rolePresets(AgentTeamRole.EXECUTOR)[2]),
-            AgentTeamMember("exec_2", "منفذ كيمي", DetectedProvider.OPENCODE, "kimi-k2.7-code", AgentTeamRole.EXECUTOR, 3, true, rolePresets(AgentTeamRole.EXECUTOR)[0]),
-            AgentTeamMember("rev_1", "مراجع هايكو", DetectedProvider.OPENCODE, "claude-haiku-4-5", AgentTeamRole.REVIEWER, 4, true, rolePresets(AgentTeamRole.REVIEWER)[0])
-        )
     )
 
     /**
@@ -284,13 +278,16 @@ object MultiModelAgentOrchestrator {
         team: List<AgentTeamMember>,
         leader: AgentTeamMember?,
         materials: String,
-        leaderKey: String
+        leaderKey: String,
+        historyBlock: String = ""
     ): TeamPreflight {
         // الفحص الحتمي للتطبيق (يعمل دائماً — وهو الغطاء عند فشل القائد)
         val appMissing = mutableListOf<String>()
         val appQuestions = mutableListOf<String>()
         if (prompt.isBlank()) appQuestions.add("ما المطلوب تنفيذه بالضبط؟ اكتب أمراً واضحاً.")
-        else if (prompt.trim().length < 10) appQuestions.add("الأمر مختصر جداً («$prompt») — وضّح الهدف والشاشة أو الملف المعني.")
+        // (ق37) أمر قصير مع سجل ليس غامضاً: «عدّلها»/«أصلحها» متابعة لما سبق،
+        // فالفحص يقيس الطلب في سياق الجلسة لا معزولاً — بلا سجل يبقى السؤال.
+        else if (prompt.trim().length < 10 && historyBlock.isBlank()) appQuestions.add("الأمر مختصر جداً («$prompt») — وضّح الهدف والشاشة أو الملف المعني.")
         val providers = team.filter { it.enabled }.map { it.provider }.distinct()
         providers.forEach { p ->
             val pk = UniversalKeyBrain.prefsKeyFor(p)
@@ -312,7 +309,8 @@ object MultiModelAgentOrchestrator {
                 • questions: أسئلة للمستخدم عند الغموض (بحد أقصى 3، موجزة).
                 $materials
             """.trimIndent()
-            val res = callModel(leader, sys, "المهمة المطلوبة: \"$prompt\"\nحدد مستلزمات البدء الآن.", leaderKey, context = context, missionTitle = prompt)
+            val historySuffix = if (historyBlock.isNotBlank()) "\n\n$historyBlock" else ""
+            val res = callModel(leader, sys, "المهمة المطلوبة: \"$prompt\"$historySuffix\nحدد مستلزمات البدء الآن.", leaderKey, context = context, missionTitle = prompt)
             val parsed = if (res.isSuccess) parsePreflight(res.outputText) else null
             if (parsed != null) {
                 val allMissing = (appMissing + parsed.missing).distinct()
@@ -503,7 +501,8 @@ object MultiModelAgentOrchestrator {
         onUpdate: (String) -> Unit = {},
         onStep: ((TeamStepEvent) -> Unit)? = null,
         buildFeedback: String = "",
-        adversarial: Boolean = true
+        adversarial: Boolean = true,
+        history: List<AgentChatMessage> = emptyList()
     ): MultiModelRunReport = withContext(Dispatchers.IO) {
         // 🔑 نُسلسل onUpdate إلى الخيط الرئيسي (Main) لتحديث UI بأمان من worker threads
         val safeOnUpdate: suspend (String) -> Unit = { msg ->
@@ -521,6 +520,15 @@ object MultiModelAgentOrchestrator {
         }
         val startTime = System.currentTimeMillis()
         val warnings = mutableListOf<String>()
+
+        // (ق37) سجل المحادثة: كان مسار الفريق بلا أي سجل (كل استدعاء بلا سياق
+        // الجلسة) فينسى الفريق ما قيل قبله — المسار الفردي أخذ السجل في ق31
+        // وبقي هذا المسار. كتلة واحدة محدودة (آخر 12 رسالة، حتى 6000 محرف)
+        // تُلحق حيث يُتخذ القرار من الطلب: المطلوبات والخطة، ومهام الاحتياط
+        // عند فشل الخطة؛ أما التحقق والمراجعة والخلاصة فتقيس مخرجات هذه
+        // الجولة نفسها المشتقة من خطة واعية بالسجل فلا تحتاجه.
+        val historyBlock = AgentChatSessionManager.historyBlock(history)
+        val historySuffix = if (historyBlock.isNotBlank()) "\n\n$historyBlock" else ""
 
         // 🔑 ميزانية موحّدة لكل استدعاءات النماذج داخل هذه المهمة — سقف صارم للكلفة
         var modelCalls = 0
@@ -604,7 +612,7 @@ object MultiModelAgentOrchestrator {
         )
         val enabledTeamEarly = team.filter { it.enabled }
         val leaderEarly = enabledTeamEarly.firstOrNull { it.role == AgentTeamRole.LEADER }
-        val preflight = checkPreflight(context, prompt, team, leaderEarly, sightedMaterials, providerKeys[leaderEarly?.provider] ?: "")
+        val preflight = checkPreflight(context, prompt, team, leaderEarly, sightedMaterials, providerKeys[leaderEarly?.provider] ?: "", historyBlock)
         if (!preflight.ready) {
             safeOnStep(
                 TeamStepEvent(
@@ -679,7 +687,7 @@ object MultiModelAgentOrchestrator {
         )
         val leaderSystemPrompt = buildLeaderSystemPrompt(leader, assistants, prompt, sightedMaterials)
 
-        val planResult = budgetedCall(leader, leaderSystemPrompt, prompt, providerKeys[leader.provider] ?: "")
+        val planResult = budgetedCall(leader, leaderSystemPrompt, prompt + historySuffix, providerKeys[leader.provider] ?: "")
         val leaderPlan: LeaderPlan? = if (planResult.isSuccess) {
             parseLeaderPlan(planResult.outputText, enabledTeam)
         } else null
@@ -733,9 +741,11 @@ object MultiModelAgentOrchestrator {
         )
 
         // استخراج المهام الفرعية للقائد — أو إنشاء مهام افتراضية إذا فشل القائد
-        val subtasks: List<LeaderSubtask> = leaderPlan?.subtasks
+        // أو لم تسند خطته مهمة صالحة لأي مساعد
+        val planSubtasks: List<LeaderSubtask>? = leaderPlan?.subtasks
             ?.filter { st -> assistants.any { it.id == st.assigneeMemberId } }
             ?.takeIf { it.isNotEmpty() }
+        val subtasks: List<LeaderSubtask> = planSubtasks
             ?: assistants.map { exec ->
                 LeaderSubtask(
                     id = "st_${exec.id}",
@@ -744,6 +754,9 @@ object MultiModelAgentOrchestrator {
                     assigneeMemberId = exec.id
                 )
             }
+        // (ق37) عند فشل الخطة تنفَّذ المهام الاحتياطية على الطلب الخام بلا خطة
+        // واعية بالسجل — فتُلحق كتلة السجل بموجه المنفذ في تلك الحال وحدها.
+        val planFailed = planSubtasks == null
 
         // بناء خريطة العضو حسب معرفه
         val memberById = assistants.associateBy { it.id }
@@ -771,6 +784,9 @@ object MultiModelAgentOrchestrator {
             )
             val memberPrompt = buildString {
                 append(buildMemberPrompt(st, prompt, member, memberResults, taskFiles))
+                if (planFailed && historyBlock.isNotBlank()) {
+                    append("\n\n$historyBlock")
+                }
                 if (corrective.isNotBlank()) {
                     append("\n\n◆ أمر الإصلاح من القائد (أعد تنفيذ المهمة وفقاً له):\n$corrective\n")
                 }

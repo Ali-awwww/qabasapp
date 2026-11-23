@@ -10,11 +10,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.util.zip.GZIPInputStream
 
 /**
  * 🔑 مستودع صحيح البخاري وصحيح مسلم الكامل (offline-first)
- * يقرأ من ملفات .json.gz في assets/hadith ويحمّل كتابًا واحدًا في كل مرة.
+ * يقرأ من ملفات .json في assets/hadith ويحمّل كتابًا واحدًا في كل مرة.
+ * ملفات المصدر في الشجرة مضغوطة (.json.gz) لكن أداة التغليف تخزّنها في
+ * الـ APK مفكوكة الضغط باسم .json (كما في quran/mushafs-1.json الذي
+ * يقرؤه QabasQuranData) — فلا يُطلب الاسم .json.gz ولا يُلفّ الدفق بـ
+ * GZIPInputStream، وإلا فشل التحميل بصمت في كل مرة.
  *
  * ⚠️ ملاحظة: هذا تحميل كامل لكتاب (لا تدريجي) — النص المفكوك ~8MB لكل كتاب
  * قبل الذاكرة الكائنية. البحث يعمل على فهرس مُطبّع مسبقًا (HadithSearchNormalizer).
@@ -49,8 +52,8 @@ data class FullSahihBook(
 
 object FullSahihHadithRepository {
     private const val TAG = "FullSahihRepo"
-    private const val BUKHARI_FILE = "sahih_bukhari.json.gz"
-    private const val MUSLIM_FILE = "sahih_muslim.json.gz"
+    private const val BUKHARI_FILE = "sahih_bukhari.json"
+    private const val MUSLIM_FILE = "sahih_muslim.json"
 
     // 🔑 مدخل واحد للتخزين المؤقت (identity + data) مع Mutex لمنع التحميل المتزامن المكرر
     private data class CachedBook(val bookType: SahihBookType, val book: FullSahihBook, val searchIndex: Map<Int, String>)
@@ -76,12 +79,10 @@ object FullSahihHadithRepository {
         try {
             val t0 = System.currentTimeMillis()
             val book = context.assets.open("hadith/$fileName").use { stream ->
-                GZIPInputStream(stream).use { gz ->
-                    BufferedReader(InputStreamReader(gz)).use { reader ->
-                        val jsonStr = reader.readText()
-                        val json = Json { ignoreUnknownKeys = true }
-                        json.decodeFromString<FullSahihBook>(jsonStr)
-                    }
+                BufferedReader(InputStreamReader(stream)).use { reader ->
+                    val jsonStr = reader.readText()
+                    val json = Json { ignoreUnknownKeys = true }
+                    json.decodeFromString<FullSahihBook>(jsonStr)
                 }
             }
 
@@ -130,17 +131,23 @@ object FullSahihHadithRepository {
     /**
      * البحث في الأحاديث — 🔑 يعمل على Dispatchers.Default + فهرس مُطبّع مسبقًا
      * limit=50 لمنع حمل نتائج ضخمة (المستخدم يرى «أول 50 نتيجة» عند بلوغ الحد)
+     * chapterId (ق82): إن أُعطي، تُقتصر النتائج على ذلك الباب — مرشّح
+     * «في هذا الباب فقط» في القارئ الكامل؛ null تعني الكتاب كاملاً.
      */
-    suspend fun searchHadiths(context: Context, bookType: SahihBookType, query: String, limit: Int = 50): List<FullSahihHadith> = withContext(Dispatchers.Default) {
+    suspend fun searchHadiths(context: Context, bookType: SahihBookType, query: String, limit: Int = 50, chapterId: Int? = null): List<FullSahihHadith> = withContext(Dispatchers.Default) {
         if (query.isBlank()) return@withContext emptyList()
 
         val book = loadBook(context, bookType) ?: return@withContext emptyList()
-        val searchIndex = cacheMutex.withLock { cached?.takeIf { it.bookType == bookType }?.searchIndex } ?: return@withContext emptyList()
+        // 🔑 ق82: إن تبخّر الفهرس المخزّن بين التحميل والقراءة (تفريغ
+        // الذاكرة عند مغادرة شاشة) فابنِه من الكتاب المحمَّل للتو بدل
+        // إرجاع قائمة فارغة تُعرض «لا نتائج» لاستعلام له نتائج فعلاً.
+        val searchIndex = cacheMutex.withLock { cached?.takeIf { it.bookType == bookType }?.searchIndex }
+            ?: HadithSearchNormalizer.buildSearchIndex(book.hadiths)
 
         // 🔑 البحث عبر الفهرس المُطبّع (يزيل التشكيل ويوحد الألف/الهمزة)
         val matchedIds = HadithSearchNormalizer.searchWithIndex(searchIndex, query, limit)
         val idSet = matchedIds.toSet()
-        book.hadiths.filter { idSet.contains(it.id) }.take(limit)
+        book.hadiths.filter { idSet.contains(it.id) && (chapterId == null || it.chapterId == chapterId) }.take(limit)
     }
 
     /**

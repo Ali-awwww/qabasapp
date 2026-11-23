@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +33,7 @@ import com.qabas.app.ui.theme.*
 @Composable
 fun QabasNavigationDrawerContent(
     isAdmin: Boolean,
+    isGuest: Boolean = false,
     isDrawerOpen: Boolean = false,
     onCloseDrawer: () -> Unit,
     onNavigateTo: (() -> Unit) -> Unit,
@@ -46,6 +48,7 @@ fun QabasNavigationDrawerContent(
     onYouTubeStudio: () -> Unit,
     onViewProjects: () -> Unit,
     onMishkatHub: () -> Unit,
+    onMushafReader: () -> Unit = {},
     onIslamicLibrary: () -> Unit,
     onAzkar: () -> Unit,
     onScholarBiographies: () -> Unit,
@@ -65,7 +68,9 @@ fun QabasNavigationDrawerContent(
     onViewDownloads: () -> Unit = {}
 ) {
     val theme = QabasTheme.current
-    var selectedCategory by remember { mutableStateOf<Int?>(null) }
+    // ق103: كان remember عادياً فالتدوير داخل تصنيف يعيد قائمة
+    // التصنيفات — والدرج نفسه ينجو من التدوير (DrawerState محفوظ).
+    var selectedCategory by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(isDrawerOpen) {
         if (isDrawerOpen) selectedCategory = null
@@ -150,17 +155,26 @@ fun QabasNavigationDrawerContent(
         }
 
         // Status Pill
+        // ق103: كانت «حساب المبدع نشط» تظهر لكل غير-مطور بمن فيهم
+        // الضيف بلا حساب — ادعاء كاذب؛ للضيف شارة صادقة بلون التحذير.
+        val pillColor = when {
+            isAdmin -> theme.destructive
+            isGuest -> theme.warning
+            else -> theme.success
+        }
+        val pillText = when {
+            isAdmin -> "وضع المطور والإدارة مفعّل"
+            isGuest -> "تصفح كضيف"
+            else -> "حساب المبدع نشط"
+        }
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
-            color = if (isAdmin) theme.destructive.copy(alpha = 0.12f) else theme.success.copy(alpha = 0.12f),
+            color = pillColor.copy(alpha = 0.12f),
             shape = RoundedCornerShape(10.dp),
-            border = BorderStroke(
-                0.5.dp,
-                if (isAdmin) theme.destructive.copy(alpha = 0.35f) else theme.success.copy(alpha = 0.35f)
-            )
+            border = BorderStroke(0.5.dp, pillColor.copy(alpha = 0.35f))
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -170,12 +184,12 @@ fun QabasNavigationDrawerContent(
                     modifier = Modifier
                         .size(7.dp)
                         .clip(CircleShape)
-                        .background(if (isAdmin) theme.destructive else theme.success)
+                        .background(pillColor)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isAdmin) "وضع المطور والإدارة مفعّل" else "حساب المبدع نشط",
-                    color = if (isAdmin) theme.destructive else theme.success,
+                    text = pillText,
+                    color = pillColor,
                     fontFamily = CairoFont,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
@@ -346,8 +360,9 @@ fun QabasNavigationDrawerContent(
                                 subtitle = "مجتمع الإلهام ومقاطع الفيديو القصيرة",
                                 icon = Icons.Default.SlowMotionVideo,
                                 iconTint = theme.primary,
-                                badgeText = "جديد",
-                                badgeColor = theme.primary,
+                                // ق103: شارة «جديد» الدائمة أُزيلت — القسم
+                                // ناضج (جولات ق9/ق42/ق57/ق67/ق76/ق81/ق86/ق91)
+                                // فالشارة ادعاء لا ينتهي.
                                 onClick = { onNavigateTo(onReels) }
                             )
                             AppleInsetDivider()
@@ -363,7 +378,7 @@ fun QabasNavigationDrawerContent(
                             AppleInsetDivider()
                             QabasDrawerItem(
                                 title = "استوديو الأصوات والدبلجة",
-                                subtitle = "استنساخ الأصوات ودبلجة الفيديوهات",
+                                subtitle = "أنماط صوتية Edge-Neural ودبلجة الفيديوهات",
                                 icon = Icons.Default.GraphicEq,
                                 iconTint = Color(0xFFAF52DE),
                                 badgeText = "VOICE",
@@ -412,6 +427,17 @@ fun QabasNavigationDrawerContent(
                             )
                         }
                         1 -> {
+                            // ق103: قارئ المصحف — القسم الأول في التطبيق —
+                            // كان غائباً تماماً عن فهرس الأقسام (grep: صفر
+                            // «مصحف» في هذا الملف)؛ يُفتح باستئناف آخر قراءة.
+                            QabasDrawerItem(
+                                title = "المصحف الشريف",
+                                subtitle = "القراءة والتلاوة مع الاستئناف التلقائي",
+                                icon = Icons.Default.AutoStories,
+                                iconTint = theme.primary,
+                                onClick = { onNavigateTo(onMushafReader) }
+                            )
+                            AppleInsetDivider()
                             QabasDrawerItem(
                                 title = "مِشكاة الهُدى العامة",
                                 subtitle = "واحة النور والقرآن والزاد الإيماني",
