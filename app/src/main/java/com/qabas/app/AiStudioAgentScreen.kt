@@ -898,7 +898,7 @@ fun AiStudioAgentScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, top = 8.dp),
+                            .padding(start = 10.dp, top = 8.dp, end = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
