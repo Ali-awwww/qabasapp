@@ -203,5 +203,6 @@ QABAS_KEY_VAULT_SECRET
 - [x] استعادة `DataLoadingScreen` وإضافة `DeveloperModeLockedScreen` المفقودتين من مسار التجميع.
 - [x] إضافة توافق `GoldPrimary` مع رمز `QabasGold` الحالي.
 - [x] نقل `handleApprovePlan` قبل استخدامها وتصحيح `Modifier.padding` في `AiStudioAgentScreen`.
-- [ ] إنشاء commit الجولة الثانية ودفعه باستخدام `--force-with-lease` على الرأس البعيد الحالي.
+- [x] تحديث `AgentQualityTest.kt` من عقدة Studio Agent القديمة (`initialTab` و`deck_module_*`) إلى testTags الواجهة الحالية (`agent_chat_*` و`agent_new_chat_btn`).
+- [ ] إنشاء commit الجولة الثالثة ودفعه باستخدام `--force-with-lease` على الرأس البعيد الحالي.
 - [ ] انتظار Build وCodeQL الجديدين وتسجيل نتيجتهما الفعلية.
