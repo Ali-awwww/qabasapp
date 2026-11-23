@@ -196,3 +196,12 @@ QABAS_KEY_VAULT_SECRET
 - [ ] دفع commit الجولة وانتظار Build وCodeQL وSecret Scan على GitHub Actions.
 - [ ] اختبار الجهاز الفعلي لمسارات Studio والتحديثات وxdelta؛ لم تُنفذ هذه الجولة على جهاز Android.
 - [ ] مراجعة تكامل Mintlify الخارجي من إعدادات GitHub/Mintlify؛ لا توجد إعدادات له داخل المستودع.
+
+## متابعة فشل CI — 2026-11-24
+
+- [x] تحليل سجل Build وCodeQL للرأس `167d62fa` بدلاً من الاكتفاء بالفحص الساكن.
+- [x] استعادة `DataLoadingScreen` وإضافة `DeveloperModeLockedScreen` المفقودتين من مسار التجميع.
+- [x] إضافة توافق `GoldPrimary` مع رمز `QabasGold` الحالي.
+- [x] نقل `handleApprovePlan` قبل استخدامها وتصحيح `Modifier.padding` في `AiStudioAgentScreen`.
+- [ ] إنشاء commit الجولة الثانية ودفعه باستخدام `--force-with-lease` على الرأس البعيد الحالي.
+- [ ] انتظار Build وCodeQL الجديدين وتسجيل نتيجتهما الفعلية.
