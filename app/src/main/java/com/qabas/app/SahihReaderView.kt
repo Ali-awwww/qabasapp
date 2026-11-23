@@ -1,11 +1,9 @@
 package com.qabas.app
 
-import android.content.Context
 import android.content.Intent
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,14 +16,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -39,7 +35,6 @@ import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +59,6 @@ fun SahihReaderView(
     var showOnlyBookmarks by remember { mutableStateOf(false) }
     var showOnlyQuranEvidence by remember { mutableStateOf(false) }
     var showChallengeDialog by remember { mutableStateOf(false) }
-    var showFullBookDialog by remember { mutableStateOf(false) } // 🔑 حوار فتح الكتاب الكامل
     var showQuranicHarmonyDialog by remember { mutableStateOf(false) }
     val userSavedFontSize by UserPreferencesManager.quranFontSize.collectAsState()
     var fontSizeSp by remember(userSavedFontSize) { mutableFloatStateOf(userSavedFontSize) }
@@ -82,7 +76,7 @@ fun SahihReaderView(
         val chapterHadiths = SahihHadithsRepository.searchHadiths(item.bookType, item.chapterId, "")
         val index = chapterHadiths.indexOfFirst { it.id == item.id }
         if (index >= 0) {
-            runCatching { listState.scrollToItem(3 + index) }
+            runCatching { listState.scrollToItem(3 + index) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         }
     }
 
@@ -123,6 +117,24 @@ fun SahihReaderView(
         SahihHadithsRepository.getChaptersForBook(activeBook)
     }
 
+    // استئناف آخر باب فُتح في هذا الكتاب (جولة 38، بنمط الجولة 10 في
+    // القارئ الكامل): يُستعاد بعد التحميل فقط إن كان الباب ما زال
+    // موجوداً في الكتاب، ولا يطغى على الرابط العميق أبداً (حارس
+    // initialHadithId)، ولا يمحو اختيار «كافة الأبواب» (null) المحفوظ.
+    LaunchedEffect(activeBook) {
+        if (initialHadithId != null) return@LaunchedEffect
+        val saved = LibraryReadingStateStore.getSahihFormattedChapterId(context, activeBook.id)
+        if (saved != null && chapters.any { it.first == saved }) {
+            selectedChapterId = saved
+        }
+    }
+
+    // حفظ كل باب يُفتح؛ null (كافة الأبواب) لا يمحو المحفوظ أبداً.
+    LaunchedEffect(selectedChapterId) {
+        val id = selectedChapterId ?: return@LaunchedEffect
+        LibraryReadingStateStore.saveSahihFormattedChapterId(context, activeBook.id, id)
+    }
+
     // Filtered hadiths
     val hadiths = remember(activeBook, selectedChapterId, searchQuery, showOnlyBookmarks, showOnlyQuranEvidence) {
         val list = if (showOnlyBookmarks) {
@@ -143,11 +155,7 @@ fun SahihReaderView(
     }
 
     val theme = QabasTheme.current
-    val bookAccent = if (activeBook == SahihBookType.BUKHARI) {
-        if (theme.isDark) GoldPrimary else GoldPrimary
-    } else {
-        theme.success
-    }
+    val bookAccent = if (activeBook == SahihBookType.BUKHARI) PresetPrimary else theme.success
 
     Scaffold(
         containerColor = theme.background,
@@ -236,7 +244,13 @@ fun SahihReaderView(
                             Icon(Icons.Default.LibraryBooks, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "📖 الكتاب كامل (7277 حديثًا للبخاري • 7459 لمسلم)",
+                                // التسمية تتبع الكتاب النشط: الزر يفتح الكتاب المعروض
+                                // فقط، فلا يذكر عدد الكتاب الآخر (الجولة 61).
+                                // العددان موثقان من الملفين الكاملين (الجولة 10).
+                                if (activeBook == SahihBookType.BUKHARI)
+                                    "📖 الكتاب كامل — صحيح البخاري (7277 حديثًا)"
+                                else
+                                    "📖 الكتاب كامل — صحيح مسلم (7459 حديثًا)",
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold
@@ -653,11 +667,7 @@ fun SahihHadithCard(
 ) {
     val context = LocalContext.current
     val theme = QabasTheme.current
-    val bookAccent = if (hadith.bookType == SahihBookType.BUKHARI) {
-        if (theme.isDark) GoldPrimary else GoldPrimary
-    } else {
-        theme.success
-    }
+    val bookAccent = if (hadith.bookType == SahihBookType.BUKHARI) PresetPrimary else theme.success
     val resolvedReadingFont = CairoFont
     var isBookmarked by remember(hadith.id) { mutableStateOf(SahihHadithsRepository.isBookmarked(context, hadith.id)) }
     var isExpanded by remember { mutableStateOf(false) }
@@ -1216,11 +1226,7 @@ fun SahihChallengeDialog(
     onDismiss: () -> Unit
 ) {
     val theme = QabasTheme.current
-    val bookAccent = if (activeBook == SahihBookType.BUKHARI) {
-        if (theme.isDark) GoldPrimary else GoldPrimary
-    } else {
-        theme.success
-    }
+    val bookAccent = if (activeBook == SahihBookType.BUKHARI) PresetPrimary else theme.success
 
     val hadiths = remember(activeBook) {
         SahihHadithsRepository.getHadithsForBook(activeBook).filter { it.quiz != null }.shuffled().take(5)
@@ -1537,11 +1543,7 @@ fun QuranicHarmonyDialog(
                 ) {
                     items(allEvidenceHadiths, key = { it.id }) { hadith ->
                         val qe = hadith.quranEvidence ?: return@items
-                        val bookColor = if (hadith.bookType == SahihBookType.BUKHARI) {
-                            if (theme.isDark) GoldPrimary else GoldPrimary
-                        } else {
-                            theme.success
-                        }
+                        val bookColor = if (hadith.bookType == SahihBookType.BUKHARI) PresetPrimary else theme.success
 
                         Surface(
                             color = theme.secondarySurface.copy(alpha = if (theme.isDark) 0.7f else 0.45f),

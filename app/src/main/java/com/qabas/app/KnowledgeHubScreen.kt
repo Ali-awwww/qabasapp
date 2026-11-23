@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.AppleCard
@@ -97,13 +96,27 @@ fun KnowledgeHubScreen(
     var taskQuizToday by remember { mutableStateOf(isSameDay && sharedPrefs.getBoolean("task_quiz_today", false)) }
     var taskScriptCreatedToday by remember { mutableStateOf(isSameDay && sharedPrefs.getBoolean("task_script_today", false)) }
 
+    // مفتاح أمس لحساب تتابع السلسلة؛ والعرض قبل أي إنجاز اليوم قد يعرض
+    // سلسلة قديمة منقطعة، فيُصفَّر المخزن إن كان آخر يوم مسجل ليس اليوم ولا أمس.
+    val yesterdayKey = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis() - 86400000L)) }
+    LaunchedEffect(Unit) {
+        val last = sharedPrefs.getString("last_streak_date", "") ?: ""
+        if (streakDays > 0 && last != todayKey && last != yesterdayKey) {
+            streakDays = 0
+            sharedPrefs.edit().putInt("streak_days", 0).apply()
+        }
+    }
+
     fun markTaskDone(key: String) {
         val lastCountedDay = sharedPrefs.getString("last_streak_date", "") ?: ""
         val editor = sharedPrefs.edit()
             .putString("last_task_date", todayKey)
             .putBoolean(key, true)
         if (lastCountedDay != todayKey) {
-            streakDays += 1
+            // السلسلة تُحسب بالأيام المتتالية فعلاً: فجوة يوم أو أكثر تُعيد
+            // البدء من 1 بدل مواصلة العدّ القديم (كان يكبر بلا تصفير مهما
+            // طال الغياب — نفس فئة خلل سلسلة الورد في الجولة 12).
+            streakDays = if (lastCountedDay == yesterdayKey) streakDays + 1 else 1
             editor.putInt("streak_days", streakDays).putString("last_streak_date", todayKey)
         }
         editor.apply()
@@ -608,7 +621,7 @@ fun KnowledgeHubScreen(
                                                             markTaskDone("task_script_today")
                                                         }
                                                     }
-                                                } catch (e: Exception) {
+                                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                                     scriptErrorMessage = "تعذر توليد السيناريو: ${e.message ?: "تحقق من اتصال الإنترنت أو مفاتيح AI"}"
                                                 } finally {
                                                     isGeneratingScript = false
@@ -904,7 +917,7 @@ fun KnowledgeHubScreen(
                                                     } else {
                                                         generatedPollQuestions = lines
                                                     }
-                                                } catch (e: Exception) {
+                                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                                     pollErrorMessage = "تعذر توليد الأسئلة: ${e.message ?: "تحقق من اتصال الإنترنت"}"
                                                 } finally {
                                                     isGeneratingPolls = false

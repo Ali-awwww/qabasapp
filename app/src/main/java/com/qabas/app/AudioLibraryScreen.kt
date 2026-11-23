@@ -5,11 +5,8 @@ import android.content.Intent
 import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -305,41 +302,6 @@ fun AudioLibraryScreen(
 }
 
 @Composable
-fun AudioTabButton(
-    title: String,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val theme = QabasTheme.current
-    Surface(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) theme.primary else theme.secondarySurface,
-        border = BorderStroke(
-            0.5.dp,
-            if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f)
-        )
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = title,
-                color = if (isSelected) Color.White else theme.textPrimary,
-                fontFamily = CairoFont,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 12.sp,
-                maxLines = 1,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
 fun AudioLibrarySection(
     activePlayingUrl: String?,
     isPlaying: Boolean,
@@ -392,7 +354,7 @@ fun AudioLibrarySection(
                     SupabaseServices.Database.getAudioTracks()
                 }
                 cloudTracks = tracks
-            } catch (_: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                 cloudTracks = emptyList()
             } finally {
                 isLoading = false
@@ -1179,7 +1141,7 @@ fun AIVoiceoverSection(
                                 createdAt = System.currentTimeMillis()
                             )
                             AppDatabase.getDatabase(context).audioTrackDao().insertTrack(trackEntity)
-                        } catch (_: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                         }
                     } else {
                         Toast.makeText(context, "تعذر التوليد: تحقق من مفاتيح TTS السحابية أو نطق النظام.", Toast.LENGTH_LONG).show()

@@ -121,11 +121,6 @@ object MultiModelAgentOrchestrator {
     private const val PER_CALL_TIMEOUT_MS = 120_000L
 
     /**
-     * تحميل فريق الوكيل من الإعدادات المحفوظة
-     * يستخدم SharedPreferences للتخزين الدائم بين الجلسات
-     * @param onlyEnabled إذا true يعيد الأعضاء المفعّلين فقط (للتنفيذ)، وإلا يعيد الكل (للتعديل)
-     */
-    /**
      * تنظيف اسم العرض: الاسم للعرض فقط — تُحذف أي قوانين اتصال/تنزيل
      * علقت به (مثل "• ..."، "يلزم ..."، "نزّل ..."، "مفتاح ...") ويُستخدم
      * بديل نظيف حسب الدور عند الفراغ.
@@ -151,16 +146,6 @@ object MultiModelAgentOrchestrator {
     /** تطبيع التخصيص للمقارنة (إهمال الفراغات الزائدة) */
     fun normalizeInstruction(raw: String): String =
         raw.trim().replace(Regex("\\s+"), " ")
-
-    /**
-     * هل هذا التخصيص محجوز لعضو آخر؟ (الفصل والنظام: تخصيص واحد = عضو واحد)
-     * الفارغ مباح للجميع ولا يُعد محجوزاً.
-     */
-    fun isInstructionTaken(team: List<AgentTeamMember>, selfId: String, instruction: String): Boolean {
-        val norm = normalizeInstruction(instruction)
-        if (norm.isBlank()) return false
-        return team.any { it.id != selfId && normalizeInstruction(it.customInstruction) == norm }
-    }
 
     /** تخصيصات افتراضية قابلة للاختيار حسب الدور */
     fun rolePresets(role: AgentTeamRole): List<String> = when (role) {
@@ -327,7 +312,7 @@ object MultiModelAgentOrchestrator {
                 • questions: أسئلة للمستخدم عند الغموض (بحد أقصى 3، موجزة).
                 $materials
             """.trimIndent()
-            val res = callModel(leader, sys, "المهمة المطلوبة: \"$prompt\"\nحدد مستلزمات البدء الآن.", leaderKey)
+            val res = callModel(leader, sys, "المهمة المطلوبة: \"$prompt\"\nحدد مستلزمات البدء الآن.", leaderKey, context = context, missionTitle = prompt)
             val parsed = if (res.isSuccess) parsePreflight(res.outputText) else null
             if (parsed != null) {
                 val allMissing = (appMissing + parsed.missing).distinct()
@@ -388,7 +373,7 @@ object MultiModelAgentOrchestrator {
                 .take(150)
             if (paths.isEmpty()) return null
             "\n═══ شجرة المستودع الحقيقية (${paths.size} ملفاً) ═══\n" + paths.joinToString("\n")
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
             null
         }
     }
@@ -407,7 +392,7 @@ object MultiModelAgentOrchestrator {
             val client = GitHubRepoClient(repo.owner, repo.repo, repo.token)
             val branch = repo.defaultBranch.ifBlank { "main" }
             val blocks = paths.mapNotNull { p ->
-                val resp = runCatching { client.getFileContent(p, branch) }.getOrNull() ?: return@mapNotNull null
+                val resp = runCatching { client.getFileContent(p, branch) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull() ?: return@mapNotNull null
                 val decoded = runCatching {
                     val clean = resp.content.replace("\\s".toRegex(), "")
                     if (clean.isBlank()) return@mapNotNull null
@@ -417,7 +402,7 @@ object MultiModelAgentOrchestrator {
                 "─── $p ───\n$decoded"
             }
             if (blocks.isEmpty()) "" else "\n═══ محتوى الملفات المعنية ═══\n" + blocks.joinToString("\n\n")
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
             ""
         }
     }
@@ -553,7 +538,7 @@ object MultiModelAgentOrchestrator {
                 )
             }
             modelCalls++
-            return callModel(member, systemPrompt, userPrompt, providerKey)
+            return callModel(member, systemPrompt, userPrompt, providerKey, context = context, missionTitle = prompt)
         }
 
         // دستور الفريق يُطبق قبل أي استدعاء: المخالفة المانعة تُفشل بصدق ولا يُنفذ شيء
@@ -1219,12 +1204,16 @@ object MultiModelAgentOrchestrator {
         }
     }
 
-    /** استدعاء نموذج واحد عبر UniversalKeyBrain مع مهلة زمنية — يمرر مفتاح المزود المطابق فقط */
+    /** استدعاء نموذج واحد عبر UniversalKeyBrain مع مهلة زمنية — يمرر مفتاح المزود المطابق فقط.
+     * (12.14، ر20) يُمرَّر [context] ليُفرض حد التكلفة ويُسجَّل الاستهلاك في
+     * مسار الفريق أيضاً — كان null فيُلتف على الحد من هنا. */
     private suspend fun callModel(
         member: AgentTeamMember,
         systemPrompt: String,
         userPrompt: String,
-        providerKey: String = ""
+        providerKey: String = "",
+        context: Context? = null,
+        missionTitle: String? = null
     ): MemberCallResult {
         val start = System.currentTimeMillis()
         val res = withTimeoutOrNull(PER_CALL_TIMEOUT_MS) {
@@ -1233,7 +1222,9 @@ object MultiModelAgentOrchestrator {
                 prompt = userPrompt,
                 systemInstruction = systemPrompt,
                 fallbackSingleKey = providerKey,
-                model = member.modelId
+                model = member.modelId,
+                context = context,
+                missionTitle = missionTitle
             )
         }
         val latency = System.currentTimeMillis() - start

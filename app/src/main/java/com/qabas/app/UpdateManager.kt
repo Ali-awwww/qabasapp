@@ -15,11 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
-import io.github.jan.supabase.postgrest.postgrest
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -33,9 +30,6 @@ object UpdateManager {
     private const val TAG = "UpdateManager"
     private const val DEFAULT_REPO = "Ali-awwww/qabasapp"
 
-    // الفحص التلقائي: ساعتان كحد أدنى مطلق، والمدة قابلة للتخصيص من مركز التنزيلات.
-    // لا يمكن لأي قيمة محفوظة أو واردة من الواجهة أن تنزل تحت الحد الأدنى.
-    const val MIN_AUTO_CHECK_INTERVAL_HOURS = AutoUpdateIntervalPolicy.MIN_INTERVAL_HOURS
     const val DEFAULT_AUTO_CHECK_INTERVAL_HOURS = AutoUpdateIntervalPolicy.DEFAULT_INTERVAL_HOURS
     private const val PREF_AUTO_CHECK_INTERVAL_HOURS = "update_check_interval_hours"
     private const val PREF_LAST_CHECK = "update_last_check_supabase"
@@ -66,9 +60,6 @@ object UpdateManager {
     fun getLastCheckTime(context: Context): Long =
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             .getLong(PREF_LAST_CHECK, 0L)
-
-    // GitHub credentials are server-side only. The app never reads or caches a PAT.
-    fun isRetiredToken(token: String): Boolean = false
 
     suspend fun getEffectiveToken(context: Context): String? = withContext(Dispatchers.IO) {
         // Purge the legacy client-side token cache; privileged credentials are server-only.
@@ -400,13 +391,33 @@ object UpdateManager {
             .trim()
     }
 
+    /**
+     * نتيجة فحص التحديثات مع تمييز الفشل عن «لا يوجد تحديث».
+     * كان checkForUpdate يعيد null في الحالتين معاً، فكانت الشاشات تعرض
+     * «نسختك متطابقة مع أحدث إصدار ✓» حتى عند انقطاع الشبكة أو تعطل الخادم.
+     * Available = يوجد إصدار أحدث موثوق؛ UpToDate = وصل الرد ولا يوجد أحدث؛
+     * Failed = تعذّر الوصول للخادم أو رُفضت بياناته؛ Skipped = تخطٍّ لانتهاء المهلة.
+     */
+    sealed class UpdateCheckResult {
+        data class Available(val info: UpdateInfo) : UpdateCheckResult()
+        object UpToDate : UpdateCheckResult()
+        object Failed : UpdateCheckResult()
+        object Skipped : UpdateCheckResult()
+    }
+
     suspend fun checkForUpdate(context: Context, force: Boolean = false): UpdateInfo? =
+        when (val result = checkForUpdateDetailed(context, force)) {
+            is UpdateCheckResult.Available -> result.info
+            else -> null
+        }
+
+    suspend fun checkForUpdateDetailed(context: Context, force: Boolean = false): UpdateCheckResult =
         withContext(Dispatchers.IO) {
             val lastCheck = getLastCheckTime(context)
             val intervalMs = getAutoCheckIntervalMs(context)
             if (!force && System.currentTimeMillis() - lastCheck < intervalMs) {
                 Log.d(TAG, "⏭️ Skipping auto check (interval=${intervalMs / 3_600_000L}h)")
-                return@withContext null
+                return@withContext UpdateCheckResult.Skipped
             }
 
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -419,12 +430,12 @@ object UpdateManager {
 
                 if (active == null || !active.isActive) {
                     withContext(Dispatchers.Main) { setPendingUpdate(null) }
-                    return@withContext null
+                    return@withContext UpdateCheckResult.UpToDate
                 }
                 if (active.versionCode <= currentVersionCode) {
                     withContext(Dispatchers.Main) { setPendingUpdate(null) }
                     Log.d(TAG, "ℹ️ No approved build newer than installed build")
-                    return@withContext null
+                    return@withContext UpdateCheckResult.UpToDate
                 }
                 if (!active.downloadUrl.startsWith(
                         "https://github.com/Ali-awwww/qabasapp/releases/download/"
@@ -432,7 +443,7 @@ object UpdateManager {
                 ) {
                     withContext(Dispatchers.Main) { setPendingUpdate(null) }
                     Log.e(TAG, "Rejected approved update with an untrusted APK URL")
-                    return@withContext null
+                    return@withContext UpdateCheckResult.Failed
                 }
 
                 prefs.edit()
@@ -445,7 +456,8 @@ object UpdateManager {
                 val deltaHash = active.deltaSha256Hash?.takeIf {
                     it.matches(Regex("(?i)[0-9a-f]{64}"))
                 }
-                UpdateInfo(
+                UpdateCheckResult.Available(
+                    UpdateInfo(
                     versionName = active.versionName,
                     versionCode = active.versionCode,
                     deltaUrl = active.deltaUrl?.takeIf { baseMatches && !deltaHash.isNullOrBlank() },
@@ -461,12 +473,13 @@ object UpdateManager {
                     baseApkSha256 = active.baseSha256Hash?.takeIf { baseMatches },
                     releaseUrl = active.githubReleaseUrl?.takeIf { UpdateChannelFacade.isVerifiedDeveloper() },
                     apkSha256 = active.sha256Hash?.takeIf { it.isNotBlank() }
+                    )
                 )
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 // Fail closed: never bypass an unavailable control plane by selecting
                 // the newest GitHub release automatically.
                 Log.e(TAG, "❌ Supabase update check failed; distribution paused safely: ${e.message}")
-                null
+                UpdateCheckResult.Failed
             }
         }
 
@@ -474,7 +487,6 @@ object UpdateManager {
      * يمثّل دلتا واحدة مرفقة بالريليز مع الأساس الذي بُنيت منه.
      * الأسماء الجديدة: qabas-<target>-from-<source>.delta
      */
-    private data class DeltaAsset(val name: String, val url: String, val size: Long)
 
     /**
      * يختار الدلتا المطابقة للإصدار المثبّت حالياً بدقة.
@@ -497,245 +509,7 @@ object UpdateManager {
         return currentVersionCode > 0 && currentVersionCode == targetVersionCode - 1
     }
 
-    private fun selectDeltaForInstalled(
-        deltas: List<DeltaAsset>,
-        currentVersionName: String,
-        currentVersionCode: Int,
-        targetVersionCode: Int
-    ): DeltaAsset? {
-        if (deltas.isEmpty()) return null
-
-        val explicitBase = deltas.filter { delta ->
-            delta.name.contains("-from-") &&
-                isDeltaCompatibleWithInstalledBuild(
-                    delta.name, currentVersionName, currentVersionCode, targetVersionCode
-                )
-        }
-        if (explicitBase.isNotEmpty()) return explicitBase.maxByOrNull { it.size }
-
-        val legacy = deltas.filter { !it.name.contains("-from-") }
-        if (legacy.size == 1 && isDeltaCompatibleWithInstalledBuild(
-                legacy.first().name, currentVersionName, currentVersionCode, targetVersionCode
-            )
-        ) {
-            return legacy.first()
-        }
-        return null
-    }
-
     internal fun parseReleaseVersionCode(tag: String): Int = parseVersionCode(tag)
-
-    /**
-     * فحص أحدث ريليز على GitHub Releases — القناة الرسمية للتحديث التلقائي.
-     * يقرأ قائمة الإصدارات (وليست /latest فقط) ويختار أعلى رقم بناء فعلي،
-     * حتى لو كان أحدث إصدار منشوراً ليس هو الأعلى أو كانت هناك إصدارات متعددة.
-     * يرمي استثناء عند فشل الفحص نفسه (شبكة/API) ويعيد null عند «لا تحديث».
-     */
-    private suspend fun checkGitHubLatestRelease(context: Context): UpdateInfo? = withContext(Dispatchers.IO) {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val currentVersionCode = getCurrentVersionCode(context)
-        val currentVersionName = getCurrentVersionName(context)
-
-        val effectiveRepo = getEffectiveRepo(context)
-        val effectiveToken = getEffectiveToken(context)
-
-        val requestBuilder = Request.Builder()
-            .url("https://api.github.com/repos/$effectiveRepo/releases?per_page=20")
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "Qabas-Studio")
-            .header("Cache-Control", "no-cache")
-            .header("Pragma", "no-cache")
-
-        if (!effectiveToken.isNullOrBlank()) {
-            requestBuilder.header("Authorization", "Bearer $effectiveToken")
-        }
-
-        val request = requestBuilder.build()
-        val response = client.newCall(request).execute()
-
-        if (!response.isSuccessful) {
-            // فشل الفحص نفسه — يُرمى ليتيح قناة الاحتياط
-            throw IllegalStateException("GitHub API ${response.code}")
-        }
-
-        val body = response.body?.string() ?: throw IllegalStateException("استجابة فارغة من GitHub")
-        val releases = JSONArray(body)
-        if (releases.length() == 0) {
-            prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
-            return@withContext null
-        }
-
-        data class Candidate(
-            val tagName: String,
-            val versionName: String,
-            val versionCode: Int,
-            val releaseNotes: String,
-            val apkUrl: String,
-            val apkSize: Long,
-            val deltas: List<DeltaAsset>,
-            val xdeltaUrls: Map<String, String>,
-            val isForce: Boolean = false,
-            val checksum: String? = null,
-            val commitSha: String? = null,
-            val buildNumber: String? = null,
-            val builtAt: String? = null,
-            val sourceBranch: String? = null,
-            val workflowRunUrl: String? = null,
-            val releaseUrl: String? = null
-        )
-
-        var best: Candidate? = null
-        for (i in 0 until releases.length()) {
-            val release = releases.optJSONObject(i) ?: continue
-            if (release.optBoolean("draft", false)) continue
-
-            val tagName = release.optString("tag_name", "")
-            val releaseVersionCode = parseReleaseVersionCode(tagName)
-            val releaseVersionName = tagName.removePrefix("v").trim().substringBefore("+")
-
-            // versionName يحدد الإصدار الدلالي، وversionCode يلتقط البنيات الأحدث
-            // داخل الإصدار نفسه (مثال 1.3.6+227 أحدث من 1.3.6+226).
-            val versionComparison = compareReleaseVersions(
-                releaseVersionName,
-                releaseVersionCode,
-                currentVersionName,
-                currentVersionCode
-            )
-            val isNewer = versionComparison > 0
-
-            Log.d(
-                TAG,
-                "Comparing: remote=$releaseVersionName+$releaseVersionCode vs " +
-                    "local=$currentVersionName+$currentVersionCode => comparison=$versionComparison"
-            )
-
-            if (!isNewer) continue
-
-            val assets = release.optJSONArray("assets") ?: continue
-            var apkUrl: String? = null
-            var apkSize = 0L
-            val deltas = mutableListOf<DeltaAsset>()
-            val xdeltaUrls = mutableMapOf<String, String>()
-            var releaseChecksum: String? = null
-
-            for (j in 0 until assets.length()) {
-                val asset = assets.optJSONObject(j) ?: continue
-                val name = asset.optString("name")
-                val url = asset.optString("browser_download_url")
-                val size = asset.optLong("size", 0L)
-                when {
-                    name.endsWith(".delta") -> deltas += DeltaAsset(name, url, size)
-                    name.endsWith(".apk") -> {
-                        if (apkUrl == null || size > apkSize) {
-                            apkUrl = url
-                            apkSize = size
-                        }
-                    }
-                    name.startsWith("xdelta3-") -> xdeltaUrls[name] = url
-                    name.endsWith(".sha256") || name.endsWith(".md5") -> {
-                        // محاولة جلب البصمة لو كانت نصية قصيرة في اسم الملف أو سنحتاج لتحميلها
-                        // للتبسيط، نفترض أن البصمة قد تكون في الوصف أو اسم الملف
-                        if (name.contains("delta")) releaseChecksum = name.substringBefore(".")
-                    }
-                }
-            }
-
-            if (apkUrl == null) continue
-
-            val releaseNotes = release.optString("body", "")
-            val isForce = releaseNotes.contains("[FORCE]", ignoreCase = true) ||
-                         release.optString("name", "").contains("[FORCE]", ignoreCase = true)
-            fun noteValue(label: String): String? =
-                Regex("(?im)^\\s*[-*]?\\s*${Regex.escape(label)}\\s*:\\s*(.+?)\\s*$")
-                    .find(releaseNotes)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
-            val commitSha = Regex("(?i)commit[^0-9a-f]*([0-9a-f]{7,40})")
-                .find(releaseNotes)?.groupValues?.getOrNull(1)
-            val buildNumber = noteValue("Build Number")
-            val builtAt = noteValue("Built at")
-            val sourceBranch = noteValue("Branch")?.removePrefix("refs/heads/")
-            val workflowRunUrl = noteValue("Workflow Run")
-                ?.takeIf { it.startsWith("https://github.com/") }
-
-            val candidate = Candidate(
-                tagName = tagName,
-                versionName = releaseVersionName,
-                versionCode = releaseVersionCode,
-                releaseNotes = releaseNotes,
-                apkUrl = apkUrl,
-                apkSize = apkSize,
-                deltas = deltas,
-                xdeltaUrls = xdeltaUrls,
-                isForce = isForce,
-                checksum = releaseChecksum,
-                commitSha = commitSha,
-                buildNumber = buildNumber,
-                builtAt = builtAt,
-                sourceBranch = sourceBranch,
-                workflowRunUrl = workflowRunUrl,
-                releaseUrl = release.optString("html_url").takeIf { it.startsWith("https://") }
-            )
-            
-            // اختيار الإصدار الأفضل (الأعلى اسماً، ثم الأعلى رقم بناء عند تساوي الأسماء)
-            val currentBest = best
-            val nameComparisonWithBest = compareVersionNames(candidate.versionName, currentBest?.versionName ?: "")
-            
-            val isBetter = when {
-                currentBest == null -> true
-                nameComparisonWithBest > 0 -> true
-                nameComparisonWithBest < 0 -> false
-                else -> candidate.versionCode > currentBest.versionCode
-            }
-
-            if (isBetter) {
-                best = candidate
-            }
-        }
-
-        val candidate = best
-        if (candidate == null) {
-            Log.d(TAG, "ℹ️ No newer version found on GitHub (current=$currentVersionName+$currentVersionCode)")
-            prefs.edit().putLong("update_last_check", System.currentTimeMillis()).apply()
-            return@withContext null
-        }
-
-        val chosenDelta = selectDeltaForInstalled(
-            candidate.deltas,
-            currentVersionName,
-            currentVersionCode,
-            candidate.versionCode
-        )
-
-        prefs.edit()
-            .putLong("update_last_check", System.currentTimeMillis())
-            .putInt("update_last_version_code", candidate.versionCode)
-            .apply()
-
-        Log.d(
-            TAG,
-            "✅ Update found: ${candidate.tagName} (${candidate.versionCode}) | delta=" +
-                (chosenDelta?.name ?: "none (full APK)") +
-                " | installed=$currentVersionName+$currentVersionCode"
-        )
-
-        UpdateInfo(
-            versionName = candidate.versionName,
-            versionCode = candidate.versionCode,
-            deltaUrl = chosenDelta?.url,
-            apkUrl = candidate.apkUrl,
-            releaseNotes = candidate.releaseNotes,
-            deltaSize = chosenDelta?.size ?: 0L,
-            apkSize = candidate.apkSize,
-            xdeltaUrls = candidate.xdeltaUrls,
-            isForce = candidate.isForce,
-            checksum = candidate.checksum,
-            commitSha = candidate.commitSha,
-            buildNumber = candidate.buildNumber,
-            builtAt = candidate.builtAt,
-            sourceBranch = candidate.sourceBranch,
-            workflowRunUrl = candidate.workflowRunUrl,
-            releaseUrl = candidate.releaseUrl
-        )
-    }
 
     suspend fun getUpdateHistory(context: Context): List<UpdateInfo> =
         withContext(Dispatchers.IO) {
@@ -756,7 +530,7 @@ object UpdateManager {
                         apkSha256 = update.sha256Hash?.takeIf { it.isNotBlank() }
                     )
                 }
-            }.onFailure { Log.e(TAG, "getUpdateHistory from Supabase failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUpdateHistory from Supabase failed: ${it.message}") }
                 .getOrDefault(emptyList())
         }
 
@@ -905,7 +679,7 @@ object UpdateManager {
                     )
                 }
             }.sortedByDescending { it.versionCode }
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun inspectGitHubRelease(
@@ -1037,7 +811,7 @@ object UpdateManager {
                 totalAssetsCount = assets.length(),
                 isNewerThanCurrent = finalIsNewer
             )
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /** أحدث وسمين للإصدارات (الهدف + السابق) لتوليد الديلتا — للمطور فقط. */
@@ -1223,7 +997,7 @@ object UpdateManager {
                 }
             } catch (e: DownloadCancelledException) {
                 withContext(Dispatchers.Main) { emitDone(false, "أُلغي التحديث") }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "❌ downloadAndInstall: ${e.message}", e)
                 val hint = if ((e.message ?: "").contains("401")) {
                     " — رمز GitHub المحفوظ مرفوض، حدّثه من الإعدادات ثم أعد المحاولة"
@@ -1267,7 +1041,7 @@ object UpdateManager {
                 delay(8_000L)
                 job = runCatching {
                     SupabaseServices.Database.getOnDemandDeltaStatus(requested.id)
-                }.onFailure {
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
                     Log.w(TAG, "On-demand delta status retry: ${it.message}")
                 }.getOrDefault(job)
             }
@@ -1455,7 +1229,7 @@ object UpdateManager {
                 }
                 return null
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "❌ tryDeltaUpdate: ${e.message}", e)
             UpdateTelemetryManager.recordFailure(
                 context = context,
@@ -1475,7 +1249,7 @@ object UpdateManager {
                         (file.name.endsWith(".delta.part") || file.name.endsWith("-patched.tmp") ||
                             file.name.endsWith("-patched.apk.part"))
                 }?.forEach { it.delete() }
-            }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         }
     }
     internal fun ensureXdeltaBinary(

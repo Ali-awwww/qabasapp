@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -33,9 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,8 +77,9 @@ fun DeveloperKeyStatusHub(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val theme = QabasTheme.current
 
-    // قائمة جميع المفاتيح الـ 14 المعتمدة في بنية التطبيق
+    // قائمة جميع المفاتيح الـ 18 المعتمدة في بنية التطبيق
     val secretSpecs = remember {
         listOf(
             SecretKeySpec(
@@ -117,7 +114,7 @@ fun DeveloperKeyStatusHub(
                 provider = "Groq Cloud / xAI",
                 category = "AI",
                 icon = Icons.Default.Bolt,
-                howItWorks = "محرك استدلال فائق السرعة (< 300ms) يتخذ قرارات المونتاج اللحظية واقتطاع المشاهد وتوليد العناوين.",
+                howItWorks = "محرك استدلال فائق السرعة يتخذ قرارات المونتاج اللحظية واقتطاع المشاهد وتوليد العناوين.",
                 whyNeeded = "يمنح التطبيق سرعة استجابة خاطفة بدون أي انتظار أثناء تحرير ومراجعة الفيديو.",
                 serviceType = "groq",
                 preferenceKey = "groq_key",
@@ -131,11 +128,41 @@ fun DeveloperKeyStatusHub(
                 category = "AI",
                 icon = Icons.Default.AltRoute,
                 howItWorks = "بوابة احتياطية ذكية تضم Claude و DeepSeek R1 و Mistral للتبديل التلقائي في حال انقطاع أي مزود.",
-                whyNeeded = "يضمن استمرارية عمل الذكاء الاصطناعي بنسبة 100% دون انقطاع.",
+                whyNeeded = "يوفر بديلاً جاهزاً عند انقطاع مزود آخر.",
                 serviceType = "openrouter",
                 preferenceKey = "openrouter_key",
                 docUrl = "https://openrouter.ai/keys",
                 keyFormatHint = "يبدأ بـ sk-or-v1-..."
+            ),
+            // (r17) كان المركز يعرض 14 مفتاحاً فقط بينما «مفاتيحي»
+            // تتيح 4 مفاتيح أخرى (Anthropic وOpenCode وAzure وLeonardo)
+            // — فادعاء «جميع المفاتيح» كان كاذباً. أُضيفت هنا بفروع
+            // فحصها الحية الموجودة في ApiKeyValidator.
+            SecretKeySpec(
+                envName = "ANTHROPIC_API_KEY",
+                displayName = "Anthropic Claude",
+                provider = "Anthropic",
+                category = "AI",
+                icon = Icons.Default.SmartToy,
+                howItWorks = "نماذج Claude للدردشة وكتابة النصوص وتحليلها.",
+                whyNeeded = "خيار إضافي لنماذج Claude عند تفضيلها على غيرها.",
+                serviceType = "anthropic",
+                preferenceKey = "anthropic_key",
+                docUrl = "https://console.anthropic.com/settings/keys",
+                keyFormatHint = "يبدأ بـ sk-ant-..."
+            ),
+            SecretKeySpec(
+                envName = "OPENCODE_API_KEY",
+                displayName = "OpenCode Inference",
+                provider = "OpenCode",
+                category = "AI",
+                icon = Icons.Default.Terminal,
+                howItWorks = "بوابة استدلال لنماذج مفتوحة عبر OpenCode.",
+                whyNeeded = "خيار إضافي للاستدلال بنماذج مفتوحة المصدر.",
+                serviceType = "opencode",
+                preferenceKey = "opencode_key",
+                docUrl = "https://opencode.ai",
+                keyFormatHint = "مفتاح OpenCode API"
             ),
             SecretKeySpec(
                 envName = "ELEVENLABS_API_KEY",
@@ -162,6 +189,19 @@ fun DeveloperKeyStatusHub(
                 preferenceKey = "huggingface_key",
                 docUrl = "https://huggingface.co/settings/tokens",
                 keyFormatHint = "يبدأ بـ hf_..."
+            ),
+            SecretKeySpec(
+                envName = "AZURE_SPEECH_KEY",
+                displayName = "Azure Speech",
+                provider = "Microsoft Azure",
+                category = "AUDIO",
+                icon = Icons.Default.Mic,
+                howItWorks = "نطق صوتي فصيح بنبرات عربية واقعية لمقاطع الريلز.",
+                whyNeeded = "تعليق صوتي عربي فصيح بجودة احترافية.",
+                serviceType = "azure",
+                preferenceKey = "azure_speech_key",
+                docUrl = "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices",
+                keyFormatHint = "32 محرف hex + منطقة (Region)"
             ),
             SecretKeySpec(
                 envName = "PEXELS_API_KEY",
@@ -203,13 +243,26 @@ fun DeveloperKeyStatusHub(
                 keyFormatHint = "مفتاح Coverr API"
             ),
             SecretKeySpec(
+                envName = "LEONARDO_API_KEY",
+                displayName = "Leonardo.ai",
+                provider = "Leonardo.ai",
+                category = "MEDIA",
+                icon = Icons.Default.Image,
+                howItWorks = "توليد صور سينمائية ومشاهد فنية للريلز.",
+                whyNeeded = "صور مولّدة بجودة عالية لمشاهد الفيديو.",
+                serviceType = "leonardo",
+                preferenceKey = "leonardo_api_key",
+                docUrl = "https://app.leonardo.ai/api-access",
+                keyFormatHint = "مفتاح Leonardo API"
+            ),
+            SecretKeySpec(
                 envName = "QF_CLIENT_ID",
                 displayName = "Quran Foundation Client ID",
                 provider = "Quran.com / QF",
                 category = "QURAN",
                 icon = Icons.Default.MenuBook,
                 howItWorks = "الربط الرسمي مع واجهات Quran Foundation لجلب نصوص الآيات بدقة المصحف العثماني وتفاسيرها المعتمدة.",
-                whyNeeded = "ضمان عصمة وصحة النصوص القرآنية والتفاسير المعتمدة بنسبة 100%.",
+                whyNeeded = "يتيح الوصول إلى نصوص الآيات والتفاسير المعتمدة رسمياً من Quran Foundation.",
                 serviceType = "qf",
                 preferenceKey = "qf_client_id",
                 docUrl = "https://quran.com",
@@ -281,7 +334,8 @@ fun DeveloperKeyStatusHub(
             // المصدر الوحيد هو ما أدخله المستخدم في الواجهة (يُقرأ أعلاه من SharedPreferences).
             "GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
             "ELEVENLABS_API_KEY", "HUGGINGFACE_API_KEY", "PEXELS_API_KEY", "PIXABAY_API_KEY",
-            "COVERR_API_KEY" -> ""
+            "COVERR_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_API_KEY", "AZURE_SPEECH_KEY",
+            "LEONARDO_API_KEY" -> ""
             "QF_CLIENT_ID" -> runCatching { BuildConfig.QF_CLIENT_ID }.getOrDefault("")
             "QF_CLIENT_SECRET" -> runCatching { BuildConfig.QF_CLIENT_SECRET }.getOrDefault("")
             "SUPABASE_URL" -> SupabaseConfig.url
@@ -303,14 +357,22 @@ fun DeveloperKeyStatusHub(
     var visibleKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var reloadTrigger by remember { mutableIntStateOf(0) }
 
+    /** (r17) التلميح الذي يحتاجه فحص كل مفتاح: رابط Supabase لمفتاحه،
+     * ومعرف QF عند فحص سره (به يصير الفحص طلب توكن حقيقياً لا فحص
+     * وصول)، والمنطقة المحفوظة عند فحص Azure. تُستخدم في الفحص
+     * الجماعي وفي حوار التعديل معاً — السابق كان يمرر التلميح في
+     * الفحص الجماعي فقط فكان فحص الحوار أضعف. */
+    fun hintFor(spec: SecretKeySpec): String? = when (spec.envName) {
+        "SUPABASE_ANON_KEY" -> getKeyActualValue(secretSpecs.first { it.envName == "SUPABASE_URL" })
+        "QF_CLIENT_SECRET" -> getKeyActualValue(secretSpecs.first { it.envName == "QF_CLIENT_ID" })
+        "AZURE_SPEECH_KEY" -> AgentPrefs.instance(context)
+            .getString("azure_speech_region", "")?.trim()?.ifBlank { null }
+        else -> null
+    }
+
     suspend fun testSingleKey(spec: SecretKeySpec): KeyValidationResult {
         val rawValue = getKeyActualValue(spec)
-        val hint = when (spec.envName) {
-            "SUPABASE_ANON_KEY" -> getKeyActualValue(secretSpecs.first { it.envName == "SUPABASE_URL" })
-            "QF_CLIENT_SECRET" -> getKeyActualValue(secretSpecs.first { it.envName == "QF_CLIENT_ID" })
-            else -> null
-        }
-        return ApiKeyValidator.validateKey(context, spec.serviceType, rawValue, hint)
+        return ApiKeyValidator.validateKey(context, spec.serviceType, rawValue, hintFor(spec))
     }
 
     fun testAllKeys() {
@@ -375,7 +437,7 @@ fun DeveloperKeyStatusHub(
                     border = BorderStroke(
                         1.dp,
                         Brush.horizontalGradient(
-                            listOf(GoldPrimary.copy(alpha = 0.4f), GoldSecondary.copy(alpha = 0.2f), GoldPrimary.copy(alpha = 0.4f))
+                            listOf(PresetPrimary.copy(alpha = 0.4f), PresetAccent.copy(alpha = 0.2f), PresetPrimary.copy(alpha = 0.4f))
                         )
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -391,17 +453,17 @@ fun DeveloperKeyStatusHub(
                                     modifier = Modifier
                                         .size(34.dp)
                                         .clip(CircleShape)
-                                        .background(GoldPrimary.copy(alpha = 0.12f))
-                                        .border(1.dp, GoldPrimary.copy(alpha = 0.3f), CircleShape),
+                                        .background(PresetPrimary.copy(alpha = 0.12f))
+                                        .border(1.dp, PresetPrimary.copy(alpha = 0.3f), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
                                         "لوحة المراقبة والتحكم بالمفاتيح",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
@@ -421,19 +483,19 @@ fun DeveloperKeyStatusHub(
                                     onClick = { showBackupDialog = true },
                                     modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.Backup, contentDescription = "نسخ احتياطي واستيراد", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Backup, contentDescription = "نسخ احتياطي واستيراد", tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                 }
                                 IconButton(
                                     onClick = { showResetAllDialog = true },
                                     modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.RestartAlt, contentDescription = "إعادة ضبط الكل", tint = Color(0xFFEF4444).copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.RestartAlt, contentDescription = "إعادة ضبط الكل", tint = theme.destructive.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                                 }
                                 IconButton(
                                     onClick = { showArchitectureGuide = true },
                                     modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "دليل المعمارية", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "دليل المعمارية", tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -448,21 +510,21 @@ fun DeveloperKeyStatusHub(
                             TelemetryMetricCard(
                                 title = "مُهيأة في النظام",
                                 value = "$configuredCount / $totalKeys",
-                                color = if (configuredCount > 0) GoldPrimary else Color(0xFF94A3B8),
+                                color = if (configuredCount > 0) PresetPrimary else theme.textSecondary,
                                 icon = Icons.Default.VpnKey,
                                 modifier = Modifier.weight(1f)
                             )
                             TelemetryMetricCard(
                                 title = "اتصال سليم وفعال",
                                 value = "$connectedCount / $totalKeys",
-                                color = if (connectedCount > 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                                color = if (connectedCount > 0) theme.success else theme.destructive,
                                 icon = Icons.Default.CheckCircle,
                                 modifier = Modifier.weight(1f)
                             )
                             TelemetryMetricCard(
                                 title = "متوسط زمن الاستجابة",
                                 value = displayAverageLatency,
-                                color = Color(0xFF38BDF8),
+                                color = theme.primary,
                                 icon = Icons.Default.Speed,
                                 modifier = Modifier.weight(1f)
                             )
@@ -474,7 +536,7 @@ fun DeveloperKeyStatusHub(
                         Button(
                             onClick = { testAllKeys() },
                             enabled = !isCheckingAll,
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(42.dp)
                         ) {
@@ -499,7 +561,7 @@ fun DeveloperKeyStatusHub(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     val filterList = listOf(
-                        "ALL" to "الكل (14)",
+                        "ALL" to "الكل ($totalKeys)",
                         "AI" to "الذكاء الاصطناعي (AI)",
                         "MEDIA" to "الوسائط والفيديو",
                         "BACKEND" to "السحابة وقواعد البيانات",
@@ -511,8 +573,8 @@ fun DeveloperKeyStatusHub(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) GoldPrimary else Color(0xFF141A29))
-                                .border(1.dp, if (isSelected) GoldPrimary else Color(0xFF232D42), RoundedCornerShape(16.dp))
+                                .background(if (isSelected) PresetPrimary else theme.cardSurface)
+                                .border(1.dp, if (isSelected) PresetPrimary else theme.separator, RoundedCornerShape(16.dp))
                                 .clickable { selectedCategoryFilter = key }
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
@@ -537,14 +599,14 @@ fun DeveloperKeyStatusHub(
                 val isKeyVisible = spec.envName in visibleKeys
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF121826).copy(alpha = 0.95f)),
+                    colors = CardDefaults.cardColors(containerColor = theme.background.copy(alpha = 0.95f)),
                     border = BorderStroke(
                         1.dp,
                         when {
-                            validation?.isValid == true -> Color(0xFF10B981).copy(alpha = 0.5f)
-                            validation != null && !validation.isValid -> Color(0xFFEF4444).copy(alpha = 0.5f)
-                            isConfigured -> GoldPrimary.copy(alpha = 0.35f)
-                            else -> Color(0xFF222C3F)
+                            validation?.isValid == true -> theme.success.copy(alpha = 0.5f)
+                            validation != null && !validation.isValid -> theme.destructive.copy(alpha = 0.5f)
+                            isConfigured -> PresetPrimary.copy(alpha = 0.35f)
+                            else -> theme.separator
                         }
                     ),
                     shape = RoundedCornerShape(14.dp),
@@ -561,11 +623,11 @@ fun DeveloperKeyStatusHub(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(GoldPrimary.copy(alpha = 0.12f))
-                                    .border(1.dp, GoldPrimary.copy(alpha = 0.25f), CircleShape),
+                                    .background(PresetPrimary.copy(alpha = 0.12f))
+                                    .border(1.dp, PresetPrimary.copy(alpha = 0.25f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(spec.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                Icon(spec.icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             }
 
                             Spacer(modifier = Modifier.width(10.dp))
@@ -574,7 +636,7 @@ fun DeveloperKeyStatusHub(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = spec.displayName,
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
@@ -602,10 +664,10 @@ fun DeveloperKeyStatusHub(
                                 else -> "غير مهيأ ⚪"
                             }
                             val badgeColor = when {
-                                validation?.isValid == true -> Color(0xFF10B981)
-                                validation != null && !validation.isValid -> Color(0xFFEF4444)
-                                isConfigured -> Color(0xFFE8C547)
-                                else -> Color(0xFF94A3B8)
+                                validation?.isValid == true -> theme.success
+                                validation != null && !validation.isValid -> theme.destructive
+                                isConfigured -> theme.gold
+                                else -> theme.textSecondary
                             }
                             Surface(
                                 color = badgeColor.copy(alpha = 0.15f),
@@ -639,18 +701,18 @@ fun DeveloperKeyStatusHub(
 
                         // صندوق الوظيفة والأهمية المعمارية
                         Surface(
-                            color = Color(0xFF090D16).copy(alpha = 0.6f),
+                            color = theme.background.copy(alpha = 0.6f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1A2333)),
+                            border = BorderStroke(1.dp, theme.separator),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Row(verticalAlignment = Alignment.Top) {
-                                    Text("التوظيف: ", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    Text("التوظيف: ", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                     Text(spec.howItWorks, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 10.sp, lineHeight = 14.sp)
                                 }
                                 Row(verticalAlignment = Alignment.Top) {
-                                    Text("الأهمية: ", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    Text("الأهمية: ", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                     Text(spec.whyNeeded, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 10.sp, lineHeight = 14.sp)
                                 }
                             }
@@ -660,9 +722,9 @@ fun DeveloperKeyStatusHub(
                         if (validation != null) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Surface(
-                                color = if (validation.isValid) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
+                                color = if (validation.isValid) theme.success.copy(alpha = 0.12f) else theme.destructive.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, if (validation.isValid) Color(0xFF10B981).copy(alpha = 0.35f) else Color(0xFFEF4444).copy(alpha = 0.35f)),
+                                border = BorderStroke(1.dp, if (validation.isValid) theme.success.copy(alpha = 0.35f) else theme.destructive.copy(alpha = 0.35f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
@@ -670,13 +732,13 @@ fun DeveloperKeyStatusHub(
                                         Icon(
                                             if (validation.isValid) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
                                             contentDescription = null,
-                                            tint = if (validation.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                                            tint = if (validation.isValid) theme.success else theme.destructive,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = validation.summary,
-                                            color = if (validation.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                                            color = if (validation.isValid) theme.success else theme.destructive,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 11.sp
@@ -696,7 +758,7 @@ fun DeveloperKeyStatusHub(
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = "الحل المقترح: ${validation.suggestedFix}",
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontFamily = CairoFont,
                                             fontSize = 10.sp,
                                             lineHeight = 14.sp
@@ -710,9 +772,9 @@ fun DeveloperKeyStatusHub(
 
                         // عرض القيمة الحالية بشكل صادق تماماً
                         Surface(
-                            color = Color(0xFF0D121F),
+                            color = theme.background,
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1F293D)),
+                            border = BorderStroke(1.dp, theme.separator),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -733,7 +795,7 @@ fun DeveloperKeyStatusHub(
                                         else "••••••••"
                                         Text(
                                             text = displayVal,
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium,
@@ -743,7 +805,7 @@ fun DeveloperKeyStatusHub(
                                     } else {
                                         Text(
                                             text = "لم يتم إدخال المفتاح في النظام (غير مهيأ)",
-                                            color = Color(0xFF94A3B8),
+                                            color = theme.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 10.sp
                                         )
@@ -780,17 +842,17 @@ fun DeveloperKeyStatusHub(
                                 // 1. زر إدخال وتعديل المفتاح (يفتح حوار الإدخال والحفظ الفوري)
                                 Button(
                                     onClick = { activeEditSpec = spec },
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.15f)),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary.copy(alpha = 0.15f)),
+                                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.45f)),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                     modifier = Modifier.height(32.dp)
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.Edit, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = if (isConfigured) "تعديل" else "إدخال",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
@@ -813,18 +875,18 @@ fun DeveloperKeyStatusHub(
                                         }
                                     },
                                     enabled = !isTestingThis,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E283D)),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
+                                    border = BorderStroke(1.dp, theme.separator),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                     modifier = Modifier.height(32.dp)
                                 ) {
                                     if (isTestingThis) {
-                                        CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                                        CircularProgressIndicator(color = PresetPrimary, modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
                                     } else {
-                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = theme.primary, modifier = Modifier.size(13.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("فحص حي", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("فحص حي", color = theme.primary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -854,7 +916,7 @@ fun DeveloperKeyStatusHub(
                                         },
                                         modifier = Modifier.size(32.dp)
                                     ) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = "مسح المفتاح", tint = Color(0xFFEF4444).copy(alpha = 0.85f), modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "مسح المفتاح", tint = theme.destructive.copy(alpha = 0.85f), modifier = Modifier.size(16.dp))
                                     }
                                 }
 
@@ -869,7 +931,7 @@ fun DeveloperKeyStatusHub(
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "فتح رابط الوثائق", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "فتح رابط الوثائق", tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -886,8 +948,8 @@ fun DeveloperKeyStatusHub(
                 TopAppBar(
                     title = {
                         Text(
-                            "مراقبة المفاتيح الحية (14) ⚡",
-                            color = GoldPrimary,
+                            "مراقبة المفاتيح الحية ($totalKeys) ⚡",
+                            color = PresetPrimary,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont,
                             fontSize = 16.sp
@@ -895,12 +957,12 @@ fun DeveloperKeyStatusHub(
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = GoldPrimary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = PresetPrimary)
                         }
                     },
                     actions = {
                         IconButton(onClick = { testAllKeys() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "إعادة فحص الكل", tint = GoldPrimary)
+                            Icon(Icons.Default.Refresh, contentDescription = "إعادة فحص الكل", tint = PresetPrimary)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
@@ -925,17 +987,33 @@ fun DeveloperKeyStatusHub(
         var isTestingInDialog by remember { mutableStateOf(false) }
         var dialogTestResult by remember { mutableStateOf<KeyValidationResult?>(null) }
 
+        // (r17) الكتابة الوحيدة من هذا الحوار — لا تُستدعى إلا بعد
+        // فحص حي ناجح لنفس القيمة المعروضة (dialogTestResult تُصفَّر
+        // عند كل تعديل للإدخال، فلا يمر فحص قديم).
+        fun saveDialogKey(trimmed: String) {
+            AgentPrefs.instance(context)
+                .edit()
+                .putString(spec.preferenceKey, trimmed)
+                .apply()
+            reloadTrigger++
+            dialogTestResult?.let { res ->
+                validationStatuses = validationStatuses + (spec.envName to res)
+            }
+            Toast.makeText(context, "تم حفظ ${spec.displayName} بنجاح ✅", Toast.LENGTH_SHORT).show()
+            activeEditSpec = null
+        }
+
         AlertDialog(
             onDismissRequest = { activeEditSpec = null },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(spec.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                    Icon(spec.icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "ضبط: ${spec.displayName}",
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontSize = 15.sp
                     )
                 }
@@ -954,14 +1032,14 @@ fun DeveloperKeyStatusHub(
 
                     if (spec.keyFormatHint.isNotBlank()) {
                         Surface(
-                            color = Color(0xFF0F172A),
+                            color = theme.cardSurface,
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                            border = BorderStroke(1.dp, theme.secondarySurface),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = "تلميح الصيغة: ${spec.keyFormatHint}",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp,
                                 modifier = Modifier.padding(6.dp)
@@ -979,11 +1057,11 @@ fun DeveloperKeyStatusHub(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            cursorColor = GoldPrimary
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = theme.separator,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            cursorColor = PresetPrimary
                         ),
                         singleLine = spec.serviceType != "firebase",
                         maxLines = if (spec.serviceType == "firebase") 5 else 1,
@@ -995,7 +1073,7 @@ fun DeveloperKeyStatusHub(
                                     dialogTestResult = null
                                 }
                             }) {
-                                Icon(Icons.Default.ContentPaste, contentDescription = "لصق", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.ContentPaste, contentDescription = "لصق", tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             }
                         }
                     )
@@ -1003,15 +1081,15 @@ fun DeveloperKeyStatusHub(
                     // نتيجة الفحص داخل الحوار
                     dialogTestResult?.let { res ->
                         Surface(
-                            color = if (res.isValid) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                            color = if (res.isValid) theme.success.copy(alpha = 0.15f) else theme.destructive.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, if (res.isValid) Color(0xFF10B981) else Color(0xFFEF4444)),
+                            border = BorderStroke(1.dp, if (res.isValid) theme.success else theme.destructive),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(8.dp)) {
                                 Text(
                                     text = res.summary,
-                                    color = if (res.isValid) Color(0xFF10B981) else Color(0xFFEF4444),
+                                    color = if (res.isValid) theme.success else theme.destructive,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
@@ -1043,7 +1121,7 @@ fun DeveloperKeyStatusHub(
                                 }
                                 isTestingInDialog = true
                                 coroutineScope.launch {
-                                    val res = ApiKeyValidator.validateKey(context, spec.serviceType, inputVal)
+                                    val res = ApiKeyValidator.validateKey(context, spec.serviceType, inputVal, hintFor(spec))
                                     dialogTestResult = res
                                     isTestingInDialog = false
                                 }
@@ -1077,7 +1155,7 @@ fun DeveloperKeyStatusHub(
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("مسح المفتاح", color = Color(0xFFEF4444), fontSize = 10.sp, fontFamily = CairoFont)
+                                Text("مسح المفتاح", color = theme.destructive, fontSize = 10.sp, fontFamily = CairoFont)
                             }
                         }
                     }
@@ -1087,21 +1165,33 @@ fun DeveloperKeyStatusHub(
                 Button(
                     onClick = {
                         val trimmed = inputVal.trim()
-                        if (trimmed.isNotBlank()) {
-                            AgentPrefs.instance(context)
-                                .edit()
-                                .putString(spec.preferenceKey, trimmed)
-                                .apply()
-                            reloadTrigger++
-                            // إذا كان هناك فحص ناجح نحدثه
-                            dialogTestResult?.let { res ->
-                                validationStatuses = validationStatuses + (spec.envName to res)
-                            }
-                            Toast.makeText(context, "تم حفظ ${spec.displayName} بنجاح ✅", Toast.LENGTH_SHORT).show()
+                        if (trimmed.isBlank()) {
+                            activeEditSpec = null
+                            return@Button
                         }
-                        activeEditSpec = null
+                        // (r17) الحفظ بعد فحص حي فقط: زر «حفظ» السابق كان
+                        // يكتب أي نص ويقول «تم الحفظ بنجاح» دون فحص، وزر
+                        // «فحص فوري» اختياري لا يمنع الحفظ. إن كان الفحص
+                        // الناجح معروضاً لنفس القيمة يُحفظ فوراً، وإلا
+                        // يُفحص الآن ويُحفظ فقط عند النجاح.
+                        if (isTestingInDialog) return@Button
+                        if (dialogTestResult?.isValid == true) {
+                            saveDialogKey(trimmed)
+                            return@Button
+                        }
+                        isTestingInDialog = true
+                        coroutineScope.launch {
+                            val res = ApiKeyValidator.validateKey(context, spec.serviceType, trimmed, hintFor(spec))
+                            dialogTestResult = res
+                            isTestingInDialog = false
+                            if (res.isValid) {
+                                saveDialogKey(trimmed)
+                            } else {
+                                Toast.makeText(context, "لم يُحفظ: ${res.summary}", Toast.LENGTH_LONG).show()
+                            }
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("حفظ المفتاح", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -1112,20 +1202,20 @@ fun DeveloperKeyStatusHub(
                     Text("إلغاء", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                 }
             },
-            containerColor = Color(0xFF151C2C),
+            containerColor = theme.cardSurface,
             shape = RoundedCornerShape(16.dp)
         )
     }
 
-    // دليل المعمارية وتوظيف المفاتيح الـ 14
+    // دليل المعمارية وتوظيف المفاتيح الـ 18
     if (showArchitectureGuide) {
         AlertDialog(
             onDismissRequest = { showArchitectureGuide = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AccountTree, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.AccountTree, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("خريطة التوظيف المعماري للمفاتيح الـ 14", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
+                    Text("خريطة التوظيف المعماري للمفاتيح الـ 18", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
                 }
             },
             text = {
@@ -1136,7 +1226,7 @@ fun DeveloperKeyStatusHub(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        "تتوزع المفاتيح الـ 14 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة تضمن أعلى دقة وموثوقية:",
+                        "تتوزع المفاتيح الـ 18 في تطبيق خادم المسلم ضمن طبقات معمارية متكاملة:",
                         fontFamily = NotoSansFont,
                         color = TextSecondary,
                         fontSize = 11.sp
@@ -1144,39 +1234,39 @@ fun DeveloperKeyStatusHub(
 
                     ArchitectureLayerItem(
                         layerName = "1. طبقة العقول والذكاء الاصطناعي (AI Brains)",
-                        description = "تشمل Gemini, OpenAI, Groq, OpenRouter, HuggingFace لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات فائقة السرعة.",
-                        color = GoldPrimary
+                        description = "تشمل Gemini, OpenAI, Groq, OpenRouter, HuggingFace, Anthropic, OpenCode لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات فائقة السرعة.",
+                        color = PresetPrimary
                     )
 
                     ArchitectureLayerItem(
                         layerName = "2. طبقة الصوتيات وتلاوة القرآن (Audio & Voice)",
-                        description = "تشمل ElevenLabs للأصوات السينمائية، و Quran Foundation لنصوص وتلاوات القرآن المعتمدة رسمياً آية بآية.",
-                        color = Color(0xFF10B981)
+                        description = "تشمل ElevenLabs وAzure Speech للأصوات السينمائية، و Quran Foundation لنصوص وتلاوات القرآن المعتمدة رسمياً آية بآية.",
+                        color = theme.success
                     )
 
                     ArchitectureLayerItem(
                         layerName = "3. طبقة الوسائط والفيديو الواقعي (Media B-Roll)",
-                        description = "تشمل Pexels, Pixabay, Coverr لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق.",
-                        color = Color(0xFF38BDF8)
+                        description = "تشمل Pexels, Pixabay, Coverr, Leonardo لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق وصور مولّدة.",
+                        color = theme.primary
                     )
 
                     ArchitectureLayerItem(
                         layerName = "4. طبقة السحابة وقواعد البيانات (Backend Cloud)",
                         description = "تشمل Supabase لتخزين الصوتيات والمشاريع، و Google Services للإشعارات والتحليلات.",
-                        color = Color(0xFFA855F7)
+                        color = theme.accent
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = { showArchitectureGuide = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("إغلاق", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
-            containerColor = Color(0xFF151B2B),
+            containerColor = theme.cardSurface,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -1184,34 +1274,39 @@ fun DeveloperKeyStatusHub(
     // حوار النسخ الاحتياطي والاستيراد للمفاتيح
     if (showBackupDialog) {
         var importJsonInput by remember { mutableStateOf("") }
-        val currentKeysJson = remember(reloadTrigger) {
+        // (r17) المعاينة مقنّعة — السابق كان يعرض كل المفاتيح كاملة
+        // بنص صريح داخل الحوار. النسخة الكاملة تُنسخ فقط بزر صريح
+        // من المستخدم، مع تنبيه مكتوب أسفل المعاينة.
+        val (currentKeysJson, currentKeysJsonFull) = remember(reloadTrigger) {
             val sp = AgentPrefs.instance(context)
-            val json = org.json.JSONObject()
+            val masked = org.json.JSONObject()
+            val full = org.json.JSONObject()
             secretSpecs.forEach { spec ->
                 val v = sp.getString(spec.preferenceKey, "")?.trim() ?: ""
                 if (isKeyConfigured(v)) {
-                    json.put(spec.preferenceKey, v)
+                    masked.put(spec.preferenceKey, AgentPrefs.maskSecret(v))
+                    full.put(spec.preferenceKey, v)
                 }
             }
-            json.toString(2)
+            masked.toString(2) to full.toString(2)
         }
 
         AlertDialog(
             onDismissRequest = { showBackupDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Backup, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.Backup, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("نسخ احتياطي واستيراد المفاتيح", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
                 }
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("1. تصدير المفاتيح الحالية المهيأة في النظام:", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("1. تصدير المفاتيح الحالية المهيأة في النظام:", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Surface(
-                        color = Color(0xFF090D16),
+                        color = theme.background,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        border = BorderStroke(1.dp, theme.secondarySurface),
                         modifier = Modifier.fillMaxWidth().heightIn(max = 100.dp)
                     ) {
                         Text(
@@ -1224,20 +1319,26 @@ fun DeveloperKeyStatusHub(
                     }
                     Button(
                         onClick = {
-                            clipboardManager.setText(AnnotatedString(currentKeysJson))
+                            clipboardManager.setText(AnnotatedString(currentKeysJsonFull))
                             Toast.makeText(context, "تم نسخ حزمة المفاتيح إلى الحافظة 📋", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                         modifier = Modifier.fillMaxWidth().height(32.dp),
                         shape = RoundedCornerShape(6.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("نسخ حزمة المفاتيح كـ JSON", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                        Text("نسخ حزمة المفاتيح كـ JSON", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                     }
+                    Text(
+                        "المعاينة أعلاه مقنّعة. النسخة المنسوخة تحمل المفاتيح كاملة بنص صريح — لا تشاركها مع أحد واحذفها بعد النقل.",
+                        color = theme.warning,
+                        fontFamily = NotoSansFont,
+                        fontSize = 10.sp
+                    )
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("2. استيراد مفاتيح جديدة (الصق كود JSON هنا):", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("2. استيراد مفاتيح جديدة (الصق كود JSON هنا):", color = theme.primary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     OutlinedTextField(
                         value = importJsonInput,
                         onValueChange = { importJsonInput = it },
@@ -1245,10 +1346,10 @@ fun DeveloperKeyStatusHub(
                         modifier = Modifier.fillMaxWidth().height(90.dp),
                         shape = RoundedCornerShape(8.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF38BDF8),
-                            unfocusedBorderColor = Color(0xFF26334D),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = theme.primary,
+                            unfocusedBorderColor = theme.separator,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary
                         )
                     )
                 }
@@ -1257,32 +1358,62 @@ fun DeveloperKeyStatusHub(
                 Button(
                     onClick = {
                         val trimmed = importJsonInput.trim()
-                        if (trimmed.isNotBlank()) {
-                            try {
-                                val obj = org.json.JSONObject(trimmed)
-                                val editor = AgentPrefs.instance(context).edit()
-                                var importedCount = 0
-                                val keys = obj.keys()
-                                while (keys.hasNext()) {
-                                    val k = keys.next()
-                                    val v = obj.optString(k).trim()
-                                    if (v.isNotBlank()) {
-                                        editor.putString(k, v)
-                                        importedCount++
-                                    }
-                                }
-                                editor.apply()
-                                reloadTrigger++
-                                Toast.makeText(context, "تم استيراد $importedCount مفتاحاً بنجاح ✅", Toast.LENGTH_SHORT).show()
-                                showBackupDialog = false
-                            } catch (_: Exception) {
-                                Toast.makeText(context, "تنسيق JSON غير صالح", Toast.LENGTH_LONG).show()
-                            }
-                        } else {
+                        if (trimmed.isBlank()) {
                             showBackupDialog = false
+                            return@Button
+                        }
+                        // (r17) الاستيراد السابق كان يكتب أي مفتاح JSON في
+                        // التفضيلات دون قائمة سماح (حتى مفاتيح إعدادات
+                        // الوكيل مثل agent_allowed_path_prefixes) ودون أي
+                        // فحص حي. الآن: قائمة سماح بمعرفات المفاتيح فقط،
+                        // وفحص حي لكل قيمة، ويُحفظ الصالح فقط.
+                        try {
+                            val obj = org.json.JSONObject(trimmed)
+                            val allowed = secretSpecs.associateBy { it.preferenceKey }
+                            val region = obj.optString("azure_speech_region", "").trim()
+                            val targets = mutableListOf<Pair<SecretKeySpec, String>>()
+                            val keys = obj.keys()
+                            while (keys.hasNext()) {
+                                val k = keys.next()
+                                val v = obj.optString(k).trim()
+                                if (v.isNotBlank()) {
+                                    allowed[k]?.let { targets.add(it to v) }
+                                }
+                            }
+                            if (region.isNotBlank()) {
+                                AgentPrefs.instance(context).edit()
+                                    .putString("azure_speech_region", region).apply()
+                            }
+                            if (targets.isEmpty()) {
+                                Toast.makeText(context, "لم يتم العثور على مفاتيح معروفة في النص", Toast.LENGTH_LONG).show()
+                                return@Button
+                            }
+                            coroutineScope.launch {
+                                var saved = 0
+                                var skipped = 0
+                                for ((spec, value) in targets) {
+                                    val res = ApiKeyValidator.validateKey(context, spec.serviceType, value, hintFor(spec))
+                                    if (res.isValid) {
+                                        AgentPrefs.instance(context).edit()
+                                            .putString(spec.preferenceKey, value).apply()
+                                        validationStatuses = validationStatuses + (spec.envName to res)
+                                        saved++
+                                    } else skipped++
+                                }
+                                reloadTrigger++
+                                Toast.makeText(
+                                    context,
+                                    "تم استيراد $saved مفتاحاً بعد فحصها حياً" +
+                                        if (skipped > 0) "؛ وتُخطّي $skipped مفتاحاً غير صالح" else "",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                showBackupDialog = false
+                            }
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "تنسيق JSON غير صالح", Toast.LENGTH_LONG).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("تطبيق والاستيراد", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
@@ -1293,7 +1424,7 @@ fun DeveloperKeyStatusHub(
                     Text("إغلاق", color = TextSecondary, fontFamily = CairoFont)
                 }
             },
-            containerColor = Color(0xFF151B2B),
+            containerColor = theme.cardSurface,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -1304,14 +1435,14 @@ fun DeveloperKeyStatusHub(
             onDismissRequest = { showResetAllDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFEF4444))
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = theme.destructive)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("إعادة تعيين جميع المفاتيح", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
                 }
             },
             text = {
                 Text(
-                    "هل أنت متأكد من مسح جميع المفاتيح الـ 14 المخزنة في النظام؟\nسيتم حذفها من الذاكرة المحلية وإعادة التعيين إلى الحالة الافتراضية.",
+                    "هل أنت متأكد من مسح جميع المفاتيح الـ 18 المخزنة في النظام؟\nسيتم حذفها من الذاكرة المحلية وإعادة التعيين إلى الحالة الافتراضية.",
                     fontFamily = NotoSansFont,
                     color = TextSecondary,
                     fontSize = 12.sp,
@@ -1331,10 +1462,10 @@ fun DeveloperKeyStatusHub(
                         showResetAllDialog = false
                         Toast.makeText(context, "تمت إعادة ضبط جميع المفاتيح بنجاح 🗑️", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.destructive),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("مسح الكل الآن", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("مسح الكل الآن", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1342,7 +1473,7 @@ fun DeveloperKeyStatusHub(
                     Text("إلغاء", color = TextSecondary, fontFamily = CairoFont)
                 }
             },
-            containerColor = Color(0xFF151B2B),
+            containerColor = theme.cardSurface,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -1356,8 +1487,9 @@ fun TelemetryMetricCard(
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF080C14).copy(alpha = 0.7f),
+        color = theme.background.copy(alpha = 0.7f),
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
         modifier = modifier
@@ -1396,8 +1528,9 @@ fun ArchitectureLayerItem(
     description: String,
     color: Color
 ) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF1E293B),
+        color = theme.secondarySurface,
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
         modifier = Modifier.fillMaxWidth()

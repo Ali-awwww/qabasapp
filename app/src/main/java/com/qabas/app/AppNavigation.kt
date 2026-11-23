@@ -9,13 +9,6 @@ package com.qabas.app
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -207,7 +200,28 @@ fun AppNavigation(
             AppState.UPDATE_HISTORY to AppState.ABOUT_US,
             AppState.ABOUT_US to AppState.SETTINGS,
             AppState.PERMISSIONS_HUB to AppState.SETTINGS,
-            AppState.CRASH_LOGS_HUB to AppState.SETTINGS
+            AppState.CRASH_LOGS_HUB to AppState.SETTINGS,
+            // (r16) زر الرجوع في النظام كان يخالف زر الرجوع الظاهر في
+            // الشاشة نفسها: كل هذه الحالات تعرّف onBack/onExit إلى أبٍ
+            // محدد، لكن غيابها عن هذه الخريطة كان يرسل زر النظام إلى
+            // الرئيسية مباشرة — فيقفز المستخدم من «مفاتيحي» مثلاً إلى
+            // الرئيسية بدل بوابة الاستوديو التي جاء منها، ويخرج من
+            // مسار الإنشاء (RESOURCES/PAYMENT/المحرر) بدل الرجوع خطوة.
+            // القيم هنا مطابقة حرفياً لـ onBack/onExit الممرَّرة في
+            // فروع when أدناه، لا أب جديد مخترع.
+            AppState.MY_KEYS to AppState.STUDIO_GATEWAY,
+            AppState.ADVANCED_KEYS to AppState.MY_KEYS,
+            AppState.STUDIO_AGENT to AppState.STUDIO_GATEWAY,
+            AppState.STUDIO_LIBRARY to AppState.STUDIO_GATEWAY,
+            AppState.SOCIAL_STATS to AppState.STUDIO_GATEWAY,
+            AppState.PRO_EDITOR to AppState.STUDIO_GATEWAY,
+            AppState.DEVELOPER_KEY_STATUS_HUB to AppState.DEVELOPER_DASHBOARD,
+            AppState.AGENT_TEAM_CONFIG to AppState.AI_STUDIO_AGENT,
+            AppState.SAVED_ITEMS to AppState.PROFILE,
+            AppState.RESOURCES to AppState.UNDERSTANDING,
+            AppState.PAYMENT to AppState.REVIEW,
+            AppState.TRANSCRIPT_EDIT to AppState.REVIEW,
+            AppState.ADVANCED_EDIT to AppState.REVIEW
         )
     }
     BackHandler(enabled = appState !in rootBackStates) {
@@ -274,7 +288,7 @@ fun AppNavigation(
                         UserPreferencesManager.cloudSyncEnabled.value
                     ) {
                         viewModel.viewModelScope.launch(Dispatchers.IO) {
-                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }
+                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                 .onFailure { android.util.Log.e("AppNavigation", "Post-login preferences restore failed: ${it.message}") }
                         }
                     }
@@ -296,7 +310,7 @@ fun AppNavigation(
                         UserPreferencesManager.cloudSyncEnabled.value
                     ) {
                         viewModel.viewModelScope.launch(Dispatchers.IO) {
-                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }
+                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                 .onFailure { android.util.Log.e("AppNavigation", "Post-registration preferences restore failed: ${it.message}") }
                         }
                     }
@@ -374,9 +388,7 @@ fun AppNavigation(
                 // تفتح موضعها لا قسمها فقط — الآية في القارئ، والحديث في
                 // قارئ الصحيحين داخل المكتبة، والكتاب في قارئه، والمقطع
                 // بقفزة jumpToReel، والصانع في بطاقة ملفه داخل الريلز.
-                // (على أساس main الحالي لا واجهة بحث تستدعيها بعد — واجهة
-                // البحث العام من الدفعة 3 فُقدت مع فروعها؛ عند استعادتها
-                // تُمرَّر هذه الدوال نفسها إلى HomeGlobalSearch.)
+                // تُمرَّر هذه الدوال إلى HomeGlobalSearch في الرئيسية.
                 onOpenQuranVerse = { surah, ayah ->
                     viewModel.updateState {
                         copy(
@@ -560,6 +572,19 @@ fun AppNavigation(
                 viewModel.updateState { copy(appState = AppState.SCHOLAR_BIOGRAPHIES) }
             }
         }
+        AppState.VIBE_CODING -> {
+            // قسم «فايب كودينج» الموحد (12.2): محادثة واحدة بمساري برمجة/محتوى.
+            // بوابة المحتوى (STUDIO_GATEWAY) تبقى reachable من مسار المحتوى ومن تبويب الروابط.
+            VibeCodingScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onNavigateToGateway = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onOpenLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
+                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                onOpenProject = { project -> viewModel.openProject(project) },
+                bottomBar = bottomNav
+            )
+        }
         AppState.STUDIO_GATEWAY -> {
             StudioGatewayScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
@@ -595,7 +620,14 @@ fun AppNavigation(
         AppState.MY_KEYS -> {
             StudioKeysScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                bottomBar = bottomNav
+                bottomBar = bottomNav,
+                // (12.3) «خيارات متقدمة» رابط واحد من «مفاتيحي» إلى ApiKeysScreen.
+                onOpenAdvancedKeys = { viewModel.updateState { copy(appState = AppState.ADVANCED_KEYS) } }
+            )
+        }
+        AppState.ADVANCED_KEYS -> {
+            ApiKeysScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } }
             )
         }
         AppState.STUDIO_LIBRARY -> {
@@ -761,20 +793,15 @@ fun AppNavigation(
             )
         }
         AppState.AI_STUDIO_AGENT -> {
-            // وكيل البرمجة خلف بوابة المطوّر (رتبة سحابية من app_metadata فقط).
-            // من لا يملك الرتبة يرى شاشة القفل — وكيل المحتوى (STUDIO_AGENT) غير مقيّد.
-            if (AdminGuard.isDashboardAccessAllowed(context)) {
-                AiStudioAgentScreen(
-                    onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                    onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
-                    bottomBar = bottomNav
-                )
-            } else {
-                DeveloperModeLockedScreen(
-                    onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                    onOpenStudioAgent = { viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) } }
-                )
-            }
+            // (12.2) أُزيلت بوابة AdminGuard عن دخول محادثة البرمجة: كانت تحجب
+            // توحيد القسم، والأمان يُستعاض عنه بتأكيدات 12.16 + إيقاف الاستقلالية
+            // افتراضياً (12.9). شاشة القفل DeveloperModeLockedScreen حُذفت
+            // مع البوابة (بلا مستدعٍ).
+            AiStudioAgentScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                bottomBar = bottomNav
+            )
         }
         AppState.AGENT_TEAM_CONFIG -> {
             AgentTeamConfigScreen(
@@ -1679,116 +1706,6 @@ fun AppNavigation(
                         )
                     }
                 },
-                bottomBar = bottomNav
-            )
-        }
-        else -> {
-            HomeScreen(
-                recentProjects = state.projects,
-                onNewProject = { initialText ->
-                    viewModel.createProject(initialText ?: "")
-                },
-                onViewProjects = { viewModel.updateState { copy(appState = AppState.PROJECTS) } },
-                onViewSettings = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
-                onViewProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } },
-                onViewNotifications = { viewModel.updateState { copy(appState = AppState.NOTIFICATIONS) } },
-                onOpenProject = { project -> viewModel.openProject(project) },
-                onViewApiDocs = { viewModel.updateState { copy(appState = AppState.API_DOCS) } },
-                onTeleprompter = { viewModel.updateState { copy(appState = AppState.TELEPROMPTER) } },
-                onAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
-                onAiAssistant = { viewModel.updateState { copy(appState = AppState.AI_ASSISTANT) } },
-                onYouTubeStudio = { viewModel.updateState { copy(appState = AppState.YOUTUBE_STUDIO) } },
-                onDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
-                onLeaderboard = { viewModel.updateState { copy(appState = AppState.LEADERBOARD) } },
-                onNavigateToTasteProfile = {
-                    tasteProfileReturnToSettings = false
-                    viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) }
-                },
-                onStudioGateway = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                onPremiumUpgrade = { viewModel.updateState { copy(appState = AppState.PREMIUM_UPGRADE) } },
-                onRewards = { viewModel.updateState { copy(appState = AppState.REWARDS) } },
-                onKnowledgeHub = { viewModel.updateState { copy(appState = AppState.KNOWLEDGE_HUB) } },
-                onContentGuard = { viewModel.updateState { copy(appState = AppState.CONTENT_GUARD) } },
-                onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
-                onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
-                onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
-                onPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
-                onStyleSelection = { viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) } },
-                onIslamicLibrary = { viewModel.updateState { copy(appState = AppState.ISLAMIC_LIBRARY) } },
-                onAzkar = { viewModel.updateState { copy(appState = AppState.AZKAR) } },
-                onPrayerTimes = { viewModel.updateState { copy(appState = AppState.PRAYER_TIMES) } },
-                onScholarBiographies = { viewModel.updateState { copy(appState = AppState.SCHOLAR_BIOGRAPHIES) } },
-                onProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
-                onMoneyPrinterTurbo = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
-                onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
-                onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
-                onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
-                // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C) — كما في
-                // فرع HOME أعلاه؛ فرع الاحتياط هذا يعرض الرئيسية أيضاً.
-                onOpenQuranVerse = { surah, ayah ->
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.MUSHAF_READER,
-                            mushafInitialSurah = surah,
-                            mushafInitialAyah = ayah,
-                            mushafInitialPage = null
-                        )
-                    }
-                },
-                onOpenHadith = { hadithId ->
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.ISLAMIC_LIBRARY,
-                            libraryInitialHadithId = hadithId,
-                            libraryInitialBookId = null
-                        )
-                    }
-                },
-                onOpenLibraryBook = { bookId ->
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.ISLAMIC_LIBRARY,
-                            libraryInitialBookId = bookId,
-                            libraryInitialHadithId = null
-                        )
-                    }
-                },
-                onOpenReel = { reelId ->
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.REELS,
-                            deepLinkReelId = reelId,
-                            deepLinkCreatorId = null,
-                            deepLinkCreatorName = null
-                        )
-                    }
-                },
-                onOpenCreator = { creatorId, creatorName ->
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.REELS,
-                            deepLinkCreatorId = creatorId,
-                            deepLinkCreatorName = creatorName,
-                            deepLinkReelId = null
-                        )
-                    }
-                },
-                onOpenMushaf = { surah, ayah, page ->
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.MUSHAF_READER,
-                            mushafInitialSurah = surah,
-                            mushafInitialAyah = ayah,
-                            mushafInitialPage = page
-                        )
-                    }
-                },
-                onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
-                onRules = {
-                    rulesReturnToSettings = false
-                    viewModel.updateState { copy(appState = AppState.RULES) }
-                },
-                onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
             )
         }
