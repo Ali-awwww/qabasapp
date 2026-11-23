@@ -169,7 +169,7 @@ internal fun SpatialStudiosSector(
             )
             SpatialHubCard(
                 title = "VoiceStudio",
-                subtitle = "استنساخ الأصوات ودبلجة الفيديوهات",
+                subtitle = "أنماط صوتية Edge-Neural ودبلجة الفيديوهات",
                 icon = Icons.Default.GraphicEq,
                 badge = "أصوات",
                 color = Color(0xFFAF52DE),

@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.floor
 
 @Immutable
 data class HasanatSectionItem(
@@ -127,6 +126,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         MuslimToolItem("hajj", "الحج والعمرة", "دليل خطوات الحج والعمرة", Icons.Default.DirectionsWalk, Color(0xFF8B5CF6)),
         MuslimToolItem("hijri", "التقويم الهجري", "تاريخ اليوم الهجري", Icons.Default.Event, Color(0xFFEC4899)),
         MuslimToolItem("habits", "متابع العادات", "عادات يومية تتبعها", Icons.Default.DoneAll, Color(0xFF14B8A6)),
+        MuslimToolItem("tasbeeh", "المسبحة الذكية", "عدّاد تسبيح بأنواع الذكر", Icons.Default.Fingerprint, Color(0xFF0EA5E9)),
         MuslimToolItem("stats", "إحصائيات العبادة", "إحصائيات عبادتك", Icons.Default.Analytics, Color(0xFFF97316)),
         MuslimToolItem("share", "بطاقات النشر", "صمّم بطاقة حديث للنشر", Icons.Default.ColorLens, Color(0xFFF59E0B)),
         MuslimToolItem("reward", "أجري بالنشر", "نقاطك ومكافآت النشر", Icons.Default.Stars, Color(0xFF14B8A6))
@@ -436,12 +436,17 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
                 val now = System.currentTimeMillis()
                 _currentTimeMillis.value = now
                 val currentDateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
+                // ق121: شارات الإكمال تُقرأ كل ثانية لا عند تبدل التاريخ
+                // وحده — فإكمال الأذكار في شاشة الأذكار كان يبقى مخفياً
+                // عن الحسنات حتى الغد أو إعادة التشغيل (ViewModel واحد
+                // باقٍ عبر التنقل). قراءات تفضيلات في الذاكرة فلا كلفة،
+                // والتدفق لا يبث إلا عند تغيّر القيمة فعلاً.
+                _isWirdDone.value = prefs.getBoolean("daily_wird_$currentDateKey", false)
+                _isMorningAzkarDone.value = prefs.getBoolean("daily_morning_azkar_$currentDateKey", false)
+                _isEveningAzkarDone.value = prefs.getBoolean("daily_evening_azkar_$currentDateKey", false)
                 if (currentDateKey != observedDateKey) {
                     observedDateKey = currentDateKey
                     _upcomingEvents.value = muslimToolsEngine.getUpcomingEvents(now)
-                    _isWirdDone.value = prefs.getBoolean("daily_wird_$currentDateKey", false)
-                    _isMorningAzkarDone.value = prefs.getBoolean("daily_morning_azkar_$currentDateKey", false)
-                    _isEveningAzkarDone.value = prefs.getBoolean("daily_evening_azkar_$currentDateKey", false)
                     _tasbeehCount.value = 0
                     prefs.edit().putInt("mishkat_tasbeeh_count", 0).putString("mishkat_tasbeeh_date", currentDateKey).apply()
                 }
@@ -516,17 +521,21 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun incrementTasbeeh() {
+        refreshTasbeehDayIfNeeded()
         val newCount = _tasbeehCount.value + 1
         _tasbeehCount.value = newCount
         prefs.edit().putInt("mishkat_tasbeeh_count", newCount).apply()
+        muslimToolsEngine.recordExternalTasbeehTap()
     }
 
     fun resetTasbeeh() {
+        refreshTasbeehDayIfNeeded()
         _tasbeehCount.value = 0
         prefs.edit().putInt("mishkat_tasbeeh_count", 0).apply()
     }
 
     fun toggleTasbeehGoal() {
+        refreshTasbeehDayIfNeeded()
         if (_tasbeehCount.value >= 33) {
             _tasbeehCount.value = 0
             prefs.edit().putInt("mishkat_tasbeeh_count", 0).apply()
@@ -536,41 +545,27 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private fun calculateHijriDate(timeMillis: Long): HijriDateInfo {
-        val cal = Calendar.getInstance().apply { timeInMillis = timeMillis }
-
-        val day = cal.get(Calendar.DAY_OF_MONTH)
-        val month = cal.get(Calendar.MONTH) + 1
-        val year = cal.get(Calendar.YEAR)
-
-        var m = month
-        var y = year
-        if (m < 3) {
-            y -= 1
-            m += 12
+    /**
+     * بوابة تاريخ عدّاد المشكاة: التهيئة وحدها كانت تفحص التاريخ، أما
+     * الزيادة/التصفير/قفزة الهدف فكانت تتراكم على عدّ أمس إن بقي التطبيق
+     * مفتوحاً بعد منتصف الليل (بطاقة اليوم تفحص التاريخ عند كل نقرة).
+     * تُصفّر العدّاد وتقدّم التاريخ قبل أي عملية عدّ في يوم جديد.
+     */
+    private fun refreshTasbeehDayIfNeeded() {
+        if (prefs.getString("mishkat_tasbeeh_date", todayKey) != todayKey) {
+            _tasbeehCount.value = 0
+            prefs.edit().putInt("mishkat_tasbeeh_count", 0)
+                .putString("mishkat_tasbeeh_date", todayKey).apply()
         }
-        val a = floor(y / 100.0)
-        val b = 2 - a + floor(a / 4.0)
-        val jd = floor(365.25 * (y + 4716)) + floor(30.6001 * (m + 1)) + day + b - 1524.5
+    }
 
-        val z = jd + 0.5
-        val ijd = floor(z)
-        val l = ijd - 1948440 + 10632
-        val n = floor((l - 1) / 10631.0)
-        val lPrime = l - 10631 * n + 354
-        val j = (floor((10985 - lPrime) / 5316.0)) * (floor((50 * lPrime) / 17719.0)) + (floor(lPrime / 5670.0)) * (floor((43 * lPrime) / 15238.0))
-        val lDoublePrime = lPrime - (floor((30 - j) / 15.0)) * (floor((17719 * j) / 50.0)) - (floor(j / 16.0)) * (floor((15238 * j) / 43.0)) + 29
-        val hijriMonth = floor((24 * lDoublePrime) / 709.0).toInt()
-        val hijriDay = (lDoublePrime - floor((709 * hijriMonth) / 24.0)).toInt()
-        val hijriYear = (30 * n + j - 30).toInt()
-
-        val hijriMonthsAr = listOf(
-            "محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة",
-            "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"
-        )
-        val hMonthName = Translator.tr(hijriMonthsAr.getOrElse(hijriMonth - 1) { "رمضان" })
-        val hijriStr = "$hijriDay $hMonthName $hijriYear ${Translator.tr("هـ")}"
-
-        return HijriDateInfo(hijriStr)
+    /**
+     * التاريخ الهجري من مصدر واحد: محرك الأدوات يستعمل تقويم أم القرى
+     * (Hijrah-umalqura)؛ التحويل الجدولي اليدوي الذي كان هنا يتأخر يوماً
+     * عنه (تحقق حي 2026-11-23: الجدولي 12 جمادى الآخرة بينما أم القرى 13)
+     * فعرضت المشكاة تاريخاً غير تاريخ حوار التقويم. بلا ازدواج خوارزميات.
+     */
+    private fun calculateHijriDate(timeMillis: Long): HijriDateInfo {
+        return HijriDateInfo(muslimToolsEngine.getHijriDate(timeMillis))
     }
 }

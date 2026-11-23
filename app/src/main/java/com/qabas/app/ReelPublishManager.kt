@@ -184,6 +184,16 @@ object ReelPublishManager {
             return ValidationResult.Invalid("يرجى اختيار مقطع فيديو من المعرض أو تحديد مقطع إيماني.")
         }
 
+        // مدة غير معروفة (0) من رابط بعيد: حد المدة لا يمكن التحقق منه
+        // إطلاقاً، والرابط التالف أو غير الفيديو يُرفض هنا أيضاً بدل
+        // حفظ صف بفيديو مكسور في الخلاصة. (الملف المحلي تُقاس مدته
+        // عند الاختيار أصلاً؛ و0 منه نادرة فيُبقي السلوك القديم.)
+        if (durationSeconds <= 0 && (cleanPath.startsWith("http://") || cleanPath.startsWith("https://"))) {
+            return ValidationResult.Invalid(
+                reason = "تعذّر التحقق من مدة الفيديو من الرابط — تأكد أن الرابط مباشر لمقطع MP4، أو نزّل المقطع واختره من المعرض."
+            )
+        }
+
         // 3. فحص الرقابة الشرعية الشامل ضد الموسيقى والآثام والمعاصي
         val auditResult = SpiritualSafetyGuard.performSpiritualAudit(
             title = cleanTitle,
@@ -231,6 +241,19 @@ object ReelPublishManager {
     enum class UploadPhase { VIDEO, THUMB }
 
     /**
+     * ق109: استخراج (السلة، المسار) من رابط عام للتخزين — لحذف مرفوع
+     * يتيم عند فشل الحفظ. أسماء الملفات مولّدة محلياً (بلا مسافات
+     * أو عربية) فالمسار المستخرج يطابق المسار المرفوع حرفياً.
+     */
+    private fun storageLocation(publicUrl: String): Pair<String, String>? {
+        val rest = publicUrl.substringAfter("/storage/v1/object/public/", "")
+        if (rest.isBlank()) return null
+        val bucket = rest.substringBefore("/")
+        val path = rest.substringAfter("/", "")
+        return if (bucket.isNotBlank() && path.isNotBlank()) bucket to path else null
+    }
+
+    /**
      * رفع المقطع السحابي أو المحلي وتخزينه في Supabase.
      * - بث متدفق بلا تحميل كامل في الذاكرة (حماية من OOM).
      * - عدّاد بايتات حي عبر onBytesProgress.
@@ -270,6 +293,10 @@ object ReelPublishManager {
 
         var finalVideoUrl = directUrl?.trim().orEmpty()
         var finalThumbUrl: String? = null
+        // ق109: مواقع المرفوعات السحابية لحذفها عند فشل الحفظ — تُضبط
+        // عند نجاح الرفع فقط، فلا يُحذف رابط مباشر للمستخدم أبداً.
+        var uploadedVideoLocation: Pair<String, String>? = null
+        var uploadedThumbLocation: Pair<String, String>? = null
 
         // 1. في حال تم اختيار ملف فيديو محلي من المعرض
         if (videoUri != null) {
@@ -295,75 +322,111 @@ object ReelPublishManager {
 
             if (!copyOk) {
                 Log.e(TAG, "Publish failed at READ_FILE: cannot read picked video")
+                // نسخة جزئية/فارغة في published_reels تبقى يتيمة للأبد إن
+                // لم تُمسح هنا — الأصل (Uri المنتقي) ما زال عند الشاشة.
+                runCatching { localVideoFile.delete() }
                 return@withContext PublishResult.Failed(PublishStage.READ_FILE, "تعذر قراءة ملف الفيديو المختار من المعرض")
             }
             finalVideoUrl = localVideoFile.toURI().toString()
 
             // رفع الفيديو لسحابة Supabase Storage إن كانت متاحة (متدفق + عدّاد)
             if (SupabaseServices.isSupabaseAvailable) {
-                onProgressUpdate("جاري رفع الفيديو إلى سحابة خادم المسلم الموثوقة...")
-                val totalBytes = localVideoFile.length()
-                onBytesProgress(0, totalBytes, UploadPhase.VIDEO)
-                val uploadedVideoUrl = SupabaseServices.Storage.uploadFileWithProgress(
-                    bucketName = "reels",
-                    path = "videos/$effectiveUserId/$fileName",
-                    file = localVideoFile,
-                    contentType = "video/mp4"
-                ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
-                    ?: SupabaseServices.Storage.uploadFileWithProgress(
-                        bucketName = "media-assets",
-                        path = "reels/$effectiveUserId/$fileName",
+                try {
+                    onProgressUpdate("جاري رفع الفيديو إلى سحابة خادم المسلم الموثوقة...")
+                    val totalBytes = localVideoFile.length()
+                    onBytesProgress(0, totalBytes, UploadPhase.VIDEO)
+                    val uploadedVideoUrl = SupabaseServices.Storage.uploadFileWithProgress(
+                        bucketName = "reels",
+                        path = "videos/$effectiveUserId/$fileName",
                         file = localVideoFile,
                         contentType = "video/mp4"
                     ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
-                    ?: SupabaseServices.Storage.uploadFileWithProgress(
-                        bucketName = "user-uploads",
-                        path = "reels/$effectiveUserId/$fileName",
-                        file = localVideoFile,
-                        contentType = "video/mp4"
-                    ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
+                        ?: SupabaseServices.Storage.uploadFileWithProgress(
+                            bucketName = "media-assets",
+                            path = "reels/$effectiveUserId/$fileName",
+                            file = localVideoFile,
+                            contentType = "video/mp4"
+                        ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
+                        ?: SupabaseServices.Storage.uploadFileWithProgress(
+                            bucketName = "user-uploads",
+                            path = "reels/$effectiveUserId/$fileName",
+                            file = localVideoFile,
+                            contentType = "video/mp4"
+                        ) { sent, total -> onBytesProgress(sent, total, UploadPhase.VIDEO) }
 
-                if (uploadedVideoUrl.isNullOrBlank()) {
-                    Log.e(TAG, "Publish failed at UPLOAD_VIDEO: storage upload returned null")
-                    return@withContext PublishResult.Failed(
-                        PublishStage.UPLOAD_VIDEO,
-                        "رفض التخزين السحابي الملف (تحقق من السلال reels/media-assets/user-uploads والشبكة)"
+                    if (uploadedVideoUrl.isNullOrBlank()) {
+                        Log.e(TAG, "Publish failed at UPLOAD_VIDEO: storage upload returned null")
+                        // النسخة المحلية صارت يتيمة: الرفع فشل والأصل ما زال
+                        // عند الشاشة لإعادة المحاولة.
+                        runCatching { localVideoFile.delete() }
+                        return@withContext PublishResult.Failed(
+                            PublishStage.UPLOAD_VIDEO,
+                            "رفض التخزين السحابي الملف (تحقق من السلال reels/media-assets/user-uploads والشبكة)"
+                        )
+                    }
+
+                    uploadedVideoLocation = storageLocation(uploadedVideoUrl)
+
+                    // التحقق من وصول وجاهزية الملف في التخزين السحابي قبل الاستمرار (مع إعادة المحاولة للتأخير)
+                    onProgressUpdate("جاري التأكد من جاهزية الفيديو في التخزين السحابي...")
+                    // (ق63) نتيجة التحقق كانت تُرمى: نشرٌ يمضي ويثبت رابطاً
+                    // سحابياً لفيديو غير متاح فعلاً فيُعرض ريل مكسور في الخلاصة.
+                    // الفشل هنا يفشل النشر بصدق (والأصل ما زال عند الشاشة).
+                    val videoVerified = SupabaseServices.Storage.verifyVideoAvailabilityWithRetry(
+                        videoUrl = uploadedVideoUrl,
+                        maxRetries = 3,
+                        initialDelayMs = 1000L
                     )
-                }
+                    if (!videoVerified) {
+                        Log.e(TAG, "Publish failed at UPLOAD_VIDEO: uploaded video not reachable after verification retries")
+                        runCatching { localVideoFile.delete() }
+                        // ق109: المرفوع نفسه يتيم هنا أيضاً — يُحذف من السلة
+                        // قبل الفشل، وإلا تراكمت نسخة مع كل إعادة محاولة.
+                        uploadedVideoLocation?.let { (bucket, path) ->
+                            runCatching { SupabaseServices.Storage.deleteFiles(bucket, listOf(path)) }
+                        }
+                        return@withContext PublishResult.Failed(
+                            PublishStage.UPLOAD_VIDEO,
+                            "تم رفع الفيديو لكنه غير متاح في التخزين السحابي بعد — أعد المحاولة لاحقاً"
+                        )
+                    }
 
-                // التحقق من وصول وجاهزية الملف في التخزين السحابي قبل الاستمرار (مع إعادة المحاولة للتأخير)
-                onProgressUpdate("جاري التأكد من جاهزية الفيديو في التخزين السحابي...")
-                SupabaseServices.Storage.verifyVideoAvailabilityWithRetry(
-                    videoUrl = uploadedVideoUrl,
-                    maxRetries = 3,
-                    initialDelayMs = 1000L
-                )
+                    finalVideoUrl = uploadedVideoUrl
 
-                finalVideoUrl = uploadedVideoUrl
+                    // النسخة المحلية أدت دورها كمصدر للرفع؛ السحابة الآن هي
+                    // مصدر الحقيقة فلا تُترك نسخة يتيمة في published_reels.
+                    // (لا يُمسح شيء حين لا سحابة: الرابط المحلي هو الفيديو.)
+                    runCatching { localVideoFile.delete() }
 
-                // رفع الصورة المصغرة إن وجدت
-                if (thumbnailBytes != null && thumbnailBytes.isNotEmpty()) {
-                    onProgressUpdate("جاري رفع غلاف المقطع...")
-                    onBytesProgress(0, thumbnailBytes.size.toLong(), UploadPhase.THUMB)
-                    val tmpThumb = File(localReelDir, thumbFileName)
-                    runCatching {
-                        FileOutputStream(tmpThumb).use { it.write(thumbnailBytes) }
-                        val url = SupabaseServices.Storage.uploadFileWithProgress(
-                            bucketName = "reels",
-                            path = "thumbnails/$effectiveUserId/$thumbFileName",
-                            file = tmpThumb,
-                            contentType = "image/jpeg"
-                        ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
-                            ?: SupabaseServices.Storage.uploadFileWithProgress(
-                                bucketName = "media-assets",
+                    // رفع الصورة المصغرة إن وجدت
+                    if (thumbnailBytes != null && thumbnailBytes.isNotEmpty()) {
+                        onProgressUpdate("جاري رفع غلاف المقطع...")
+                        onBytesProgress(0, thumbnailBytes.size.toLong(), UploadPhase.THUMB)
+                        val tmpThumb = File(localReelDir, thumbFileName)
+                        runCatching {
+                            FileOutputStream(tmpThumb).use { it.write(thumbnailBytes) }
+                            val url = SupabaseServices.Storage.uploadFileWithProgress(
+                                bucketName = "reels",
                                 path = "thumbnails/$effectiveUserId/$thumbFileName",
                                 file = tmpThumb,
                                 contentType = "image/jpeg"
                             ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
-                        tmpThumb.delete()
-                        url
-                    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()?.let { finalThumbUrl = it }
-                    // فشل الغلاف لا يُسقط النشر — يُكمل بدونه
+                                ?: SupabaseServices.Storage.uploadFileWithProgress(
+                                    bucketName = "media-assets",
+                                    path = "thumbnails/$effectiveUserId/$thumbFileName",
+                                    file = tmpThumb,
+                                    contentType = "image/jpeg"
+                                ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
+                            tmpThumb.delete()
+                            url
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()?.let { finalThumbUrl = it; uploadedThumbLocation = storageLocation(it) }
+                        // فشل الغلاف لا يُسقط النشر — يُكمل بدونه
+                }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // ق109: الإلغاء أثناء الرفع السحابي كان يترك النسخة المحلية يتيمة
+                    // في published_reels — تُمسح هنا قبل تمرير الإلغاء.
+                    runCatching { localVideoFile.delete() }
+                    throw e
                 }
             }
         }
@@ -439,9 +502,20 @@ object ReelPublishManager {
             val actualErrorMessage = exception?.message?.takeIf { it.isNotBlank() }
                 ?: "رُفض إدراج الصف في جدول reels"
             Log.e("ReelPublish", "Publish failed at SAVE_ROW: $actualErrorMessage", exception)
+            // ق109: الفيديو (والغلاف) رُفعا ووُثّق توفرهما قبل فشل الحفظ —
+            // بلا حذف يبقيان يتيمين في التخزين وتعيد المحاولة رفع نسخة
+            // ثانية. يُحذف المرفوع هنا فقط (لا الرابط المباشر للمستخدم).
+            runCatching {
+                uploadedVideoLocation?.let { (bucket, path) ->
+                    SupabaseServices.Storage.deleteFiles(bucket, listOf(path))
+                }
+                uploadedThumbLocation?.let { (bucket, path) ->
+                    SupabaseServices.Storage.deleteFiles(bucket, listOf(path))
+                }
+            }
             return@withContext PublishResult.Failed(
                 PublishStage.SAVE_ROW,
-                actualErrorMessage
+                "تعذّر حفظ المقطع في المجتمع — تحقق من الاتصال وأعد المحاولة"
             )
         }
 
@@ -451,18 +525,10 @@ object ReelPublishManager {
         // احتساب النشر ضمن مهام التوثيق
         runCatching { VerificationManager.recordReelPublished(context) }
 
-        // حفظ المقطع أيضاً في السجل المحلي للمستخدم بمعرّفه الحقيقي
-        ReelPreferencesManager.recordWatch(
-            context = context,
-            reelId = realReelId,
-            title = cleanTitle,
-            userName = userName,
-            userAvatar = resolvedAvatar,
-            videoUrl = finalVideoUrl,
-            category = category,
-            durationSec = 10
-        )
-
+        // (حُذف تسجيل النشر كمشاهدة وهمية 10 ثوانٍ: النشر ليس مشاهدة،
+        // وكان يضخّم «المقاطع المشاهدة» و«وقت الاستماع» في الإحصائيات
+        // ويُظهر المقطع المنشور في سجل المشاهدة. معرّفه محفوظ أدناه
+        // في my_published_reel_ids، وسجل المشاهدة مصدره السحابة.)
         run {
             val pubPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             val currentMyReels = pubPrefs.getStringSet("my_published_reel_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
@@ -547,6 +613,14 @@ object ReelPublishManager {
             }
             
             val jsonText = response?.text ?: return@runCatching null
+            // ق160: تحليل الفيديو بـ Gemini كان يمر بلا أثر في تتبع التكلفة.
+            runCatching {
+                VibeCostTracker.recordEstimated(
+                    context, "gemini", "gemini-2.5-flash",
+                    "حلل هذا المقطع الديني واستخرج له عنواناً مناسباً ووصفاً قصيراً (أو الآية التي تُتلى فيه إن وجدت).",
+                    jsonText, "تحليل فيديو للنشر"
+                )
+            }
             val json = org.json.JSONObject(jsonText)
             Pair(json.getString("title"), json.getString("description"))
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "AI analysis failed: ${it.message}") }.getOrNull()

@@ -15,9 +15,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -101,12 +104,15 @@ data class DevAlert(
 /** مدخلات التقييم — كلها قياسات حقيقية أو null حين لا يوجد مصدر قياس. */
 /** لا يُختلق أي رقم: الحقل null يعني «لا يمكن القياس» فيُتخطى حده. */
 data class DevAlertInputs(
-    /** جلسات متعطلة في الساعة الأخيرة (من تقارير قياس الأعطال السحابية). */
+    /** جلسات متعطلة في الساعة الأخيرة (من تقارير قياس الأعطال السحابية —
+     * تقارير لا جلسات مميزة، فتقارير الأعطال بلا session_id؛ العدّ متحفظ:
+     * جلسة تتعطل مرتين تُحسب مرتين). */
     val crashedSessionsLastHour: Int? = null,
-    /** إجمالي الجلسات في الساعة الأخيرة — لا يوجد مصدر جلسات في التطبيق */
-    /** (لا جدول analytics_events ولا عدّاد جلسات)، فيبقى null حتى يُضاف. */
+    /** إجمالي الجلسات في الساعة الأخيرة — session_id مميز من analytics_events
+     * (يُقاس في collectAndEvaluate)؛ null عند غياب الجدول فيُتخطى حد القفزة. */
     val totalSessionsLastHour: Int? = null,
-    /** أسماء مفاتيح المزودين التي فشل فحصها الحي (تُمرَّر من فاحص المفاتيح). */
+    /** أسماء مفاتيح المزودين التي فشل فحصها الحي — تُجمع حياً في
+     * [collectAndEvaluate] من المفاتيح المهيأة، ويُضاف إليها أي تجاوز يُمرَّر. */
     val failedApiKeys: List<String> = emptyList(),
     /** نتيجة آخر فحص اتصال بالبوابة (Supabase ping). */
     val gatewayPingOk: Boolean? = null,
@@ -213,9 +219,12 @@ private const val MAX_STORED_EVALUATIONS = 100
  * يجمع ما يمكن قياسه اليوم، ثم يقيِّم ويسجِّل. ما لا مصدر له يبقى null
  * ويظهر في التقييم كـ «لا بيانات»:
  * - الأعطال: عدد تقارير قياس الأعطال السحابية في الساعة الأخيرة (مقاس)؛
- *   إجمالي الجلسات غير مقاس (لا مصدر) فلا يُقيَّم حد القفزة.
- * - المفاتيح: لا مجمِّع برمجي لنتائج الفحص الحي اليوم — يُمرَّر عبر
- *   [failedApiKeysOverride] من شاشة حالة المفاتيح عند توفره.
+ *   وإجمالي الجلسات مقاس أيضاً (session_id مميز من analytics_events
+ *   في الساعة الأخيرة) فيُقيَّم حد القفزة فعلاً — كان null دائماً قبل ق24
+ *   رغم وجود الجدول وكتابته، فلم يُقيَّم الحد أبداً.
+ * - المفاتيح: فحص حي متوازٍ للمفاتيح المهيأة (ق24) — كان المدخل فارغاً
+ *   دائماً لأن الفحص كان محبوساً داخل DeveloperKeyStatusHub؛ ويُضاف
+ *   إليه أي تجاوز يُمرَّر عبر [failedApiKeysOverride].
  * - البوابة: فحص Supabase ping الحي.
  * - التسجيلات: من users.created_at (الساعة الأخيرة مقابل متوسط 24 ساعة).
  */
@@ -234,26 +243,40 @@ object DevAlertsRepository {
             (prevEvaluations.firstOrNull()?.consecutiveGatewayFailures ?: 0) + 1
         } else 0
 
+        // ق55: الفشل هنا null لا صفر — كان getOrDefault(0) يجعل تعذّر
+        // قراءة تقارير الأعطال «صفر عطل» فيُخفي قفزة حقيقية، خلاف قاعدة
+        // الملف نفسه (null تعني «لا يمكن القياس» فيُتخطى الحد).
         val crashedLastHour = runCatching {
             SupabaseServices.Database.getCrashTelemetryReports().count { report ->
                 val ts = report.createdAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
                 ts in hourAgo..now
             }
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
 
+        val totalSessionsLastHour = countSessionsLastHour(now)
+
+        // فشل المفاتيح: فحص حي للمفاتيح المهيأة + أي تجاوز مُمرَّر.
+        val liveFailedKeys = collectFailedApiKeys(context)
+        val failedApiKeys = (failedApiKeysOverride + liveFailedKeys).distinct()
+
+        // ق55: عدّ التسجيلات باستعلام محدود منذ الأمس (getUserCreatedAtsSince)
+        // بدل سحب جدول users كاملاً بـ getAllUsers؛ والفشل null لا (0, 0.0)
+        // حتى لا تُقرأ «لا تسجيلات» عند تعذّر القياس.
         val (signupsLastHour, baselinePerHour) = runCatching {
-            val createdAts = SupabaseServices.Database.getAllUsers().mapNotNull { row ->
-                row.createdAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
-            }
+            val createdAts = SupabaseServices.Database
+                .getUserCreatedAtsSince(Instant.ofEpochMilli(dayAgo).toString())
+                ?.mapNotNull { raw ->
+                    runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
+                } ?: return@runCatching null to null
             val lastHour = createdAts.count { it in hourAgo..now }
-            val lastDay = createdAts.count { it in dayAgo..now }
-            lastHour to (lastDay / 24.0)
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0 to 0.0)
+            lastHour to (createdAts.size / 24.0)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
+            ?: (null to null)
 
         val inputs = DevAlertInputs(
             crashedSessionsLastHour = crashedLastHour,
-            totalSessionsLastHour = null, // لا مصدر لإجمالي الجلسات — انظر تعليق الحقل.
-            failedApiKeys = failedApiKeysOverride,
+            totalSessionsLastHour = totalSessionsLastHour,
+            failedApiKeys = failedApiKeys,
             gatewayPingOk = gatewayOk,
             consecutiveGatewayFailures = consecutiveFailures,
             signupsLastHour = signupsLastHour,
@@ -263,6 +286,43 @@ object DevAlertsRepository {
         recordAlertEvaluation(context, evaluation, consecutiveFailures)
         return evaluation
     }
+
+    /**
+     * إجمالي الجلسات في الساعة الأخيرة: session_id مميز من analytics_events.
+     * null عند غياب الجدول أو فشل القراءة فيبقى حد القفزة «لا بيانات»
+     * (لا صفر مختلق). السقف 2000 صف — التطبيق صغير؛ وإن تجاوزته الأحداث
+     * فالعدد حد أدنى صادق (لا ادعاء اكتمال).
+     */
+    private suspend fun countSessionsLastHour(now: Long): Int? = runCatching {
+        val client = SupabaseServices.client ?: return null
+        val hourAgoIso = Instant.ofEpochMilli(now - 3_600_000L).toString()
+        val rows = client.postgrest.from("analytics_events").select {
+            filter { gte("created_at", hourAgoIso) }
+            limit(2000)
+        }.decodeList<AnalyticsEventRow>()
+        rows.mapNotNull { it.sessionId?.takeIf { id -> id.isNotBlank() } }.toSet().size
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
+
+    /**
+     * أسماء المفاتيح المهيأة التي فشل فحصها الحي — نفس فحص «فحص الكل» في
+     * لوحة المفاتيح (ApiKeyValidator + قيم secretKeySpecs)، متوازياً.
+     * المفتاح غير المهيأ لا يُفحص أصلاً فلا يُعدّ فاشلاً. أي فشل (شبكة أو
+     * مفتاح) يُعاد فارغاً لا استثناءً، حتى لا يُسقط التقييم كاملاً.
+     */
+    private suspend fun collectFailedApiKeys(context: Context): List<String> = runCatching {
+        kotlinx.coroutines.coroutineScope {
+            secretKeySpecs.map { spec ->
+                kotlinx.coroutines.async {
+                    val value = getSecretKeyActualValue(context, spec)
+                    if (!isKeyConfigured(value)) return@async null
+                    val result = ApiKeyValidator.validateKey(
+                        context, spec.serviceType, value, secretKeyHintFor(context, spec)
+                    )
+                    if (result.isValid) null else spec.envName
+                }
+            }.awaitAll().filterNotNull()
+        }
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
 
     /** يسجِّل كل تقييم (أطلق تنبيهاً أم لا) محلياً + التنبيهات المُطلقة في التدقيق. */
     fun recordAlertEvaluation(
@@ -335,6 +395,46 @@ data class StoredAlertEvaluation(
     val unevaluated: List<String>
 )
 
+/**
+ * ق90: ملخص اتجاهات سجل التنبيهات — دالة خالصة ليسهل اختبارها:
+ * عدد التقييمات والتنبيهات، والمُطلق في آخر 24 ساعة، وعدد كل نوع.
+ */
+data class AlertHistorySummary(
+    val totalEvaluations: Int,
+    val totalFired: Int,
+    val firedLast24h: Int,
+    val perType: Map<AlertType, Int>
+)
+
+fun summarizeAlertHistory(
+    stored: List<StoredAlertEvaluation>,
+    nowMs: Long = System.currentTimeMillis()
+): AlertHistorySummary {
+    val allFired = stored.flatMap { it.fired }
+    val dayAgo = nowMs - 86_400_000L
+    return AlertHistorySummary(
+        totalEvaluations = stored.size,
+        totalFired = allFired.size,
+        firedLast24h = allFired.count { it.timeMs in dayAgo..nowMs },
+        perType = AlertType.entries.associateWith { type -> allFired.count { it.type == type } }
+    )
+}
+
+/**
+ * ق90: السجل المرئي بعد مرشح الشدة — دالة خالصة: بلا مرشح تُبقى كل
+ * تقييم (حتى بلا تنبيهات، فيُرى أنه جرى)؛ ومع مرشح شدة تُبقى
+ * تنبيهات تلك الشدة فقط وتُسقط التقييمات التي لم يبقَ فيها شيء.
+ */
+fun visibleAlertHistory(
+    stored: List<StoredAlertEvaluation>,
+    severity: AlertSeverity?
+): List<Pair<StoredAlertEvaluation, List<DevAlert>>> =
+    stored.mapNotNull { evaluation ->
+        val shown = if (severity == null) evaluation.fired
+            else evaluation.fired.filter { it.severity == severity }
+        if (severity != null && shown.isEmpty()) null else evaluation to shown
+    }
+
 /** شاشة «التنبيهات»: الحدود الحالية + زر تقييم + قائمة التنبيهات المُطلقة. */
 @Composable
 fun DevAlertsScreen(onBack: () -> Unit = {}) {
@@ -343,8 +443,35 @@ fun DevAlertsScreen(onBack: () -> Unit = {}) {
     var lastEvaluation by remember { mutableStateOf<DevAlertEvaluation?>(null) }
     var stored by remember { mutableStateOf(DevAlertsRepository.readEvaluations(context)) }
     var evaluating by remember { mutableStateOf(false) }
+    // ق90: مرشح شدة لسجل التنبيهات — كان السجل قائمة مسطحة بلا أي
+    // تصفية، فلا يرى المطور الحرجة وحدها وسط التحذيرات.
+    var severityFilter by remember { mutableStateOf<AlertSeverity?>(null) }
+    // ق80: التقييم عند فتح الشاشة — كان «قيِّم الآن» هو المشغّل
+    // الوحيد، فمن يفتح الصفحة يرى سجلاً قديماً (أو «لا تنبيهات
+    // مسجلة بعد») بلا تقييمٍ للحالة الراهنة أصلاً. الآن تُقيَّم
+    // الحالة مرة واحدة عند الفتح، ويبقى الزر تحديثاً يدوياً.
+    // أما التقييم الدوري في الخلفية (WorkManager) فلم يُوصَل عمداً:
+    // (1) التوصيل داخل التطبيق فقط بلا مسار دفع/بريد — فلا أحد يرى
+    // نتيجة تقييم خلفي حتى يفتح هذه الشاشة، وهي تقيِّم عند فتحها
+    // أصلاً؛ (2) التقييم يفحص مفاتيح API حياً ضد مزوديها، فجدولته
+    // في الخلفية تستهلك حصة الشبكة والبطارية وتخاطر بحدود معدل
+    // المزودين بلا مستفيد؛ (3) كل مستهلِك للتقييم هو هذه الشاشة.
+    // إن أُضيف مسار دفع/بريد لاحقاً أُعيد النظر في الجدولة حينها.
+    val allowed = AdminGuard.isDashboardAccessAllowed(context)
+    var autoEvaluated by remember { mutableStateOf(false) }
+    LaunchedEffect(allowed) {
+        if (!allowed || autoEvaluated) return@LaunchedEffect
+        autoEvaluated = true
+        evaluating = true
+        try {
+            lastEvaluation = DevAlertsRepository.collectAndEvaluate(context)
+            stored = DevAlertsRepository.readEvaluations(context)
+        } finally {
+            evaluating = false
+        }
+    }
 
-    if (!AdminGuard.isDashboardAccessAllowed(context)) {
+    if (!allowed) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Text("التنبيهات مقفلة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
             Text("هذه الصفحة للمطورين المعتمدين فقط (رتبة سحابية).", color = TextSecondary)
@@ -395,6 +522,8 @@ fun DevAlertsScreen(onBack: () -> Unit = {}) {
                 Card(colors = CardDefaults.cardColors(containerColor = DeepSlate)) {
                     Column(Modifier.padding(12.dp)) {
                         Text("آخر تقييم", color = TextPrimary, fontWeight = FontWeight.Bold)
+                        // ق55: وقت التقييم كان غائباً — بلا وقت لا يُعرف حداثة النتيجة.
+                        Text("الوقت: ${AuditLogger.formatTime(evaluation.timeMs)}", color = TextSecondary, fontSize = 12.sp)
                         if (evaluation.fired.isEmpty()) Text("لا تنبيهات مُطلقة.", color = ThemeSuccess)
                         evaluation.fired.forEach { alert ->
                             Text("• [${alert.severity.label}] ${alert.type.label}: ${alert.message}", color = ThemeWarning, fontSize = 13.sp)
@@ -407,17 +536,78 @@ fun DevAlertsScreen(onBack: () -> Unit = {}) {
             }
         }
         item { Text("سجل التقييمات والتنبيهات", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
-        val allFired = stored.flatMap { it.fired }
-        if (allFired.isEmpty()) {
-            item { Text("لا تنبيهات مسجلة بعد.", color = TextSecondary) }
+        // ق90: ملخص الاتجاهات + مرشح الشدة — كان السجل بلا ملخص ولا
+        // تصفية، فلا يرى المطور تكرار كل نوع ولا الحرجة وحدها.
+        if (stored.isNotEmpty()) {
+            item {
+                val summary = summarizeAlertHistory(stored)
+                Card(colors = CardDefaults.cardColors(containerColor = DeepSlate)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("الملخص", color = TextPrimary, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${summary.totalEvaluations} تقييماً مسجلاً • ${summary.totalFired} تنبيهاً مُطلقاً • آخر 24 ساعة: ${summary.firedLast24h}",
+                            color = TextSecondary, fontSize = 12.sp
+                        )
+                        Text(
+                            AlertType.entries.joinToString(" • ") { type ->
+                                "${type.label}: ${summary.perType[type] ?: 0}"
+                            },
+                            color = TextSecondary, fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = severityFilter == null,
+                        onClick = { severityFilter = null },
+                        label = { Text("الكل") }
+                    )
+                    FilterChip(
+                        selected = severityFilter == AlertSeverity.CRITICAL,
+                        onClick = { severityFilter = AlertSeverity.CRITICAL },
+                        label = { Text("حرج") }
+                    )
+                    FilterChip(
+                        selected = severityFilter == AlertSeverity.WARNING,
+                        onClick = { severityFilter = AlertSeverity.WARNING },
+                        label = { Text("تحذير") }
+                    )
+                }
+            }
+        }
+        // ق90: السجل كان قائمة مسطحة للتنبيهات المُطلقة فقط — التقييم
+        // الذي لم يُطلق شيئاً اختفى تماماً فلا يُعرف أنه جرى أصلاً،
+        // رغم أن عنوان القسم «سجل التقييمات والتنبيهات»؛ الآن كل
+        // تقييم صف بوقته وحالته، والمرشح يخفي التقييمات بلا تنبيه
+        // مطابق لشدته فقط.
+        val visibleHistory = visibleAlertHistory(stored, severityFilter)
+        if (stored.isEmpty()) {
+            item { Text("لا تقييمات مسجلة بعد.", color = TextSecondary) }
+        } else if (visibleHistory.isEmpty()) {
+            item { Text("لا تنبيهات بهذه الشدة في السجل.", color = TextSecondary) }
         } else {
-            items(allFired) { alert ->
+            items(
+                visibleHistory,
+                key = { (evaluation, _) -> "${evaluation.timeMs}-${evaluation.fired.hashCode()}" }
+            ) { (evaluation, shown) ->
                 Card(colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface)) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(
+                            "تقييم ${AuditLogger.formatTime(evaluation.timeMs)}",
+                            color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp
+                        )
+                        if (shown.isEmpty()) {
+                            Text("لا تنبيهات مُطلقة في هذا التقييم.", color = ThemeSuccess, fontSize = 12.sp)
+                        }
+                        shown.forEach { alert ->
                             Text("[${alert.severity.label}] ${alert.type.label}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             Text(alert.message, color = TextPrimary, fontSize = 12.sp)
                             Text("القياس: ${alert.measuredValue} — الحد: ${alert.thresholdValue}", color = TextSecondary, fontSize = 11.sp)
+                        }
+                        evaluation.unevaluated.forEach { note ->
+                            Text("• لا بيانات: $note", color = TextSecondary, fontSize = 11.sp)
                         }
                     }
                 }

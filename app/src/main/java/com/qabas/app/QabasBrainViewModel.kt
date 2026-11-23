@@ -330,7 +330,7 @@ class QabasBrainViewModel(
             try {
                 _uiState.value = _uiState.value.copy(
                     status = BrainStatus.FETCHING_MEMORY,
-                    statusMessage = "جاري استرجاع كائنات الأنماط من سحابة Firestore..."
+                    statusMessage = "جاري استرجاع كائنات الأنماط من ذاكرة الأنماط..."
                 )
 
                 val styles = repository.getReferenceStyleObjects()
@@ -372,7 +372,7 @@ class QabasBrainViewModel(
                 // 1. استرجاع ذاكرة الأنماط
                 _uiState.value = _uiState.value.copy(
                     status = BrainStatus.FETCHING_MEMORY,
-                    statusMessage = "استرجاع كائنات الأنماط وتفضيلات الهوية من Firestore...",
+                    statusMessage = "استرجاع كائنات الأنماط وتفضيلات الهوية من ذاكرة الأنماط...",
                     lastProcessedIdea = idea,
                     errorMessage = null
                 )
@@ -578,7 +578,9 @@ class QabasBrainViewModel(
             .post(requestBody)
             .build()
 
-        val response = httpClient.newCall(request).execute()
+        // ق161: استدعاء Gemini المباشر كان يمر بلا ApiUsageTracker.track
+        // فيغيب عن متوسط الزمن ونسبة النجاح في لوحة المطور.
+        val response = ApiUsageTracker.track(context, "Gemini") { httpClient.newCall(request).execute() }
         if (!response.isSuccessful) {
             Log.e(TAG, "Gemini call failed: HTTP ${response.code}")
             return@withContext buildFallbackDecision(idea, tonePreference, targetAudience, chosenStyle)
@@ -592,6 +594,23 @@ class QabasBrainViewModel(
             val parts = content?.optJSONArray("parts")
             if (parts != null && parts.length() > 0) {
                 val rawText = parts.getJSONObject(0).optString("text")
+                // ق160: استدعاء Gemini المباشر كان يمر بلا أثر في تتبع التكلفة.
+                runCatching {
+                    val usage = responseJson.optJSONObject("usageMetadata")
+                    val promptTokens = usage?.optInt("promptTokenCount", 0) ?: 0
+                    val completionTokens = usage?.optInt("candidatesTokenCount", 0) ?: 0
+                    if (promptTokens + completionTokens > 0) {
+                        val total = usage?.optInt("totalTokenCount", 0)?.takeIf { it > 0 }
+                            ?: (promptTokens + completionTokens)
+                        VibeCostTracker.record(
+                            context, "gemini", "gemini-2.5-flash",
+                            RealAgentResponse(rawText, total, promptTokens, completionTokens),
+                            "قرار إخراجي"
+                        )
+                    } else {
+                        VibeCostTracker.recordEstimated(context, "gemini", "gemini-2.5-flash", prompt, rawText, "قرار إخراجي")
+                    }
+                }
                 val cleanJson = rawText.replace("```json", "").replace("```", "").trim()
                 val parsed = JSONObject(cleanJson)
 

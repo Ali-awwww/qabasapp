@@ -94,6 +94,19 @@ object AppSelfDoctor {
         )
     } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
 
+    // ق161: كان الطبيب يفحص Gemini وGroq وPixabay وSupabase وHiggsfield
+    // ويتجاهل OpenRouter تماماً — وهو مزود نماذج قائم في شاشة المفاتيح
+    // (وبديل Gemini في نواة الوكيل)، فمن يعتمد عليه وحده لا يُشخَّص
+    // مفتاحه أبداً.
+    private suspend fun openrouterCheck(key: String) = withTimeoutOrNull(12_000) {
+        httpCheck(
+            Request.Builder()
+                .url("https://openrouter.ai/api/v1/models")
+                .header("Authorization", "Bearer $key")
+                .build()
+        )
+    } ?: LiveCheck(ok = false, rejected = false, unreachable = true)
+
 
 
 
@@ -174,6 +187,7 @@ object AppSelfDoctor {
         // المفاتيح الفعّالة عبر KeyVault (شاشة المفاتيح أولاً ثم BuildConfig من Secrets)
         val geminiKey = KeyVault.gemini
         val groqKey = KeyVault.groq
+        val openrouterKey = KeyVault.openrouter
         val pixabayKey = KeyVault.pixabay
 
         // 1) فحوص الاتصال الحقيقية بالتوازي — طلب واحد خفيف لكل خدمة
@@ -184,6 +198,8 @@ object AppSelfDoctor {
                 jobs += async { "gemini" to geminiCheck(geminiKey) }
             if (isKeyValid(groqKey))
                 jobs += async { "groq" to groqCheck(groqKey) }
+            if (isKeyValid(openrouterKey))
+                jobs += async { "openrouter" to openrouterCheck(openrouterKey) }
             if (isKeyValid(pixabayKey))
                 jobs += async { "pixabay" to pixabayCheck(pixabayKey) }
             if (SupabaseConfig.isConfigured)
@@ -242,6 +258,30 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
+        // ق161: تقرير OpenRouter — كان المفتاح بلا أي تشخيص (انظر openrouterCheck).
+        if (!isKeyValid(openrouterKey)) {
+            reports.add(
+                DoctorReport(
+                    severity = "تحسين",
+                    title = "بديل النماذج غير مهيأ (OpenRouter)",
+                    message = "مفتاح OpenRouter غير متوفر. يتم الاعتماد حالياً على Gemini وGroq؛ وإضافة OpenRouter تفتح نماذج Claude وGPT-4o وLlama عبر بوابة واحدة.",
+                    category = "مفاتيح API",
+                    suggestedAction = "أضف مفتاح OpenRouter المجاني من شاشة مفاتيح API لفتح النماذج البديلة.",
+                    suggestedFixCode = null
+                )
+            )
+        } else {
+            reports.add(
+                liveStatusReport(
+                    serviceName = "OpenRouter",
+                    category = "مفاتيح API",
+                    check = liveResults["openrouter"] ?: LiveCheck(false, false, true),
+                    onOk = "بوابة OpenRouter تستجيب فعلياً — نماذج Claude وGPT-4o وLlama البديلة متاحة.",
+                    actionOk = "استفد من نماذج OpenRouter البديلة."
+                )
+            )
+        }
+
         reports.add(
             DoctorReport(
                 severity = "معلومة",
@@ -279,9 +319,15 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
         }
 
 
-        val higgsfieldConfiguredOnServer = runCatching {
-            PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
+        // مهلة 12 ثانية كباقي الفحوص: عميل البوابة بلا مهلة هنا
+        // (30ث اتصال + 60ث قراءة) فكان فحص واحد متعثر يعلّق
+        // التشخيص كله حتى 90 ثانية. الإلغاء عند المهلة يحرر
+        // الطبيب؛ الطلب نفسه قد يكمل في الخلفية حتى مهلته.
+        val higgsfieldConfiguredOnServer = withTimeoutOrNull(12_000L) {
+            runCatching {
+                PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
+        } ?: false
         if (higgsfieldConfiguredOnServer) {
             reports.add(
                 DoctorReport(
@@ -290,6 +336,19 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
                     message = "تم تأكيد وجود إعداد المزود في الخزنة الخادمية. هذا الفحص لا يختبر صلاحية بيانات الاعتماد أو نجاح توليد الفيديو.",
                     category = "تكامل",
                     suggestedAction = "نفّذ اختبار توليد فعلياً من الاستوديو عند توفر الاعتماد والرصيد."
+                )
+            )
+        } else if (PlatformGatewayClient.lastError != null) {
+            // ق71: فشل الفحص كان صامتاً تماماً (لا تقرير إطلاقاً) —
+            // يُبلَّغ الآن بسبب الفشل الحقيقي؛ أما غياب المفتاح نفسه
+            // فليس عيباً (قد لا يستعمل المستخدم Higgsfield أصلاً).
+            reports.add(
+                DoctorReport(
+                    severity = "مهم",
+                    title = "تعذّر تأكيد مفتاح Higgsfield",
+                    message = "فحص بوابة الخادم لم يكمل: ${PlatformGatewayClient.lastError}",
+                    category = "تكامل",
+                    suggestedAction = "تحقق من الشبكة وجلسة الدخول ثم أعد التشخيص."
                 )
             )
         }
@@ -399,16 +458,20 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
             )
         }
 
-        // 6) أخطاء النظام الأخيرة
-        val lastError = OperationalReadinessManager.getLastError()
+        // 6) أخطاء النظام الأخيرة — من سجل الانهيارات الحقيقي
+        // (QabasCrashGuard). النسخة السابقة كانت تقرأ
+        // OperationalReadinessManager.getLastError() وهو null دائماً
+        // (lastRecordedError لا يسنده أحد في الكود كله) فلم يظهر
+        // هذا القسم أبداً — طبيب بلا ذاكرة أعطال.
+        val lastError = QabasCrashGuard.lastCrashSummary(context)
         if (lastError != null) {
             reports.add(
                 DoctorReport(
                     severity = "مهم",
                     title = "أخطاء مسجلة مؤخراً في النظام",
-                    message = "تم رصد أخيرة في سجلات النظام (Logs): $lastError. هذا قد يشير إلى انهيار خدمة معينة أو مشكلة اتصال.",
+                    message = "آخر عطل مسجل: $lastError. قد يشير إلى انهيار متكرر أو مشكلة اتصال.",
                     category = "أداء",
-                    suggestedAction = "راجع شاشة 'سجلات النظام' لمعرفة تفاصيل الخطأ ومعالجته.",
+                    suggestedAction = "راجع «سجلات النظام الحية» في لوحة المطور لمعرفة التفاصيل ومعالجته.",
                     suggestedFixCode = null
                 )
             )

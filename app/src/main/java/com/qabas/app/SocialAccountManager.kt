@@ -45,7 +45,6 @@ data class SmartPublishSlot(
     val timeLabel: String,
     val hourOfDay: Int,
     val minute: Int,
-    val engagementScore: Int, // e.g. 98%
     val rationale: String,
     val isRecommended: Boolean = false
 )
@@ -57,7 +56,12 @@ data class ScheduledPublishItem(
     val platformName: String,
     val scheduledTimeMillis: Long,
     val formattedTime: String,
-    val hashtags: String = ""
+    val hashtags: String = "",
+    // ق159: ساعة/دقيقة جدار الساعة المحفوظتان لإعادة الحساب عند
+    // تغيير المنطقة الزمنية — لحظة مطلقة وحدها تُطلق التذكير في
+    // وقت جدارٍ خاطئ بعد السفر. ‎−1 لعناصر قديمة قبل إضافة الحقلين.
+    val hourOfDay: Int = -1,
+    val minute: Int = -1
 )
 
 object SocialAccountManager {
@@ -390,13 +394,15 @@ object SocialAccountManager {
     private const val KEY_SCHEDULED_ITEMS = "scheduled_publish_items"
 
     /**
-     * Calculates data-driven optimal posting windows for each platform
-     * based on Islamic audience engagement patterns and account analytics.
+     * ق159: مواعيد مقترحة عامة لأوقات ذروة معتادة لكل منصة — ليست
+     * «data-driven» ولا من تحليلات حساب (لا مصدر تحليلات في التطبيق)،
+     * فلا نسب تفاعل ولا ادعاء قياس جمهور.
      */
     fun getOptimalPublishSlots(context: Context, platformId: String = "tiktok"): List<SmartPublishSlot> {
-        val accounts = getAccounts(context).associateBy { it.id }
-        val account = accounts[platformId]
-
+        // ق159: كانت هنا نسب «تفاعل» مختلقة (98% و91% و87%...) تُعرض
+        // على أنها قياس جمهور («بناءً على تفاعل الجمهور») بلا أي مصدر
+        // تحليلات — وكان جلب الحسابات أدناه ميتاً (account بلا استعمال).
+        // المواعيد الآن اقتراحات عامة لأوقات ذروة معتادة، بلا أرقام وهمية.
         val baseSlots = when (platformId) {
             "tiktok" -> listOf(
                 SmartPublishSlot(
@@ -406,7 +412,6 @@ object SocialAccountManager {
                     timeLabel = "8:30 م (ذروة المساء)",
                     hourOfDay = 20,
                     minute = 30,
-                    engagementScore = 98,
                     rationale = "أعلى تفاعل لخوارزمية For You بعد صلاة العشاء والراحة المسائية 🌙",
                     isRecommended = true
                 ),
@@ -417,7 +422,6 @@ object SocialAccountManager {
                     timeLabel = "5:30 ص (ساعة البكور)",
                     hourOfDay = 5,
                     minute = 30,
-                    engagementScore = 91,
                     rationale = "ذروة المقاطع الروحانية وتدبر القرآن مع بداية اليوم ✨",
                     isRecommended = false
                 ),
@@ -428,7 +432,6 @@ object SocialAccountManager {
                     timeLabel = "4:15 م (بعد العصر)",
                     hourOfDay = 16,
                     minute = 15,
-                    engagementScore = 87,
                     rationale = "وقت فراغ الطلاب والموظفين ونشاط مقاطع التذكير القصيرة ⚡",
                     isRecommended = false
                 )
@@ -441,7 +444,6 @@ object SocialAccountManager {
                     timeLabel = "7:00 م (الذروة الأسبوعية)",
                     hourOfDay = 19,
                     minute = 0,
-                    engagementScore = 96,
                     rationale = "أقوى وقت لفهرسة يوتيوب Shorts واقتراح الفيديوهات في الصفحة الرئيسية 🚀",
                     isRecommended = true
                 ),
@@ -452,7 +454,6 @@ object SocialAccountManager {
                     timeLabel = "11:30 ص (قبل الجمعة / الظهر)",
                     hourOfDay = 11,
                     minute = 30,
-                    engagementScore = 93,
                     rationale = "مناسب جداً للخطب القصيرة وتلاوات الكهف ومحتوى الجمعة 🕌",
                     isRecommended = false
                 ),
@@ -463,7 +464,6 @@ object SocialAccountManager {
                     timeLabel = "10:00 م (هدوء الليل)",
                     hourOfDay = 22,
                     minute = 0,
-                    engagementScore = 89,
                     rationale = "تفاعل مرتفع على قصص الأنبياء والتأملات الوجدانية الطويلة 📖",
                     isRecommended = false
                 )
@@ -476,7 +476,6 @@ object SocialAccountManager {
                     timeLabel = "9:00 م (التوقيت الذهبي)",
                     hourOfDay = 21,
                     minute = 0,
-                    engagementScore = 97,
                     rationale = "أعلى معدل للحفظ (Saves) والمشاركة في الرسائل المباشرة (DMs) 💬",
                     isRecommended = true
                 ),
@@ -487,7 +486,6 @@ object SocialAccountManager {
                     timeLabel = "6:45 ص (إشراقة الصباح)",
                     hourOfDay = 6,
                     minute = 45,
-                    engagementScore = 88,
                     rationale = "بطاقات الأحاديث والخواطر التحفيزية الصباحية ☀️",
                     isRecommended = false
                 )
@@ -500,7 +498,6 @@ object SocialAccountManager {
                     timeLabel = "1:15 م (استراحة الظهيرة)",
                     hourOfDay = 13,
                     minute = 15,
-                    engagementScore = 92,
                     rationale = "أعلى حركة إعادة نشر وتفاعل نقاشي خلال يوم العمل 🔄",
                     isRecommended = true
                 ),
@@ -511,7 +508,6 @@ object SocialAccountManager {
                     timeLabel = "9:30 م (المساحة المسائية)",
                     hourOfDay = 21,
                     minute = 30,
-                    engagementScore = 90,
                     rationale = "تفاعل كبير مع السلاسل (Threads) والمقاطع الدعوية المركزة 📜",
                     isRecommended = false
                 )
@@ -524,7 +520,6 @@ object SocialAccountManager {
                     timeLabel = "8:00 م (التجمع العائلي)",
                     hourOfDay = 20,
                     minute = 0,
-                    engagementScore = 94,
                     rationale = "أعلى نسبة وصول عضوي ومشاركات عائلية للفيديوهات الهادفة 👥",
                     isRecommended = true
                 )
@@ -586,6 +581,40 @@ object SocialAccountManager {
         }
     }
 
+    /**
+     * ق159: إعادة تأسيس التذكيرات على جدار الساعة بعد تغيير المنطقة
+     * الزمنية أو ضبط الساعة: اللحظة المطلقة المخزنة تُطلق التذكير في
+     * وقت جدارٍ خاطئ بعد السفر (منبه 20:30 يرن 23:30 بعد ‎+3 ساعات)،
+     * وكان مستقبل الإقلاع يستمع لـ BOOT_COMPLETED وحده. كل عنصر له
+     * ساعة/دقيقة محفوظتان يُعاد حساب أقرب وقوع مستقبلي لهما في
+     * المنطقة الجديدة وتُحفظ الصيغة واللحظة ويُعاد ضبط المنبه؛ وعنصر
+     * قديم بلا ساعة/دقيقة (‎−1) يُعاد ضبط منبهه على لحظته كما هي.
+     */
+    fun rebaseScheduledItemsForTimezoneChange(context: Context) {
+        val timeFormat = SimpleDateFormat("h:mm a (EEEE)", Locale.getDefault())
+        val now = System.currentTimeMillis()
+        val rebased = getScheduledPublishItems(context).map { item ->
+            if (item.hourOfDay !in 0..23 || item.minute !in 0..59) {
+                item
+            } else {
+                val calendar = Calendar.getInstance().apply {
+                    timeInMillis = now
+                    set(Calendar.HOUR_OF_DAY, item.hourOfDay)
+                    set(Calendar.MINUTE, item.minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    if (timeInMillis <= now) add(Calendar.DAY_OF_YEAR, 1)
+                }
+                item.copy(
+                    scheduledTimeMillis = calendar.timeInMillis,
+                    formattedTime = timeFormat.format(calendar.time)
+                )
+            }
+        }
+        saveScheduledList(context, rebased)
+        rebased.forEach { rescheduleItemAlarm(context, it) }
+    }
+
     fun schedulePublishReminder(
         context: Context,
         title: String,
@@ -615,7 +644,9 @@ object SocialAccountManager {
             platformName = platformName,
             scheduledTimeMillis = calendar.timeInMillis,
             formattedTime = formattedTime,
-            hashtags = hashtags
+            hashtags = hashtags,
+            hourOfDay = hourOfDay,
+            minute = minute
         )
 
         // Save to preferences
@@ -655,7 +686,9 @@ object SocialAccountManager {
                         platformName = obj.getString("platformName"),
                         scheduledTimeMillis = obj.getLong("scheduledTimeMillis"),
                         formattedTime = obj.getString("formattedTime"),
-                        hashtags = obj.optString("hashtags", "")
+                        hashtags = obj.optString("hashtags", ""),
+                        hourOfDay = obj.optInt("hourOfDay", -1),
+                        minute = obj.optInt("minute", -1)
                     )
                 )
             }
@@ -677,6 +710,8 @@ object SocialAccountManager {
                 put("scheduledTimeMillis", item.scheduledTimeMillis)
                 put("formattedTime", item.formattedTime)
                 put("hashtags", item.hashtags)
+                put("hourOfDay", item.hourOfDay)
+                put("minute", item.minute)
             }
             array.put(obj)
         }
@@ -714,7 +749,9 @@ object SocialAccountManager {
                 QabasNotificationHelper.ensureChannel(context, QabasNotificationHelper.CHANNEL_PUBLISH_SCHEDULER)
 
                 val notificationTitle = "⏰ حان موعد النشر المثالي على $platformName!"
-                val notificationBody = "«$title» - الخوارزمية في قمة نشاطها الآن لنشر الأثر المبارك 🚀"
+                // ق159: كان النص يدّعي أن «الخوارزمية في قمة نشاطها
+                // الآن» — قياس غير موجود. التذكير موعد اختاره المستخدم.
+                val notificationBody = "«$title» — حان الموعد الذي حددته للنشر"
 
                 val builder = NotificationCompat.Builder(context, QabasNotificationHelper.CHANNEL_PUBLISH_SCHEDULER)
                     .setSmallIcon(R.drawable.ic_stat_qabas)
@@ -753,13 +790,18 @@ class SmartPublishReminderReceiver : BroadcastReceiver() {
     }
 }
 
-/** يعيد ضبط منبهات التذكيرات المستقبلية بعد إعادة تشغيل الجهاز. */
+/** يعيد ضبط منبهات التذكيرات المستقبلية بعد إعادة تشغيل الجهاز، ويعيد تأسيسها على جدار الساعة بعد تغيير المنطقة الزمنية أو ضبط الساعة (ق159). */
 class PublishScheduleBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
         try {
-            val items = SocialAccountManager.getActiveScheduledPublishItems(context)
-            items.forEach { SocialAccountManager.rescheduleItemAlarm(context, it) }
+            when (intent?.action) {
+                Intent.ACTION_BOOT_COMPLETED -> {
+                    val items = SocialAccountManager.getActiveScheduledPublishItems(context)
+                    items.forEach { SocialAccountManager.rescheduleItemAlarm(context, it) }
+                }
+                Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED ->
+                    SocialAccountManager.rebaseScheduledItemsForTimezoneChange(context)
+            }
         } catch (_: Exception) { }
     }
 }

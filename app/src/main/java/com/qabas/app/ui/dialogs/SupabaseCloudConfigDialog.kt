@@ -85,8 +85,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id TEXT PRIMARY KEY,
     display_name TEXT,
     email TEXT,
+    full_name TEXT,
     avatar_url TEXT,
+    role TEXT DEFAULT 'user',
     preferences_json TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
     updated_at_millis BIGINT DEFAULT 0
 );
 
@@ -148,7 +151,18 @@ CREATE TABLE IF NOT EXISTS public.creator_follows (
 CREATE INDEX IF NOT EXISTS creator_follows_creator_idx ON public.creator_follows (creator_id);
 CREATE INDEX IF NOT EXISTS creator_follows_follower_idx ON public.creator_follows (follower_id);
 
--- 7. فتح الصلاحيات (RLS Policies) لتطبيق خادم المسلم
+-- 7. سياسات RLS بأقل صلاحية (ق52)
+-- نسخة ثانية من سياسات FOR ALL USING (true) التي قُتلت في ConnectorsSection في ق34
+-- بقيت هنا: أي مفتاح anon كان يقرأ/يكتب/يحذف كل صفوف users وprojects وreels وprofiles
+-- وuser_settings وreel_comments — منها بريد المستخدمين في users.
+-- السياسات أدناه مطابقة للترحيلات الحية في supabase/migrations
+-- (users: 20261103130000_canonical_cloud_user_identity، وprojects: 202611120001،
+-- وprofiles: 20261106220000/20261106221000/20261106222000، وreels وreel_comments: 202610050003)
+-- مع إضافتين يوافقهما استعمال العميل الفعلي (بلا سياسة حية لهما بعد):
+-- حذف الريلز الخاصة، وتحديث التعليق الخاص.
+-- ملاحظة: id وuser_id نصوص (TEXT) في هذا المخطط، فقارَن auth.uid() بعد تحويله لنص.
+-- أولاً: إسقاط السياسات المفتوحة القديمة لمن لصق السكربت السابق في مشروعه —
+-- بلا هذا الإسقاط تبقى السياسة المفتوحة سارية بجانب الجديدة.
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
@@ -158,15 +172,80 @@ ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.creator_follows ENABLE ROW LEVEL SECURITY;
 
-DO $$ BEGIN
-    CREATE POLICY "Allow public access for app anon users" ON public.users FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon reels" ON public.reels FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon settings" ON public.user_settings FOR ALL USING (true) WITH CHECK (true);
-    CREATE POLICY "Allow public access for app anon comments" ON public.reel_comments FOR ALL USING (true) WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN null;
-END $$;
+DROP POLICY IF EXISTS "Allow public access for app anon users" ON public.users;
+DROP POLICY IF EXISTS "Allow public access for app anon projects" ON public.projects;
+DROP POLICY IF EXISTS "Allow public access for app anon reels" ON public.reels;
+DROP POLICY IF EXISTS "Allow public access for app anon profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public access for app anon settings" ON public.user_settings;
+DROP POLICY IF EXISTS "Allow public access for app anon comments" ON public.reel_comments;
+
+-- users: الصاحب فقط (قراءة/إدراج/تحديث) + قراءة/تحديث المشرفين عبر app_metadata.
+-- بلا سياسة حذف: حذف الحساب إجراء دورة حياة لا يُعرَّض للعميل (كما في الترحيل الحي)؛
+-- ومسح العميل الاحتياطي deleteOwnAccountRows يبقى أفضل جهد ويُسجَّل تحذيراً عند الرفض.
+DROP POLICY IF EXISTS users_select_own ON public.users;
+CREATE POLICY users_select_own ON public.users FOR SELECT TO authenticated USING ((SELECT auth.uid())::text = id);
+DROP POLICY IF EXISTS users_insert_own ON public.users;
+CREATE POLICY users_insert_own ON public.users FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid())::text = id);
+DROP POLICY IF EXISTS users_update_own ON public.users;
+CREATE POLICY users_update_own ON public.users FOR UPDATE TO authenticated USING ((SELECT auth.uid())::text = id) WITH CHECK ((SELECT auth.uid())::text = id);
+DROP POLICY IF EXISTS users_admin_select ON public.users;
+CREATE POLICY users_admin_select ON public.users FOR SELECT TO authenticated USING (lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner'));
+DROP POLICY IF EXISTS users_admin_update ON public.users;
+CREATE POLICY users_admin_update ON public.users FOR UPDATE TO authenticated USING (lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner')) WITH CHECK (lower(COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '')) IN ('admin', 'developer', 'owner'));
+
+-- projects: الصاحب فقط (قراءة/إدراج/تحديث/حذف)؛ وgetFeed يعود بملكية المستخدم وحده كما في الحي.
+REVOKE ALL ON TABLE public.projects FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.projects TO authenticated;
+GRANT ALL ON TABLE public.projects TO service_role;
+DROP POLICY IF EXISTS projects_select_own ON public.projects;
+CREATE POLICY projects_select_own ON public.projects FOR SELECT TO authenticated USING (user_id = auth.uid()::text);
+DROP POLICY IF EXISTS projects_insert_own ON public.projects;
+CREATE POLICY projects_insert_own ON public.projects FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid()::text);
+DROP POLICY IF EXISTS projects_update_own ON public.projects;
+CREATE POLICY projects_update_own ON public.projects FOR UPDATE TO authenticated USING (user_id = auth.uid()::text) WITH CHECK (user_id = auth.uid()::text);
+DROP POLICY IF EXISTS projects_delete_own ON public.projects;
+CREATE POLICY projects_delete_own ON public.projects FOR DELETE TO authenticated USING (user_id = auth.uid()::text);
+
+-- profiles: الصاحب فقط؛ والإدراج يشترط role='user' (التطبيق يدرج به دائماً ولا يرفّع الأدوار أبداً).
+GRANT SELECT ON TABLE public.profiles TO authenticated;
+GRANT INSERT ON TABLE public.profiles TO authenticated;
+GRANT UPDATE (email, full_name, avatar_url) ON TABLE public.profiles TO authenticated;
+DROP POLICY IF EXISTS profiles_select_own ON public.profiles;
+CREATE POLICY profiles_select_own ON public.profiles FOR SELECT TO authenticated USING (id = (SELECT auth.uid())::text);
+DROP POLICY IF EXISTS profiles_insert_own ON public.profiles;
+CREATE POLICY profiles_insert_own ON public.profiles FOR INSERT TO authenticated WITH CHECK (id = (SELECT auth.uid())::text AND role = 'user');
+DROP POLICY IF EXISTS profiles_update_own ON public.profiles;
+CREATE POLICY profiles_update_own ON public.profiles FOR UPDATE TO authenticated USING (id = (SELECT auth.uid())::text) WITH CHECK (id = (SELECT auth.uid())::text);
+
+-- user_settings: الصاحب فقط (upsert يحتاج إدراجاً وتحديثاً؛ والحذف لمسح الحساب الاحتياطي).
+DROP POLICY IF EXISTS user_settings_select_own ON public.user_settings;
+CREATE POLICY user_settings_select_own ON public.user_settings FOR SELECT TO authenticated USING (user_id = auth.uid()::text);
+DROP POLICY IF EXISTS user_settings_insert_own ON public.user_settings;
+CREATE POLICY user_settings_insert_own ON public.user_settings FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid()::text);
+DROP POLICY IF EXISTS user_settings_update_own ON public.user_settings;
+CREATE POLICY user_settings_update_own ON public.user_settings FOR UPDATE TO authenticated USING (user_id = auth.uid()::text) WITH CHECK (user_id = auth.uid()::text);
+DROP POLICY IF EXISTS user_settings_delete_own ON public.user_settings;
+CREATE POLICY user_settings_delete_own ON public.user_settings FOR DELETE TO authenticated USING (user_id = auth.uid()::text);
+
+-- reels: قراءة النشطة للجميع؛ وكتابة الصاحب فقط (حذف الخاصة إضافة بلا سياسة حية بعد).
+DROP POLICY IF EXISTS "Anyone can view active reels" ON public.reels;
+CREATE POLICY "Anyone can view active reels" ON public.reels FOR SELECT USING (is_active = TRUE);
+DROP POLICY IF EXISTS "Users can create their own reels" ON public.reels;
+CREATE POLICY "Users can create their own reels" ON public.reels FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+DROP POLICY IF EXISTS "Users can update their own reels" ON public.reels;
+CREATE POLICY "Users can update their own reels" ON public.reels FOR UPDATE USING (auth.uid()::text = user_id::text);
+DROP POLICY IF EXISTS "Users can delete their own reels" ON public.reels;
+CREATE POLICY "Users can delete their own reels" ON public.reels FOR DELETE USING (auth.uid()::text = user_id::text);
+
+-- reel_comments: قراءة للجميع؛ وكتابة/تحديث/حذف الصاحب فقط (التحديث إضافة بلا سياسة حية بعد).
+DROP POLICY IF EXISTS "Anyone can view comments" ON public.reel_comments;
+CREATE POLICY "Anyone can view comments" ON public.reel_comments FOR SELECT USING (TRUE);
+DROP POLICY IF EXISTS "Authenticated users can comment" ON public.reel_comments;
+CREATE POLICY "Authenticated users can comment" ON public.reel_comments FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+DROP POLICY IF EXISTS "Users can update their own comments" ON public.reel_comments;
+CREATE POLICY "Users can update their own comments" ON public.reel_comments FOR UPDATE USING (auth.uid()::text = user_id::text) WITH CHECK (auth.uid()::text = user_id::text);
+DROP POLICY IF EXISTS "Users can delete their own comments" ON public.reel_comments;
+CREATE POLICY "Users can delete their own comments" ON public.reel_comments FOR DELETE USING (auth.uid()::text = user_id::text);
 
 -- Keep social relationship rows private; users can read/write only their own rows.
 DROP POLICY IF EXISTS "Allow public access for app anon likes" ON public.reel_likes;

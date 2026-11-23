@@ -35,7 +35,10 @@ data class KeyValidationResult(
     val errorCode: Int? = null,
     val rawError: String? = null,
     val explanation: String = "",
-    val suggestedFix: String = ""
+    val suggestedFix: String = "",
+    // ق94: زمن الفحص نفسه — كان يُسجَّل في المتعقب فقط فلا يصل
+    // للوحة (متوسطها كان من بيانات قديمة عابرة للجلسات).
+    val latencyMs: Long = 0L
 )
 
 object ApiKeyValidator {
@@ -44,9 +47,20 @@ object ApiKeyValidator {
         .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
+    // ق94: الفحص يرجع نتيجة دائماً ولا يرمي أبداً (عدا الإلغاء) —
+    // كان أي رمي من التنظيف أو التسجيل يُسقط فحص الكل في المركز
+    // ويترك زر «جاري فحص...» معلقاً بلا نتيجة.
     suspend fun validateKey(context: Context, serviceType: String, key: String, hint: String? = null): KeyValidationResult = withContext(Dispatchers.IO) {
         val t0 = System.nanoTime()
-        val result = executeValidation(context, serviceType, key, hint)
+        val result = runCatching { executeValidation(context, serviceType, key, hint) }.getOrElse { e ->
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            KeyValidationResult(
+                isValid = false,
+                summary = "تعذر إكمال الفحص ⚠️",
+                explanation = e.localizedMessage ?: "خطأ غير متوقع أثناء الفحص.",
+                suggestedFix = "أعد المحاولة؛ وإن تكرر فأعد تشغيل التطبيق."
+            )
+        }
         val latencyMs = ((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(1L)
         val apiName = when (serviceType.lowercase()) {
             "gemini" -> "Gemini"
@@ -55,10 +69,14 @@ object ApiKeyValidator {
             "pixabay" -> "Pixabay"
             "leonardo" -> "Leonardo.ai"
             "firebase" -> "Firebase"
+            // ق136: اسمان قياسيان لا آليان — كان «qf» يُسجَّل «Qf»
+            // فيشتّت إحصاءات Quran Foundation، و«google_auth» «Google_auth».
+            "qf" -> "Quran Foundation"
+            "google_auth" -> "Google Auth"
             else -> serviceType.replaceFirstChar { it.uppercase() }
         }
-        ApiUsageTracker.recordValidationResult(context, apiName, latencyMs, result)
-        result
+        runCatching { ApiUsageTracker.recordValidationResult(context, apiName, latencyMs, result) }
+        result.copy(latencyMs = latencyMs)
     }
 
     private suspend fun executeValidation(context: Context, serviceType: String, key: String, hint: String? = null): KeyValidationResult = withContext(Dispatchers.IO) {
@@ -353,7 +371,17 @@ object ApiKeyValidator {
                     }
                 }
                 "supabase" -> {
-                    val supabaseUrl = hint?.takeIf { it.startsWith("https://") } ?: SupabaseConfig.url
+                    // ق94: بطاقة SUPABASE_URL نفسها كانت تُفحص بإرسال
+                    // الرابط نفسه كـ apikey فيرد 401 دائماً — فلا يمكن
+                    // أن تظهر متصلة أبداً (سقف المركز 9/10) ويُحسب
+                    // الرابط فاشلاً في تنبيهات المطور أيضاً. الرابط
+                    // يُفحص هنا بمفتاح Anon الحقيقي (التلميح أو
+                    // الإعداد)، والمفتاح يُفحص بالرابط تلميحاً كما كان.
+                    val keyIsUrl = trimmedKey.startsWith("https://")
+                    val supabaseUrl = if (keyIsUrl) trimmedKey
+                    else hint?.takeIf { it.startsWith("https://") } ?: SupabaseConfig.url
+                    val apiKey = if (keyIsUrl) hint?.takeIf { it.isNotBlank() } ?: SupabaseConfig.key
+                    else trimmedKey
                     if (supabaseUrl.isBlank() || !supabaseUrl.startsWith("https://")) {
                         return@withContext KeyValidationResult(
                             isValid = false,
@@ -362,11 +390,19 @@ object ApiKeyValidator {
                             suggestedFix = "تأكد من ضبط SUPABASE_URL في ملف الإعدادات."
                         )
                     }
+                    if (apiKey.isBlank()) {
+                        return@withContext KeyValidationResult(
+                            isValid = false,
+                            summary = "مفتاح Anon مفقود 🔴",
+                            explanation = "الرابط وحده لا يثبت الاتصال — التحقق يحتاج مفتاح Anon معه.",
+                            suggestedFix = "أدخل SUPABASE_ANON_KEY أولاً ثم أعد فحص الرابط."
+                        )
+                    }
                     val url = "$supabaseUrl/rest/v1/"
                     val request = Request.Builder()
                         .url(url)
-                        .header("apikey", trimmedKey)
-                        .header("Authorization", "Bearer $trimmedKey")
+                        .header("apikey", apiKey)
+                        .header("Authorization", "Bearer $apiKey")
                         .build()
                     val response = client.newCall(request).execute()
                     val code = response.code

@@ -216,8 +216,18 @@ object DevWorkQueuesRepository {
     ): Boolean {
         if (!approve && reason.isBlank()) return false
         val reviewer = SupabaseServices.Auth.getCurrentUserId()
+        val client = SupabaseServices.client ?: return false
+        // ق55: الترتيب مقصود — ضبط ظهور المقطع أولاً: toggleReelActive
+        // يضبط قيمة مطلقة (is_active=approve) فيُعاد بأمان، بينما تحديث
+        // الصف أولاً ثم فشل الضبط (مثلاً RLS يرفض تعديل مقطع لا يملكه
+        // المراجع قبل ترحيل reels_moderator_update) كان يترك نصف قرار:
+        // مرفوض يبقى ظاهراً علناً بلا عنصر معلّق، وموافَق على مخفي يبقى
+        // مخفياً. هنا فشل أي خطوة يُبقي العنصر معلّقاً لإعادة المحاولة.
+        if (!SupabaseServices.Profiles.toggleReelActive(reelId, approve)) {
+            Log.w(TAG, "reviewModeration: reel toggle failed for $reelId")
+            return false
+        }
         val ok = runCatching {
-            val client = SupabaseServices.client ?: return false
             client.postgrest.from("moderation_queue").update(
                 buildJsonObject {
                     put("status", if (approve) "approved" else "rejected")
@@ -227,7 +237,7 @@ object DevWorkQueuesRepository {
                 }
             ) { filter { eq("id", queueId) } }
             // حالة المقطع نفسها يضبطها إجراء المراجع (لا عمود مراجعة في reels).
-            SupabaseServices.Profiles.toggleReelActive(reelId, approve)
+            true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "reviewModeration failed: ${it.message}") }.getOrDefault(false)
         if (ok) {
             AuditLogger.log(
@@ -428,11 +438,19 @@ fun DevWorkQueuesScreen(onBack: () -> Unit = {}) {
     fun refresh() {
         loading = true
         scope.launch {
-            counts = DevWorkQueuesRepository.loadPendingCounts()
             moderation = DevWorkQueuesRepository.getPendingModeration()
             reelTitles = DevWorkQueuesRepository.getReelTitlesById()
             support = DevWorkQueuesRepository.getSupportThreads()
             crashes = DevWorkQueuesRepository.getCrashQueue()
+            // العدّادات من القوائم المقروءة نفسها لا من قراءة ثانية (ق24):
+            // loadPendingCounts كان يعيد قراءة القوائم الثلاث نفسها (3
+            // استعلامات زائدة في كل تحديث)، وقد تختلف أرقامه عن القوائم
+            // إن تغيّرت البيانات بين القراءتين.
+            counts = DevQueuePendingCounts(
+                moderationPending = moderation.size,
+                supportNew = support.count { it.status == "new" },
+                crashNew = crashes.count { it.status == "new" }
+            )
             loading = false
         }
     }
@@ -482,6 +500,7 @@ fun DevWorkQueuesScreen(onBack: () -> Unit = {}) {
                 items = moderation,
                 reelTitles = reelTitles,
                 onReviewed = { refresh() },
+                onNotice = { notice = it },
                 onBackfill = {
                     scope.launch {
                         val n = DevWorkQueuesRepository.enqueueUnreviewedReels()
@@ -490,17 +509,20 @@ fun DevWorkQueuesScreen(onBack: () -> Unit = {}) {
                     }
                 }
             )
-            QueueTab.SUPPORT -> SupportQueueContent(items = support, onChanged = { refresh() })
-            QueueTab.CRASH -> CrashQueueContent(items = crashes, onChanged = { refresh() })
+            QueueTab.SUPPORT -> SupportQueueContent(items = support, onChanged = { refresh() }, onNotice = { notice = it })
+            QueueTab.CRASH -> CrashQueueContent(items = crashes, onChanged = { refresh() }, onNotice = { notice = it })
         }
     }
 }
+
+private const val ACTION_FAILED_NOTICE = "تعذّر تنفيذ الإجراء — تحقق من الاتصال وحاول مجدداً."
 
 @Composable
 private fun ModerationQueueContent(
     items: List<ModerationQueueRow>,
     reelTitles: Map<String, String>,
     onReviewed: () -> Unit,
+    onNotice: (String) -> Unit = {},
     onBackfill: () -> Unit
 ) {
     val context = LocalContext.current
@@ -539,8 +561,9 @@ private fun ModerationQueueContent(
                             onClick = {
                                 busy = true
                                 scope.launch {
-                                    DevWorkQueuesRepository.reviewModeration(context, item.id, item.reelId, true, reason)
+                                    val ok = DevWorkQueuesRepository.reviewModeration(context, item.id, item.reelId, true, reason)
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onReviewed()
                                 }
                             },
@@ -550,8 +573,9 @@ private fun ModerationQueueContent(
                             onClick = {
                                 busy = true
                                 scope.launch {
-                                    DevWorkQueuesRepository.reviewModeration(context, item.id, item.reelId, false, reason)
+                                    val ok = DevWorkQueuesRepository.reviewModeration(context, item.id, item.reelId, false, reason)
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onReviewed()
                                 }
                             },
@@ -565,7 +589,7 @@ private fun ModerationQueueContent(
 }
 
 @Composable
-private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Unit) {
+private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Unit, onNotice: (String) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -587,8 +611,9 @@ private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Uni
                             onClick = {
                                 busy = true
                                 scope.launch {
-                                    DevWorkQueuesRepository.setSupportThreadStatus(context, thread, "in_progress")
+                                    val ok = DevWorkQueuesRepository.setSupportThreadStatus(context, thread, "in_progress")
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onChanged()
                                 }
                             },
@@ -598,8 +623,9 @@ private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Uni
                             onClick = {
                                 busy = true
                                 scope.launch {
-                                    DevWorkQueuesRepository.setSupportThreadStatus(context, thread, "done")
+                                    val ok = DevWorkQueuesRepository.setSupportThreadStatus(context, thread, "done")
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onChanged()
                                 }
                             },
@@ -615,8 +641,9 @@ private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Uni
                                         "urgent" -> "low"
                                         else -> "normal"
                                     }
-                                    DevWorkQueuesRepository.setSupportThreadStatus(context, thread, thread.status, priority = next)
+                                    val ok = DevWorkQueuesRepository.setSupportThreadStatus(context, thread, thread.status, priority = next)
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onChanged()
                                 }
                             },
@@ -630,7 +657,7 @@ private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Uni
 }
 
 @Composable
-private fun CrashQueueContent(items: List<CrashGroupItem>, onChanged: () -> Unit) {
+private fun CrashQueueContent(items: List<CrashGroupItem>, onChanged: () -> Unit, onNotice: (String) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -669,8 +696,9 @@ private fun CrashQueueContent(items: List<CrashGroupItem>, onChanged: () -> Unit
                             onClick = {
                                 busy = true
                                 scope.launch {
-                                    DevWorkQueuesRepository.setCrashStatus(context, item, "fixing", release)
+                                    val ok = DevWorkQueuesRepository.setCrashStatus(context, item, "fixing", release)
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onChanged()
                                 }
                             },
@@ -680,8 +708,9 @@ private fun CrashQueueContent(items: List<CrashGroupItem>, onChanged: () -> Unit
                             onClick = {
                                 busy = true
                                 scope.launch {
-                                    DevWorkQueuesRepository.setCrashStatus(context, item, "fixed", release)
+                                    val ok = DevWorkQueuesRepository.setCrashStatus(context, item, "fixed", release)
                                     busy = false
+                                    if (!ok) onNotice(ACTION_FAILED_NOTICE)
                                     onChanged()
                                 }
                             },

@@ -2,12 +2,20 @@ package com.qabas.app
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import android.text.TextUtils
 import android.widget.Toast
+import androidx.core.content.res.ResourcesCompat
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -38,8 +46,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 
@@ -400,11 +410,27 @@ fun AutoThumbnailGeneratorDialog(
                     onClick = {
                         isGeneratingTitles = true
                         scope.launch {
-                            delay(1200)
-                            headlineText = selectedPreset.sampleHeadline
-                            sublineText = selectedPreset.sampleSubline
+                            // ق155: كان الزر «يولّد» بلا ذكاء اصطناعي —
+                            // تأخير 1200ms ثم نسخ نص القالب الثابت مع
+                            // تنبيه «تم الخلق تلقائياً». الآن استدعاء
+                            // Groq حقيقي، وعند فشله يُستخدم نص القالب
+                            // مع تنبيه صادق بذلك.
+                            val generated = try {
+                                RealGroqService.chatOrGenerate(
+                                    "من هذا العنوان: \"$headlineText\" (موضوع: ${selectedPreset.name})، اقترح عنوان فيديو جذاباً قصيراً (سطر واحد) وجملة خطاف فرعية قصيرة (سطر واحد). أخرج سطرين فقط: السطر الأول العنوان، والسطر الثاني الجملة."
+                                )
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                            val lines = generated?.lines()?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+                            if (lines.size >= 2) {
+                                headlineText = lines[0]
+                                sublineText = lines[1]
+                                Toast.makeText(context, "تم توليد عنوان وجملة خطاف بالذكاء الاصطناعي! ⚡", Toast.LENGTH_SHORT).show()
+                            } else {
+                                headlineText = selectedPreset.sampleHeadline
+                                sublineText = selectedPreset.sampleSubline
+                                Toast.makeText(context, "تعذّر التوليد الذكي — استُخدم عنوان القالب.", Toast.LENGTH_SHORT).show()
+                            }
                             isGeneratingTitles = false
-                            Toast.makeText(context, "تم خَلق عنوان وجملة خطاف عالية التفاعل تلقائياً! ⚡", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
@@ -430,22 +456,33 @@ fun AutoThumbnailGeneratorDialog(
                         onClick = {
                             isExporting = true
                             scope.launch {
-                                val path = saveThumbnailHighResToGallery(
+                                // ق155: كان فشل الحفظ (null) يُبشَّر به
+                                // «تم إعداد الغلاف وجاهزيته!» وتُغلق
+                                // الشاشة؛ وكان التنبيه يدّعي «4K» بينما
+                                // الأقصى 1920×1080. الآن: فشل صادق بلا
+                                // إغلاق، ونجاح بلا ادعاء دقة، وتنبيه إن
+                                // حُفظ الغلاف بلا صورة خلفيته.
+                                val (path, backgroundLoaded) = saveThumbnailHighResToGallery(
                                     context = context,
                                     headlineText = headlineText,
                                     sublineText = sublineText,
                                     topicBadge = topicBadge,
                                     aspectRatio = selectedRatio,
                                     frameStyle = selectedFrameStyle,
-                                    showDevWatermark = showDevWatermark
+                                    showDevWatermark = showDevWatermark,
+                                    bgImageUrl = selectedPreset.bgImageUrl
                                 )
                                 isExporting = false
                                 if (path != null) {
-                                    Toast.makeText(context, "تم حفظ الغلاف المصغر بدقة عالية 4K في معرض الصور! 🖼️✦", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(
+                                        context,
+                                        if (backgroundLoaded) "تم حفظ الغلاف المصغر بدقة عالية في معرض الصور! 🖼️✦"
+                                        else "تم حفظ الغلاف، لكن تعذّر تحميل صورة الخلفية — حُفظ بتدرج داكن فقط.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                     onDismiss()
                                 } else {
-                                    Toast.makeText(context, "تم إعداد الغلاف وجاهزيته!", Toast.LENGTH_SHORT).show()
-                                    onDismiss()
+                                    Toast.makeText(context, "تعذّر حفظ الغلاف — تحقق من مساحة التخزين والأذونات وحاول مجدداً.", Toast.LENGTH_LONG).show()
                                 }
                             }
                         },
@@ -473,7 +510,8 @@ fun AutoThumbnailGeneratorDialog(
                                     topicBadge = topicBadge,
                                     aspectRatio = selectedRatio,
                                     frameStyle = selectedFrameStyle,
-                                    showDevWatermark = showDevWatermark
+                                    showDevWatermark = showDevWatermark,
+                                    bgImageUrl = selectedPreset.bgImageUrl
                                 )
                             }
                         },
@@ -492,15 +530,34 @@ fun AutoThumbnailGeneratorDialog(
 }
 
 // Real High-Resolution Canvas Renderer for Thumbnails
-private fun renderThumbnailBitmap(
+/** نتيجة الرندر: الصورة + هل حُمّلت خلفية القالب فعلاً. */
+private data class ThumbnailRenderResult(val bitmap: Bitmap, val backgroundLoaded: Boolean)
+
+/** تحميل صورة خلفية القالب (OkHttp على IO كسائر الشبكة في المشروع). */
+private suspend fun loadThumbnailBackground(url: String?): Bitmap? = withContext(Dispatchers.IO) {
+    if (url.isNullOrBlank()) return@withContext null
+    try {
+        val request = Request.Builder().url(url).header("User-Agent", "QabasStudio/1.0").build()
+        SharedHttpClient.instance.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@withContext null
+            val bytes = response.body?.bytes() ?: return@withContext null
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private suspend fun renderThumbnailBitmap(
     context: Context,
     headlineText: String,
     sublineText: String,
     topicBadge: String,
     aspectRatio: ThumbnailAspectRatio,
     frameStyle: IslamicFrameStyle,
-    showDevWatermark: Boolean
-): Bitmap {
+    showDevWatermark: Boolean,
+    bgImageUrl: String? = null
+): ThumbnailRenderResult {
     val (width, height) = when (aspectRatio) {
         ThumbnailAspectRatio.YOUTUBE_16_9 -> 1920 to 1080
         ThumbnailAspectRatio.SHORTS_9_16 -> 1080 to 1920
@@ -511,17 +568,52 @@ private fun renderThumbnailBitmap(
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
 
-    // 1. Background Fill & Radial Gradient
-    val bgPaint = Paint().apply {
-        isAntiAlias = true
-        shader = RadialGradient(
-            width / 2f, height / 2f, width.toFloat(),
-            intArrayOf(frameStyle.secondaryColor.toArgb(), android.graphics.Color.parseColor("#0F172A"), android.graphics.Color.BLACK),
-            null,
-            Shader.TileMode.CLAMP
+    // 1. خلفية القالب كما في المعاينة — كانت المعاينة تعرض صورة
+    // القالب (AsyncImage بقص مركزي) بينما الملف المحفوظ تدرج
+    // داكن فقط؛ فالغلاف المصدَّر لم يكن ما وافق عليه المستخدم.
+    // عند تعذّر التحميل يبقى التدرج بديلاً معلناً في النتيجة.
+    val bgBitmap = loadThumbnailBackground(bgImageUrl)
+    if (bgBitmap != null) {
+        val scale = maxOf(width / bgBitmap.width.toFloat(), height / bgBitmap.height.toFloat())
+        val srcW = (width / scale).toInt().coerceAtMost(bgBitmap.width)
+        val srcH = (height / scale).toInt().coerceAtMost(bgBitmap.height)
+        val srcLeft = ((bgBitmap.width - srcW) / 2).coerceAtLeast(0)
+        val srcTop = ((bgBitmap.height - srcH) / 2).coerceAtLeast(0)
+        canvas.drawBitmap(
+            bgBitmap,
+            Rect(srcLeft, srcTop, srcLeft + srcW, srcTop + srcH),
+            RectF(0f, 0f, width.toFloat(), height.toFloat()),
+            null
         )
+        bgBitmap.recycle()
+        // تدرج داكن كالمعاينة لتبقى النصوص مقروءة فوق الصورة.
+        val overlayPaint = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, height.toFloat(),
+                intArrayOf(
+                    android.graphics.Color.argb(102, 0, 0, 0),
+                    android.graphics.Color.argb(153, 0, 0, 0),
+                    frameStyle.secondaryColor.copy(alpha = 0.92f).toArgb()
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), overlayPaint)
+    } else {
+        // Background Fill & Radial Gradient (بلا صورة خلفية).
+        val bgPaint = Paint().apply {
+            isAntiAlias = true
+            shader = RadialGradient(
+                width / 2f, height / 2f, width.toFloat(),
+                intArrayOf(frameStyle.secondaryColor.toArgb(), android.graphics.Color.parseColor("#0F172A"), android.graphics.Color.BLACK),
+                null,
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
     }
-    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+    val backgroundLoaded = bgBitmap != null
 
     // 2. Islamic Frame Border
     val framePaint = Paint().apply {
@@ -546,12 +638,21 @@ private fun renderThumbnailBitmap(
     val badgeRect = RectF((width / 2f) - 220f, 80f, (width / 2f) + 220f, 160f)
     canvas.drawRoundRect(badgeRect, 18f, 18f, badgePaint)
 
+    // ق155: نص الشارة كان سطراً واحداً بحجم ثابت داخل شريط
+    // 440px — فشارة طويلة تفيض عن الشريط وتُقصّ. الآن يُصغَّر
+    // الخط حتى يتسع.
     val badgeTextPaint = Paint().apply {
         isAntiAlias = true
         color = android.graphics.Color.parseColor("#0F172A")
         textSize = 34f
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
+        typeface = runCatching { ResourcesCompat.getFont(context, R.font.cairo_regular) }.getOrNull()
+    }
+    var badgeTextSize = 34f
+    while (badgeTextSize > 18f && badgeTextPaint.measureText(topicBadge) > 400f) {
+        badgeTextSize -= 2f
+        badgeTextPaint.textSize = badgeTextSize
     }
     canvas.drawText(topicBadge, width / 2f, 132f, badgeTextPaint)
 
@@ -573,26 +674,56 @@ private fun renderThumbnailBitmap(
     canvas.drawRoundRect(pillRect, 28f, 28f, pillPaint)
     canvas.drawRoundRect(pillRect, 28f, 28f, pillBorder)
 
-    // 5. Headline Text
-    val headlinePaint = Paint().apply {
+    // 5. Headline Text — ق155: كان drawText سطراً واحداً ممركزاً،
+    // فعنوان طويل يفيض عن جانبي الصورة ويُقصّ بصمت (والمعاينة
+    // تلفّه داخل البطاقة). الآن التفاف متعدد الأسطر بخط القاهرة
+    // نفسه، بحد 3 أسطر مع حذف، ممركز عمودياً داخل البطاقة.
+    val cairoTypeface = runCatching { ResourcesCompat.getFont(context, R.font.cairo_regular) }.getOrNull()
+    val pillWidth = (width - 200).coerceAtLeast(200)
+    val headlinePaint = TextPaint().apply {
         isAntiAlias = true
         color = android.graphics.Color.WHITE
         textSize = if (width > 1200) 56f else 42f
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
+        typeface = cairoTypeface
     }
-    canvas.drawText(headlineText, width / 2f, centerY - 20f, headlinePaint)
+    val headlineLayout = StaticLayout.Builder.obtain(headlineText, 0, headlineText.length, headlinePaint, pillWidth)
+        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+        .setMaxLines(3)
+        .setEllipsize(TextUtils.TruncateAt.END)
+        .build()
 
     // 6. Subline Text
-    if (sublineText.isNotBlank()) {
-        val sublinePaint = Paint().apply {
+    val sublineLayout = if (sublineText.isNotBlank()) {
+        val sublinePaint = TextPaint().apply {
             isAntiAlias = true
             color = frameStyle.primaryColor.toArgb()
             textSize = if (width > 1200) 36f else 28f
             textAlign = Paint.Align.CENTER
             isFakeBoldText = true
+            typeface = cairoTypeface
         }
-        canvas.drawText(sublineText, width / 2f, centerY + 80f, sublinePaint)
+        StaticLayout.Builder.obtain(sublineText, 0, sublineText.length, sublinePaint, pillWidth)
+            .setAlignment(Layout.Alignment.ALIGN_CENTER)
+            .setMaxLines(2)
+            .setEllipsize(TextUtils.TruncateAt.END)
+            .build()
+    } else {
+        null
+    }
+    val textBlockHeight = headlineLayout.height + (sublineLayout?.let { 12 + it.height } ?: 0)
+    var textTop = centerY - textBlockHeight / 2f
+    canvas.save()
+    canvas.translate(100f, textTop)
+    headlineLayout.draw(canvas)
+    canvas.restore()
+    if (sublineLayout != null) {
+        textTop += headlineLayout.height + 12f
+        canvas.save()
+        canvas.translate(100f, textTop)
+        sublineLayout.draw(canvas)
+        canvas.restore()
     }
 
     // 7. Watermark Footer
@@ -607,21 +738,25 @@ private fun renderThumbnailBitmap(
         canvas.drawText("✦ QABAS STUDIO MASTER ✦", width / 2f, height - 70f, markPaint)
     }
 
-    return bitmap
+    return ThumbnailRenderResult(bitmap, backgroundLoaded)
 }
 
-private fun saveThumbnailHighResToGallery(
+private suspend fun saveThumbnailHighResToGallery(
     context: Context,
     headlineText: String,
     sublineText: String,
     topicBadge: String,
     aspectRatio: ThumbnailAspectRatio,
     frameStyle: IslamicFrameStyle,
-    showDevWatermark: Boolean
-): String? {
+    showDevWatermark: Boolean,
+    bgImageUrl: String? = null
+): Pair<String?, Boolean> = withContext(Dispatchers.IO) {
     var bitmap: Bitmap? = null
-    return try {
-        bitmap = renderThumbnailBitmap(context, headlineText, sublineText, topicBadge, aspectRatio, frameStyle, showDevWatermark)
+    var result: Pair<String?, Boolean> = Pair(null, false)
+    try {
+        val rendered = renderThumbnailBitmap(context, headlineText, sublineText, topicBadge, aspectRatio, frameStyle, showDevWatermark, bgImageUrl)
+        bitmap = rendered.bitmap
+        result = Pair(null, rendered.backgroundLoaded)
         val fileName = "QABAS_THUMBNAIL_${System.currentTimeMillis()}.png"
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -636,7 +771,7 @@ private fun saveThumbnailHighResToGallery(
                 stream?.use { out ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
-                return uri.toString()
+                result = Pair(uri.toString(), rendered.backgroundLoaded)
             }
         } else {
             val imagesDir = context.getExternalFilesDir(null)
@@ -644,29 +779,36 @@ private fun saveThumbnailHighResToGallery(
             FileOutputStream(imageFile).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
-            return imageFile.absolutePath
+            result = Pair(imageFile.absolutePath, rendered.backgroundLoaded)
         }
-        null
     } catch (e: Exception) {
         e.printStackTrace()
-        null
+        result = Pair(null, false)
     } finally {
         bitmap?.recycle()
     }
+    result
 }
 
-private fun shareThumbnailImage(
+private suspend fun shareThumbnailImage(
     context: Context,
     headlineText: String,
     sublineText: String,
     topicBadge: String,
     aspectRatio: ThumbnailAspectRatio,
     frameStyle: IslamicFrameStyle,
-    showDevWatermark: Boolean
-) {
+    showDevWatermark: Boolean,
+    bgImageUrl: String? = null
+) = withContext(Dispatchers.IO) {
     var bitmap: Bitmap? = null
     try {
-        bitmap = renderThumbnailBitmap(context, headlineText, sublineText, topicBadge, aspectRatio, frameStyle, showDevWatermark)
+        val rendered = renderThumbnailBitmap(context, headlineText, sublineText, topicBadge, aspectRatio, frameStyle, showDevWatermark, bgImageUrl)
+        bitmap = rendered.bitmap
+        if (!rendered.backgroundLoaded) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "تعذّر تحميل صورة الخلفية — تُشارَك نسخة بتدرج داكن.", Toast.LENGTH_LONG).show()
+            }
+        }
         val cacheDir = context.cacheDir
         val file = File(cacheDir, "qabas_shared_thumbnail.png")
         FileOutputStream(file).use { out ->
@@ -682,7 +824,10 @@ private fun shareThumbnailImage(
         }
         context.startActivity(android.content.Intent.createChooser(intent, "مشاركة الغلاف المصغر"))
     } catch (e: Exception) {
-        Toast.makeText(context, "تعذر إعداد مشاركة الغلاف: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        // ق155: جسم الدالة على IO الآن — والتنبيه يحتاج Main.
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "تعذر إعداد مشاركة الغلاف: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
     } finally {
         bitmap?.recycle()
     }

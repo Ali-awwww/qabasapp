@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.speech.tts.TextToSpeech
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -54,6 +55,10 @@ fun FullSahihReaderScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<FullSahihHadith>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
+    // ق82: مرشّح «في هذا الباب فقط» — يقتصر البحث على الباب المفتوح
+    // بدل الكتاب كاملاً؛ الافتراضي الكتاب كاملاً كما كان (والعبارة
+    // النائبة في شريط البحث صادقة على ذلك).
+    var searchChapterOnly by remember { mutableStateOf(false) }
     var expandedHadithIds by remember { mutableStateOf(setOf<Int>()) }
     var selectedHadith by remember { mutableStateOf<FullSahihHadith?>(null) }
     var showDetailsDialog by remember { mutableStateOf(false) }
@@ -63,11 +68,21 @@ fun FullSahihReaderScreen(
     var speakingHadithId by remember { mutableStateOf<Int?>(null) }
 
     var visibleHadithCount by remember { mutableStateOf(30) }
-    val listState = rememberLazyListState()
+    // حالة تمرير مستقلة لكل قائمة: حالة واحدة مشتركة كانت تجعل فتح
+    // باب بعد التمرير في قائمة الأبواب يهبط بقائمة الأحاديث إلى
+    // أسفلها (الموضع القديم يتجاوز 30 عنصراً فيُثبَّت عند النهاية).
+    val chaptersListState = rememberLazyListState()
+    val hadithsListState = rememberLazyListState()
+    val searchListState = rememberLazyListState()
+    val activeListState = when {
+        searchQuery.isNotBlank() -> searchListState
+        selectedChapterId != null -> hadithsListState
+        else -> chaptersListState
+    }
 
-    val shouldLoadMore by remember {
+    val shouldLoadMore by remember(activeListState) {
         derivedStateOf {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val lastVisible = activeListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             lastVisible >= (visibleHadithCount - 10)
         }
     }
@@ -96,21 +111,28 @@ fun FullSahihReaderScreen(
 
     LaunchedEffect(selectedChapterId) {
         val chId = selectedChapterId ?: return@LaunchedEffect
+        hadithsListState.scrollToItem(0)
         LibraryReadingStateStore.saveSahihChapterId(context, bookType.id, chId)
         isLoadingHadiths = true
         hadiths = FullSahihHadithRepository.getHadithsForChapter(context, bookType, chId)
         isLoadingHadiths = false
     }
 
-    LaunchedEffect(bookType, searchQuery) {
+    LaunchedEffect(bookType, searchQuery, searchChapterOnly, selectedChapterId) {
         if (searchQuery.isBlank()) {
             searchResults = emptyList()
             isSearching = false
             return@LaunchedEffect
         }
         isSearching = true
+        searchListState.scrollToItem(0)
         kotlinx.coroutines.delay(300)
-        searchResults = FullSahihHadithRepository.searchHadiths(context, bookType, searchQuery)
+        searchResults = FullSahihHadithRepository.searchHadiths(
+            context,
+            bookType,
+            searchQuery,
+            chapterId = if (searchChapterOnly) selectedChapterId else null
+        )
         isSearching = false
     }
 
@@ -125,9 +147,28 @@ fun FullSahihReaderScreen(
     DisposableEffect(Unit) {
         val ttsInit = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("ar")
+                ttsInit.language = Locale("ar")
             }
         }
+        // مستمع اكتمال واحد: بلا مستمع كان isSpeaking يبقى عالقاً بعد
+        // انتهاء الحديث طبيعياً (البطاقة خضراء وأيقونة إيقاف إلى الأبد).
+        // تُصفّى الحالة فقط إن طابق معرّف المنطوق الحديث الجاري نطقه،
+        // حتى لا يمسح خطأ نطقٍ مُطفأ حالة نطق جديد بدأ بعده.
+        ttsInit.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId == speakingHadithId?.let { "hadith_$it" }) {
+                    isSpeaking = false
+                    speakingHadithId = null
+                }
+            }
+            override fun onError(utteranceId: String?) {
+                if (utteranceId == speakingHadithId?.let { "hadith_$it" }) {
+                    isSpeaking = false
+                    speakingHadithId = null
+                }
+            }
+        })
         tts = ttsInit
 
         onDispose {
@@ -143,7 +184,12 @@ fun FullSahihReaderScreen(
     }
 
     fun speakHadith(hadith: FullSahihHadith) {
-        val currentTts = tts ?: return
+        // ق145: زر القراءة كان يفشل بصمت — TTS غير مهيأ بعد أو غير
+        // متاح على الجهاز فيُتجاهل النقر بلا أي رد.
+        val currentTts = tts ?: run {
+            Toast.makeText(context, "القراءة الصوتية غير جاهزة بعد — أعد المحاولة", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (isSpeaking && speakingHadithId == hadith.id) {
             currentTts.stop()
             isSpeaking = false
@@ -156,6 +202,7 @@ fun FullSahihReaderScreen(
                 isSpeaking = true
                 speakingHadithId = hadith.id
             } else {
+                Toast.makeText(context, "تعذّرت القراءة الصوتية على هذا الجهاز", Toast.LENGTH_SHORT).show()
                 isSpeaking = false
                 speakingHadithId = null
             }
@@ -169,6 +216,11 @@ fun FullSahihReaderScreen(
     val selectedChapter = remember(selectedChapterId, chapters) {
         chapters.firstOrNull { it.id == selectedChapterId }
     }
+    // ق82: خريطة اسم الباب لكل نتيجة بحث — بطاقة النتيجة كانت بلا
+    // أي سياق (رقم الحديث فقط) فلا يعرف المستخدم من أي باب جاءت.
+    val chapterNames = remember(chapters) {
+        chapters.associate { it.id to it.arabic }
+    }
 
     var showQuiz by remember { mutableStateOf(false) }
 
@@ -177,7 +229,7 @@ fun FullSahihReaderScreen(
         topBar = {
             AppleTopBar(
                 title = bookTitle,
-                subtitle = selectedChapter?.arabic ?: "${chapters.size} كتاباً وفصلاً",
+                subtitle = selectedChapter?.arabic ?: "${chapters.size} كتاباً",
                 onBack = {
                     when {
                         selectedChapterId != null -> selectedChapterId = null
@@ -221,6 +273,47 @@ fun FullSahihReaderScreen(
                     )
                 }
 
+                // ق82: مرشّح نطاق البحث — يظهر فقط أثناء البحث وباب مفتوح.
+                if (searchQuery.isNotBlank() && selectedChapter != null) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = searchChapterOnly,
+                            onClick = { searchChapterOnly = !searchChapterOnly },
+                            label = {
+                                Text(
+                                    "في هذا الباب فقط",
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (searchChapterOnly) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.FilterList,
+                                    contentDescription = null,
+                                    tint = if (searchChapterOnly) theme.primary else theme.textSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = theme.primary.copy(alpha = 0.16f),
+                                selectedLabelColor = theme.primary,
+                                containerColor = theme.cardSurface,
+                                labelColor = theme.textSecondary
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = searchChapterOnly,
+                                borderColor = if (searchChapterOnly) theme.primary else theme.separator
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+                }
+
                 // Quick Stats Banner
                 AppleCard(
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -235,7 +328,9 @@ fun FullSahihReaderScreen(
                             Icon(Icons.Default.Search, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "نتائج البحث: ${searchResults.size}",
+                                if (searchResults.size >= 50) "أول 50 نتيجة — قد توجد المزيد؛ ضيّق كلمات البحث"
+                                else if (searchChapterOnly && selectedChapter != null) "نتائج البحث في «${selectedChapter.arabic}»: ${searchResults.size}"
+                                else "نتائج البحث: ${searchResults.size}",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Medium,
@@ -245,8 +340,18 @@ fun FullSahihReaderScreen(
                             Icon(Icons.Default.AutoStories, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                if (selectedChapter != null) selectedChapter.arabic
-                                else "${chapters.size} كتاب • تصفح أو ابحث في جميع الأحاديث",
+                                // ق126: موضع الكتاب داخل الصحيح — كان
+                                // الشريط يعرض الاسم وحده بلا «الكتاب X من Y».
+                                if (selectedChapter != null) {
+                                    val idx = chapters.indexOfFirst { it.id == selectedChapterId }
+                                    val base = if (idx >= 0) "الكتاب ${idx + 1} من ${chapters.size} • ${selectedChapter.arabic}" else selectedChapter.arabic
+                                    // ق145: تقدّم القراءة داخل الباب — كان الشريط يعرض
+                                    // موضع الباب وحده بلا عدد أحاديثه، فلا يعرف القارئ
+                                    // حجم الباب؛ يُعرض العدد بعد اكتمال التحميل فقط
+                                    // حتى لا يكذّب «0 حديثاً» أثناء التحميل أو يعرض
+                                    // عدّاد الباب السابق.
+                                    if (!isLoadingHadiths && hadiths.isNotEmpty()) "$base • ${hadiths.size} حديثاً" else base
+                                } else "${chapters.size} كتاب • تصفح أو ابحث في جميع الأحاديث",
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Medium,
@@ -290,13 +395,14 @@ fun FullSahihReaderScreen(
                             }
                         } else {
                             LazyColumn(
-                                state = listState,
+                                state = searchListState,
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 itemsIndexed(searchResults.take(visibleHadithCount)) { _, hadith ->
                                     FullHadithCard(
                                         hadith = hadith,
+                                        chapterName = chapterNames[hadith.chapterId],
                                         isExpanded = expandedHadithIds.contains(hadith.id),
                                         isSpeaking = speakingHadithId == hadith.id,
                                         onToggleExpand = {
@@ -351,7 +457,7 @@ fun FullSahihReaderScreen(
                             }
                         } else {
                             LazyColumn(
-                                state = listState,
+                                state = chaptersListState,
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -382,7 +488,7 @@ fun FullSahihReaderScreen(
                             }
                         } else {
                             LazyColumn(
-                                state = listState,
+                                state = hadithsListState,
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
@@ -412,12 +518,24 @@ fun FullSahihReaderScreen(
             containerColor = theme.cardSurface,
             shape = RoundedCornerShape(18.dp),
             title = {
-                Text(
-                    "حديث رقم ${selectedHadith!!.idInBook}",
-                    color = theme.textPrimary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        "حديث رقم ${selectedHadith!!.idInBook}",
+                        color = theme.textPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // ق130: حوار التفاصيل كان يعرض الرقم والنص وحدهما —
+                    // بلا كتاب ولا باب، رغم أن الترويسة خلفه تحملهما
+                    // ويغطيها الحوار عند فتحه.
+                    val dialogChapterName = chapterNames[selectedHadith!!.chapterId]
+                    Text(
+                        text = if (dialogChapterName != null) "$bookTitle • باب: $dialogChapterName" else bookTitle,
+                        color = theme.textSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp
+                    )
+                }
             },
             text = {
                 SelectionContainer {
@@ -512,7 +630,10 @@ private fun FullHadithCard(
     isSpeaking: Boolean,
     onToggleExpand: () -> Unit,
     onClickDetails: () -> Unit,
-    onClickSpeak: () -> Unit
+    onClickSpeak: () -> Unit,
+    // ق82: اسم الباب — يُمرَّر في نتائج البحث فقط؛ في تصفح الباب
+    // السياق معلوم أصلاً فلا يُعرض.
+    chapterName: String? = null
 ) {
     val theme = QabasTheme.current
     val containerColor = if (isSpeaking) {
@@ -574,6 +695,19 @@ private fun FullHadithCard(
             }
 
             Spacer(Modifier.height(6.dp))
+
+            // ق82: باب النتيجة في وضع البحث — بلا هذا السطر كانت
+            // النتيجة رقماً بلا مصدر.
+            if (chapterName != null) {
+                Text(
+                    text = chapterName,
+                    color = theme.textSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(4.dp))
+            }
 
             SelectionContainer {
                 Text(

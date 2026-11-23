@@ -371,6 +371,83 @@ object PrayerCalculationHelper {
     private const val KAABA_LAT = 21.422487
     private const val KAABA_LON = 39.826206
 
+    /** معاملات الشمس ليوم مدني: الميل والظهيرة UTC — تُحسب مرة لكل يوم. */
+    private data class SolarParams(val declinationDeg: Double, val utcNoonHour: Double)
+
+    private fun solarParams(year: Int, month: Int, day: Int, longitude: Double): SolarParams {
+        val jd = julianDay(year, month, day) - longitude / (15.0 * 24.0)
+        val d = jd - 2451545.0
+        val g = fixAngle(357.529 + 0.98560028 * d)
+        val q = fixAngle(280.459 + 0.98564736 * d)
+        val l = fixAngle(q + 1.915 * sin(Math.toRadians(g)) + 0.020 * sin(Math.toRadians(2 * g)))
+        val e = 23.439 - 0.00000036 * d
+        val declination = Math.toDegrees(asin(sin(Math.toRadians(e)) * sin(Math.toRadians(l))))
+        val ra = Math.toDegrees(atan2(cos(Math.toRadians(e)) * sin(Math.toRadians(l)), cos(Math.toRadians(l)))) / 15.0
+        val rightAscension = fixHour(ra)
+        val eqT = q / 15.0 - rightAscension
+        return SolarParams(declination, 12.0 - longitude / 15.0 - eqT)
+    }
+
+    /**
+     * ساعة UTC التي تبلغ فيها الشمس زاوية [angle] صباحاً/مساءً، أو null إن
+     * لم تبلغها الشمس أبداً ذلك اليوم (خطوط العرض العالية صيفاً: كان
+     * الاحتياطي القديم يعيد الظهر فيصير الفجر والعشاء 13:08 في برلين).
+     */
+    private fun sunAngleUtcHour(
+        declinationDeg: Double,
+        utcNoonHour: Double,
+        latitude: Double,
+        angle: Double,
+        isMorning: Boolean
+    ): Double? {
+        val sinVal = (-sin(Math.toRadians(angle)) - sin(Math.toRadians(latitude)) * sin(Math.toRadians(declinationDeg))) /
+            (cos(Math.toRadians(latitude)) * cos(Math.toRadians(declinationDeg)))
+        if (sinVal < -1.0 || sinVal > 1.0) return null
+        val diff = Math.toDegrees(acos(sinVal)) / 15.0
+        return if (isMorning) utcNoonHour - diff else utcNoonHour + diff
+    }
+
+    /**
+     * احتياطي خطوط العرض العالية (طريقة الزاوية AngleBased من PrayTimes):
+     * الفجر = الشروق − الليل × (الزاوية/60)، والعشاء = الغروب + الليل ×
+     * (الزاوية/60)، حيث الليل = الغروب → شروق الغد. null إن كان شروق الغد
+     * نفسه مستحيلاً (شمس منتصف الليل) فيبقى احتياطي الظهر القديم.
+     */
+    private fun highLatitudeUtcHour(
+        sunriseUtcHour: Double,
+        sunsetUtcHour: Double,
+        cityCalendar: Calendar,
+        location: CityLocation,
+        angleDeg: Double,
+        isMorning: Boolean
+    ): Double? {
+        val tomorrow = (cityCalendar.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+        val tomorrowSolar = solarParams(
+            tomorrow.get(Calendar.YEAR),
+            tomorrow.get(Calendar.MONTH) + 1,
+            tomorrow.get(Calendar.DAY_OF_MONTH),
+            location.longitude
+        )
+        val tomorrowSunriseUtc = sunAngleUtcHour(
+            tomorrowSolar.declinationDeg, tomorrowSolar.utcNoonHour,
+            location.latitude, 0.833, true
+        ) ?: return null
+        val nightHours = (tomorrowSunriseUtc + 24.0) - sunsetUtcHour
+        if (nightHours <= 0.0) return null
+        return if (isMorning) sunriseUtcHour - nightHours * (angleDeg / 60.0)
+        else sunsetUtcHour + nightHours * (angleDeg / 60.0)
+    }
+
+    /** الشروق ليس صلاة ولا أذان له — تسميات صادقة لمواضع عرض الحدث القادم. */
+    fun nextEventTitle(nextPrayerName: String): String =
+        if (nextPrayerName == "الشروق") "الشروق" else "الصلاة القادمة: $nextPrayerName"
+
+    fun nextEventNoun(nextPrayerName: String): String =
+        if (nextPrayerName == "الشروق") "الشروق" else "صلاة $nextPrayerName"
+
+    fun nextEventTimeLabel(nextPrayerName: String, time: String): String =
+        if (nextPrayerName == "الشروق") "الشروق $time" else "الأذان $time"
+
     /**
      * Calculate Qibla angle from North in degrees (0..360) and distance to Makkah
      */
@@ -495,35 +572,17 @@ object PrayerCalculationHelper {
             return localHourForUtcMillis(utcMillis)
         }
 
-        // Julian Day
-        val jd = julianDay(year, month, day) - location.longitude / (15.0 * 24.0)
-
-        // Sun calculations
-        val d = jd - 2451545.0
-        val g = fixAngle(357.529 + 0.98560028 * d)
-        val q = fixAngle(280.459 + 0.98564736 * d)
-        val l = fixAngle(q + 1.915 * sin(Math.toRadians(g)) + 0.020 * sin(Math.toRadians(2 * g)))
-
-        val e = 23.439 - 0.00000036 * d
-        val declination = Math.toDegrees(asin(sin(Math.toRadians(e)) * sin(Math.toRadians(l))))
-        val ra = Math.toDegrees(atan2(cos(Math.toRadians(e)) * sin(Math.toRadians(l)), cos(Math.toRadians(l)))) / 15.0
-        val rightAscension = fixHour(ra)
-
-        // Equation of Time
-        val eqT = q / 15.0 - rightAscension
+        // معاملات الشمس لليوم (الميل والظهيرة UTC) — من solarParams المشتركة.
+        val solar = solarParams(year, month, day, location.longitude)
+        val declination = solar.declinationDeg
 
         // Solar noon in UTC; each event is converted with the city's offset at its actual instant.
-        val utcNoonBase = 12.0 - location.longitude / 15.0 - eqT
+        val utcNoonBase = solar.utcNoonHour
         val dhuhrBase = localHourForUtcHour(utcNoonBase)
 
-        // Sun altitude helpers
-        fun sunAngleUtcTime(angle: Double, isMorning: Boolean): Double {
-            val sinVal = (-sin(Math.toRadians(angle)) - sin(Math.toRadians(location.latitude)) * sin(Math.toRadians(declination))) /
-                    (cos(Math.toRadians(location.latitude)) * cos(Math.toRadians(declination)))
-            if (sinVal < -1.0 || sinVal > 1.0) return utcNoonBase // Polar fallback
-            val diff = Math.toDegrees(acos(sinVal)) / 15.0
-            return if (isMorning) utcNoonBase - diff else utcNoonBase + diff
-        }
+        // Sun altitude helper — null إن لم تبلغ الشمس الزاوية ذلك اليوم.
+        fun sunAngleUtcTime(angle: Double, isMorning: Boolean): Double? =
+            sunAngleUtcHour(declination, utcNoonBase, location.latitude, angle, isMorning)
 
         // Asr calculation (Shafi'i: shadow = 1, Hanafi: shadow = 2)
         fun asrUtcTime(shadowFactor: Double = 1.0): Double {
@@ -535,15 +594,42 @@ object PrayerCalculationHelper {
             return utcNoonBase + diff
         }
 
+        // الشروق/الغروب نفسيهما لا يوجدان إلا بلا شمس منتصف الليل — عندها
+        // يبقى احتياطي الظهر القديم (تقريبي موثّق لا حل دقيق له محلياً).
+        // ق158: ليل/نهار القطب (ترومسو 69° صيفاً): الشمس لا تغرب أبداً
+        // فالشروق والغروب والفجر والعشاء كلها null، وكان الاحتياطي
+        // يعيد الظهر للجميع فتنهار الأربعة في 12:46 (أذان فجر وعشاء
+        // في منتصف النهار وعدّاد تالٍ بلا معنى — محاكاة بايثون لنفس
+        // المعادلات). القتل: خط العرض الأقرب (nearest latitude —
+        // المعمول به في تطبيقات المواقيت للعروض القطبية): أي حدث
+        // شمسي مستحيل بخط العرض الحقيقي يُحسب بخط عرض 48.5° (بإشارة
+        // خط العرض نفسه) فينفك الانهيار وتبقى الأوقات متسلسلة؛ والفجر
+        // والعشاء في الليل القطبي تبقيان بخط العرض الحقيقي لأنهما
+        // يُحسبان أصلاً (الشمس تغوص دون −18° ليلاً — محاكاة 21 ديسمبر).
+        // والظهر يبقى احتياطياً أخيراً فقط إن استحال حتى خط العرض الأقرب.
+        val extremeLatitude = 48.5 * if (location.latitude < 0) -1.0 else 1.0
+        fun sunAngleUtcTimeAt(latitude: Double, angle: Double, isMorning: Boolean): Double? =
+            sunAngleUtcHour(declination, utcNoonBase, latitude, angle, isMorning)
         val sunriseUtcHour = sunAngleUtcTime(0.833, true)
+            ?: sunAngleUtcTimeAt(extremeLatitude, 0.833, true)
+            ?: utcNoonBase
         val sunsetUtcHour = sunAngleUtcTime(0.833, false)
+            ?: sunAngleUtcTimeAt(extremeLatitude, 0.833, false)
+            ?: utcNoonBase
+        // الفجر/العشاء: احتياطي الزاوية لخطوط العرض العالية قبل الظهر.
         val fajrUtcHour = sunAngleUtcTime(method.fajrAngle, true)
+            ?: highLatitudeUtcHour(sunriseUtcHour, sunsetUtcHour, cityCalendar, location, method.fajrAngle, isMorning = true)
+            ?: sunAngleUtcTimeAt(extremeLatitude, method.fajrAngle, true)
+            ?: utcNoonBase
         val asrUtcHour = asrUtcTime(asrShadowFactor)
         val maghribUtcHour = sunsetUtcHour + (2.0 / 60.0) // 2 min buffer
         val ishaUtcHour = if (method.ishaIntervalMinutes > 0) {
             maghribUtcHour + (method.ishaIntervalMinutes / 60.0)
         } else {
             sunAngleUtcTime(method.ishaAngle, false)
+                ?: highLatitudeUtcHour(sunriseUtcHour, sunsetUtcHour, cityCalendar, location, method.ishaAngle, isMorning = false)
+                ?: sunAngleUtcTimeAt(extremeLatitude, method.ishaAngle, false)
+                ?: utcNoonBase
         }
 
         val sunriseHour = localHourForUtcHour(sunriseUtcHour)

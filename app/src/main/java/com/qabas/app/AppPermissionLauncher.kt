@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -50,10 +51,17 @@ fun AppStartupPermissionHandler(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // التحقق من تسجيل الدخول: منع ظهور نوافذ الأذونات فوق شاشة تسجيل الدخول للحفاظ على التناسق والهدوء البصري
-    val authPrefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
-    val isLoggedIn = authPrefs.getBoolean("is_logged_in", false)
-    if (!isLoggedIn) {
+    // بوابة تفاعلية: منع ظهور نوافذ الأذونات فوق شاشات الدخول/التسجيل
+    // للحفاظ على التناسق والهدوء البصري. البوابة القديمة قرأت
+    // is_logged_in مرة واحدة بـ remember، فبقيت مغلقة إلى الأبد لمن
+    // دخل ضيفاً (is_logged_in=false أصلاً) أو سجّل دخوله في الجلسة
+    // نفسها — فلا تصلهم أذونات الإشعارات والبطارية والمنبه الدقيق
+    // التي يعتمد عليها الأذان أبداً. الحالة هنا من تدفق المصادقة:
+    // ضيف أو مسجّل = بعد القمع، فيعمل المعالج؛ أما Loading وغير
+    // المسجّل فما زالا في القمع فلا نوافذ فوقهما.
+    val authState by SupabaseRepository.getInstance().authState.collectAsState()
+    val pastAuthFunnel = authState is AuthState.Authenticated || authState is AuthState.Guest
+    if (!pastAuthFunnel) {
         return
     }
 
@@ -114,11 +122,27 @@ fun AppStartupPermissionHandler(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isNotificationGranted) {
             list.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        if (!isMicGranted) list.add(Manifest.permission.RECORD_AUDIO)
-        if (!isCameraGranted) list.add(Manifest.permission.CAMERA)
-
+        // (ق64) الميكروفون والكاميرا لا يُطلبان تلقائياً عند الإقلاع:
+        // ميزتا استوديو تُطلبان عند الاستخدام (شاشة الكاميرا تطلب عند
+        // الفتح، وأزرار التسجيل تطلب عند النقر)، وطلبهما بلا سياق يحرق
+        // نافذة النظام الوحيدة فيرفضهما المستخدم فيموتان نهائياً قبل أن
+        // يستعمل الاستوديو أصلاً. بطاقتاهما في الحوار أدناه تطلبان عند النقر.
         if (list.isNotEmpty()) {
             permissionLauncher.launch(list.toTypedArray())
+        }
+    }
+
+    /**
+     * (ق64) طلب إذن تشغيل أو فتح إعدادات النظام عند الرفض النهائي:
+     * المنادِي الميت بلا أثر كان يُطلق دائماً. يُستعمل في بطاقات الحوار.
+     */
+    fun requestRuntimeOrSettings(permission: String) {
+        val activity = context as? Activity
+        if (activity != null && BackgroundPermissionManager.isPermissionPermanentlyDenied(activity, permission)) {
+            Toast.makeText(context, "هذا الإذن مرفوض نهائياً — فعّله من إعدادات التطبيق", Toast.LENGTH_LONG).show()
+            BackgroundPermissionManager.openAppSettings(context)
+        } else {
+            permissionLauncher.launch(arrayOf(permission))
         }
     }
 
@@ -126,6 +150,11 @@ fun AppStartupPermissionHandler(
         refreshStates()
         if (!hasRequestedInitially) {
             requestRuntimePermissions()
+            // (ق64) الدفعة الأولى تمّت حتى حين لا شيء يُطلب (الإشعارات
+            // ممنوحة أصلاً) — هذا العلم هو الفارق بين «لم يُطلب بعد»
+            // و«مرفوض نهائياً» في كشف الرفض النهائي.
+            prefs.edit().putBoolean("initial_permissions_requested", true).apply()
+            hasRequestedInitially = true
         } else {
             val anyVitalMissing = !isBatteryIgnored || !canExactAlarm || !isNotificationGranted || !canFullScreen
             if (anyVitalMissing && !prefs.getBoolean("bg_permission_dismissed", false)) {
@@ -156,7 +185,7 @@ fun AppStartupPermissionHandler(
             },
             onRequestNotifications = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                    requestRuntimeOrSettings(Manifest.permission.POST_NOTIFICATIONS)
                 } else {
                     BackgroundPermissionManager.openNotificationSettings(context)
                 }
@@ -167,11 +196,11 @@ fun AppStartupPermissionHandler(
                 refreshStates()
             },
             onRequestMic = {
-                permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+                requestRuntimeOrSettings(Manifest.permission.RECORD_AUDIO)
                 refreshStates()
             },
             onRequestCamera = {
-                permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
+                requestRuntimeOrSettings(Manifest.permission.CAMERA)
                 refreshStates()
             },
             onOpenFullHub = {
@@ -188,7 +217,10 @@ fun AppStartupPermissionHandler(
                     BackgroundPermissionManager.requestFullScreenIntentPermission(context)
                 }
                 BackgroundPermissionManager.refreshBackgroundSchedulers(context)
-                Toast.makeText(context, "تم تفعيل درع حماية الأذان واستوديو الإنتاج 🚀", Toast.LENGTH_SHORT).show()
+                // (ق64) التوست القديم كان يكذب: «تم تفعيل الدرع» قبل أن
+                // يوافق المستخدم على أي نافذة أصلاً. التفعيل يتم بعد
+                // موافقته في كل نافذة على حدة.
+                Toast.makeText(context, "أكمل الخطوات في النوافذ التالية — التفعيل يتم بعد موافقتك في كل نافذة", Toast.LENGTH_LONG).show()
                 showPermissionDialog = false
             }
         )

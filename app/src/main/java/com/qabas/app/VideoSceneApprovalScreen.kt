@@ -177,6 +177,12 @@ fun VideoSceneApprovalScreen(
                     onApplyTemplate = { tmpl, transition, speed ->
                         selectedTemplate = tmpl.name
                         showTemplateDialog = false
+                        // ق25: كان «التطبيق» لا يطبّق شيئاً — الانتقال
+                        // والسرعة يُعرضان في التنبيه فقط ويُهملان. الانتقال
+                        // المختار يُطبَّق الآن فعلاً على كل المشاهد (المعالج
+                        // يطبّع الاسم ولا يهم حالة الأحرف)؛ والسرعة بلا حقل
+                        // في Scene فتبقى في نص التنبيه وحده.
+                        onUpdateScenes(currentScenes.map { it.copy(transitionType = transition) })
                         scope.launch {
                             snackbarHostState.showSnackbar("تم تطبيق قالب: ${tmpl.name} مع انتقال $transition بسرعة $speed ثانية ✦")
                         }
@@ -595,7 +601,7 @@ fun ScenesTimeline(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = Translator.tr("المشاهد (${scenes.size})"),
+            text = Translator.trf("المشاهد ({0})", scenes.size),
             color = TextPrimary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,

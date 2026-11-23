@@ -73,7 +73,7 @@ fun MoneyPrinterTurboScreen(
     var currentStage by remember { mutableStateOf("جاهز للأمر البرمجي...") }
     var currentProgress by remember { mutableFloatStateOf(0f) }
     var finishedVideoPath by remember { mutableStateOf<String?>(null) }
-    var statusLogs by remember { mutableStateOf(listOf("⚡ تم تهيئة مصفوفة MoneyPrinterTurbo بنجاح.", "🎙️ محرك Edge-TTS العصبي المجاني نشط.")) }
+    var statusLogs by remember { mutableStateOf(listOf("⚡ تم تهيئة مصفوفة MoneyPrinterTurbo بنجاح.", "🎙️ محرك Edge-TTS العصبي المجاني جاهز.")) }
 
     // نبضات الإضاءة التفاعلية
     val infiniteTransition = rememberInfiniteTransition(label = "hudGlow")
@@ -180,7 +180,7 @@ fun MoneyPrinterTurboScreen(
                                 )
                             }
                             Text(
-                                "v2.6 TURBO",
+                                "v3 TURBO",
                                 color = hudCyan,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
@@ -190,7 +190,7 @@ fun MoneyPrinterTurboScreen(
 
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "يستبدل العمليات اليدوية المعقدة بمحرك إنتاج فوري: يولد السكريبت، ويستخرج لقطات B-Roll السينمائية، ويسجل بصوت Edge-TTS العصبي المجاني 100%، ويرندر ريلز كامل بدقة 9:16 بضغطة زر.",
+                            "يستبدل العمليات اليدوية المعقدة بمحرك إنتاج فوري: يُجهّز السكريبت، ويستخرج لقطات B-Roll السينمائية، ويسجل بصوت Edge-TTS العصبي المجاني 100%، ويرندر ريلز كامل بدقة 9:16 بضغطة زر.",
                             color = theme.textPrimary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont,
@@ -309,7 +309,7 @@ fun MoneyPrinterTurboScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "🧬 أصواتك المستنسخة (VoiceStudio):",
+                                    "🎙️ أنماطك الصوتية المحفوظة (VoiceStudio):",
                                     color = theme.accent,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -319,7 +319,7 @@ fun MoneyPrinterTurboScreen(
                                     onClick = onNavigateToVoiceCloning,
                                     contentPadding = PaddingValues(0.dp)
                                 ) {
-                                    Text("+ استنساخ جديد", color = theme.accent, fontSize = 11.sp, fontFamily = CairoFont)
+                                    Text("+ نمط صوتي جديد", color = theme.accent, fontSize = 11.sp, fontFamily = CairoFont)
                                 }
                             }
 
@@ -355,7 +355,7 @@ fun MoneyPrinterTurboScreen(
                                                     color = theme.accent.copy(alpha = 0.2f),
                                                     shape = RoundedCornerShape(4.dp)
                                                 ) {
-                                                    Text("مستنسخ AI", color = theme.accent, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontFamily = CairoFont)
+                                                    Text("نمط مخصص", color = theme.accent, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontFamily = CairoFont)
                                                 }
                                             }
                                             Text(profile.description, color = theme.textSecondary, fontSize = 10.sp, fontFamily = CairoFont)
@@ -468,7 +468,7 @@ fun MoneyPrinterTurboScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("توليد ترجمة نصية متزامنة (Auto Subtitles)", color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                            Text("إرفاق ملف ترجمة (SRT) مع الفيديو لبرامج المونتاج", color = theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                             Switch(
                                 checked = enableSubtitles,
                                 onCheckedChange = { enableSubtitles = it },
@@ -513,8 +513,10 @@ fun MoneyPrinterTurboScreen(
 
                                         var finished = false
                                         var attempts = 0
-                                        while (!finished && attempts < 60) {
-                                            delay(3000)
+                                        // ق45: الرندر على السيرفر يستغرق دقائق (نحو 8 دقائق لفيديو
+                                        // 40 ثانية) — كان الحد 60×3ث = 3 دقائق يُسقط المهمة بصمت.
+                                        while (!finished && attempts < 240) {
+                                            delay(5000)
                                             attempts++
                                             val pollRes = MoneyPrinterTurboService.pollRemoteTask(serverUrl, taskId)
                                             if (pollRes.isSuccess) {
@@ -523,13 +525,31 @@ fun MoneyPrinterTurboScreen(
                                                 currentStage = state.stage
                                                 if (state.isFinished) {
                                                     finished = true
-                                                    finishedVideoPath = state.outputVideoPath
-                                                    statusLogs = statusLogs + "🎉 اكتمل الفيديو بنجاح عبر السيرفر!"
+                                                    // ق45: تنزيل الفيديو من السيرفر إلى ملف محلي
+                                                    // لتعمل أزرار «فتح بالمحرر» و«استوديو يوتيوب»
+                                                    // على مسار ملف حقيقي لا رابط بعيد.
+                                                    val remoteUrl = state.outputVideoPath
+                                                    val localFile = if (!remoteUrl.isNullOrBlank()) {
+                                                        MoneyPrinterTurboService.downloadRemoteVideo(serverUrl, remoteUrl, context.cacheDir).getOrNull()
+                                                    } else null
+                                                    finishedVideoPath = localFile?.absolutePath ?: remoteUrl
+                                                    statusLogs = if (localFile != null) {
+                                                        statusLogs + "🎉 اكتمل الفيديو بنجاح عبر السيرفر وتم تنزيله للجهاز!"
+                                                    } else {
+                                                        statusLogs + "🎉 اكتمل الفيديو بنجاح عبر السيرفر! (تعذر تنزيله — الرابط محفوظ)"
+                                                    }
                                                 } else if (state.isFailed) {
                                                     finished = true
                                                     Toast.makeText(context, "فشل السيرفر في الرندرة", Toast.LENGTH_SHORT).show()
                                                 }
                                             }
+                                        }
+                                        if (!finished) {
+                                            // ق45: انتهاء المهلة بلا صمت — المهمة قد تكون ما زالت
+                                            // تعمل على السيرفر؛ يُحفظ معرّفها في السجل.
+                                            currentStage = "انتهت مهلة المتابعة (20 دقيقة) والمهمة $taskId ما زالت قيد التنفيذ على السيرفر"
+                                            statusLogs = statusLogs + "⏳ انتهت مهلة المتابعة — المهمة $taskId ما زالت على السيرفر، تابعها من لوحة مهام السيرفر."
+                                            Toast.makeText(context, "ما زال السيرفر يرندر بعد 20 دقيقة — المهمة $taskId", Toast.LENGTH_LONG).show()
                                         }
                                     } else {
                                         statusLogs = statusLogs + "⚠️ تعذر التواصل مع السيرفر، التحويل الفوري للنمط المحلي المستقل..."

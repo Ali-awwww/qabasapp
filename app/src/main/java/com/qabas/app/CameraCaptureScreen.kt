@@ -86,11 +86,17 @@ fun CameraCaptureScreen(
     }
 
     if (!hasCameraPermission) {
+        // (ق64) عند الرفض النهائي زر إعادة الطلب ميت — الزر يفتح الإعدادات.
+        val hostActivity = context as? android.app.Activity
+        val cameraPermanentlyDenied = hostActivity != null &&
+            BackgroundPermissionManager.isPermissionPermanentlyDenied(hostActivity, Manifest.permission.CAMERA)
         CameraPermissionDeniedView(
             onRequestPermission = {
                 permissionsLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
             },
-            onBack = onBack
+            onBack = onBack,
+            isPermanentlyDenied = cameraPermanentlyDenied,
+            onOpenSettings = { BackgroundPermissionManager.openAppSettings(context) }
         )
         return
     }
@@ -520,7 +526,10 @@ private fun CameraGridOverlay() {
 @Composable
 private fun CameraPermissionDeniedView(
     onRequestPermission: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    // (ق64) رفض نهائي: إعادة الطلب لا تُظهر نافذة أبداً — الزر يفتح الإعدادات.
+    isPermanentlyDenied: Boolean = false,
+    onOpenSettings: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -562,11 +571,20 @@ private fun CameraPermissionDeniedView(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 fontFamily = NotoSansFont
             )
+            if (isPermanentlyDenied) {
+                Text(
+                    "الكاميرا مرفوضة نهائياً من النظام — لا تظهر نافذة الطلب بعد الآن؛ فعّلها من إعدادات التطبيق.",
+                    color = ThemeDestructive,
+                    fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontFamily = NotoSansFont
+                )
+            }
             Button(
-                onClick = onRequestPermission,
+                onClick = if (isPermanentlyDenied) onOpenSettings else onRequestPermission,
                 colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
-                Text("منح إذن الكاميرا ⚡", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                Text(if (isPermanentlyDenied) "فتح إعدادات التطبيق ⚙️" else "منح إذن الكاميرا ⚡", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
             }
             TextButton(onClick = onBack) {
                 Text("العودة للخلف", color = TextTertiary)

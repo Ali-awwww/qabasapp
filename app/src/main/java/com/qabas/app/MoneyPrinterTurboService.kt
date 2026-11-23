@@ -81,22 +81,40 @@ object MoneyPrinterTurboService {
         val cleanUrl = serverUrl.trim().trimEnd('/')
         val start = System.currentTimeMillis()
         try {
-            val pingEndpoints = listOf("$cleanUrl/api/v1/ping", "$cleanUrl/ping", "$cleanUrl/")
-            for (url in pingEndpoints) {
+            // ق45: واجهتا الفحص الحقيقيتان فقط تثبتان خادم MoneyPrinterTurbo؛
+            // أما «/» فتستجيب لها أي صفحة ويب — كانت تجعل أي رابط
+            // «متصلاً بالخادم السحابي» زوراً.
+            for (url in listOf("$cleanUrl/api/v1/ping", "$cleanUrl/ping")) {
                 try {
-                    val req = Request.Builder().url(url).get().build()
-                    val res = httpClient.newCall(req).execute()
-                    val elapsed = System.currentTimeMillis() - start
+                    httpClient.newCall(Request.Builder().url(url).get().build()).execute().use { res ->
+                        if (res.isSuccessful) {
+                            val elapsed = System.currentTimeMillis() - start
+                            return@withContext MoneyPrinterServerStatus(
+                                isOnline = true,
+                                serverUrl = cleanUrl,
+                                latencyMs = elapsed,
+                                message = "متصل بنجاح مع خادم أدوات دخل المبدعين ($elapsed ms)"
+                            )
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            // بلا واجهة فحص: صفحة رئيسية تستجيب لا تعني خادم MoneyPrinterTurbo،
+            // لكنها تعني أن العنوان حي — يُحفظ متصلاً (توافقاً مع إصدارات
+            // قديمة بلا /ping) مع بيان أن الواجهة غير مؤكدة.
+            try {
+                httpClient.newCall(Request.Builder().url("$cleanUrl/").get().build()).execute().use { res ->
                     if (res.isSuccessful) {
+                        val elapsed = System.currentTimeMillis() - start
                         return@withContext MoneyPrinterServerStatus(
                             isOnline = true,
                             serverUrl = cleanUrl,
                             latencyMs = elapsed,
-                            message = "متصل بنجاح مع خادم أدوات دخل المبدعين ($elapsed ms)"
+                            message = "الخادم يستجيب لكن واجهة MoneyPrinterTurbo غير مؤكدة (بلا /api/v1/ping) — سيُجرَّب الإرسال للسيرفر"
                         )
                     }
-                } catch (_: Exception) {}
-            }
+                }
+            } catch (_: Exception) {}
             MoneyPrinterServerStatus(
                 isOnline = false,
                 serverUrl = cleanUrl,
@@ -122,7 +140,6 @@ object MoneyPrinterTurboService {
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val cleanUrl = serverUrl.trim().trimEnd('/')
-            val endpoint = "$cleanUrl/api/v1/video/generate"
 
             val jsonBody = JSONObject().apply {
                 put("video_subject", config.subject)
@@ -137,23 +154,42 @@ object MoneyPrinterTurboService {
                 put("font_size", config.subtitleFontSize)
             }
 
-            val request = Request.Builder()
-                .url(endpoint)
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            val bodyString = response.body?.string().orEmpty()
-
-            if (response.isSuccessful) {
-                val json = JSONObject(bodyString)
-                val taskId = json.optJSONObject("data")?.optString("task_id")
-                    ?: json.optString("task_id", UUID.randomUUID().toString())
-                Result.success(taskId)
-            } else {
-                Result.failure(Exception("خطأ من السيرفر (${response.code}): $bodyString"))
+            // ق45: الإصدار الحالي من MoneyPrinterTurbo يستقبل POST /api/v1/videos،
+            // والإصدار القديم POST /api/v1/video/generate — كان الكود يرسل
+            // للقديم وحده فيرجع 404 من أي سيرفر حديث فيسقط للنمط المحلي بصمت.
+            val endpoints = listOf("$cleanUrl/api/v1/videos", "$cleanUrl/api/v1/video/generate")
+            var lastError: Exception? = null
+            for (endpoint in endpoints) {
+                try {
+                    val request = Request.Builder()
+                        .url(endpoint)
+                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                        .build()
+                    httpClient.newCall(request).execute().use { response ->
+                        val bodyString = response.body?.string().orEmpty()
+                        if (response.isSuccessful) {
+                            val json = JSONObject(bodyString)
+                            val taskId = json.optJSONObject("data")?.optString("task_id")?.takeIf { it.isNotBlank() }
+                                ?: json.optString("task_id", "").takeIf { it.isNotBlank() }
+                            // ق45: بلا معرّف مهمة لا يُخترع واحد عشوائياً — كان
+                            // معرّف UUID وهمي يُستعلَم دقائق بلا جدوى.
+                            if (taskId == null) {
+                                return@withContext Result.failure(Exception("السيرفر قبل المهمة لكنه لم يرجع معرّف مهمة"))
+                            }
+                            return@withContext Result.success(taskId)
+                        }
+                        if (response.code == 404) {
+                            lastError = Exception("المسار غير موجود على السيرفر ($endpoint)")
+                        } else {
+                            return@withContext Result.failure(Exception("خطأ من السيرفر (${response.code}): $bodyString"))
+                        }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                    lastError = e
+                }
             }
-        } catch (e: Exception) {
+            Result.failure(lastError ?: Exception("تعذر الاتصال بالسيرفر"))
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Result.failure(e)
         }
     }
@@ -175,16 +211,28 @@ object MoneyPrinterTurboService {
             if (res.isSuccessful) {
                 val json = JSONObject(body)
                 val data = json.optJSONObject("data") ?: json
-                val state = data.optInt("state", 1) // 0: queued, 1: running, 2: success, 3: failed
-                val progress = data.optDouble("progress", 0.0).toFloat()
-                val videoList = data.optJSONArray("videos")
+                val state = data.optInt("state", 1)
+                val progress = data.optDouble("progress", 0.0).toFloat().coerceIn(0f, 100f)
+                // ق45: قد يأتي الفيديو في videos أو combined_videos (استجابة
+                // المهمة في MoneyPrinterTurbo تحمل القائمتين).
+                val videoList = data.optJSONArray("videos") ?: data.optJSONArray("combined_videos")
                 val videoUrl = if (videoList != null && videoList.length() > 0) videoList.optString(0) else data.optString("video_url", null)
 
-                val stageDesc = when (state) {
-                    0 -> "في قائمة الانتظار للتحليل..."
-                    1 -> "جاري التوليد والمونتاج في أدوات دخل المبدعين ($progress%)..."
-                    2 -> "تم اكتمال إنتاج الفيديو بنجاح ✓"
-                    else -> "فشل في مرحلة الرندرة"
+                // ق45: ترميز الحالة يختلف بين إصدارات MoneyPrinterTurbo —
+                // الحالي: 1 مكتمل، 4 يعمل، ‎-1 فاشل؛ والقديم: 0 معلق،
+                // 1 مكتمل، 2 فاشل، 3 قيد المعالجة. كان الكود يفترض 1 يعمل
+                // و2 مكتمل و3 فاشل فلم تُعرف مهمة مكتملة أبداً (1 تُعامل
+                // «قيد التنفيذ» حتى انتهاء المهلة) وعوملت مهمة قيد التنفيذ
+                // (4) «فشلاً». وجود رابط فيديو مع حالة ليست من حالات
+                // الانتظار المعروفة يحسم الغامض لصالح النجاح.
+                val hasVideo = !videoUrl.isNullOrBlank()
+                val isFinished = hasVideo && state != 0 && state != 3 && state != 4 && state != -1
+                val isFailed = state == -1 || (state == 2 && !hasVideo)
+                val stageDesc = when {
+                    isFinished -> "تم اكتمال إنتاج الفيديو بنجاح ✓"
+                    isFailed -> "فشل في مرحلة الرندرة"
+                    state == 0 -> "في قائمة الانتظار للتحليل..."
+                    else -> "جاري التوليد والمونتاج في أدوات دخل المبدعين ($progress%)..."
                 }
 
                 Result.success(
@@ -192,8 +240,8 @@ object MoneyPrinterTurboService {
                         taskId = taskId,
                         stage = stageDesc,
                         progress = progress,
-                        isFinished = state == 2,
-                        isFailed = state == 3,
+                        isFinished = isFinished,
+                        isFailed = isFailed,
                         outputVideoPath = videoUrl
                     )
                 )
@@ -269,17 +317,19 @@ object MoneyPrinterTurboService {
 
         try {
             // المرحلة 1: إعداد السيناريو
-            onProgressUpdate("كتابة وضبط السيناريو السينمائي بالذكاء الاصطناعي...", 0.15f)
+            // ق45: السيناريو المحلي قالب جاهز لا ذكاء اصطناعي — كان النص
+            // يدّعي «بالذكاء الاصطناعي» بينما لا يُستدعى أي نموذج هنا.
+            onProgressUpdate("إعداد السيناريو...", 0.15f)
             delay(400)
             val script = if (config.customScript.isNotBlank()) config.customScript else generateAutonomousScript(config.subject)
 
-            // المرحلة 2: توليد التعليق الصوتي (دعم الأصوات المستنسخة عبر VoiceStudio وأصوات Edge-TTS العصبية)
+            // المرحلة 2: توليد التعليق الصوتي (أنماط VoiceStudio المحفوظة — صوت Edge-Neural + نبرة/سرعة — وأصوات Edge-TTS العصبية)
             val audioFile = File(workingDir, "narration.mp3")
             val generatedAudio: File? = if (config.voiceName.startsWith("cloned:")) {
                 val profileId = config.voiceName.removePrefix("cloned:")
                 val profile = VoiceStudioService.getClonedProfiles(context).find { it.id == profileId }
                 if (profile != null) {
-                    onProgressUpdate("توليد التعليق الصوتي بالبصمة المستنسخة (${profile.name})...", 0.35f)
+                    onProgressUpdate("توليد التعليق الصوتي بالنمط الصوتي (${profile.name})...", 0.35f)
                     val vsRes = VoiceStudioService.synthesizeLocallyWithProfile(context, script, profile)
                     vsRes.getOrNull()
                 } else {
@@ -345,27 +395,35 @@ object MoneyPrinterTurboService {
                 }
             }
 
-            // توليد ملف الترجمة المزامنة (SRT Subtitles)
+            // توليد ملف الترجمة المزامنة (SRT Subtitles) — ملف مرافق للفيديو
+            // يُستخدم في برامج المونتاج، لا يُحرق داخل الصورة؛ ويُنشأ فقط
+            // عند تفعيل خيار الترجمة (ق45: كان يُنشأ دائماً متجاهلاً المفتاح).
             val srtFile = File(workingDir, "subtitles.srt")
-            val durationSec = ProductionPowerKit.estimateArabicSpeechDuration(script).coerceIn(10, 30)
-            try {
-                val lines = script.split("\n", "،", ".").map { it.trim() }.filter { it.isNotBlank() }
-                if (lines.isNotEmpty()) {
-                    val secPerLine = (durationSec.toFloat() / lines.size).coerceAtLeast(2.0f)
-                    val srtBuilder = StringBuilder()
-                    lines.forEachIndexed { idx, line ->
-                        val startSec = idx * secPerLine
-                        val endSec = (idx + 1) * secPerLine
-                        val startStr = formatSrtTime(startSec)
-                        val endStr = formatSrtTime(endSec)
-                        srtBuilder.appendLine("${idx + 1}")
-                        srtBuilder.appendLine("$startStr --> $endStr")
-                        srtBuilder.appendLine(line)
-                        srtBuilder.appendLine()
+            // ق45: مدة الفيديو من التعليق الصوتي الفعلي لا من تقدير طول
+            // النص — كان التقدير يقصّ السرد عند 30 ثانية للسكريبتات
+            // الطويلة فيقطع ‎-shortest التعليق منتصف الجملة.
+            val audioDurationSec = resolvedAudio?.let { audioDurationSeconds(it) }
+            val durationSec = (audioDurationSec ?: ProductionPowerKit.estimateArabicSpeechDuration(script)).coerceIn(10, 90)
+            if (config.subtitleEnabled) {
+                try {
+                    val lines = script.split("\n", "،", ".").map { it.trim() }.filter { it.isNotBlank() }
+                    if (lines.isNotEmpty()) {
+                        val secPerLine = (durationSec.toFloat() / lines.size).coerceAtLeast(2.0f)
+                        val srtBuilder = StringBuilder()
+                        lines.forEachIndexed { idx, line ->
+                            val startSec = idx * secPerLine
+                            val endSec = (idx + 1) * secPerLine
+                            val startStr = formatSrtTime(startSec)
+                            val endStr = formatSrtTime(endSec)
+                            srtBuilder.appendLine("${idx + 1}")
+                            srtBuilder.appendLine("$startStr --> $endStr")
+                            srtBuilder.appendLine(line)
+                            srtBuilder.appendLine()
+                        }
+                        srtFile.writeText(srtBuilder.toString())
                     }
-                    srtFile.writeText(srtBuilder.toString())
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
+            }
 
             // المرحلة 4: المعالجة والمونتاج بـ FFmpeg
             onProgressUpdate("تجميع اللقطات والرندرة النهائية عبر FFmpeg...", 0.80f)
@@ -423,6 +481,12 @@ object MoneyPrinterTurboService {
             }
 
             if (renderedOk) {
+                // ق45: تسمية ملف الترجمة باسم الفيديو نفسه ليجده محرر
+                // المونتاج بجانبه تلقائياً؛ بلا ذلك يبقى subtitles.srt
+                // مجهولاً في مجلد cache لا يصل إليه أحد.
+                if (config.subtitleEnabled && srtFile.exists()) {
+                    runCatching { srtFile.copyTo(File(workingDir, finalOutput.nameWithoutExtension + ".srt"), overwrite = true) }
+                }
                 // حفظ المشروع تلقائياً في قاعدة البيانات المحلية والسحابية
                 try {
                     val projectService = ProjectService(context)
@@ -450,7 +514,51 @@ object MoneyPrinterTurboService {
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Autonomous pipeline failed", e)
+            // ق45: مسح مجلد العمل الفاشل من cache — كان كل فشل يترك مجلداً.
+            runCatching { workingDir.deleteRecursively() }
             Result.failure(e)
+        }
+    }
+
+    /**
+     * ق45: تنزيل فيديو مكتمل من السيرفر إلى ملف محلي؛ يقبل رابطاً كاملاً
+     * أو مساراً نسبياً (/tasks/.../final-1.mp4) فيُحلّ مقابل رابط السيرفر.
+     */
+    suspend fun downloadRemoteVideo(serverUrl: String, videoUrl: String, destDir: File): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            val absolute = if (videoUrl.startsWith("http")) videoUrl
+                else serverUrl.trim().trimEnd('/') + "/" + videoUrl.trimStart('/')
+            destDir.mkdirs()
+            val dest = File(destDir, "money_printer_remote_${System.currentTimeMillis()}.mp4")
+            val req = Request.Builder().url(absolute).build()
+            httpClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext Result.failure(Exception("تنزيل الفيديو: HTTP ${resp.code}"))
+                resp.body?.byteStream()?.use { inp ->
+                    dest.outputStream().use { out -> inp.copyTo(out) }
+                } ?: return@withContext Result.failure(Exception("تنزيل الفيديو: جسم فارغ"))
+            }
+            if (dest.exists() && dest.length() > 5000L) Result.success(dest)
+            else Result.failure(Exception("تنزيل الفيديو: ملف غير مكتمل"))
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ق45: مدة ملف صوتي فعلي بالثواني عبر MediaMetadataRetriever؛ null عند
+     * تعذر القراءة فيُستخدم تقدير طول النص.
+     */
+    private fun audioDurationSeconds(file: File): Int? {
+        if (!file.exists() || file.length() < 1000L) return null
+        val retriever = android.media.MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()?.let { (it / 1000L).toInt().takeIf { s -> s > 0 } }
+        } catch (_: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
         }
     }
 
