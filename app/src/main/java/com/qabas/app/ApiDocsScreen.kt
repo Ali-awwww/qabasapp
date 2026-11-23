@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -9,18 +8,13 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -28,20 +22,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -74,6 +64,7 @@ fun ApiDocsScreen(
     onBack: () -> Unit,
     bottomBar: @Composable () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
@@ -261,17 +252,17 @@ fun ApiDocsScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(GoldPrimary.copy(alpha = 0.15f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                                .background(PresetPrimary.copy(alpha = 0.15f))
+                                .border(1.dp, PresetPrimary.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Code, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Code, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 "توثيق واجهات برمجة خادم المسلم",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -287,7 +278,7 @@ fun ApiDocsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                     }
                 },
                 actions = {
@@ -304,7 +295,7 @@ fun ApiDocsScreen(
                         }
                         context.startActivity(Intent.createChooser(sendIntent, "مشاركة توثيق واجهات خادم المسلم"))
                     }) {
-                        Icon(Icons.Default.Share, contentDescription = "مشاركة التوثيق", tint = GoldPrimary)
+                        Icon(Icons.Default.Share, contentDescription = "مشاركة التوثيق", tint = PresetPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
@@ -321,14 +312,14 @@ fun ApiDocsScreen(
             // تبويبات التنقل الرئيسية
             ScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
-                containerColor = Color(0xFF0F1728),
-                contentColor = GoldPrimary,
+                containerColor = theme.cardSurface,
+                contentColor = PresetPrimary,
                 edgePadding = 12.dp,
                 indicator = { tabPositions ->
                     if (selectedTabIndex < tabPositions.size) {
                         TabRowDefaults.Indicator(
                             Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             height = 3.dp
                         )
                     }
@@ -341,7 +332,7 @@ fun ApiDocsScreen(
                         text = {
                             Text(
                                 title,
-                                color = if (selectedTabIndex == index) GoldPrimary else qabasTextSecondary(),
+                                color = if (selectedTabIndex == index) PresetPrimary else qabasTextSecondary(),
                                 fontFamily = CairoFont,
                                 fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 12.sp
@@ -422,7 +413,7 @@ fun ApiDocsScreen(
                                     responseStatusCode = code
                                     responseOutput = body.ifBlank { "(استجابة فارغة من خادم خادم المسلم)" }
                                     Toast.makeText(context, "تم استلام الرد الفعلي (كود $code) ✓", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
+                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                     responseLatencyMs = System.currentTimeMillis() - startTime
                                     responseStatusCode = 503
                                     responseOutput = """
@@ -494,6 +485,7 @@ private fun EndpointsDocList(
     apiKey: String,
     onTestEndpoint: (ApiEndpointInfo) -> Unit
 ) {
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
@@ -520,7 +512,7 @@ private fun EndpointsDocList(
                         Column {
                             Text(
                                 "بوابة خدمات خادم المسلم للمطورين",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -533,13 +525,13 @@ private fun EndpointsDocList(
                             )
                         }
                         Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
+                            color = theme.success.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                            border = BorderStroke(1.dp, theme.success.copy(alpha = 0.4f))
                         ) {
                             Text(
                                 "نشط 🟢",
-                                color = Color(0xFF10B981),
+                                color = theme.success,
                                 fontSize = 10.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -551,9 +543,9 @@ private fun EndpointsDocList(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Surface(
-                        color = Color(0xFF090E1A),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                        border = BorderStroke(1.dp, theme.cardBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -564,9 +556,9 @@ private fun EndpointsDocList(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                Text("Base URL:", color = GoldSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Base URL:", color = PresetAccent, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(baseUrl, color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                                Text(baseUrl, color = theme.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                             }
                             IconButton(
                                 onClick = {
@@ -575,7 +567,7 @@ private fun EndpointsDocList(
                                 },
                                 modifier = Modifier.size(28.dp)
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(15.dp))
                             }
                         }
                     }
@@ -595,11 +587,12 @@ private fun EndpointCard(
     endpoint: ApiEndpointInfo,
     onTest: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(false) }
 
-    val methodColor = if (endpoint.method == "POST") Color(0xFFF59E0B) else Color(0xFF10B981)
+    val methodColor = if (endpoint.method == "POST") theme.warning else theme.success
 
     Card(
         modifier = Modifier
@@ -636,7 +629,7 @@ private fun EndpointCard(
 
                     Text(
                         endpoint.path,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -647,7 +640,7 @@ private fun EndpointCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        color = Color(0xFF1E293B),
+                        color = theme.secondarySurface,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
@@ -662,7 +655,7 @@ private fun EndpointCard(
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = null,
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -671,7 +664,7 @@ private fun EndpointCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = endpoint.titleAr,
-                color = GoldSecondary,
+                color = PresetAccent,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp
@@ -679,25 +672,25 @@ private fun EndpointCard(
 
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(top = 10.dp)) {
-                    HorizontalDivider(color = Color(0xFF1E2D4A), modifier = Modifier.padding(bottom = 8.dp))
+                    HorizontalDivider(color = theme.separator, modifier = Modifier.padding(bottom = 8.dp))
 
-                    Text(endpoint.description, color = Color(0xFFCBD5E1), fontFamily = CairoFont, fontSize = 11.sp, lineHeight = 16.sp)
+                    Text(endpoint.description, color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.sp, lineHeight = 16.sp)
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Text("Headers المطلوبة:", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Headers المطلوبة:", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     endpoint.requestHeaders.forEach { (k, v) ->
                         Row(modifier = Modifier.padding(vertical = 1.dp)) {
                             Text("$k: ", color = qabasTextSecondary(), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
-                            Text(v, color = Color(0xFF38BDF8), fontFamily = FontFamily.Monospace, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(v, color = theme.primary, fontFamily = FontFamily.Monospace, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text("عينة الطلب (Request Payload):", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("عينة الطلب (Request Payload):", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Surface(
-                        color = Color(0xFF090E1A),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -705,7 +698,7 @@ private fun EndpointCard(
                     ) {
                         Text(
                             text = endpoint.requestBodySample,
-                            color = Color(0xFFA5F3FC),
+                            color = theme.primary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,
                             modifier = Modifier.padding(8.dp)
@@ -714,9 +707,9 @@ private fun EndpointCard(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text("عينة الرد الناجح (Response 200 OK):", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("عينة الرد الناجح (Response 200 OK):", color = theme.success, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Surface(
-                        color = Color(0xFF090E1A),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -724,7 +717,7 @@ private fun EndpointCard(
                     ) {
                         Text(
                             text = endpoint.responseBodySample,
-                            color = Color(0xFF6EE7B7),
+                            color = theme.success,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,
                             modifier = Modifier.padding(8.dp)
@@ -739,7 +732,7 @@ private fun EndpointCard(
                     ) {
                         Button(
                             onClick = onTest,
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f).height(38.dp)
                         ) {
@@ -754,13 +747,13 @@ private fun EndpointCard(
                                 clipboardManager.setText(AnnotatedString(cUrl))
                                 Toast.makeText(context, "تم نسخ أمر cURL 📋", Toast.LENGTH_SHORT).show()
                             },
-                            border = BorderStroke(1.dp, GoldPrimary),
+                            border = BorderStroke(1.dp, PresetPrimary),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f).height(38.dp)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ cURL", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("نسخ cURL", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -787,6 +780,7 @@ private fun ApiPlaygroundTab(
     latencyMs: Long,
     onSendRequest: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
@@ -805,16 +799,16 @@ private fun ApiPlaygroundTab(
                 colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("اختر نقطة النهاية للاختبار:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("اختر نقطة النهاية للاختبار:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(8.dp))
 
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(endpoints) { ep ->
                             val isSelected = ep.id == selectedEndpoint.id
                             Surface(
-                                color = if (isSelected) GoldPrimary else Color(0xFF151C2C),
+                                color = if (isSelected) PresetPrimary else theme.secondarySurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF2A3650)),
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.cardBorder),
                                 modifier = Modifier.clickable { onSelectEndpoint(ep) }
                             ) {
                                 Row(
@@ -823,7 +817,7 @@ private fun ApiPlaygroundTab(
                                 ) {
                                     Text(
                                         ep.method,
-                                        color = if (isSelected) DeepSlate else (if (ep.method == "POST") Color(0xFFF59E0B) else Color(0xFF10B981)),
+                                        color = if (isSelected) DeepSlate else (if (ep.method == "POST") theme.warning else theme.success),
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 10.sp
@@ -831,7 +825,7 @@ private fun ApiPlaygroundTab(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         ep.titleAr,
-                                        color = if (isSelected) DeepSlate else Color.White,
+                                        color = if (isSelected) DeepSlate else theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -845,13 +839,13 @@ private fun ApiPlaygroundTab(
 
                     // عنوان المسار الكامل
                     Surface(
-                        color = Color(0xFF090E1A),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "${selectedEndpoint.method} $baseUrl${selectedEndpoint.path}",
-                            color = Color(0xFF38BDF8),
+                            color = theme.primary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(10.dp)
@@ -876,12 +870,12 @@ private fun ApiPlaygroundTab(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("جسم الطلب (JSON Request Body):", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("جسم الطلب (JSON Request Body):", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         TextButton(
                             onClick = { onPayloadChange(selectedEndpoint.requestBodySample) },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("استعادة العينة الأصلية ↺", color = GoldSecondary, fontFamily = CairoFont, fontSize = 10.sp)
+                            Text("استعادة العينة الأصلية ↺", color = PresetAccent, fontFamily = CairoFont, fontSize = 10.sp)
                         }
                     }
 
@@ -891,12 +885,12 @@ private fun ApiPlaygroundTab(
                         value = payloadInput,
                         onValueChange = onPayloadChange,
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = Color.White),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = theme.textPrimary),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF090E1A),
-                            unfocusedContainerColor = Color(0xFF090E1A),
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E2D4A)
+                            focusedContainerColor = theme.cardSurface,
+                            unfocusedContainerColor = theme.cardSurface,
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = theme.cardBorder
                         ),
                         shape = RoundedCornerShape(10.dp),
                         minLines = 4,
@@ -907,7 +901,7 @@ private fun ApiPlaygroundTab(
 
                     Button(
                         onClick = onSendRequest,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().height(42.dp),
                         enabled = !isSending
@@ -934,7 +928,7 @@ private fun ApiPlaygroundTab(
                         .fillMaxWidth()
                         .luxuryCardStyle(shapeRadius = 14.dp, borderAlpha = 0.5f),
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))
+                    colors = CardDefaults.cardColors(containerColor = theme.cardSurface)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -944,13 +938,13 @@ private fun ApiPlaygroundTab(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
-                                    color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                    color = theme.success.copy(alpha = 0.2f),
                                     shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981))
+                                    border = BorderStroke(1.dp, theme.success)
                                 ) {
                                     Text(
                                         "$responseStatus OK",
-                                        color = Color(0xFF10B981),
+                                        color = theme.success,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp,
@@ -968,20 +962,20 @@ private fun ApiPlaygroundTab(
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(16.dp))
                             }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Surface(
-                            color = Color(0xFF080C14),
+                            color = theme.cardSurface,
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = responseOutput,
-                                color = Color(0xFF6EE7B7),
+                                color = theme.success,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(10.dp)
@@ -1005,6 +999,7 @@ private fun CodeSnippetsTab(
     baseUrl: String,
     apiKey: String
 ) {
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     val langs = listOf("cURL", "Kotlin", "Python", "JavaScript")
@@ -1039,7 +1034,6 @@ val request = Request.Builder()
     .build()
 
 val response = client.newCall(request).execute()
-val resultJson = response.body?.string()
             """.trimIndent()
             "Python" -> """
 import requests
@@ -1094,16 +1088,16 @@ console.log(data);
                 colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("اختر لغة البرمجة المفضلة لديك:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("اختر لغة البرمجة المفضلة لديك:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         langs.forEach { lang ->
                             val isSelected = lang == selectedLang
                             Surface(
-                                color = if (isSelected) GoldPrimary else Color(0xFF151C2C),
+                                color = if (isSelected) PresetPrimary else theme.secondarySurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF2A3650)),
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.cardBorder),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { onLangChange(lang) }
@@ -1111,7 +1105,7 @@ console.log(data);
                                 Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                                     Text(
                                         lang,
-                                        color = if (isSelected) DeepSlate else Color.White,
+                                        color = if (isSelected) DeepSlate else theme.textPrimary,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -1128,13 +1122,13 @@ console.log(data);
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("كود الاستدعاء المباشر ($selectedLang):", color = GoldSecondary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("كود الاستدعاء المباشر ($selectedLang):", color = PresetAccent, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Button(
                             onClick = {
                                 clipboardManager.setText(AnnotatedString(snippetCode))
                                 Toast.makeText(context, "تم نسخ كود $selectedLang للحافظة 📋", Toast.LENGTH_SHORT).show()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             modifier = Modifier.height(32.dp)
@@ -1148,13 +1142,13 @@ console.log(data);
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Surface(
-                        color = Color(0xFF090E1A),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = snippetCode,
-                            color = Color(0xFFE2E8F0),
+                            color = theme.textPrimary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(12.dp),
@@ -1177,6 +1171,7 @@ private fun SecurityAndAuthTab(
     onGenerateKey: () -> Unit,
     onCopyKey: () -> Unit
 ) {
+    val theme = QabasTheme.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(14.dp),
@@ -1192,23 +1187,23 @@ private fun SecurityAndAuthTab(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.VpnKey, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.VpnKey, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("مفتاح الوصول المصرح (API Secret Key)", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("مفتاح الوصول المصرح (API Secret Key)", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
 
                     Text(
                         "تتطلب جميع استدعاءات واجهات برمجة خادم المسلم تمرير مفتاحك في ترويسة الطلب عبر المعيار القياسي Bearer Token لضمان التحقق وحماية حصص الاستهلاك:",
-                        color = Color(0xFFCBD5E1),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         lineHeight = 16.sp
                     )
 
                     Surface(
-                        color = Color(0xFF090E1A),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                        border = BorderStroke(1.dp, theme.cardBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1218,7 +1213,7 @@ private fun SecurityAndAuthTab(
                         ) {
                             Text(
                                 text = if (apiKey.isNotBlank()) "Authorization: Bearer $apiKey" else "Authorization: Bearer <لم_يتم_توليد_مفتاح_بعد>",
-                                color = if (apiKey.isNotBlank()) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                                color = if (apiKey.isNotBlank()) theme.primary else theme.textSecondary,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
                                 maxLines = 1,
@@ -1227,7 +1222,7 @@ private fun SecurityAndAuthTab(
                             )
                             if (apiKey.isNotBlank()) {
                                 IconButton(onClick = onCopyKey, modifier = Modifier.size(28.dp)) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -1236,7 +1231,7 @@ private fun SecurityAndAuthTab(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = onGenerateKey,
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f).height(38.dp)
                         ) {
@@ -1252,25 +1247,25 @@ private fun SecurityAndAuthTab(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E2D4A), modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(color = theme.separator, modifier = Modifier.padding(vertical = 4.dp))
 
-                    Text("قواعد وضوابط الاستخدام الشرعي:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("قواعد وضوابط الاستخدام الشرعي:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Check, contentDescription = null, tint = theme.success, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("خلو تام من المعازف: ترفض خوادم خادم المسلم دمج أي مقاطع موسيقية أو إيقاعات محرمة.", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("خلو تام من المعازف: ترفض خوادم خادم المسلم دمج أي مقاطع موسيقية أو إيقاعات محرمة.", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                         Row(verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Check, contentDescription = null, tint = theme.success, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("دقة النقل الشرعي: يتم تدقيق الآيات بالرسم العثماني والأحاديث من الكتب التسعة المعتمدة.", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("دقة النقل الشرعي: يتم تدقيق الآيات بالرسم العثماني والأحاديث من الكتب التسعة المعتمدة.", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                         Row(verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Check, contentDescription = null, tint = theme.success, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("معدل الطلبات المتاح: 100 طلب في الدقيقة لكل حساب صانع محتوى.", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("معدل الطلبات المتاح: 100 طلب في الدقيقة لكل حساب صانع محتوى.", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
                 }

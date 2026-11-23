@@ -38,8 +38,10 @@ import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.RobotoMonoFont
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -77,7 +79,7 @@ fun ReelPublishScreen(
     var selectedCategory by remember { mutableStateOf("قرآن كريم") }
     var isFeaturedByDev by remember { mutableStateOf(false) }
     var isSilentSeed by remember { mutableStateOf(false) }
-    var aspectRatio by remember { mutableStateOf("9:16") }
+    var aspectRatio by remember { mutableStateOf(UserPreferencesManager.defaultAspectRatio.value) }
 
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedVideoThumbnailFile by remember { mutableStateOf<File?>(null) }
@@ -148,7 +150,11 @@ fun ReelPublishScreen(
 
             val thumb = selectedVideoThumbnailFile
             if (thumb != null && thumb.exists()) {
-                val bitmap = android.graphics.BitmapFactory.decodeFile(thumb.absolutePath)
+                // فكّ الترميز خارج الخيط الرئيسي: LaunchedEffect يعمل على Main
+                // افتراضياً، وصورة مصغّرة كاملة الدقة كانت تجمّد شاشة النشر.
+                val bitmap = withContext(Dispatchers.IO) {
+                    android.graphics.BitmapFactory.decodeFile(thumb.absolutePath)
+                }
                 if (bitmap != null) {
                     val visualAudit = SpiritualSafetyGuard.performVisualSpiritualAudit(bitmap, title, description)
                     if (visualAudit is SpiritualSafetyGuard.ModerationResult.Rejected) {

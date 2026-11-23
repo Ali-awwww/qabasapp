@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -34,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.TestTags
 import com.qabas.app.ui.components.AppleCard
-import com.qabas.app.ui.components.AppleInsetDivider
 import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -1128,7 +1126,7 @@ fun HomeScreen(
                                         .background(theme.destructive),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Terminal, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Terminal, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(20.dp))
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {

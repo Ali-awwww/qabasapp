@@ -8,10 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -20,17 +18,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -63,9 +52,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalView
 import android.graphics.Bitmap
 import java.io.File
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.CameraAlt
 import com.qabas.app.BugReportManager
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,7 +70,6 @@ import androidx.core.content.FileProvider
 
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
-import com.qabas.app.ui.components.GlassmorphicSurface
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.style.TextAlign
 import android.widget.Toast
@@ -98,40 +84,6 @@ data class Scene(
     val transitionType: String = "Fade",
     val mediaUrl: String? = null
 )
-
-@Composable
-fun RatioButton(
-    text: String,
-    isSelected: Boolean,
-    gradient: androidx.compose.ui.graphics.Brush,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val theme = QabasTheme.current
-    Surface(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 44.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) theme.primary else theme.secondarySurface,
-        border = BorderStroke(
-            0.5.dp,
-            if (isSelected) theme.primary else theme.separator.copy(alpha = 0.5f)
-        )
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                color = if (isSelected) theme.onPrimary else theme.textPrimary,
-                fontFamily = CairoFont,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 14.sp
-            )
-        }
-    }
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -180,7 +132,9 @@ class MainActivity : ComponentActivity() {
                         return@addOnCompleteListener
                     }
                     val token = task.result
-                    android.util.Log.d("MainActivity", "رمز FCM الحالي: $token")
+                    // لا يُسجَّل الرمز نفسه أبداً: رمز FCM يتيح إرسال إشعارات
+                    // للجهاز، وقيمته في logcat تتسرب مع أي تقرير أعطال يُشارك.
+                    android.util.Log.d("MainActivity", "تم جلب رمز FCM (الطول: ${token.length})")
                 }
             }
         }
@@ -229,7 +183,7 @@ class MainActivity : ComponentActivity() {
                                 PointsManager.checkAndAwardDailyLogin(this@MainActivity)
                                 // 👑 التحقق السحابي الحصري من رتبة المستخدم وإشعار التهنئة فور الإقلاع
                                 AdminGuard.isDashboardAccessAllowed(this@MainActivity)
-                            }
+                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                         }
 
                         launch {
@@ -264,7 +218,7 @@ class MainActivity : ComponentActivity() {
                                         lastTransactionCount = transactions.size
                                     }
                                 }
-                            }
+                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                         }
                     }
                     AppStartupPermissionHandler()
@@ -1007,7 +961,7 @@ fun QabasBottomNavigation(
             AppleNavItem(AppState.HOME, Icons.Filled.Home, Icons.Outlined.Home, "الرئيسية"),
             AppleNavItem(AppState.HASANAT_HUB, Icons.Filled.AutoStories, Icons.Outlined.AutoStories, "المِشكاة"),
             AppleNavItem(AppState.REELS, Icons.Filled.PlayCircle, Icons.Outlined.PlayCircle, "ريلز"),
-            AppleNavItem(AppState.STUDIO_GATEWAY, Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome, "الاستوديو"),
+            AppleNavItem(AppState.VIBE_CODING, Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome, "فايب كودينج"),
             AppleNavItem(AppState.SETTINGS, Icons.Filled.Settings, Icons.Outlined.Settings, "الإعدادات")
         )
     }
@@ -1097,7 +1051,7 @@ enum class AppState {
     AZKAR, ISLAMIC_LIBRARY, PRAYER_TIMES, STUDIO_GATEWAY, PRO_EDITOR, SOCIAL_STATS,
     ABOUT_US, MONEY_PRINTER_TURBO, VOICE_STUDIO, UNIFIED_MASTER_STUDIO, MEDIA_BROWSER,
     PERMISSIONS_HUB, CRASH_LOGS_HUB, REELS, RULES, AI_STUDIO_AGENT, AGENT_TEAM_CONFIG, SAVED_ITEMS,
-    DOWNLOAD_MANAGER, UPDATE_HISTORY, STUDIO_AGENT, MY_KEYS, STUDIO_LIBRARY
+    DOWNLOAD_MANAGER, UPDATE_HISTORY, STUDIO_AGENT, MY_KEYS, STUDIO_LIBRARY, VIBE_CODING, ADVANCED_KEYS
 }
 
 @Immutable
@@ -1114,7 +1068,6 @@ data class ProjectState(
     val currentProjectId: String? = null,
     val projectTitle: String = Translator.tr("مشروع جديد"),
     val appState: AppState = AppState.DATA_LOADING,
-    val showChatSheet: Boolean = false,
     val videoDuration: String = Translator.tr("30 ثانية"),
     val editingStyle: String = Translator.tr("أسلوب 3nvus / نيون داكن"),
     val voiceOver: String = Translator.tr("عميق"),
@@ -1364,11 +1317,6 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    fun dismissWorkspaceDraft() {
-        viewModelScope.launch {
-            WorkspaceAutoSaveManager.clearAiDraft()
-        }
-    }
 }
 
 class ProjectViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
@@ -1385,160 +1333,4 @@ class ProjectViewModelFactory(private val context: Context) : ViewModelProvider.
 @Composable
 fun QabasStudioScreen() {
     QabasApp()
-}
-
-@Composable
-fun ChoiceChip(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val theme = QabasTheme.current
-    Surface(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 40.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = if (isSelected) theme.primary else theme.cardSurface,
-        border = BorderStroke(
-            0.5.dp,
-            if (isSelected) theme.primary else theme.separator.copy(alpha = 0.55f)
-        )
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = text,
-                color = if (isSelected) theme.onPrimary else theme.textPrimary,
-                fontFamily = CairoFont,
-                fontSize = 14.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun StyleCard(
-    title: String,
-    description: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val theme = QabasTheme.current
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) theme.primary.copy(alpha = 0.08f) else theme.cardSurface,
-        border = BorderStroke(
-            width = if (isSelected) 1.5.dp else 0.5.dp,
-            color = if (isSelected) theme.primary else theme.separator.copy(alpha = 0.55f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = title,
-                    color = if (isSelected) theme.primary else theme.textPrimary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = theme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-            Text(
-                text = description,
-                color = theme.textSecondary,
-                fontFamily = NotoSansFont,
-                fontSize = 12.sp
-            )
-        }
-    }
-}
-
-@Composable
-fun PlayerBadge(text: String) {
-    val theme = QabasTheme.current
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = theme.cardSurface.copy(alpha = 0.9f),
-        border = BorderStroke(0.5.dp, theme.primary.copy(alpha = 0.4f))
-    ) {
-        Text(
-            text = text,
-            color = theme.primary,
-            fontSize = 12.sp,
-            fontFamily = CairoFont,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
-fun buildCinematicPrompt(
-    userIdea: String,
-    duration: String,
-    style: String,
-    aspectRatio: String,
-    voiceOver: String,
-    musicVibe: String
-): String {
-    val styleInstructions = when {
-        style.contains("3nvus") || style.contains(Translator.tr("نيون")) ->
-            "Visual Style: Dark moody aesthetic, high contrast. Typography: Kinetic glowing neon text synced to audio. Pacing: Fast viral transitions with ambient sound design."
-        style.contains(Translator.tr("سينمائي")) ->
-            "Visual Style: Deep warm tones, elegant cinematic lighting, slow-motion B-roll, premium and smooth transitions."
-        style.contains(Translator.tr("وثائقي")) ->
-            "Visual Style: Fast-paced documentary style, modern grid overlays, dynamic zooms, informative tone."
-        else -> ""
-    }
-
-    val voiceInstruction = when {
-        voiceOver.contains(Translator.tr("عميق")) -> "Voice Over Tone: Deep, Epic, authoritative."
-        voiceOver.contains(Translator.tr("حماسي")) -> "Voice Over Tone: Energetic, fast-paced, motivating."
-        voiceOver.contains(Translator.tr("رسمي")) -> "Voice Over Tone: Neutral, official, clear and documentary-style."
-        else -> "Voice Over Tone: $voiceOver"
-    }
-
-    val soundEffectInstruction = when {
-        musicVibe.contains(Translator.tr("طبيعة")) ->
-            "Sound Effect Vibe: Nature sounds, birds, wind, flowing water."
-        musicVibe.contains(Translator.tr("مدينة")) ->
-            "Sound Effect Vibe: Urban ambience, traffic, distant chatter."
-        musicVibe.contains(Translator.tr("هادئ")) ->
-            "Sound Effect Vibe: Calm, minimal, subtle ambient white noise."
-        musicVibe.contains(Translator.tr("نشاط")) ->
-            "Sound Effect Vibe: Active, gym or sports ambient, energetic non-musical sounds."
-        musicVibe.contains(Translator.tr("درامي")) ->
-            "Sound Effect Vibe: Dramatic swooshes, impacts, cinematic non-musical sound effects."
-        else -> "Sound Effect Vibe: $musicVibe"
-    }
-
-    return """
-        [MASTER PROMPT]
-        Duration: $duration
-        Aspect Ratio: $aspectRatio
-        
-        $styleInstructions
-        $voiceInstruction
-        $soundEffectInstruction
-        
-        User Concept/Script:
-        $userIdea
-    """.trimIndent()
 }

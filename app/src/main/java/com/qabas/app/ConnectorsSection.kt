@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -15,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -67,6 +65,7 @@ fun ConnectorsSection(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val theme = QabasTheme.current
 
     var states by remember {
         mutableStateOf(
@@ -572,7 +571,7 @@ fun ConnectorsSection(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF040711))
+            .background(theme.background)
     ) {
         Column(
             modifier = Modifier
@@ -665,10 +664,11 @@ private fun SpatialHudHeader(
     isCheckingAll: Boolean,
     onCheckAll: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val accentColor = when {
-        healthPercentage >= 75 -> Color(0xFF10B981) // أخضر زمردي نيون
-        healthPercentage >= 50 -> Color(0xFFF59E0B) // كهرماني سيبراني
-        else -> Color(0xFFEF4444) // أحمر ليزري
+        healthPercentage >= 75 -> theme.success // أخضر زمردي نيون
+        healthPercentage >= 50 -> theme.warning // كهرماني سيبراني
+        else -> theme.destructive // أحمر ليزري
     }
 
     Box(
@@ -678,8 +678,8 @@ private fun SpatialHudHeader(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF0F172A).copy(alpha = 0.85f),
-                        Color(0xFF090E1A).copy(alpha = 0.95f)
+                        theme.cardSurface.copy(alpha = 0.85f),
+                        theme.background.copy(alpha = 0.95f)
                     )
                 )
             )
@@ -689,7 +689,7 @@ private fun SpatialHudHeader(
                     Brush.horizontalGradient(
                         listOf(
                             accentColor.copy(alpha = 0.6f),
-                            Color(0xFF38BDF8).copy(alpha = 0.3f),
+                            theme.primary.copy(alpha = 0.3f),
                             Color.Transparent
                         )
                     )
@@ -724,13 +724,13 @@ private fun SpatialHudHeader(
                 }
 
                 Surface(
-                    color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                    color = theme.secondarySurface.copy(alpha = 0.6f),
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF334155))
+                    border = BorderStroke(1.dp, theme.separator)
                 ) {
                     Text(
                         "PROTOCOL: TLS 1.3 / REST",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 9.sp,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -749,7 +749,7 @@ private fun SpatialHudHeader(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         "مرصد نقاط الاتصال السحابية والصيانة",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
@@ -757,7 +757,7 @@ private fun SpatialHudHeader(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         "فحص حي ومباشر لجميع مراكز السحابة واختبار كفاءتها للتطبيق والصيانة",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 11.sp
                     )
@@ -770,15 +770,15 @@ private fun SpatialHudHeader(
                     modifier = Modifier
                         .size(68.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF030712))
-                        .border(1.dp, Color(0xFF1E2D4A), CircleShape),
+                        .background(theme.background)
+                        .border(1.dp, theme.secondarySurface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(modifier = Modifier.size(56.dp)) {
                         val stroke = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                         // مسار الخلفية
                         drawArc(
-                            color = Color(0xFF1E293B),
+                            color = theme.secondarySurface,
                             startAngle = -90f,
                             sweepAngle = 360f,
                             useCenter = false,
@@ -797,7 +797,7 @@ private fun SpatialHudHeader(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "$okCount/$totalCount",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
@@ -828,7 +828,7 @@ private fun SpatialHudHeader(
                         Brush.horizontalGradient(
                             listOf(
                                 accentColor.copy(alpha = 0.25f),
-                                Color(0xFF0F172A),
+                                theme.cardSurface,
                                 accentColor.copy(alpha = 0.15f)
                             )
                         ),
@@ -850,7 +850,7 @@ private fun SpatialHudHeader(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "جاري فحص جميع القنوات بالكامل...",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -865,7 +865,7 @@ private fun SpatialHudHeader(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "إعادة فحص كافة الموصلات ⚡ (Full Probe)",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -886,6 +886,7 @@ private fun BentoStatusRibbon(
     connectedCount: Int,
     disconnectedCount: Int
 ) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -893,21 +894,21 @@ private fun BentoStatusRibbon(
         BentoMetricItem(
             label = "إجمالي القنوات",
             value = "$totalChannels",
-            color = Color(0xFF38BDF8),
+            color = theme.primary,
             icon = Icons.Default.Hub,
             modifier = Modifier.weight(1f)
         )
         BentoMetricItem(
             label = "متصلة ونشطة",
             value = "$connectedCount",
-            color = Color(0xFF10B981),
+            color = theme.success,
             icon = Icons.Default.CheckCircle,
             modifier = Modifier.weight(1f)
         )
         BentoMetricItem(
             label = "تتطلب تكويناً",
             value = "$disconnectedCount",
-            color = if (disconnectedCount > 0) Color(0xFFEF4444) else Color(0xFF10B981),
+            color = if (disconnectedCount > 0) theme.destructive else theme.success,
             icon = Icons.Default.Warning,
             modifier = Modifier.weight(1f)
         )
@@ -922,11 +923,12 @@ private fun BentoMetricItem(
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Surface(
         modifier = modifier,
-        color = Color(0xFF0B101E).copy(alpha = 0.85f),
+        color = theme.background.copy(alpha = 0.85f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+        border = BorderStroke(1.dp, theme.secondarySurface)
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -937,7 +939,7 @@ private fun BentoMetricItem(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     value,
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
@@ -946,7 +948,7 @@ private fun BentoMetricItem(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 label,
-                color = Color(0xFF94A3B8),
+                color = theme.textSecondary,
                 fontFamily = CairoFont,
                 fontSize = 9.5.sp,
                 maxLines = 1,
@@ -968,17 +970,18 @@ private fun CyberConnectorCard(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val theme = QabasTheme.current
 
     val statusColor = when (connector.connected) {
-        true -> Color(0xFF10B981) // أخضر زمردي
-        false -> Color(0xFFEF4444) // أحمر ليزري
-        null -> Color(0xFFF59E0B) // كهرماني
+        true -> theme.success // أخضر زمردي
+        false -> theme.destructive // أحمر ليزري
+        null -> theme.warning // كهرماني
     }
 
     val glowBrush = Brush.horizontalGradient(
         listOf(
             statusColor.copy(alpha = 0.35f),
-            Color(0xFF1E2D4A).copy(alpha = 0.2f),
+            theme.secondarySurface.copy(alpha = 0.2f),
             Color.Transparent
         )
     )
@@ -990,8 +993,8 @@ private fun CyberConnectorCard(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF0F172A).copy(alpha = 0.75f),
-                        Color(0xFF090E1A).copy(alpha = 0.85f)
+                        theme.cardSurface.copy(alpha = 0.75f),
+                        theme.background.copy(alpha = 0.85f)
                     )
                 )
             )
@@ -1032,19 +1035,19 @@ private fun CyberConnectorCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 connector.title,
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
-                                color = Color(0xFF1E293B),
+                                color = theme.secondarySurface,
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
                                     connector.category,
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1054,7 +1057,7 @@ private fun CyberConnectorCard(
                         }
                         Text(
                             connector.technicalName,
-                            color = Color(0xFF64748B),
+                            color = theme.textTertiary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 9.sp,
                             maxLines = 1,
@@ -1099,23 +1102,23 @@ private fun CyberConnectorCard(
 
             // شريط التفاصيل التشخيصية بنمط الكونسول البرمجي (Terminal Pill)
             Surface(
-                color = Color(0xFF060A14),
+                color = theme.background,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                border = BorderStroke(1.dp, theme.secondarySurface),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "ROLE: ",
-                            color = Color(0xFF64748B),
+                            color = theme.textTertiary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             connector.usedIn,
-                            color = Color(0xFFCBD5E1),
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 10.sp
                         )
@@ -1125,14 +1128,14 @@ private fun CyberConnectorCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 "MAINT: ",
-                                color = Color(0xFF64748B),
+                                color = theme.textTertiary,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 connector.maintenanceInfo,
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 9.5.sp
                             )
@@ -1142,7 +1145,7 @@ private fun CyberConnectorCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "STATUS: ",
-                            color = Color(0xFF64748B),
+                            color = theme.textTertiary,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
@@ -1165,9 +1168,9 @@ private fun CyberConnectorCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Surface(
-                    color = Color(0xFF030712),
+                    color = theme.background,
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, theme.secondarySurface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(8.dp)) {
@@ -1179,11 +1182,11 @@ private fun CyberConnectorCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Code, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.Code, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     "استعلام Supabase SQL للجدول والخدمة",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
@@ -1193,7 +1196,7 @@ private fun CyberConnectorCard(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     if (showSql) "إخفاء ✕" else "عرض الكود 🛈",
-                                    color = Color(0xFF38BDF8),
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -1207,11 +1210,11 @@ private fun CyberConnectorCard(
                                     shape = RoundedCornerShape(6.dp),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f))
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("نسخ SQL", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text("نسخ SQL", color = PresetPrimary, fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1219,13 +1222,13 @@ private fun CyberConnectorCard(
                         if (showSql) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Surface(
-                                color = Color(0xFF010307),
+                                color = theme.background,
                                 shape = RoundedCornerShape(6.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     text = connector.sqlQuery,
-                                    color = Color(0xFF38BDF8),
+                                    color = theme.primary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 9.5.sp,
                                     lineHeight = 14.sp,
@@ -1272,7 +1275,7 @@ private fun CyberConnectorCard(
                     Button(
                         onClick = onFix,
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier.height(34.dp)
                     ) {
@@ -1288,7 +1291,7 @@ private fun CyberConnectorCard(
                     Button(
                         onClick = onOpenDeltaMonitoring,
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier.height(34.dp)
                     ) {
@@ -1312,42 +1315,43 @@ private fun DevOpsTerminalCard(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val theme = QabasTheme.current
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF060913))
-            .border(BorderStroke(1.dp, Color(0xFF1E2D4A)), RoundedCornerShape(16.dp))
+            .background(theme.background)
+            .border(BorderStroke(1.dp, theme.secondarySurface), RoundedCornerShape(16.dp))
     ) {
         Column {
             // شريط عنوان التيرمينال الكلاسيكي
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF0F172A))
+                    .background(theme.cardSurface)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFEF4444)))
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFF59E0B)))
-                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(theme.destructive))
+                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(theme.warning))
+                    Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(theme.success))
                 }
                 Text(
                     "qabas-supabase-master-setup.sql",
-                    color = Color(0xFF94A3B8),
+                    color = theme.textSecondary,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp
                 )
-                Icon(Icons.Default.Terminal, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.Terminal, contentDescription = null, tint = theme.textTertiary, modifier = Modifier.size(14.dp))
             }
 
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
                     "🗄️ حزمة استعلامات Supabase الشاملة لكل الجداول (Master SQL Script)",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
@@ -1355,7 +1359,7 @@ private fun DevOpsTerminalCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "يمكنك نسخ الاستعلام الموحد الكامل وألصقه في Supabase SQL Editor لتفعيل جميع الجداول والبث الحي بضغطة واحدة:",
-                    color = Color(0xFFCBD5E1),
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
                     lineHeight = 16.sp
@@ -1384,7 +1388,7 @@ private fun DevOpsTerminalCard(
                         clipboard.setText(AnnotatedString(masterSql))
                         android.widget.Toast.makeText(context, "تم نسخ حزمة استعلامات Supabase الشاملة لـ 8 جداول! 🎉", android.widget.Toast.LENGTH_LONG).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth().height(40.dp)
                 ) {
@@ -1397,7 +1401,7 @@ private fun DevOpsTerminalCard(
 
                 Text(
                     "📦 ميثاق توزيع Firebase والإنتاج (Continuous Delivery)",
-                    color = Color(0xFF38BDF8),
+                    color = theme.primary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
@@ -1406,14 +1410,14 @@ private fun DevOpsTerminalCard(
 
                 // خطوات الأوامر التقنية
                 Surface(
-                    color = Color(0xFF020408),
+                    color = theme.background,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("1) FIREBASE_APP_ID: معرف تطبيق أندرويد الرسمي", color = Color(0xFF38BDF8), fontFamily = FontFamily.Monospace, fontSize = 9.5.sp)
-                        Text("2) FIREBASE_SERVICE_ACCOUNT: مفتاح JSON لحساب الخدمة", color = Color(0xFFFCD34D), fontFamily = FontFamily.Monospace, fontSize = 9.5.sp)
-                        Text("3) TESTERS_GROUP: مجموعة المختبرين (client-testers)", color = Color(0xFF6EE7B7), fontFamily = FontFamily.Monospace, fontSize = 9.5.sp)
+                        Text("1) FIREBASE_APP_ID: معرف تطبيق أندرويد الرسمي", color = theme.primary, fontFamily = FontFamily.Monospace, fontSize = 9.5.sp)
+                        Text("2) FIREBASE_SERVICE_ACCOUNT: مفتاح JSON لحساب الخدمة", color = theme.warning, fontFamily = FontFamily.Monospace, fontSize = 9.5.sp)
+                        Text("3) TESTERS_GROUP: مجموعة المختبرين (client-testers)", color = theme.success, fontFamily = FontFamily.Monospace, fontSize = 9.5.sp)
                     }
                 }
 
@@ -1424,13 +1428,13 @@ private fun DevOpsTerminalCard(
                         onCopyReport()
                         android.widget.Toast.makeText(context, "تم نسخ تقرير الموصلات الشامل للحافظة 📋", android.widget.Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth().height(38.dp)
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("نسخ تقرير الفحص والتشخيص الكامل 📋", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("نسخ تقرير الفحص والتشخيص الكامل 📋", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

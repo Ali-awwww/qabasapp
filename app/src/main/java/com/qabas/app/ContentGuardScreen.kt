@@ -636,7 +636,7 @@ fun ContentGuardScreen(
                                                         refutationsCount += 1
                                                         guardPrefs.edit().putInt("refutations_count", refutationsCount).apply()
                                                     }
-                                                } catch (e: Exception) {
+                                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                                     refutationError = "تعذر توليد الرد: ${e.message ?: "تحقق من اتصال الإنترنت أو مفاتيح AI"}"
                                                 } finally {
                                                     isGeneratingRefutation = false

@@ -26,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -102,6 +101,7 @@ fun SpatialCommandHomeScreen(
 ) {
     val theme = QabasTheme.current
     val context = LocalContext.current
+    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
     val scope = rememberCoroutineScope()
     val authState by SupabaseRepository.getInstance().authState.collectAsState()
     val verifiedRole by SupabaseServices.Auth.verifiedRole.collectAsState()
@@ -138,7 +138,7 @@ fun SpatialCommandHomeScreen(
                 withContext(Dispatchers.IO) {
                     PrayerLocationProvider.detectCurrentCity(context, hasFinePermission)
                 }
-            }.getOrNull()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
             if (detectedCity != null) {
                 selectedCity = detectedCity
                 PrayerCalculationHelper.updateSelectedCity(context, detectedCity)
@@ -198,7 +198,7 @@ fun SpatialCommandHomeScreen(
     }
     val calculatedPrayerTimes = remember(currentTimeMillis, selectedCity) {
         val cal = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
-        PrayerCalculationHelper.calculatePrayerTimes(cal, selectedCity, selectedCity.defaultMethod)
+        PrayerCalculationHelper.calculatePrayerTimesForUser(context, cal, selectedCity)
     }
 
     val liveNotifications by AppNotificationService.observeNotifications(context).collectAsState()
@@ -607,7 +607,8 @@ fun SpatialCommandHomeScreen(
                         transitionSpec = {
                             AppAnimationManager.createSectorTransitionSpec(
                                 initialSector = initialState,
-                                targetSector = targetState
+                                targetSector = targetState,
+                                reducedMotion = reducedMotion
                             )
                         },
                         label = "SectorContentAnimation"

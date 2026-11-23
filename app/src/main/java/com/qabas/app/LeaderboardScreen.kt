@@ -1,6 +1,8 @@
 package com.qabas.app
 
 import android.content.Context
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
@@ -30,7 +32,6 @@ import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
-import java.util.Calendar
 
 data class CreatorStats(
     val name: String,
@@ -39,7 +40,7 @@ data class CreatorStats(
     val views: String,
     val badge: String,
     val isCurrentUser: Boolean = false,
-    val avatarColor: Color = GoldPrimary,
+    val avatarColor: Color = PresetPrimary,
     val userId: String = "",
     /**
      * حراك الترتيب مقابل الأسبوع السابق: موجب = تقدّم، سالب = تراجع،
@@ -59,7 +60,6 @@ data class FeedItem(
     val viewsCount: String,
     val ratio: String = "9:16",
     val duration: String = "30 ثانية",
-    val isLikedByMe: Boolean = false
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,18 +85,23 @@ fun LeaderboardScreen(
 
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
+    // فشل آخر تحميل: بلا هذا العلم كان أي استثناء سحابي يترك isLoading
+    // true للأبد (تحميل لا نهائي بلا خطأ ولا إعادة محاولة).
+    var loadFailed by remember { mutableStateOf(false) }
 
+    // الأيام المتبقية على نهاية أسبوع النقاط ISO (الاثنين–الأحد) كما في
+    // استعلام لوحة الشرف — لا الجمعة: كان العدّ يقول «متبقي 6 أيام» يوم
+    // السبت بينما ينتهي الأسبوع الأحد.
     val daysLeft = remember {
-        val calendar = Calendar.getInstance()
-        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-        val left = (Calendar.FRIDAY - dayOfWeek + 7) % 7
-        if (left == 0) 7 else left
+        val isoDay = java.time.LocalDate.now().dayOfWeek.value // Mon=1..Sun=7
+        7 - isoDay
     }
 
     val loadData: () -> Unit = {
         coroutineScope.launch {
             isLoading = true
-
+            loadFailed = false
+            try {
             val currentUserName = CloudServices.Auth.currentUser.value?.displayName
                 ?: prefs.getString("user_name", "")?.takeIf { it.isNotBlank() }
                 ?: prefs.getString("local_user_name", "")?.takeIf { it.isNotBlank() }
@@ -165,12 +170,23 @@ fun LeaderboardScreen(
             }
 
             val cloudProjects = CloudServices.Database.getFeedProjects()
+            // أسماء أصحاب المشاريع الحقيقية من جدول المستخدمين — قبلها
+            // كان كل مشروع منشور يُنسب لاسم عام «صانع محتوى».
+            val authorNames = if (cloudProjects.isNotEmpty()) {
+                runCatching {
+                    SupabaseServices.Database.getUserDisplayNames(
+                        cloudProjects.mapNotNull { it.userId.takeIf { id -> id.isNotBlank() } }.distinct()
+                    )
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
             feedProjects = if (cloudProjects.isNotEmpty()) {
                 cloudProjects.mapIndexed { idx, p ->
                     FeedItem(
                         id = p.id.ifBlank { "proj_$idx" },
                         title = p.title.ifBlank { "مشروع إسلامي ملهم" },
-                        creatorName = "صانع محتوى",
+                        creatorName = authorNames[p.userId] ?: "مستخدم خادم المسلم",
                         scriptPreview = p.script.ifBlank { p.idea.ifBlank { "سيناريو دعوي مبارك" } },
                         category = "إنتاج دعوي",
                         likesCount = 0,
@@ -200,9 +216,18 @@ fun LeaderboardScreen(
             val mission = PointsManager.getCurrentWeeklyMission()
             currentMission = mission
             isMissionCompleted = PointsManager.isWeeklyMissionCompleted(context, mission.id)
-
-            isLoading = false
-            isRefreshing = false
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                // أي استثناء سحابي (شبكة/خادم) كان يقتل الكوروتين هنا وisLoading
+                // تبقى true للأبد. الآن: علم فشل + إبقاء البيانات السابقة إن وجدت.
+                Log.e("LeaderboardScreen", "loadData failed: ${e.message}")
+                loadFailed = true
+                if (topCreators.isNotEmpty() || feedProjects.isNotEmpty() || currentMission != null) {
+                    Toast.makeText(context, "تعذّر تحديث البيانات، تُعرض آخر بيانات محفوظة.", Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                isLoading = false
+                isRefreshing = false
+            }
         }
     }
 
@@ -270,6 +295,17 @@ fun LeaderboardScreen(
                     QabasLoadingState(
                         message = Translator.tr("جاري تحديث لوحة الشرف ومجتمع المبدعين..."),
                         subMessage = Translator.tr("يتم مزامنة نقاط الأثر والتفاعل مع السحابة")
+                    )
+                }
+            } else if (loadFailed && topCreators.isEmpty() && feedProjects.isEmpty() && currentMission == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    QabasErrorState(
+                        title = Translator.tr("تعذّر تحميل لوحة الشرف"),
+                        message = Translator.tr("تحقق من اتصال الإنترنت وحاول مجدداً."),
+                        onRetry = {
+                            isRefreshing = true
+                            loadData()
+                        }
                     )
                 }
             } else {
@@ -349,7 +385,7 @@ private fun LeaderboardTab(
                                     fontSize = 16.sp
                                 )
                                 Text(
-                                    text = Translator.tr("أعلى 7 مبدعين ينالون ترقية Pro مجانية"),
+                                    text = Translator.tr("منافسة أسبوعية على نقاط الأثر"),
                                     color = theme.textSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 12.sp
@@ -439,7 +475,7 @@ private fun LeaderboardTab(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = Translator.tr("تُكتسب النقاط من تصدير فيديو أو إكمال اختبار أو الدخول اليومي، وتظهر هنا بعد مزامنتها مع السحابة."),
+                            text = Translator.tr("تُكتسب النقاط من إنشاء فيديو أو إكمال اختبار أو الدخول اليومي، وتظهر هنا بعد مزامنتها مع السحابة."),
                             color = theme.textSecondary,
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp,
@@ -1257,7 +1293,6 @@ private fun WeeklyMissionTab(
                                     PointAction.EXPORT_VIDEO -> Icons.Default.Movie
                                     PointAction.USE_AI_HOOK -> Icons.Default.Lightbulb
                                     PointAction.SEARCH_DALEEL -> Icons.Default.Search
-                                    PointAction.SHARE_APP -> Icons.Default.Share
                                     PointAction.DAILY_LOGIN -> Icons.Default.Today
                                     PointAction.WEEKLY_CHALLENGE -> Icons.Default.EmojiEvents
                                     PointAction.SAHIH_QUIZ_CORRECT -> Icons.Default.School
@@ -1311,7 +1346,7 @@ private fun VerificationMissionCard() {
     var targetInput by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        runCatching { VerificationManager.refreshFromCloud(context) }
+        runCatching { VerificationManager.refreshFromCloud(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         refresh++
     }
 

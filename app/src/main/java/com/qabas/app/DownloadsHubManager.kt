@@ -1,14 +1,12 @@
 package com.qabas.app
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.os.StatFs
 import android.util.Log
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +23,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -43,18 +40,12 @@ data class StorageMetrics(
 ) {
     val totalFormatted: String get() = formatBytes(totalBytes)
     val availableFormatted: String get() = formatBytes(availableBytes)
-    val usedFormatted: String get() = formatBytes(usedBytes)
     val llmModelsFormatted: String get() = formatBytes(llmModelsBytes)
     val reelsFormatted: String get() = formatBytes(reelsBytes)
-    val otherMediaFormatted: String get() = formatBytes(otherMediaBytes)
     val updatesFormatted: String get() = formatBytes(updatesBytes)
     val totalQabasFormatted: String get() = formatBytes(totalQabasBytes)
 
-    val usedPercentage: Float
-        get() = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes).coerceIn(0f, 1f) else 0f
 
-    val qabasPercentage: Float
-        get() = if (totalBytes > 0) (totalQabasBytes.toFloat() / totalBytes).coerceIn(0f, 1f) else 0f
 
     companion object {
         fun formatBytes(bytes: Long): String {
@@ -209,7 +200,6 @@ object DownloadsHubManager {
     private val _isCheckingUpdate = MutableStateFlow(false)
     val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
 
-    private val activeDownloadJobs = ConcurrentHashMap<String, Job>()
     private var isListeningToUpdateManager = false
     private var appContextRef: Context? = null
 
@@ -382,11 +372,6 @@ object DownloadsHubManager {
             .getBoolean(KEY_WIFI_ONLY_DOWNLOADS, false)
     }
 
-    fun setWifiOnlyDownloads(context: Context, wifiOnly: Boolean) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putBoolean(KEY_WIFI_ONLY_DOWNLOADS, wifiOnly).apply()
-    }
-
     /** ملف الوسائط الموحّد لمعرّف ما — نفس المفتاح لكل مسارات تنزيل الصوت. */
     internal fun mediaFileForId(context: Context, mediaId: String, extension: String): File {
         val safeId = mediaId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
@@ -408,15 +393,6 @@ object DownloadsHubManager {
         val file = File(getMediaDirectory(context), "media_${audioMediaIdForUrl(url)}.mp3")
         return file.takeIf { it.exists() && it.length() > 0 }
     }
-
-    /** هل الصوت منزّل فعلاً في المخزن الداخلي الموحّد؟ (مصدر شارة «منزّل»). */
-    fun isAudioDownloaded(context: Context, url: String): Boolean {
-        if (audioFileForUrl(context, url) != null) return true
-        return _downloadedMedia.value.any { it.sourceUrl == url.trim() && it.fileExists }
-    }
-
-    /** هل ملف وسائط بهذا الرابط منزّل فعلاً؟ (إزالة تكرار قبل أي تنزيل صوت). */
-    fun isMediaDownloadedByUrl(context: Context, url: String): Boolean = isAudioDownloaded(context, url)
 
     // ---- حالة الاستئناف المحفوظة للملفات الجزئية (تبقى بعد موت العملية) ----
 
@@ -903,17 +879,7 @@ object DownloadsHubManager {
      */
     fun cancelReelDownload(reelId: String) {
         appContextRef?.let { DownloadWorker.cancelReel(it, reelId) }
-        activeDownloadJobs[reelId]?.cancel()
-        activeDownloadJobs.remove(reelId)
         _activeReelDownloads.value = _activeReelDownloads.value - reelId
-    }
-
-    /**
-     * إيقاف مؤقت لتنزيل ريل: WorkManager لا يملك إيقافاً أصلياً، فيُلغى العمل
-     * مع الإبقاء على الملف الجزئي، وإعادة التنزيل تستأنفه عبر HTTP Range.
-     */
-    fun pauseReelDownload(reelId: String) {
-        cancelReelDownload(reelId)
     }
 
     /**
@@ -935,10 +901,16 @@ object DownloadsHubManager {
             if (!result.isNullOrBlank()) return result
             if (attempt < retryDelaysMillis.lastIndex) {
                 Log.w(TAG, "Adhan download failed; retry ${attempt + 1}/3 for $mediaId")
+                // (ر21) لا يُصفَّر شريط التقدم عند إعادة المحاولة: الملف الجزئي
+                // باقٍ على القرص والاستئناف يبدأ منه — كان progress = 0f فيكذب
+                // الشريط (0٪) بينما البايتات المنزّلة محفوظة فعلاً.
+                val prev = _activeMediaDownloads.value[mediaId]
                 _activeMediaDownloads.value = _activeMediaDownloads.value + (mediaId to ReelDownloadProgress(
                     reelId = mediaId,
                     title = title,
-                    progress = 0f,
+                    progress = prev?.progress ?: 0f,
+                    downloadedBytes = prev?.downloadedBytes ?: 0L,
+                    totalBytes = prev?.totalBytes ?: 0L,
                     isError = false,
                     errorMessage = "إعادة المحاولة تلقائيًا (${attempt + 2}/3)…"
                 ))
@@ -1045,14 +1017,6 @@ object DownloadsHubManager {
     }
 
     /**
-     * إيقاف مؤقت لتنزيل وسائط: يُلغى العمل مع الإبقاء على الملف الجزئي،
-     * وإعادة التنزيل تستأنفه عبر HTTP Range (لا إيقاف أصلي في WorkManager).
-     */
-    fun pauseMediaDownload(mediaId: String) {
-        cancelMediaDownload(mediaId)
-    }
-
-    /**
      * حذف ريل منزّل من الذاكرة المحلية — إجراء حذف صريح من المستخدم، فيحذف
      * معه الملف الجزئي (.tmp) وحالة الاستئناف إن وُجدا.
      */
@@ -1127,7 +1091,7 @@ object DownloadsHubManager {
 
     private fun collectSafeTempDownloadFiles(context: Context): List<File> = buildList {
         // لا تلمس ملفات التحديث أو النماذج؛ قد تكون مكتملة أو قابلة للاستئناف.
-        if (_activeReelDownloads.value.isEmpty() && activeDownloadJobs.isEmpty()) {
+        if (_activeReelDownloads.value.isEmpty()) {
             getReelsDirectory(context).walkTopDown()
                 .filter { it.isFile && it.extension.equals("tmp", ignoreCase = true) }
                 .forEach(::add)
@@ -1175,10 +1139,30 @@ object DownloadsHubManager {
         _isCheckingUpdate.value = true
         scope.launch(Dispatchers.IO) {
             try {
-                val update = VersionManager.checkRemoteVersion(context, force = force)
-                if (update == null) {
-                    Log.d(TAG, "✅ لا يوجد إصدار معتمد أحدث")
-                    return@launch
+                // فحص مميِّز (من الجولة 24): كان null يعني «لا تحديث» و«تعذّر
+                // الوصول» معاً، فيضغط المستخدم «فحص التحديثات» فيرى «جارٍ
+                // الفحص» ثم صمتاً — بلا «أحدث نسخة» ولا «تعذّر الوصول».
+                val update = when (val result = VersionManager.checkRemoteVersionDetailed(context, force = force)) {
+                    is UpdateManager.UpdateCheckResult.Available -> result.info
+                    UpdateManager.UpdateCheckResult.UpToDate -> {
+                        Log.d(TAG, "✅ لا يوجد إصدار معتمد أحدث")
+                        if (force) {
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل ✓", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        return@launch
+                    }
+                    UpdateManager.UpdateCheckResult.Failed,
+                    UpdateManager.UpdateCheckResult.Skipped -> {
+                        Log.w(TAG, "⚠️ تعذّر فحص التحديثات (بلا وصول للخادم)")
+                        if (force) {
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "تعذّر الوصول إلى خادم التحديثات، تحقق من اتصال الإنترنت وحاول لاحقاً.", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        return@launch
+                    }
                 }
 
                 withContext(Dispatchers.Main) {
@@ -1243,19 +1227,12 @@ object DownloadsHubManager {
                         UpdateDownloadService.start(context, update, forceFull = true)
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "❌ فشل فحص/بدء التحديث المعتمد: ${e.message}", e)
             } finally {
                 _isCheckingUpdate.value = false
             }
         }
-    }
-
-    /**
-     * بدء تنزيل التحديث يدوياً
-     */
-    fun startUpdateDownload(context: Context, update: UpdateManager.UpdateInfo, forceFull: Boolean = false) {
-        UpdateDownloadService.start(context, update, forceFull)
     }
 
     /**
@@ -1284,18 +1261,6 @@ object DownloadsHubManager {
             return true
         }
         return false
-    }
-
-    /**
-     * فتح مثبّت النظام مباشرة من إشعار/اختصار — يجد الحزمة المنزّلة تلقائياً.
-     * (يُستخدم من UpdateInstallReceiver)
-     */
-    fun installVersion(context: Context, versionName: String, versionCode: Int, apkSize: Long = 0L): Boolean {
-        // الحزمة تُحدد بالاسم ورقم البناء معاً — لا نثبّت حزمة غير محددة بدقة
-        val apk = UpdateManager.getValidatedDownloadedApk(context, versionName, versionCode, apkSize) ?: return false
-        if (!apk.exists() || apk.length() <= 1_000_000L) return false
-        UpdateManager.launchInstaller(context, apk)
-        return true
     }
 
     /**

@@ -23,8 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -35,9 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * شاشة الاتصال المباشر بمستودع GitHub وفحص إصدارات وتحديثات xdelta التفاضلية
@@ -75,6 +71,7 @@ private fun runStatusText(info: UpdateManager.XdeltaRunInfo): String = when {
 fun GithubXdeltaHubScreen(
     onBack: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
@@ -234,7 +231,7 @@ fun GithubXdeltaHubScreen(
                 } else {
                     dispatchMessage = "لم يقبل الخادم أمر التوليد"
                 }
-            } catch (err: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (err: Exception) {
                 isDispatching = false
                 dispatchMessage = err.message ?: "فشل إرسال الأمر من الخادم"
             }
@@ -315,11 +312,11 @@ fun GithubXdeltaHubScreen(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF00E5FF))
+                                .background(theme.primary)
                         )
                         Text(
                             text = "تحديثات xdelta و GitHub",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp
@@ -331,7 +328,7 @@ fun GithubXdeltaHubScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "رجوع",
-                            tint = Color.White
+                            tint = theme.textPrimary
                         )
                     }
                 },
@@ -348,16 +345,16 @@ fun GithubXdeltaHubScreen(
                         Icon(
                             Icons.Default.OpenInBrowser,
                             contentDescription = "فتح في المتصفح",
-                            tint = Color(0xFF00E5FF)
+                            tint = theme.primary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF070B14)
+                    containerColor = theme.background
                 )
             )
         },
-        containerColor = Color(0xFF070B14)
+        containerColor = theme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -377,8 +374,8 @@ fun GithubXdeltaHubScreen(
             // 1️⃣ بطاقة هوية المستودع والاتصال المباشر (Spatial HUD Connectivity Banner)
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF0D1527).copy(alpha = 0.85f),
-                borderColor = Color(0xFF00E5FF).copy(alpha = 0.4f),
+                backgroundColor = theme.secondarySurface.copy(alpha = 0.85f),
+                borderColor = theme.primary.copy(alpha = 0.4f),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -393,13 +390,13 @@ fun GithubXdeltaHubScreen(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF00E5FF).copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f))
+                                color = theme.primary.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f))
                             ) {
                                 Icon(
                                     Icons.Default.CloudSync,
                                     contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
+                                    tint = theme.primary,
                                     modifier = Modifier
                                         .padding(6.dp)
                                         .size(20.dp)
@@ -408,14 +405,14 @@ fun GithubXdeltaHubScreen(
                             Column {
                                 Text(
                                     text = "الاتصال المباشر بـ GitHub",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 )
                                 Text(
                                     text = "قناة تحديثات xdelta الذكية",
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp
                                 )
@@ -425,8 +422,8 @@ fun GithubXdeltaHubScreen(
                         // شارة الحالة
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                            color = theme.success.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, theme.success.copy(alpha = 0.6f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -437,11 +434,11 @@ fun GithubXdeltaHubScreen(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF10B981))
+                                        .background(theme.success)
                                 )
                                 Text(
                                     text = if (isDevMode) "إدارة المطور ✓" else "القناة الرسمية ✓",
-                                    color = Color(0xFF10B981),
+                                    color = theme.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
@@ -461,8 +458,8 @@ fun GithubXdeltaHubScreen(
                                 Toast.makeText(context, "تم نسخ رابط المستودع 📋", Toast.LENGTH_SHORT).show()
                             },
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF090E1A),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                        color = theme.background,
+                        border = BorderStroke(1.dp, theme.separator)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -474,17 +471,17 @@ fun GithubXdeltaHubScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.Link, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Link, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                 Text(
                                     text = "https://github.com/${ownerInput.trim()}/${repoInput.trim()}",
-                                    color = Color(0xFFE2E8F0),
+                                    color = theme.textPrimary,
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.textTertiary, modifier = Modifier.size(15.dp))
                         }
                     }
 
@@ -500,23 +497,23 @@ fun GithubXdeltaHubScreen(
                         OutlinedButton(
                             onClick = { isEditingRepo = !isEditingRepo },
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            border = BorderStroke(1.dp, theme.separator),
                             modifier = Modifier.weight(1f).height(38.dp)
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFFCBD5E1), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isEditingRepo) "إلغاء التعديل" else "تعديل المستودع", color = Color(0xFFCBD5E1), fontFamily = CairoFont, fontSize = 11.sp)
+                            Text(if (isEditingRepo) "إلغاء التعديل" else "تعديل المستودع", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
 
                         OutlinedButton(
                             onClick = { resetToOfficialDefaults() },
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            border = BorderStroke(1.dp, theme.separator),
                             modifier = Modifier.weight(1f).height(38.dp)
                         ) {
-                            Icon(Icons.Default.RestartAlt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.RestartAlt, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("الافتراضي المعتمد", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("الافتراضي المعتمد", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
 
@@ -544,11 +541,11 @@ fun GithubXdeltaHubScreen(
                             )
                             Button(
                                 onClick = { saveRepoCredentials() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.fillMaxWidth().height(42.dp)
                             ) {
-                                Text("حفظ وتحديث الاتصال فورياً", color = Color(0xFF050811), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                Text("حفظ وتحديث الاتصال فورياً", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -559,14 +556,14 @@ fun GithubXdeltaHubScreen(
             // 2️⃣ قياسات محرك الـ xdelta والعتاد (Spatial Telemetry & Hardware Spec)
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF0D1527).copy(alpha = 0.65f),
-                borderColor = Color(0xFF334155),
+                backgroundColor = theme.secondarySurface.copy(alpha = 0.65f),
+                borderColor = theme.separator,
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
                         text = "محرك xdelta3 التفاضلي ومعمارية الجهاز",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -577,15 +574,15 @@ fun GithubXdeltaHubScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("معمارية معالج جهازك:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text("معمارية معالج جهازك:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.5.sp)
                         Surface(
-                            color = Color(0xFF00E5FF).copy(alpha = 0.15f),
+                            color = theme.primary.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f))
+                            border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.4f))
                         ) {
                             Text(
                                 text = deviceAbi,
-                                color = Color(0xFF00E5FF),
+                                color = theme.primary,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
@@ -600,8 +597,8 @@ fun GithubXdeltaHubScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("ثنائي xdelta3 المطلوب:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
-                        Text("xdelta3-$deviceAbi (Static ELF)", color = Color.White, fontFamily = RobotoMonoFont, fontSize = 11.sp)
+                        Text("ثنائي xdelta3 المطلوب:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text("xdelta3-$deviceAbi (Static ELF)", color = theme.textPrimary, fontFamily = RobotoMonoFont, fontSize = 11.sp)
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
@@ -610,10 +607,10 @@ fun GithubXdeltaHubScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("محرك C++ JNI المدمج:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text("محرك C++ JNI المدمج:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.5.sp)
                         Text(
                             text = if (XdeltaPatchEngine.isNativeEngineAvailable()) "جاهز ومدمج (In-Process Native) ✓" else "ثنائي xdelta3-$deviceAbi",
-                            color = if (XdeltaPatchEngine.isNativeEngineAvailable()) Color(0xFF10B981) else Color(0xFF00E5FF),
+                            color = if (XdeltaPatchEngine.isNativeEngineAvailable()) theme.success else theme.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
@@ -626,8 +623,8 @@ fun GithubXdeltaHubScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("متوسط توفير البيانات:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
-                        Text("85% - 95% مقارنة بـ APK كامل ⚡", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("متوسط توفير البيانات:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text("85% - 95% مقارنة بـ APK كامل ⚡", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
@@ -636,8 +633,8 @@ fun GithubXdeltaHubScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("النسخة المثبتة الحالية:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp)
-                        Text("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = Color.White, fontFamily = RobotoMonoFont, fontSize = 11.sp)
+                        Text("النسخة المثبتة الحالية:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 11.5.sp)
+                        Text("v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = theme.textPrimary, fontFamily = RobotoMonoFont, fontSize = 11.sp)
                     }
                 }
             }
@@ -645,7 +642,7 @@ fun GithubXdeltaHubScreen(
             // 3️⃣ زر فحص أحدث إصدارات xdelta المباشر (Primary Scan Action)
             Button(
                 onClick = { checkReleases() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -655,13 +652,13 @@ fun GithubXdeltaHubScreen(
                 if (isChecking) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
-                        color = Color(0xFF050811),
+                        color = theme.background,
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "جاري فحص وتدقيق المستودع...",
-                        color = Color(0xFF050811),
+                        color = theme.background,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -670,13 +667,13 @@ fun GithubXdeltaHubScreen(
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = null,
-                        tint = Color(0xFF050811),
+                        tint = theme.background,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "فحص أحدث إصدارات xdelta من المستودع ⚡",
-                        color = Color(0xFF050811),
+                        color = theme.background,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -691,8 +688,8 @@ fun GithubXdeltaHubScreen(
                     onClick = { triggerDeltaGeneration() },
                     enabled = !isDispatching && !trackingRun,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981)),
+                    border = BorderStroke(1.dp, theme.success.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.success),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
@@ -700,7 +697,7 @@ fun GithubXdeltaHubScreen(
                     if (isDispatching) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -714,7 +711,7 @@ fun GithubXdeltaHubScreen(
                         Icon(
                             Icons.Default.Bolt,
                             contentDescription = null,
-                            tint = Color(0xFF10B981),
+                            tint = theme.success,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -730,7 +727,7 @@ fun GithubXdeltaHubScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = dispatchMessage!!,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center,
@@ -742,11 +739,11 @@ fun GithubXdeltaHubScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF0B1324),
+                        color = theme.cardSurface,
                         border = BorderStroke(
                             1.dp,
-                            if (trackedRun?.isFailed() == true) Color(0xFFEF4444).copy(alpha = 0.5f)
-                            else Color(0xFF00E5FF).copy(alpha = 0.5f)
+                            if (trackedRun?.isFailed() == true) theme.destructive.copy(alpha = 0.5f)
+                            else theme.primary.copy(alpha = 0.5f)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -759,7 +756,7 @@ fun GithubXdeltaHubScreen(
                                 Text(
                                     text = trackedRun?.let { "التشغيل #${it.runId} • ${runStatusText(it)}" }
                                         ?: "بانتظار أول قراءة...",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.5.sp
@@ -767,7 +764,7 @@ fun GithubXdeltaHubScreen(
                                 if (trackingRun) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(14.dp),
-                                        color = Color(0xFF00E5FF),
+                                        color = theme.primary,
                                         strokeWidth = 2.dp
                                     )
                                 }
@@ -776,7 +773,7 @@ fun GithubXdeltaHubScreen(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "بدأ ${runAgeText(info)} • حدّث تلقائياً كل 30 ثانية — لا تضغط مجدداً",
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp
                                 )
@@ -789,8 +786,8 @@ fun GithubXdeltaHubScreen(
             // رسالة الخطأ إن وجدت
             if (errorMessage != null) {                Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFEF4444).copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f)),
+                    color = theme.destructive.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -798,10 +795,10 @@ fun GithubXdeltaHubScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(18.dp))
                         Text(
                             text = errorMessage!!,
-                            color = Color(0xFFEF4444),
+                            color = theme.destructive,
                             fontFamily = CairoFont,
                             fontSize = 11.5.sp
                         )
@@ -813,8 +810,8 @@ fun GithubXdeltaHubScreen(
             inspectionResult?.let { info ->
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF0D1527).copy(alpha = 0.9f),
-                    borderColor = if (info.isNewerThanCurrent) Color(0xFF10B981) else Color(0xFF00E5FF).copy(alpha = 0.4f),
+                    backgroundColor = theme.secondarySurface.copy(alpha = 0.9f),
+                    borderColor = if (info.isNewerThanCurrent) theme.success else theme.primary.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -826,7 +823,7 @@ fun GithubXdeltaHubScreen(
                             Column {
                                 Text(
                                     text = "إصدار المستودع: ${info.tagName}",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
@@ -834,7 +831,7 @@ fun GithubXdeltaHubScreen(
                                 if (info.publishedAt.isNotBlank()) {
                                     Text(
                                         text = "نُشر في: ${info.publishedAt.take(10)}",
-                                        color = Color(0xFF94A3B8),
+                                        color = theme.textSecondary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 10.5.sp
                                     )
@@ -844,12 +841,12 @@ fun GithubXdeltaHubScreen(
                             // شارة الحالة
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = if (info.isNewerThanCurrent) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF38BDF8).copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, if (info.isNewerThanCurrent) Color(0xFF10B981) else Color(0xFF38BDF8).copy(alpha = 0.5f))
+                                color = if (info.isNewerThanCurrent) theme.success.copy(alpha = 0.2f) else theme.primary.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, if (info.isNewerThanCurrent) theme.success else theme.primary.copy(alpha = 0.5f))
                             ) {
                                 Text(
                                     text = if (info.isNewerThanCurrent) "تحديث جديد متاح 🚀" else "الإصدار الأخير ✓",
-                                    color = if (info.isNewerThanCurrent) Color(0xFF10B981) else Color(0xFF38BDF8),
+                                    color = if (info.isNewerThanCurrent) theme.success else theme.primary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
@@ -863,7 +860,7 @@ fun GithubXdeltaHubScreen(
                         // أصول الإصدار (Assets Analysis HUD)
                         Text(
                             text = "الأصول المكتشفة في الإصدار (Release Assets):",
-                            color = Color(0xFFE2E8F0),
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp
@@ -874,8 +871,8 @@ fun GithubXdeltaHubScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF090E1A),
-                            border = BorderStroke(1.dp, if (info.deltaAsset != null) Color(0xFF10B981).copy(alpha = 0.4f) else Color(0xFF334155))
+                            color = theme.background,
+                            border = BorderStroke(1.dp, if (info.deltaAsset != null) theme.success.copy(alpha = 0.4f) else theme.separator)
                         ) {
                             Row(
                                 modifier = Modifier.padding(10.dp),
@@ -889,19 +886,19 @@ fun GithubXdeltaHubScreen(
                                     Icon(
                                         Icons.Default.Bolt,
                                         contentDescription = null,
-                                        tint = if (info.deltaAsset != null) Color(0xFF10B981) else Color(0xFF64748B),
+                                        tint = if (info.deltaAsset != null) theme.success else theme.textTertiary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = info.deltaAsset ?: "ملف .delta (تفاضلي)",
-                                        color = if (info.deltaAsset != null) Color.White else Color(0xFF64748B),
+                                        color = if (info.deltaAsset != null) theme.textPrimary else theme.textTertiary,
                                         fontFamily = RobotoMonoFont,
                                         fontSize = 11.sp
                                     )
                                 }
                                 Text(
                                     text = if (info.deltaAsset != null) "${UpdateManager.formatSize(info.deltaSize)} ⚡" else "غير متوفر",
-                                    color = if (info.deltaAsset != null) Color(0xFF10B981) else Color(0xFF64748B),
+                                    color = if (info.deltaAsset != null) theme.success else theme.textTertiary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
@@ -915,8 +912,8 @@ fun GithubXdeltaHubScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF090E1A),
-                            border = BorderStroke(1.dp, Color(0xFF334155))
+                            color = theme.background,
+                            border = BorderStroke(1.dp, theme.separator)
                         ) {
                             Row(
                                 modifier = Modifier.padding(10.dp),
@@ -927,17 +924,17 @@ fun GithubXdeltaHubScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Icon(Icons.Default.Android, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Android, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                     Text(
                                         text = info.apkAsset ?: "ملف APK كامل",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = RobotoMonoFont,
                                         fontSize = 11.sp
                                     )
                                 }
                                 Text(
                                     text = if (info.apkAsset != null) UpdateManager.formatSize(info.apkSize) else "غير متوفر",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
@@ -951,8 +948,8 @@ fun GithubXdeltaHubScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF090E1A),
-                            border = BorderStroke(1.dp, Color(0xFF334155))
+                            color = theme.background,
+                            border = BorderStroke(1.dp, theme.separator)
                         ) {
                             Row(
                                 modifier = Modifier.padding(10.dp),
@@ -963,17 +960,17 @@ fun GithubXdeltaHubScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Icon(Icons.Default.Memory, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Memory, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                                     Text(
                                         text = "ثنائيات xdelta3 المرفقة",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp
                                     )
                                 }
                                 Text(
                                     text = if (info.xdeltaBinaries.isNotEmpty()) "${info.xdeltaBinaries.size} معماريات جاهزة ✓" else "مدمج تلقائياً",
-                                    color = Color(0xFF00E5FF),
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp
                                 )
@@ -985,7 +982,7 @@ fun GithubXdeltaHubScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "ملاحظات وتغييرات الإصدار:",
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp
                             )
@@ -993,12 +990,12 @@ fun GithubXdeltaHubScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF090E1A),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B))
+                                color = theme.background,
+                                border = BorderStroke(1.dp, theme.separator)
                             ) {
                                 Text(
                                     text = info.releaseNotes,
-                                    color = Color(0xFFCBD5E1),
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
                                     lineHeight = 17.sp,
@@ -1046,16 +1043,16 @@ fun GithubXdeltaHubScreen(
                                             UpdateDownloadService.start(context, updateInfoObj, forceFull = false)
                                             Toast.makeText(context, "بدأ تنزيل التحديث التفاضلي الصغير ⚡", Toast.LENGTH_SHORT).show()
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = theme.success),
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1.2f).height(44.dp),
                                         enabled = !isDownloading
                                     ) {
-                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "تثبيت xdelta (${UpdateManager.formatSize(info.deltaSize)}) ⚡",
-                                            color = Color.White,
+                                            color = theme.onPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 11.5.sp
@@ -1069,17 +1066,17 @@ fun GithubXdeltaHubScreen(
                                         UpdateDownloadService.start(context, updateInfoObj, forceFull = true)
                                         Toast.makeText(context, "بدأ تنزيل ملف الـ APK الكامل 📦", Toast.LENGTH_SHORT).show()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                                    border = BorderStroke(1.dp, Color(0xFF475569)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.separator),
+                                    border = BorderStroke(1.dp, theme.textTertiary),
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.weight(1f).height(44.dp),
                                     enabled = !isDownloading
                                 ) {
-                                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         "APK كامل 📦",
-                                        color = Color.White,
+                                        color = theme.onPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp
                                     )
@@ -1095,8 +1092,8 @@ fun GithubXdeltaHubScreen(
                 downloadProgress?.let { prog ->
                     GlassmorphicSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = Color(0xFF0D1527),
-                        borderColor = Color(0xFF00E5FF),
+                        backgroundColor = theme.secondarySurface,
+                        borderColor = theme.primary,
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -1107,14 +1104,14 @@ fun GithubXdeltaHubScreen(
                             ) {
                                 Text(
                                     text = downloadPhaseName,
-                                    color = Color(0xFF00E5FF),
+                                    color = theme.primary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
                                 )
                                 Text(
                                     text = "${prog.percent}%",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = RobotoMonoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
@@ -1129,8 +1126,8 @@ fun GithubXdeltaHubScreen(
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = Color(0xFF00E5FF),
-                                trackColor = Color(0xFF1E293B)
+                                color = theme.primary,
+                                trackColor = theme.separator
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1141,14 +1138,14 @@ fun GithubXdeltaHubScreen(
                             ) {
                                 Text(
                                     text = "${UpdateManager.formatSize(prog.bytesDownloaded)} / ${UpdateManager.formatSize(prog.totalBytes)}",
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 11.sp
                                 )
                                 if (prog.speedBytesPerSec > 0) {
                                     Text(
                                         text = UpdateManager.formatSpeed(prog.speedBytesPerSec),
-                                        color = Color(0xFF10B981),
+                                        color = theme.success,
                                         fontFamily = RobotoMonoFont,
                                         fontSize = 11.sp
                                     )
@@ -1163,10 +1160,10 @@ fun GithubXdeltaHubScreen(
                                     isDownloading = false
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                border = BorderStroke(1.dp, theme.destructive),
                                 modifier = Modifier.fillMaxWidth().height(36.dp)
                             ) {
-                                Text("إلغاء التحديث", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("إلغاء التحديث", color = theme.destructive, fontFamily = CairoFont, fontSize = 11.sp)
                             }
                         }
                     }

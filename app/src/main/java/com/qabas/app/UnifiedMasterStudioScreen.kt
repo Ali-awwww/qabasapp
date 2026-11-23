@@ -1,22 +1,18 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,8 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -46,7 +40,6 @@ import com.qabas.app.ui.components.ReelPlayer
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * 🌟 استوديو العمل المتقن الشامل (Unified Masterpiece Studio)
@@ -87,8 +80,6 @@ fun UnifiedMasterStudioScreen(
     var seoTitle by remember { mutableStateOf("") }
     var seoDescription by remember { mutableStateOf("") }
     var seoHashtags by remember { mutableStateOf("") }
-    var isPlayingPreview by remember { mutableStateOf(false) }
-    var activePreviewSceneIndex by remember { mutableIntStateOf(0) }
 
     // 4. التبويب النشط في قمرة العرض (0: العمل المتكامل, 1: المشاهد والمونتاج, 2: البوستر والمصغرة, 3: الصوت, 4: النشر والـ SEO)
     var selectedCockpitTab by rememberSaveable { mutableIntStateOf(0) }
@@ -110,9 +101,6 @@ fun UnifiedMasterStudioScreen(
         )
     }
 
-    val toneOptions = remember {
-        listOf("خاشع ومؤثر", "وثائقي تاريخي", "حماسي دعوي", "قصصي تأملي")
-    }
 
     val ratioOptions = remember {
         listOf("9:16" to "ريلز وشورتس (9:16)", "16:9" to "يوتيوب عريض (16:9)", "1:1" to "مربع إنستغرام (1:1)")
@@ -133,7 +121,6 @@ fun UnifiedMasterStudioScreen(
             try {
                 // 1. توليد السيناريو والمشاهد
                 delay(600)
-                val scriptPrompt = "قم بإخراج عمل دعوي سينمائي متقن بعنوان: $topicText. النبرة: $selectedTone. النسبة: $selectedRatio."
                 var rawScenes = PollinationsTextService.generateScript(
                     idea = topicText,
                     style = "Islamic Cinematic Slate & Gold Luxury #0B132B #E8C547",
@@ -145,8 +132,8 @@ fun UnifiedMasterStudioScreen(
                 if (rawScenes.isNullOrEmpty()) {
                     val aiPrompt = "أخرج JSON فقط: [{\"title\":\"عنوان المشهد\",\"description\":\"وصف بالإنجليزية\",\"duration\":5,\"transitionType\":\"Fade\"}] " +
                             "— 4-6 مشاهد لموضوع: $topicText، نبرة: $selectedTone"
-                    val rawAi = try { RealGroqService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
-                        ?: try { RealOpenAIService.chatOrGenerate(aiPrompt) } catch (_: Exception) { null }
+                    val rawAi = try { RealGroqService.chatOrGenerate(aiPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                        ?: try { RealOpenAIService.chatOrGenerate(aiPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                     if (!rawAi.isNullOrBlank() && rawAi.contains("[")) {
                         try {
                             val arr = org.json.JSONArray(rawAi.substring(rawAi.indexOf("["), rawAi.lastIndexOf("]") + 1))
@@ -252,8 +239,8 @@ fun UnifiedMasterStudioScreen(
                     val seoPrompt = "أنت خبير SEO للمحتوى الإسلامي القصير. بناءً على المشاهد التالية، أخرج JSON فقط بالشكل: " +
                             "{\"title\":\"عنوان فيروسي جذاب (تحت 60 حرفًا)\",\"description\":\"وصف كامل\",\"hashtags\":\"#هاش #هاش\"}. " +
                             "المشاهد: ${scenes.joinToString("؛ ") { "${it.title}: ${it.description}" }.take(400)}. الموضوع: $topicText."
-                    val rawSeo = try { RealGroqService.chatOrGenerate(seoPrompt) } catch (_: Exception) { null }
-                        ?: try { RealOpenAIService.chatOrGenerate(seoPrompt) } catch (_: Exception) { null }
+                    val rawSeo = try { RealGroqService.chatOrGenerate(seoPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                        ?: try { RealOpenAIService.chatOrGenerate(seoPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
 
                     if (!rawSeo.isNullOrBlank() && rawSeo.contains("{")) {
                         val obj = org.json.JSONObject(rawSeo.substring(rawSeo.indexOf("{"), rawSeo.lastIndexOf("}") + 1))
@@ -266,7 +253,7 @@ fun UnifiedMasterStudioScreen(
                         seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو خادم المسلم لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
                         seoHashtags = "#خادم_المسلم #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
                     }
-                } catch (_: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                     seoTitle = "✨ $topicText | خادم المسلم"
                     seoDescription = "عمل دعوي سينمائي متقن يتناول $topicText.\n\nإنتاج: استوديو خادم المسلم لصناعة المحتوى الإسلامي والقرآن الكريم.\nنفع الله به وجعله في ميزان حسناتكم."
                     seoHashtags = "#خادم_المسلم #محتوى_إسلامي #ريلز #شورتس #دعوة #أثر_لا_ينقطع #اكسبلور #خواطر_إيمانية"
@@ -278,7 +265,7 @@ fun UnifiedMasterStudioScreen(
                 isGeneratingMasterpiece = false
                 Toast.makeText(context, "تم إنجاز العمل المتقن بنجاح! 🎬✨", Toast.LENGTH_LONG).show()
 
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 isGeneratingMasterpiece = false
                 generationStage = "تعذر إكمال الإنتاج"
                 Toast.makeText(context, "تعذر إكمال الإنتاج، حاول مرة أخرى", Toast.LENGTH_LONG).show()
@@ -306,7 +293,7 @@ fun UnifiedMasterStudioScreen(
                         Column {
                             Text(
                                 "قمرة الإنتاج المتقن الشامل",
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 15.sp,
@@ -329,7 +316,7 @@ fun UnifiedMasterStudioScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = TextPrimary)
                     }
                 },
                 actions = {
@@ -374,7 +361,7 @@ fun UnifiedMasterStudioScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "موضوع أو نص العمل الدعوي",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
@@ -401,10 +388,10 @@ fun UnifiedMasterStudioScreen(
                             unfocusedBorderColor = ThemeSeparator,
                             focusedContainerColor = DeepSlate,
                             unfocusedContainerColor = DeepSlate,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
                         ),
-                        placeholder = { Text("اكتب فكرة، آية، حديث، أو موضوع موعظة...", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp) },
+                        placeholder = { Text("اكتب فكرة، آية، حديث، أو موضوع موعظة...", color = TextTertiary, fontFamily = CairoFont, fontSize = 12.sp) },
                         maxLines = 3
                     )
 
@@ -426,7 +413,7 @@ fun UnifiedMasterStudioScreen(
                             ) {
                                 Text(
                                     preset,
-                                    color = Color(0xFFCBD5E1),
+                                    color = TextSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.5.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -440,7 +427,7 @@ fun UnifiedMasterStudioScreen(
                         // Aspect Ratio Picker
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("📐 أبعاد الفيديو:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("📐 أبعاد الفيديو:", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -455,7 +442,7 @@ fun UnifiedMasterStudioScreen(
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
                                                 ratio,
-                                                color = if (isSelected) DeepSlate else Color.White,
+                                                color = if (isSelected) DeepSlate else TextPrimary,
                                                 fontFamily = RobotoMonoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.sp
@@ -469,7 +456,7 @@ fun UnifiedMasterStudioScreen(
                         // Voice Selector Picker
                         Column(modifier = Modifier.weight(1.2f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🎙️ القارئ والتعليق:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("🎙️ القارئ والتعليق:", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -485,7 +472,7 @@ fun UnifiedMasterStudioScreen(
                                         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                                             Text(
                                                 vLabel.split(" ")[0] + " 🔊",
-                                                color = if (isSelected) primaryColor else Color.White,
+                                                color = if (isSelected) primaryColor else TextPrimary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 10.5.sp
                                             )
@@ -509,7 +496,7 @@ fun UnifiedMasterStudioScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("🎬 محرك الإنتاج البصري والفيديو:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("🎬 محرك الإنتاج البصري والفيديو:", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                             Surface(
                                 shape = CutCornerShape(4.dp),
                                 color = if (isHiggsfieldConfigured) ThemeSuccess.copy(alpha = 0.15f) else ThemeWarning.copy(alpha = 0.15f),
@@ -542,9 +529,9 @@ fun UnifiedMasterStudioScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.Image, contentDescription = null, tint = if (isFluxSelected) primaryColor else Color.Gray, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.Image, contentDescription = null, tint = if (isFluxSelected) primaryColor else TextTertiary, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("FLUX.1 8K (مجاني)", color = if (isFluxSelected) primaryColor else Color.White, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("FLUX.1 8K (مجاني)", color = if (isFluxSelected) primaryColor else TextPrimary, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
@@ -553,8 +540,8 @@ fun UnifiedMasterStudioScreen(
                             Surface(
                                 onClick = { selectedVisualEngine = "higgsfield" },
                                 shape = CutCornerShape(4.dp),
-                                color = if (isHiggsSelected) GoldPrimary.copy(alpha = 0.2f) else ThemeSecondarySurface,
-                                border = BorderStroke(1.dp, if (isHiggsSelected) GoldPrimary else ThemeSeparator),
+                                color = if (isHiggsSelected) PresetPrimary.copy(alpha = 0.2f) else ThemeSecondarySurface,
+                                border = BorderStroke(1.dp, if (isHiggsSelected) PresetPrimary else ThemeSeparator),
                                 modifier = Modifier.weight(1.3f).height(34.dp).testTag("visual_engine_higgsfield")
                             ) {
                                 Row(
@@ -562,9 +549,9 @@ fun UnifiedMasterStudioScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = if (isHiggsSelected) GoldPrimary else Color.Gray, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = if (isHiggsSelected) PresetPrimary else TextTertiary, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Higgsfield AI (فيديو سينمائي 🛸)", color = if (isHiggsSelected) GoldPrimary else Color.White, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("Higgsfield AI (فيديو سينمائي 🛸)", color = if (isHiggsSelected) PresetPrimary else TextPrimary, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -572,7 +559,7 @@ fun UnifiedMasterStudioScreen(
                         // Camera motion controls if Higgsfield is selected
                         if (selectedVisualEngine == "higgsfield") {
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("🎥 حركة الكاميرا السينمائية:", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
+                            Text("🎥 حركة الكاميرا السينمائية:", color = TextTertiary, fontFamily = CairoFont, fontSize = 10.sp)
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 val motions = listOf(
@@ -586,12 +573,12 @@ fun UnifiedMasterStudioScreen(
                                     Surface(
                                         onClick = { selectedCameraMotion = mKey },
                                         shape = CutCornerShape(3.dp),
-                                        color = if (isMSelected) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF080D1A),
-                                        border = BorderStroke(0.7.dp, if (isMSelected) GoldPrimary else ThemeSeparator),
+                                        color = if (isMSelected) PresetPrimary.copy(alpha = 0.15f) else DeepSlate,
+                                        border = BorderStroke(0.7.dp, if (isMSelected) PresetPrimary else ThemeSeparator),
                                         modifier = Modifier.weight(1f).height(28.dp).testTag("camera_motion_$mKey")
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Text(mLabel, color = if (isMSelected) GoldPrimary else Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 9.sp)
+                                            Text(mLabel, color = if (isMSelected) PresetPrimary else TextSecondary, fontFamily = CairoFont, fontSize = 9.sp)
                                         }
                                     }
                                 }
@@ -683,7 +670,7 @@ fun UnifiedMasterStudioScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     label,
-                                    color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.85f),
+                                    color = if (isSelected) DeepSlate else TextPrimary.copy(alpha = 0.85f),
                                     fontFamily = CairoFont,
                                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
                                     fontSize = 11.sp
@@ -787,7 +774,7 @@ private fun MasterFullPackageTab(
         // Master Live Preview Card
         GlassmorphicSurface(
             modifier = Modifier.fillMaxWidth(),
-            backgroundColor = Color(0xFF090F1E),
+            backgroundColor = DeepSlate,
             borderColor = primaryColor.copy(alpha = 0.5f),
             shape = CutCornerShape(12.dp)
         ) {
@@ -871,16 +858,16 @@ private fun MasterFullPackageTab(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("عدد المشاهد", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
-                        Text("${scenes.size} مشاهد", color = Color.White, fontSize = 12.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                        Text("عدد المشاهد", color = TextTertiary, fontSize = 10.sp, fontFamily = CairoFont)
+                        Text("${scenes.size} مشاهد", color = TextPrimary, fontSize = 12.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("المدة الإجمالية", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
+                        Text("المدة الإجمالية", color = TextTertiary, fontSize = 10.sp, fontFamily = CairoFont)
                         Text("${scenes.sumOf { it.durationInSeconds }} ثانية", color = primaryColor, fontSize = 12.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("جودة الإنتاج", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
-                        Text(if (scenes.any { it.mediaUrl?.contains("mp4") == true || it.mediaUrl?.contains("higgsfield") == true }) "Higgsfield 🎬" else "8K FLUX.1", color = GoldPrimary, fontSize = 11.5.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                        Text("جودة الإنتاج", color = TextTertiary, fontSize = 10.sp, fontFamily = CairoFont)
+                        Text(if (scenes.any { it.mediaUrl?.contains("mp4") == true || it.mediaUrl?.contains("higgsfield") == true }) "Higgsfield 🎬" else "8K FLUX.1", color = PresetPrimary, fontSize = 11.5.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -930,7 +917,7 @@ private fun MasterScenesEditorTab(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("المشاهد المقسمة والكابشنز الحركية", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("المشاهد المقسمة والكابشنز الحركية", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             TextButton(onClick = onOpenProEditor) {
                 Text("فتح في التايم لاين المتقدم ↗", color = primaryColor, fontFamily = CairoFont, fontSize = 11.sp)
             }
@@ -967,11 +954,11 @@ private fun MasterScenesEditorTab(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("المشهد ${index + 1}", color = primaryColor, fontFamily = RobotoMonoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("(${scene.durationInSeconds} ثوانٍ)", color = Color.Gray, fontFamily = RobotoMonoFont, fontSize = 10.sp)
+                            Text("(${scene.durationInSeconds} ثوانٍ)", color = TextTertiary, fontFamily = RobotoMonoFont, fontSize = 10.sp)
                         }
                         Text(
                             text = scene.title,
-                            color = Color.White,
+                            color = TextPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Medium,
                             fontSize = 12.sp,
@@ -984,7 +971,7 @@ private fun MasterScenesEditorTab(
                         color = ThemeSeparator,
                         shape = CutCornerShape(4.dp)
                     ) {
-                        Text(scene.transitionType, color = Color(0xFF94A3B8), fontFamily = RobotoMonoFont, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        Text(scene.transitionType, color = TextSecondary, fontFamily = RobotoMonoFont, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                     }
                 }
             }
@@ -1011,7 +998,7 @@ private fun MasterPosterThumbnailTab(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("البوستر والغلاف الفوري بدقة 8K", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("البوستر والغلاف الفوري بدقة 8K", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             OutlinedButton(
                 onClick = onRegeneratePoster,
                 shape = CutCornerShape(6.dp),
@@ -1041,11 +1028,11 @@ private fun MasterPosterThumbnailTab(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                Text("جاري تحميل البوستر...", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
+                Text("جاري تحميل البوستر...", color = TextTertiary, fontFamily = CairoFont, fontSize = 12.sp)
             }
         }
 
-        Text("تم توليد هذا الغلاف بتناغم بصري كامل مع ألوان وموضوع الفيديو لنشره كمصغرة يوتيوب أو بوستر إنستغرام.", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.5.sp, textAlign = TextAlign.Center)
+        Text("تم توليد هذا الغلاف بتناغم بصري كامل مع ألوان وموضوع الفيديو لنشره كمصغرة يوتيوب أو بوستر إنستغرام.", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.5.sp, textAlign = TextAlign.Center)
     }
 }
 
@@ -1058,7 +1045,7 @@ private fun MasterVoiceTrackTab(
     primaryColor: Color
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("مسار التعليق الصوتي العصبي النقي", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("مسار التعليق الصوتي العصبي النقي", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -1075,7 +1062,7 @@ private fun MasterVoiceTrackTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.GraphicEq, contentDescription = null, tint = primaryColor, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("القارئ: $selectedVoice", color = Color.White, fontFamily = RobotoMonoFont, fontSize = 12.sp)
+                        Text("القارئ: $selectedVoice", color = TextPrimary, fontFamily = RobotoMonoFont, fontSize = 12.sp)
                     }
                     Surface(
                         color = ThemeSuccess.copy(alpha = 0.15f),
@@ -1087,7 +1074,7 @@ private fun MasterVoiceTrackTab(
 
                 Text(
                     text = scenes.joinToString(" ") { it.title },
-                    color = Color(0xFFCBD5E1),
+                    color = TextSecondary,
                     fontFamily = CairoFont,
                     fontSize = 12.sp,
                     lineHeight = 18.sp
@@ -1114,7 +1101,7 @@ private fun MasterViralSeoTab(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("حزمة النشر والـ SEO والانتشار", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("حزمة النشر والـ SEO والانتشار", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Button(
                 onClick = onCopyAll,
                 shape = CutCornerShape(6.dp),
@@ -1137,7 +1124,7 @@ private fun MasterViralSeoTab(
             Column(modifier = Modifier.padding(10.dp)) {
                 Text("العنوان المقترح للريلز والشورتس:", color = primaryColor, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(title, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
+                Text(title, color = TextPrimary, fontFamily = CairoFont, fontSize = 13.sp)
             }
         }
 
@@ -1151,7 +1138,7 @@ private fun MasterViralSeoTab(
             Column(modifier = Modifier.padding(10.dp)) {
                 Text("الهاشتاغات الفيروسية المتوافقة مع خوارزميات النشر:", color = primaryColor, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(hashtags, color = Color(0xFF38BDF8), fontFamily = RobotoMonoFont, fontSize = 11.5.sp)
+                Text(hashtags, color = PresetPrimary, fontFamily = RobotoMonoFont, fontSize = 11.5.sp)
             }
         }
     }
