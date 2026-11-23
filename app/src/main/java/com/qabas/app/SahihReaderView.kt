@@ -96,7 +96,11 @@ fun SahihReaderView(
     var ttsReady by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
-        val tts = TextToSpeech(context) { status ->
+        // tts متغير لا قيمة: الإشارة إليه داخل مستمع التهيئة نفسه
+        // مستحيلة مع val (المتغير خارج نطاق مهيّئه) — فيُعلَن أولاً
+        // ثم يُسند، فيبقى داخل المستمع وخارجه بالاسم نفسه.
+        lateinit var tts: TextToSpeech
+        tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val langResult = tts.setLanguage(Locale("ar"))
                 ttsReady = langResult == TextToSpeech.LANG_AVAILABLE ||

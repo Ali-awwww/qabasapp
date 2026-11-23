@@ -270,7 +270,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             // نقرة إشعار بلا أذكار كانت ترفعها. مرة واحدة في اليوم داخل
             // recordWirdCompleted فلا تضخيم بتكرار الإكمال.
             if (morningDone || eveningDone) {
-                NotificationPreferencesManager.recordWirdCompleted(application)
+                NotificationPreferencesManager.recordWirdCompleted(getApplication<Application>())
             }
             return true
         }

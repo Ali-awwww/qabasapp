@@ -24,9 +24,9 @@ import org.json.JSONArray
 private data class GoldenClip(val hook: String, val text: String)
 
 /** حافظة لحظات ذهبية عبر التدوير: زوجا (خطاف، نص) مسطحان (ق101). */
-private val goldenClipsSaver = listSaver<List<GoldenClip>, String>(
-    save = { clips -> clips.flatMap { listOf(it.hook, it.text) } },
-    restore = { flat -> flat.chunked(2).mapNotNull { if (it.size == 2) GoldenClip(it[0], it[1]) else null } }
+private val goldenClipsSaver = listSaver<MutableState<List<GoldenClip>>, String>(
+    save = { state -> state.value.flatMap { listOf(it.hook, it.text) } },
+    restore = { flat -> mutableStateOf(flat.chunked(2).mapNotNull { if (it.size == 2) GoldenClip(it[0], it[1]) else null }) }
 )
 
 /**

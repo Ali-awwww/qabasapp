@@ -145,7 +145,11 @@ fun FullSahihReaderScreen(
     }
 
     DisposableEffect(Unit) {
-        val ttsInit = TextToSpeech(context) { status ->
+        // ttsInit متغير لا قيمة: الإشارة إليه داخل مستمع التهيئة
+        // نفسه مستحيلة مع val (المتغير خارج نطاق مهيّئه) — فيُعلَن
+        // أولاً ثم يُسند، فيبقى داخل المستمع وخارجه بالاسم نفسه.
+        lateinit var ttsInit: TextToSpeech
+        ttsInit = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 ttsInit.language = Locale("ar")
             }

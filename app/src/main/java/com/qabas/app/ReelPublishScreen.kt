@@ -839,7 +839,7 @@ fun ReelPublishScreen(
                 (isDeveloper || publishStatus is ReelPublishManager.PublishStatus.Allowed) &&
                 !isExpiryBeforePublish
 
-            val doPublishAction: (Boolean) -> Unit = { asSilent ->
+            val doPublishAction: (Boolean) -> Unit = doPublishAction@ { asSilent ->
                 // ق109: نقرة مزدوجة قبل بدء المهمة كانت تطلق نشرين؛ والثاني
                 // يمحو مقبض الأول فيتعطل زر الإلغاء عن المهمة الجارية.
                 if (publishJob?.isActive == true) return@doPublishAction

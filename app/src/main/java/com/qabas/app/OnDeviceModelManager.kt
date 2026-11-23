@@ -103,7 +103,10 @@ object OnDeviceModelManager {
      */
     fun consumeTerminalState(modelId: String) {
         val s = _downloadState.value
-        if ((s is ModelDownloadState.Success || s is ModelDownloadState.Error) && s.modelId == modelId) {
+        // التحويل الذكي لا يعبر ||: s بعد (is Success || is Error)
+        // بلا نوع يحمل modelId — فيُفحص كل فرع على حدة.
+        if ((s is ModelDownloadState.Success && s.modelId == modelId) ||
+            (s is ModelDownloadState.Error && s.modelId == modelId)) {
             _downloadState.value = ModelDownloadState.Idle
         }
     }

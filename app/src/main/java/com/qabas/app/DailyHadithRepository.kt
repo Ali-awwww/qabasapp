@@ -91,7 +91,7 @@ object DailyHadithRepository {
             val daily = getHadithForDay(context, dayId) ?: return@withContext null
             all.firstOrNull { it.matn == daily.text }
                 ?: all.getOrNull((daily.dayId - 1).coerceAtLeast(0) % all.size)
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to resolve daily hadith item for day $dayId", e)
             null
         }

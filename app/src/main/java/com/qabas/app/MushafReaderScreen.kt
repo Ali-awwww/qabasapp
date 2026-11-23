@@ -82,6 +82,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,6 +96,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -150,9 +152,9 @@ import java.util.Locale
 // التفضيلات عمداً)؛ والمنتقيان أنفسهما ينجوان عبر التفضيلات لأن كل نقرة
 // تحفظ الكتاب فوراً. الحافظتان على سابقة DirectorChatScreen
 // (Saver<…, List<String>>) — كل الحقول نصوص أو أعداد فتُرمَّز نصاً.
-private val mushafStudyVerseSaver = Saver<QuranVerseDetail?, List<String>>(
-    save = { verse ->
-        verse?.let {
+private val mushafStudyVerseSaver = Saver<MutableState<QuranVerseDetail?>, List<String>>(
+    save = { state ->
+        state.value?.let {
             listOf(
                 it.surahNumber.toString(),
                 it.surahName,
@@ -164,25 +166,29 @@ private val mushafStudyVerseSaver = Saver<QuranVerseDetail?, List<String>>(
         } ?: emptyList()
     },
     restore = { list ->
-        if (list.size != 6) null else QuranVerseDetail(
-            surahNumber = list[0].toIntOrNull() ?: return@Saver null,
-            surahName = list[1],
-            verseNumber = list[2].toIntOrNull() ?: return@Saver null,
-            verseText = list[3],
-            tafseer = list[4],
-            tajweedNotes = list[5]
+        mutableStateOf(
+            if (list.size != 6) null else QuranVerseDetail(
+                surahNumber = list[0].toIntOrNull() ?: return@Saver null,
+                surahName = list[1],
+                verseNumber = list[2].toIntOrNull() ?: return@Saver null,
+                verseText = list[3],
+                tafseer = list[4],
+                tajweedNotes = list[5]
+            )
         )
     }
 )
 
-private val mushafPendingStudyVerseSaver = Saver<Pair<Int, Int>?, List<String>>(
-    save = { ref -> ref?.let { listOf(it.first.toString(), it.second.toString()) } ?: emptyList() },
+private val mushafPendingStudyVerseSaver = Saver<MutableState<Pair<Int, Int>?>, List<String>>(
+    save = { state -> state.value?.let { listOf(it.first.toString(), it.second.toString()) } ?: emptyList() },
     restore = { list ->
-        if (list.size != 2) null else {
-            val surah = list[0].toIntOrNull() ?: return@Saver null
-            val ayah = list[1].toIntOrNull() ?: return@Saver null
-            surah to ayah
-        }
+        mutableStateOf(
+            if (list.size != 2) null else {
+                val surah = list[0].toIntOrNull() ?: return@Saver null
+                val ayah = list[1].toIntOrNull() ?: return@Saver null
+                surah to ayah
+            }
+        )
     }
 )
 
@@ -190,17 +196,19 @@ private val mushafPendingStudyVerseSaver = Saver<Pair<Int, Int>?, List<String>>(
 // بالتدوير فيُعاد إخفاء ما كشفه المستخدم للتسميع — والحافظة على
 // سابقة ق148 نفسها (زوج «سورة:آية» نصاً)؛ وتبقى تُصفَّر عند
 // إيقاف الوضع كما هو موثق، فالنجاة من التدوير لا من إيقاف الوضع.
-private val mushafRevealedVersesSaver = Saver<Set<Pair<Int, Int>>, List<String>>(
-    save = { set -> set.map { "${it.first}:${it.second}" } },
+private val mushafRevealedVersesSaver = Saver<MutableState<Set<Pair<Int, Int>>>, List<String>>(
+    save = { state -> state.value.map { "${it.first}:${it.second}" } },
     restore = { list ->
-        list.mapNotNull { item ->
-            val parts = item.split(":")
-            if (parts.size != 2) null else {
-                val surah = parts[0].toIntOrNull() ?: return@mapNotNull null
-                val ayah = parts[1].toIntOrNull() ?: return@mapNotNull null
-                surah to ayah
-            }
-        }.toSet()
+        mutableStateOf(
+            list.mapNotNull { item ->
+                val parts = item.split(":")
+                if (parts.size != 2) null else {
+                    val surah = parts[0].toIntOrNull() ?: return@mapNotNull null
+                    val ayah = parts[1].toIntOrNull() ?: return@mapNotNull null
+                    surah to ayah
+                }
+            }.toSet()
+        )
     }
 )
 

@@ -90,7 +90,9 @@ object RealGeminiService {
     // (بلا usage حقيقي — يبقى «غير مقاس» كما في ق44)، وفرع REST
     // بتفصيل usageMetadata عند إرساله. التسجيل runCatching فلا يسقط
     // استدعاء ناجحاً أبداً، والسياق AppServices.appContext كمسار Groq.
-    private fun recordGeminiRest(prompt: String, responseJson: JSONObject, responseText: String?, mission: String?) {
+    // داخلي لا خاص: chatWithAssistant في RealMediaLibraryService
+    // يسجّل بهما أيضاً (ق160) فلا يراهما private هنا.
+    internal fun recordGeminiRest(prompt: String, responseJson: JSONObject, responseText: String?, mission: String?) {
         if (responseText.isNullOrBlank()) return
         runCatching {
             val ctx = AppServices.appContext
@@ -111,7 +113,7 @@ object RealGeminiService {
         }
     }
 
-    private fun recordFirebaseEstimated(prompt: String, responseText: String, mission: String?) {
+    internal fun recordFirebaseEstimated(prompt: String, responseText: String, mission: String?) {
         if (responseText.isBlank()) return
         runCatching {
             VibeCostTracker.recordEstimated(
@@ -912,7 +914,7 @@ object RealMediaLibraryService {
             val fbReply = FirebaseAiService.chat(messages, systemPrompt)
             if (fbReply.isNotBlank()) {
                 // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
-                recordFirebaseEstimated(messages.joinToString("\n") { it.second }, fbReply, "محادثة المساعد")
+                RealGeminiService.recordFirebaseEstimated(messages.joinToString("\n") { it.second }, fbReply, "محادثة المساعد")
                 SystemLogsManager.addLog("INFO", "رد المحادثة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
                 return@withContext fbReply
             }
@@ -973,7 +975,7 @@ object RealMediaLibraryService {
                 val text = extractGeminiText(responseJson)
                 if (!text.isNullOrBlank()) {
                     // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
-                    recordGeminiRest(messages.joinToString("\n") { it.second }, responseJson, text, "محادثة المساعد")
+                    RealGeminiService.recordGeminiRest(messages.joinToString("\n") { it.second }, responseJson, text, "محادثة المساعد")
                     return@safeApiCallWithRetry text
                 }
             }

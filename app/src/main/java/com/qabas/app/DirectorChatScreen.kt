@@ -154,7 +154,7 @@ internal fun rememberDirectorChatState(initialText: String): DirectorChatState =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DirectorChatScreen(
+internal fun DirectorChatScreen(
     state: DirectorChatState,
     onComplete: (DirectorBrief) -> Unit,
     onBack: () -> Unit,

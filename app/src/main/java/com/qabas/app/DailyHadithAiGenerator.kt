@@ -64,23 +64,32 @@ object DailyHadithAiGenerator {
             val response = withTimeout(60_000L) {
                 model.generateContent(prompt)
             }
-            val jsonString = response.text ?: return@try emptyMap()
-            val json = JSONObject(jsonString)
-            val arr = json.getJSONArray("benefits")
-            val requested = days.map { it.first }.toSet()
-            val map = mutableMapOf<Int, String>()
-            for (i in 0 until arr.length()) {
-                val item = arr.getJSONObject(i)
-                val dayId = item.getInt("dayId")
-                if (dayId in requested) {
-                    map[dayId] = item.getString("benefit")
+            // بلا نص من النموذج فلا فوائد — يُستعمل البديل المحلي في
+            // الأسفل. (العودة من try بتسميته غير صالحة في Kotlin:
+            // try كلمة محجوزة لا تصلح تسميةً، فكان السطر القديم
+            // يكسر إعلان jsonString كله ويُسقط معه benefits وcatch.)
+            val jsonString = response.text
+            val map: Map<Int, String> = if (jsonString == null) {
+                emptyMap()
+            } else {
+                val json = JSONObject(jsonString)
+                val arr = json.getJSONArray("benefits")
+                val requested = days.map { it.first }.toSet()
+                val built = mutableMapOf<Int, String>()
+                for (i in 0 until arr.length()) {
+                    val item = arr.getJSONObject(i)
+                    val dayId = item.getInt("dayId")
+                    if (dayId in requested) {
+                        built[dayId] = item.getString("benefit")
+                    }
                 }
-            }
-            // ق160: توليد فوائد الأحاديث (Gemini 3.8 عبر Firebase) كان يمر
-            // بلا أثر في تتبع التكلفة — والسياق AppServices.appContext
-            // كمسار Groq (التسجيل runCatching فلا يسقط التوليد أبداً).
-            runCatching {
-                VibeCostTracker.recordEstimated(AppServices.appContext, "gemini", "gemini-3.8-flash", prompt, jsonString, "فوائد الأحاديث اليومية")
+                // ق160: توليد فوائد الأحاديث (Gemini 3.8 عبر Firebase) كان يمر
+                // بلا أثر في تتبع التكلفة — والسياق AppServices.appContext
+                // كمسار Groq (التسجيل runCatching فلا يسقط التوليد أبداً).
+                runCatching {
+                    VibeCostTracker.recordEstimated(AppServices.appContext, "gemini", "gemini-3.8-flash", prompt, jsonString, "فوائد الأحاديث اليومية")
+                }
+                built
             }
             map
         } catch (e: Exception) {
