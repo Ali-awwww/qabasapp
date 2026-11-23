@@ -44,20 +44,13 @@ object OperationalReadinessManager {
 
         val geminiKey = getKey("gemini_key")
         val groqKey = getKey("groq_key")
-        val huggingfaceKey = getKey("huggingface_key")
-        val pexelsKey = getKey("pexels_key")
         val pixabayKey = getKey("pixabay_key")
-        val azureKey = getKey("azure_speech_key")
-        val elevenlabsKey = getKey("elevenlabs_key")
 
         val hasGemini = isKeyValid(geminiKey)
         val hasGroq = isKeyValid(groqKey)
-        val hasHuggingFace = isKeyValid(huggingfaceKey)
-        val hasPexels = isKeyValid(pexelsKey)
         val hasPixabay = isKeyValid(pixabayKey)
         val hasSupabase = SupabaseConfig.isConfigured
         val hasHiggsfield = false // Higgsfield credentials are stored server-side and are not readable by this local-only report.
-        val hasAudioCloud = isKeyValid(azureKey) || isKeyValid(elevenlabsKey)
 
         val services = listOf(
             ServiceReadiness(
@@ -82,25 +75,25 @@ object OperationalReadinessManager {
                 activeFeature = if (hasGroq) "معالجة فائقة السرعة مفعلة (~300ms)" else "توليد النصوص المدمج كبديل محلي"
             ),
             ServiceReadiness(
-                name = "Azure / ElevenLabs Audio",
+                name = "التعليق الصوتي المحلي (Kokoro / Edge / Android TTS)",
                 weight = 15,
-                isConfigured = hasAudioCloud,
-                description = "التعليق الصوتي العصبي الفصيح ونبرات السرد الوثائقي",
-                activeFeature = if (hasAudioCloud) "التعليق الصوتي العصبي عالي النقاء متصل" else "محرك النطق المدمج في الجهاز مجاناً"
+                isConfigured = true,
+                description = "تعليق صوتي محلي بلا مفاتيح سحابية",
+                activeFeature = "محركات النطق المحلية تعمل بلا مفاتيح"
             ),
             ServiceReadiness(
-                name = "Pexels & Pixabay APIs",
+                name = "Pixabay API",
                 weight = 10,
-                isConfigured = hasPexels || hasPixabay,
+                isConfigured = hasPixabay,
                 description = "جلب فيديوهات وصور المعالم الإسلامية والطبيعة HD",
-                activeFeature = if (hasPexels || hasPixabay) "جلب وسائط حية من المكتبات العالمية" else "المكتبات والأصول المحلية المدمجة"
+                activeFeature = if (hasPixabay) "جلب وسائط حية من المكتبات العالمية" else "المكتبات والأصول المحلية المدمجة"
             ),
             ServiceReadiness(
-                name = "Hugging Face / FLUX 8K",
+                name = "Pollinations / FLUX (صور مجانية)",
                 weight = 5,
-                isConfigured = hasHuggingFace,
-                description = "توليد صور وخلفيات إسلامية مخصصة بالذكاء الاصطناعي",
-                activeFeature = if (hasHuggingFace) "توليد صور الذكاء الاصطناعي مفعل" else "التصاميم والخلفيات المدمجة محلياً"
+                isConfigured = true,
+                description = "توليد صور وخلفيات إسلامية مخصصة بالذكاء الاصطناعي بلا مفتاح",
+                activeFeature = "توليد الصور المجاني مفعل"
             ),
             ServiceReadiness(
                 name = "Supabase Cloud Sync",

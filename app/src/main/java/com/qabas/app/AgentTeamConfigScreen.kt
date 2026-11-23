@@ -576,10 +576,6 @@ private fun AddMemberDialog(
             DetectedProvider.OPENROUTER -> "anthropic/claude-sonnet-4.5"
             DetectedProvider.GEMINI -> "gemini-2.5-flash"
             DetectedProvider.GROQ -> "llama-3.3-70b-versatile"
-            DetectedProvider.OPENAI -> "gpt-4o"
-            DetectedProvider.ANTHROPIC -> "claude-3-5-sonnet-20241022"
-            DetectedProvider.OPENCODE -> "big-pickle"
-            DetectedProvider.HUGGINGFACE -> "Qwen/Qwen2.5-Coder-32B"
             DetectedProvider.NONE -> "local_sandbox"
         }
     }
@@ -602,9 +598,7 @@ private fun AddMemberDialog(
                     listOf(
                         DetectedProvider.OPENROUTER,
                         DetectedProvider.GEMINI,
-                        DetectedProvider.GROQ,
-                        DetectedProvider.OPENAI,
-                        DetectedProvider.OPENCODE
+                        DetectedProvider.GROQ
                     ).forEach { p ->
                         FilterChip(
                             selected = selectedProvider == p,

@@ -265,7 +265,7 @@ internal fun AgentLiveConsoleTab(
         runningJob = scope.launch {
             // 1. التحقق الصريح من وجود المفتاح
             if (key.isBlank() || provider == DetectedProvider.NONE) {
-                val errorMsg = "لم يتم إدخال أو تكوين أي مفتاح API نشط. يرجى إدخال مفتاح (Gemini / OpenRouter / OpenAI / Groq) في قسم المفاتيح للاتصال بالسيرفر."
+                val errorMsg = "لم يتم إدخال أو تكوين أي مفتاح API نشط. يرجى إدخال مفتاح (Gemini / Groq / OpenRouter) في قسم المفاتيح للاتصال بالسيرفر."
                 steps = steps + AgentStep(
                     id = 1,
                     turn = 1,
@@ -770,7 +770,7 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            "الصق أي مفتاح ذكاء اصطناعي (Gemini, Groq, OpenRouter, OpenAI, Claude) — سيكتشفه النظام تلقائياً:",
+                            "الصق أي مفتاح ذكاء اصطناعي (Gemini, Groq, OpenRouter) — سيكتشفه النظام تلقائياً:",
                             color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp

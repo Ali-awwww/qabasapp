@@ -39,7 +39,7 @@ import android.content.pm.PackageManager
 /**
  * 🎙️ استوديو استنساخ ودبلجة الأصوات السيبراني «VoiceStudio»
  * (Spatial HUD Tech + Cybernetic Glassmorphism)
- * البديل المفتوح المصدر لـ ElevenLabs: استنساخ، دبلجة، وتوليد نصوص بأصوات عصبية.
+ * استوديو استنساخ ودبلجة الأصوات مفتوح المصدر: استنساخ، دبلجة، وتوليد نصوص بأصوات عصبية.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

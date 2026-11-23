@@ -6,8 +6,7 @@ const vaultSecret = Deno.env.get("QABAS_KEY_VAULT_SECRET") ?? "";
 const admin = createClient(supabaseUrl, serviceRoleKey);
 
 const allowedServices = new Set([
-  "gemini_key", "groq_key", "openai_key", "openrouter_key", "huggingface_key",
-  "azure_speech_key", "azure_speech_region", "elevenlabs_key", "pexels_key", "pixabay_key",
+  "gemini_key", "groq_key", "openrouter_key", "pixabay_key",
 ]);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

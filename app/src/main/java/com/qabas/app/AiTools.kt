@@ -109,8 +109,8 @@ object AiTools {
                         SupabaseServices.AiGenerationRow(
                             id = UUID.randomUUID().toString(),
                             type = "image",
-                            // سلسلة AppServices.generateAiImage الفعلية: HuggingFace ثم Pollinations/FLUX.
-                            provider = "huggingface_pollinations",
+                            // سلسلة AppServices.generateAiImage الفعلية: Pollinations/FLUX ثم Pixabay.
+                            provider = "pollinations",
                             prompt = prompt,
                             filePath = path,
                             // التكلفة الفعلية 0 حتى تُقاس من المزود (خارج نطاق الدفعة 4).
@@ -180,7 +180,7 @@ object AiTools {
         ToolDef(
             name = "generate_voice",
             description = "توليد تعليق صوتي حقيقي من نص عبر AppServices.generateVoiceover " +
-                "(Kokoro ثم Edge TTS ثم Azure/ElevenLabs ثم Android TTS). تُرجع مسار " +
+                "(Kokoro ثم Edge TTS ثم Android TTS). تُرجع مسار " +
                 "الملف الصوتي عند النجاح، أو رسالة فشل تبدأ بـ «تعذّر».",
             properties = JSONObject()
                 .put("text", strProp("نص التعليق الصوتي"))
@@ -203,7 +203,7 @@ object AiTools {
                             SupabaseServices.AiGenerationRow(
                                 id = UUID.randomUUID().toString(),
                                 type = "voice",
-                                provider = "auto_kokoro_edge_azure_elevenlabs",
+                                provider = "auto_kokoro_edge_local",
                                 prompt = text.take(500),
                                 filePath = path,
                                 costUsd = 0.0
@@ -277,7 +277,7 @@ object AiTools {
         }
     )
 
-    /** يحوّل التعريفات لصيغة tools في OpenRouter/OpenAI. */
+    /** يحوّل التعريفات لصيغة tools (استدعاء الدوال) التي تقبلها OpenRouter وGroq. */
     fun toApiJson(defs: List<ToolDef>): JSONArray = JSONArray().apply {
         defs.forEach { d ->
             put(JSONObject().apply {

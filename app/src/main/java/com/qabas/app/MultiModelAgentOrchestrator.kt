@@ -252,14 +252,8 @@ object MultiModelAgentOrchestrator {
             AgentTeamMember("leader_1", "القائد المعماري", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط صارم: قسّم أي تطبيق كامل لواجهات ومنطق ومراجعة، ثم ادمج واطلب الدفع."),
             AgentTeamMember("exec_ui", "منفذ الواجهات", DetectedProvider.GEMINI, "gemini-2.5-flash", AgentTeamRole.EXECUTOR, 2, true, rolePresets(AgentTeamRole.EXECUTOR)[0]),
             AgentTeamMember("exec_logic", "منفذ المنطق والبيانات", DetectedProvider.GROQ, "llama-3.3-70b-versatile", AgentTeamRole.EXECUTOR, 3, true, rolePresets(AgentTeamRole.EXECUTOR)[1]),
-            AgentTeamMember("rev_1", "مراجع الجودة", DetectedProvider.OPENAI, "gpt-4o", AgentTeamRole.REVIEWER, 4, true, rolePresets(AgentTeamRole.REVIEWER)[0])
+            AgentTeamMember("rev_1", "مراجع الجودة", DetectedProvider.OPENROUTER, "openai/gpt-4o", AgentTeamRole.REVIEWER, 4, true, rolePresets(AgentTeamRole.REVIEWER)[0])
         ),
-        "⚡ OpenCode" to listOf(
-            AgentTeamMember("leader_1", "القائد سبارك", DetectedProvider.OPENCODE, "muse-spark-1.3", AgentTeamRole.LEADER, 1, true, "مخطط صارم: قسّم العمل لمنفذين سريعين ومراجع دقيق، ثم ادمج واطلب الدفع."),
-            AgentTeamMember("exec_1", "منفذ بيج بيكل", DetectedProvider.OPENCODE, "big-pickle", AgentTeamRole.EXECUTOR, 2, true, rolePresets(AgentTeamRole.EXECUTOR)[2]),
-            AgentTeamMember("exec_2", "منفذ كيمي", DetectedProvider.OPENCODE, "kimi-k2.7-code", AgentTeamRole.EXECUTOR, 3, true, rolePresets(AgentTeamRole.EXECUTOR)[0]),
-            AgentTeamMember("rev_1", "مراجع هايكو", DetectedProvider.OPENCODE, "claude-haiku-4-5", AgentTeamRole.REVIEWER, 4, true, rolePresets(AgentTeamRole.REVIEWER)[0])
-        )
     )
 
     /**

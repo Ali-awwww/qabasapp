@@ -826,8 +826,7 @@ class SupabaseRepository(
      * ولا تُخزَّن أبداً كنص صريح في جدول `user_api_keys`.
      */
     private val VAULT_ALLOWED_SERVICES = setOf(
-        "gemini_key", "groq_key", "openai_key", "openrouter_key", "huggingface_key",
-        "azure_speech_key", "azure_speech_region", "elevenlabs_key", "pexels_key", "pixabay_key"
+        "gemini_key", "groq_key", "openrouter_key", "pixabay_key"
     )
 
     /** يطبّع اسم الخدمة إلى اسم الخزنة المسموح، أو null إن كانت الخدمة غير معروفة. */
@@ -835,12 +834,7 @@ class SupabaseRepository(
         val normalized = when (service.trim().lowercase()) {
             "gemini" -> "gemini_key"
             "groq" -> "groq_key"
-            "openai" -> "openai_key"
             "openrouter" -> "openrouter_key"
-            "huggingface" -> "huggingface_key"
-            "azure_speech" -> "azure_speech_key"
-            "elevenlabs" -> "elevenlabs_key"
-            "pexels" -> "pexels_key"
             "pixabay" -> "pixabay_key"
             else -> service.trim().lowercase()
         }
@@ -891,7 +885,7 @@ class SupabaseRepository(
      * Deletes one user API key from the cloud vault (action `delete` in
      * `qabas-key-vault` — موجود في الخادم أصلاً). Without this call deletion
      * was local-only and the key was re-pulled from the cloud on next sync.
-     * Local-only services (Anthropic/Leonardo/…) return false — they have
+     * Local-only services (Leonardo/…) return false — they have
      * no cloud copy to delete. The key value is never logged.
      */
     suspend fun deleteApiKey(service: String): Boolean = withContext(Dispatchers.IO) {

@@ -26,11 +26,7 @@ object AgentPrefs {
     // مفاتيح API per-provider (تُخزّن مشفرة)
     val GEMINI_KEY = "gemini_key"
     val GROQ_KEY = "groq_key"
-    val OPENAI_KEY = "openai_key"
     val OPENROUTER_KEY = "openrouter_key"
-    val ANTHROPIC_KEY = "anthropic_key"
-    val HUGGINGFACE_KEY = "huggingface_key"
-    val OPENCODE_KEY = "opencode_key"
 
     // رموز GitHub PAT (تُخزّن مشفرة)
     val GITHUB_PAT = "build_center_token"
@@ -45,10 +41,8 @@ object AgentPrefs {
 
     /** كل المفاتيح الحساسة التي تُنقل من النص الصريح إلى المخزن المشفر. */
     private val sensitiveKeys = listOf(
-        GEMINI_KEY, GROQ_KEY, OPENAI_KEY, OPENROUTER_KEY, ANTHROPIC_KEY,
-        HUGGINGFACE_KEY, OPENCODE_KEY,
-        "azure_speech_key", "azure_speech_region", "elevenlabs_key",
-        "pexels_key", "pixabay_key", "coverr_key",
+        GEMINI_KEY, GROQ_KEY, OPENROUTER_KEY,
+        "pixabay_key",
         "leonardo_api_key",
         "supabase_anon_key", "api_server_key",
         "user_api_key",

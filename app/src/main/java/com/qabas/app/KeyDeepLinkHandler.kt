@@ -45,14 +45,7 @@ object KeyDeepLinkHandler {
         val paramNames = mapOf(
             "gemini" to "gemini_key",
             "groq" to "groq_key",
-            "openai" to "openai_key",
             "openrouter" to "openrouter_key",
-            "huggingface" to "huggingface_key",
-            "hf" to "huggingface_key",
-            "azure" to "azure_speech_key",
-            "azure_region" to "azure_speech_region",
-            "elevenlabs" to "elevenlabs_key",
-            "pexels" to "pexels_key",
             "pixabay" to "pixabay_key"
         )
 
@@ -94,13 +87,7 @@ object KeyDeepLinkHandler {
             when (field) {
                 "gemini_key" -> "Gemini"
                 "groq_key" -> "Groq"
-                "openai_key" -> "OpenAI"
                 "openrouter_key" -> "OpenRouter"
-                "huggingface_key" -> "HuggingFace"
-                "azure_speech_key" -> "Azure TTS"
-                "azure_speech_region" -> "Azure Region"
-                "elevenlabs_key" -> "ElevenLabs"
-                "pexels_key" -> "Pexels"
                 "pixabay_key" -> "Pixabay"
                 else -> field
             }

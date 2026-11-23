@@ -36,16 +36,6 @@ object VibeModelPrices {
         "gemini-3.8-flash" to ModelPrice(0.75, 3.75, "Google AI (حتى 2026-12-31)"),
         // Google AI — مُهمل؛ الطلبات تُحوَّل تلقائياً إلى gemini-3.6-flash.
         "gemini-3.5-flash" to ModelPrice(1.50, 9.00, "Google AI"),
-        // OpenAI — تحقق حي 2026-11-23 (وأكده OpenRouter).
-        "gpt-4o" to ModelPrice(2.50, 10.00, "OpenAI"),
-        "gpt-4o-mini" to ModelPrice(0.15, 0.60, "OpenAI"),
-        // Anthropic — تحقق حي 2026-11-23 (وأكده OpenRouter لـ claude-sonnet-4.5).
-        "claude-sonnet-4.5" to ModelPrice(3.00, 15.00, "Anthropic"),
-        "claude-3.5-sonnet" to ModelPrice(3.00, 15.00, "Anthropic"),
-        "claude-3.5-haiku" to ModelPrice(0.80, 4.00, "Anthropic"),
-        // AWS Bedrock — الصفحة الرسمية لذلك المعرف الدقيق؛ صفحة
-        // Anthropic نفسها لم تعد تسرد هذا المعرف.
-        "claude-3-5-sonnet-20241022" to ModelPrice(3.00, 15.00, "AWS Bedrock"),
         // OpenRouter — تحقق حي عبر api/v1/models بتاريخ 2026-11-22.
         "anthropic/claude-sonnet-4.5" to ModelPrice(3.00, 15.00, "OpenRouter"),
         "openai/gpt-4o" to ModelPrice(2.50, 10.00, "OpenRouter")

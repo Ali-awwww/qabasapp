@@ -58,7 +58,7 @@ internal fun RequirementsTab(
     fun getDefaultReqs(clientMode: Boolean): List<Requirement> {
         return if (clientMode) {
             listOf(
-                Requirement("engine", "محرك الذكاء والاستدلال", "Gemini / Groq / OpenRouter / OpenAI"),
+                Requirement("engine", "محرك الذكاء والاستدلال", "Gemini / Groq / OpenRouter"),
                 Requirement("pat", "رمز GitHub PAT", "يد الوكيل وصلاحية repo/actions"),
                 Requirement("req", "طلب مربوط نشط", "الهدف والمواصفات المستهدفة"),
                 Requirement("price", "سعر مقبول", "بوابة التوليد والاعتماد"),
@@ -66,7 +66,7 @@ internal fun RequirementsTab(
             )
         } else {
             listOf(
-                Requirement("engine", "محرك الاستدلال والذكاء (AI Engine)", "Gemini 2.0 / Claude / Groq / OpenAI"),
+                Requirement("engine", "محرك الاستدلال والذكاء (AI Engine)", "Gemini 2.0 / Groq / OpenRouter"),
                 Requirement("pat", "رمز مصادقة GitHub PAT ومستخدم العمل", "صلاحية repo و workflow و actions"),
                 Requirement("repo", "المستودع المستهدف وفرع التطوير النشط", "خزانة المستودعات وفرع العمل البرمجي"),
                 Requirement("tools", "ترسانة الأدوات وسجل الفحص الذاتي", "الأدوات المسجلة وفحص سلامة التجميع"),

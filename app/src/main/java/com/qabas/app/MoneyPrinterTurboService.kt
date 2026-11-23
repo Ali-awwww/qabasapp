@@ -33,7 +33,7 @@ data class MoneyPrinterJobConfig(
     val subtitleEnabled: Boolean = true,
     val subtitleFontSize: Int = 48,
     val targetPlatform: String = "TikTok & Reels",
-    val videoSource: String = "pexels" // "pexels" or "pixabay"
+    val videoSource: String = "pixabay" // "pixabay"
 )
 
 data class MoneyPrinterServerStatus(
@@ -207,7 +207,7 @@ object MoneyPrinterTurboService {
 
     /**
      * استخراج كلمات مفتاحية بصرية ذكية متقدمة مستوحاة من MoneyPrinterTurbo
-     * تترجم المفاهيم الإسلامية والقصصية إلى أفضل مصطلحات بصرية مطلوبة على Pexels/Pixabay
+     * تترجم المفاهيم الإسلامية والقصصية إلى أفضل مصطلحات بصرية مطلوبة على Pixabay
      */
     fun extractSemanticVisualTerms(topic: String, scriptText: String = ""): List<String> {
         val combined = "$topic $scriptText".lowercase()
@@ -257,7 +257,7 @@ object MoneyPrinterTurboService {
 
     /**
      * تشغيل الأتمتة الكاملة محلياً (Standalone MoneyPrinter Engine)
-     * تجمع Edge-TTS + Pexels B-Roll + FFmpegKit بدقة 9:16
+     * تجمع Edge-TTS + Pixabay B-Roll + FFmpegKit بدقة 9:16
      */
     suspend fun executeAutonomousLocalPipeline(
         context: Context,

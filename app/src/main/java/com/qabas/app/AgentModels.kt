@@ -46,14 +46,6 @@ enum class DetectedProvider(
         listOf("gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-pro")),
     GROQ("groq", "Groq Lightning Llama", "gsk_", "llama-3.3-70b-versatile", Color(0xFFF59E0B),
         listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")),
-    OPENAI("openai", "OpenAI GPT-4o", "sk-", "gpt-4o", Color(0xFF10B981),
-        listOf("gpt-4o", "gpt-4o-mini", "o1-preview")),
-    ANTHROPIC("anthropic", "Anthropic Claude", "sk-ant-", "claude-3-5-sonnet-20241022", Color(0xFFA855F7),
-        listOf("claude-3-5-sonnet-20241022", "claude-sonnet-4.5", "claude-3.5-sonnet", "claude-3.5-haiku")),
-    HUGGINGFACE("huggingface", "HuggingFace Hub", "hf_", "Qwen/Qwen2.5-Coder-32B", Color(0xFFFCD34D),
-        listOf("Qwen/Qwen2.5-Coder-32B", "meta-llama/Llama-3.3-70B-Instruct")),
-    OPENCODE("opencode", "OpenCode Zen (125 نموذجاً)", "oc-", "big-pickle", Color(0xFF7C3AED),
-        listOf("big-pickle", "opencode/grok-code")),
     NONE("none", "لا يوجد مفتاح نشط", "", "local_sandbox", Color(0xFF94A3B8))
 }
 

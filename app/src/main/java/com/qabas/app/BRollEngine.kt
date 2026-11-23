@@ -208,7 +208,7 @@ object BRollEngine {
     )
 
     /**
-     * Translates common Arabic visual concepts to English search keywords for Pexels & Pixabay APIs.
+     * Translates common Arabic visual concepts to English search keywords for the Pixabay API.
      */
     fun mapArabicToVisualKeywords(arabicText: String): String {
         val lower = arabicText.lowercase(Locale.ROOT)

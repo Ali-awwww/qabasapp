@@ -92,13 +92,8 @@ private fun openUrl(context: Context, url: String) {
 
 private val KEY_PATTERNS: Map<String, Regex> = mapOf(
     "gemini" to Regex("""AIzaSy[A-Za-z0-9_\-]{33}"""),
-    "groq" to Regex("""(?:gsk_[A-Za-z0-9_\-]{10,}|xai-[A-Za-z0-9_\-]{10,})"""),
-    "huggingface" to Regex("""hf_[A-Za-z0-9]{10,}"""),
-    "elevenlabs" to Regex("""xi-[A-Za-z0-9_\-]{10,}"""),
-    "openai" to Regex("""sk-[A-Za-z0-9_\-]{20,}"""),
+    "groq" to Regex("""gsk_[A-Za-z0-9_\-]{10,}"""),
     "openrouter" to Regex("""sk-or-v1-[A-Za-z0-9_\-]{10,}"""),
-    "azure" to Regex("""(?i)[a-f0-9]{32}"""),
-    "pexels" to Regex("""(?<![A-Za-z0-9_-])[A-Za-z0-9]{56}(?![A-Za-z0-9_-])"""),
     "pixabay" to Regex("""\d{7,10}-[a-f0-9]{16,32}"""),
 )
 
@@ -113,14 +108,9 @@ fun detectKeysForAutoFill(text: String): Map<String, String> {
 
 private val ORDERED_SINGLE_KEY_PATTERNS: List<Pair<String, Regex>> = listOf(
     "gemini" to Regex("""AIzaSy[A-Za-z0-9_\-]{33}"""),
-    "groq" to Regex("""(?:gsk_[A-Za-z0-9_\-]{10,}|xai-[A-Za-z0-9_\-]{10,})"""),
+    "groq" to Regex("""gsk_[A-Za-z0-9_\-]{10,}"""),
     "openrouter" to Regex("""sk-or-v1-[A-Za-z0-9_\-]{10,}"""),
-    "openai" to Regex("""sk-[A-Za-z0-9_\-]{20,}"""),
-    "huggingface" to Regex("""hf_[A-Za-z0-9]{10,}"""),
-    "elevenlabs" to Regex("""xi-[A-Za-z0-9_\-]{10,}"""),
-    "pixabay" to Regex("""\d{7,10}-[a-f0-9]{16,32}"""),
-    "pexels" to Regex("""[A-Za-z0-9]{56}"""),
-    "azure" to Regex("""(?i)[a-f0-9]{32}""")
+    "pixabay" to Regex("""\d{7,10}-[a-f0-9]{16,32}""")
 )
 
 fun normalizePastedKey(raw: String): String {
@@ -151,14 +141,8 @@ object ApiKeysBackupManager {
         val allKeysToExport = listOf(
             "gemini_key",
             "groq_key",
-            "openai_key",
             "openrouter_key",
-            "pexels_key",
             "pixabay_key",
-            "huggingface_key",
-            "azure_speech_key",
-            "azure_speech_region",
-            "elevenlabs_key",
             "leonardo_api_key",
         )
 
@@ -196,20 +180,8 @@ object ApiKeysBackupManager {
                     "groq" to "groq_key",
                     "groq_key" to "groq_key",
                     "groq_api_key" to "groq_key",
-                    "azure" to "azure_speech_key",
-                    "azure_speech_key" to "azure_speech_key",
-                    "azure_speech_region" to "azure_speech_region",
-                    "azure_region" to "azure_speech_region",
-                    "elevenlabs" to "elevenlabs_key",
-                    "elevenlabs_key" to "elevenlabs_key",
-                    "pexels" to "pexels_key",
-                    "pexels_key" to "pexels_key",
                     "pixabay" to "pixabay_key",
                     "pixabay_key" to "pixabay_key",
-                    "huggingface" to "huggingface_key",
-                    "huggingface_key" to "huggingface_key",
-                    "openai" to "openai_key",
-                    "openai_key" to "openai_key",
                     "openrouter" to "openrouter_key",
                     "openrouter_key" to "openrouter_key",
                     "leonardo" to "leonardo_api_key",
@@ -246,14 +218,8 @@ object ApiKeysBackupManager {
                             keyName.contains("openrouter") || valStr.startsWith("sk-or-") -> importedMap["openrouter_key"] = valStr
                             keyName.contains("gemini") -> importedMap["gemini_key"] = valStr
                             keyName.contains("groq") -> importedMap["groq_key"] = valStr
-                            keyName.contains("azure_region") || keyName.endsWith("_region") -> importedMap["azure_speech_region"] = valStr
-                            keyName.contains("azure") || keyName.contains("speech") -> importedMap["azure_speech_key"] = valStr
-                            keyName.contains("eleven") -> importedMap["elevenlabs_key"] = valStr
-                            keyName.contains("pexels") -> importedMap["pexels_key"] = valStr
                             keyName.contains("pixabay") -> importedMap["pixabay_key"] = valStr
-                            keyName.contains("hugging") || keyName.contains("hf") -> importedMap["huggingface_key"] = valStr
                             keyName.contains("leonardo") -> importedMap["leonardo_api_key"] = valStr
-                            keyName.contains("openai") -> importedMap["openai_key"] = valStr
                         }
                     }
                 }
@@ -275,9 +241,7 @@ data class ServiceUiConfig(
     val description: String,
     val placeholder: String,
     val freeFallback: String,
-    val icon: ImageVector,
-    val hasRegion: Boolean = false,
-    val regionPrefsKey: String = ""
+    val icon: ImageVector
 )
 
 private val ALL_SERVICES = listOf(
@@ -308,19 +272,6 @@ private val ALL_SERVICES = listOf(
         icon = Icons.Default.Speed
     ),
     ServiceUiConfig(
-        id = "openai",
-        name = "OpenAI",
-        trackerName = "OpenAI",
-        provider = "OpenAI Platform",
-        prefsKey = "openai_key",
-        serviceType = "openai",
-        dashboardUrl = "https://platform.openai.com/api-keys",
-        description = "محرك نماذج GPT المتقدمة لتحليل النصوص والترجمة البلاغية الدقيقة.",
-        placeholder = "sk-...",
-        freeFallback = "يمكن استخدام Gemini أو Groq بديلاً عند إضافة مفاتيحهما.",
-        icon = Icons.Default.Psychology
-    ),
-    ServiceUiConfig(
         id = "openrouter",
         name = "OpenRouter",
         trackerName = "OpenRouter",
@@ -332,60 +283,6 @@ private val ALL_SERVICES = listOf(
         placeholder = "sk-or-v1-...",
         freeFallback = "يتطلب مفتاح OpenRouter لتوجيه النماذج عبره.",
         icon = Icons.Default.Hub
-    ),
-    ServiceUiConfig(
-        id = "azure",
-        name = "Azure Speech",
-        trackerName = "Azure TTS",
-        provider = "Microsoft Azure",
-        prefsKey = "azure_speech_key",
-        serviceType = "azure",
-        dashboardUrl = "https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices",
-        description = "نطق صوتي فصيح بنبرات عربية واقعية لمقاطع الريلز.",
-        placeholder = "32 محرف hex",
-        freeFallback = "محرك النطق المدمج في نظام أندرويد (TTS) متاح محلياً.",
-        icon = Icons.Default.RecordVoiceOver,
-        hasRegion = true,
-        regionPrefsKey = "azure_speech_region"
-    ),
-    ServiceUiConfig(
-        id = "elevenlabs",
-        name = "ElevenLabs",
-        trackerName = "ElevenLabs",
-        provider = "ElevenLabs AI",
-        prefsKey = "elevenlabs_key",
-        serviceType = "elevenlabs",
-        dashboardUrl = "https://elevenlabs.io/app/settings/api-keys",
-        description = "أصوات بشرية واقعية لنبرات السرد الوثائقي والتاريخي.",
-        placeholder = "xi-...",
-        freeFallback = "محرك النطق المدمج في النظام متاح محلياً.",
-        icon = Icons.Default.Mic
-    ),
-    ServiceUiConfig(
-        id = "huggingface",
-        name = "Hugging Face",
-        trackerName = "HuggingFace",
-        provider = "Hugging Face",
-        prefsKey = "huggingface_key",
-        serviceType = "huggingface",
-        dashboardUrl = "https://huggingface.co/settings/tokens",
-        description = "توليد لوحات وخلفيات فنية توضيحية إسلامية بالذكاء الاصطناعي.",
-        placeholder = "hf_...",
-        freeFallback = "الخلفيات المحلية الجاهزة متوفرة داخل التطبيق.",
-        icon = Icons.Default.Image
-    ),
-    ServiceUiConfig(
-        id = "pexels",
-        name = "Pexels Video",
-        trackerName = "Pexels",
-        provider = "Pexels API",
-        prefsKey = "pexels_key",
-        serviceType = "pexels",
-        dashboardUrl = "https://www.pexels.com/api/",
-        description = "مكتبة مقاطع فيديو سينمائية بدقة عالية لمشاهد B-Roll.",
-        placeholder = "56 محرف أبجدي رقمي",
-        freeFallback = "الخلفيات المحلية والأصول المدمجة تعمل بدون اتصال.",
-        icon = Icons.Default.VideoLibrary
     ),
     ServiceUiConfig(
         id = "pixabay",
@@ -410,7 +307,7 @@ private val ALL_SERVICES = listOf(
         dashboardUrl = "https://app.leonardo.ai/api-access",
         description = "توليد الصور والشخصيات التشكيلية والتصاميم البصرية فائقة الدقة.",
         placeholder = "مفتاح API من app.leonardo.ai",
-        freeFallback = "تتوقف ميزة التوليد السحابي حتى إدخال مفتاح Leonardo أو HuggingFace.",
+        freeFallback = "تتوقف ميزة التوليد السحابي حتى إدخال مفتاح Leonardo — وتوليد Pollinations المجاني متاح.",
         icon = Icons.Default.Palette
     )
 )
@@ -437,7 +334,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
 
     var keysState by remember { mutableStateOf(reloadKeysFromStorage()) }
-    var azureRegion by remember { mutableStateOf(prefs.getString("azure_speech_region", "") ?: "") }
 
     var visibilityState by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var testingState by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -477,7 +373,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
      * ولا يحفظ شيئاً أبداً: يعبّئ المفتاح الملتقط في حقل «اللصق الذكي»
      * فقط، ويحفظه المستخدم بنفسه بزر «تعبئة وفحص» بعد فحصه حياً.
      * السابق كان يراقب كل نسخة في الجهاز ويحفظ أي نص يشبه مفتاحاً
-     * (حتى سلسلة hex عشوائية من 32 محرفاً كانت تُحفظ كمفتاح Azure)
+     * (حتى سلسلة عشوائية كانت تُحفظ كمفتاح)
      * دون إذن من المستخدم ودون أي فحص حي.
      */
     fun autoDetectAndApply(text: String) {
@@ -521,8 +417,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             return
         }
         mainScope.launch {
-            val region = if (svc.hasRegion) azureRegion.trim().ifBlank { null } else null
-            val res = ApiKeyValidator.validateKey(context, svc.serviceType, clean, region)
+            val res = ApiKeyValidator.validateKey(context, svc.serviceType, clean, null)
             validationResults = validationResults + (svc.id to res)
             if (res.isValid) {
                 KeyPoolManager.setSingleKey(svc.prefsKey, clean)
@@ -536,25 +431,15 @@ fun ApiKeysScreen(onBack: () -> Unit) {
 
     /**
      * (r17) استيراد بعد فحص حي: كل قيمة تُفحص عند مزودها أولاً،
-     * ويُحفظ الصالح فقط؛ المنطقة (azure_speech_region) ليست سراً
-     * فتُحفظ مباشرة. أي اسم خارج مفاتيح ALL_SERVICES يُتجاهل —
+     * ويُحفظ الصالح فقط. أي اسم خارج مفاتيح ALL_SERVICES يُتجاهل —
      * الاستيراد السابق كان يكتب أي مفتاح JSON في التفضيلات دون
      * قائمة سماح ودون فحص.
      */
     fun importKeysWithLiveCheck(parsed: Map<String, String>) {
-        val region = parsed["azure_speech_region"]?.trim().orEmpty()
-        if (region.isNotBlank()) {
-            azureRegion = region
-            prefs.edit().putString("azure_speech_region", region).apply()
-        }
         val targets = parsed.entries.mapNotNull { (prefKey, value) ->
-            if (prefKey == "azure_speech_region") return@mapNotNull null
             val svc = ALL_SERVICES.find { it.prefsKey == prefKey } ?: return@mapNotNull null
             val clean = value.trim()
-            if (clean.isBlank()) null else Triple(
-                svc, clean,
-                if (svc.hasRegion) region.ifBlank { azureRegion.trim() }.ifBlank { null } else null
-            )
+            if (clean.isBlank()) null else Pair(svc, clean)
         }
         if (targets.isEmpty()) {
             Toast.makeText(context, "لم يتم العثور على مفاتيح صالحة داخل الملف", Toast.LENGTH_SHORT).show()
@@ -564,9 +449,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             var saved = 0
             var skipped = 0
             coroutineScope {
-                targets.map { (svc, key, reg) ->
+                targets.map { (svc, key) ->
                     async(Dispatchers.IO) {
-                        val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, reg)
+                        val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, null)
                         withContext(Dispatchers.Main) {
                             validationResults = validationResults + (svc.id to res)
                             if (res.isValid) {
@@ -594,12 +479,10 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             Toast.makeText(context, "يرجى إدخال أو لصق المفتاح أولاً قبل الفحص", Toast.LENGTH_SHORT).show()
             return
         }
-        val region = if (svc.hasRegion) azureRegion.trim() else null
-
         mainScope.launch {
             testingState = testingState + (svc.id to true)
             try {
-                val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, region)
+                val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, null)
                 validationResults = validationResults + (svc.id to res)
                 refreshTelemetry()
                 if (res.isValid) {
@@ -620,8 +503,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             val targets = ALL_SERVICES.mapNotNull { svc ->
                 val key = keysState[svc.prefsKey].orEmpty().trim()
                 if (key.isNotBlank()) {
-                    val region = if (svc.hasRegion) azureRegion.trim() else null
-                    Triple(svc, key, region)
+                    Pair(svc, key)
                 } else null
             }
 
@@ -634,9 +516,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             targets.forEach { (svc, _, _) -> testingState = testingState + (svc.id to true) }
 
             coroutineScope {
-                targets.map { (svc, key, region) ->
+                targets.map { (svc, key) ->
                     async(Dispatchers.IO) {
-                        val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, region)
+                        val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, null)
                         withContext(Dispatchers.Main) {
                             validationResults = validationResults + (svc.id to res)
                             testingState = testingState + (svc.id to false)
@@ -659,17 +541,12 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             return
         }
         val svc = ALL_SERVICES.find { it.id == svcId } ?: return
-        if (svc.hasRegion && azureRegion.isBlank()) {
-            Toast.makeText(context, "مفتاح ${svc.name} يحتاج المنطقة (Region) أولاً — أدخلها في بطاقته أدناه ثم أعد المحاولة", Toast.LENGTH_LONG).show()
-            return
-        }
         mainScope.launch {
             smartTesting = true
             smartLatencyMs = null
             try {
-                val region = if (svc.hasRegion) azureRegion.trim().ifBlank { null } else null
                 val t0 = System.nanoTime()
-                val res = ApiKeyValidator.validateKey(context, svc.serviceType, clean, region)
+                val res = ApiKeyValidator.validateKey(context, svc.serviceType, clean, null)
                 val ms = ((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(1L)
                 smartLatencyMs = ms
                 validationResults = validationResults + (svc.id to res)
@@ -970,10 +847,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
-                                                    text = if (smartDetectedSvc.hasRegion)
-                                                        "يتطلب إدخال المنطقة (Region) في بطاقته أدناه قبل الفحص"
-                                                    else
-                                                        "جاهز للحفظ والفحص المباشر",
+                                                    text = "جاهز للحفظ والفحص المباشر",
                                                     color = theme.textSecondary,
                                                     fontFamily = NotoSansFont,
                                                     fontSize = 11.5.sp
@@ -1054,12 +928,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                 },
                                 onTest = { runTestSingleKey(service) },
                                 onOpenUrl = { openUrl(context, service.dashboardUrl) },
-                                hasRegion = service.hasRegion,
-                                regionValue = azureRegion,
-                                onRegionChange = {
-                                    azureRegion = it
-                                    prefs.edit().putString("azure_speech_region", it.trim()).apply()
-                                },
                                 onPoolActiveChanged = { activeKey ->
                                     keysState = keysState + (service.prefsKey to activeKey)
                                 }
@@ -1106,7 +974,6 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                 context = context,
                                 onSyncedFromCloud = {
                                     keysState = reloadKeysFromStorage()
-                                    azureRegion = prefs.getString("azure_speech_region", "") ?: azureRegion
                                 }
                             )
                         }
@@ -1221,9 +1088,6 @@ private fun ProfessionalServiceCard(
     onClear: () -> Unit,
     onTest: () -> Unit,
     onOpenUrl: () -> Unit,
-    hasRegion: Boolean = false,
-    regionValue: String = "",
-    onRegionChange: (String) -> Unit = {},
     onPoolActiveChanged: (String) -> Unit = {}
 ) {
     val theme = QabasTheme.current
@@ -1347,17 +1211,6 @@ private fun ProfessionalServiceCard(
                 singleLine = true
             )
 
-            if (hasRegion) {
-                OutlinedTextField(
-                    value = regionValue,
-                    onValueChange = onRegionChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("منطقة الخادم (Region)", fontFamily = NotoSansFont, fontSize = 11.sp) },
-                    placeholder = { Text("مثال: eastus أو westeurope", color = theme.textSecondary.copy(alpha = 0.7f), fontSize = 12.sp) },
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1431,7 +1284,6 @@ private fun ProfessionalServiceCard(
 
             KeyPoolSection(
                 service = service,
-                regionValue = regionValue,
                 onPoolActiveChanged = onPoolActiveChanged
             )
 
@@ -1523,7 +1375,6 @@ private fun ProfessionalServiceCard(
 @Composable
 private fun KeyPoolSection(
     service: ServiceUiConfig,
-    regionValue: String,
     onPoolActiveChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -1650,7 +1501,7 @@ private fun KeyPoolSection(
                             try {
                                 val provider = AgentConnectivityEngine.prefsKeyToProvider(service.prefsKey)
                                 if (provider == DetectedProvider.NONE) {
-                                    rankSummary = "الترتيب التلقائي يدعم Gemini/Groq/OpenAI/OpenRouter فقط"
+                                    rankSummary = "الترتيب التلقائي يدعم Gemini/Groq/OpenRouter فقط"
                                 } else {
                                     val (ok, n, best) = AgentConnectivityEngine.rankPoolBySpeed(service.prefsKey, provider)
                                     rankSummary = if (ok) "تم ترتيب $n مفاتيح — الأسرع المتصل أولاً (${best}ms)"
@@ -1732,8 +1583,7 @@ private fun KeyPoolSection(
                                         testingIdx = idx
                                         scope.launch {
                                             try {
-                                                val region = if (service.hasRegion) regionValue.trim().ifBlank { null } else null
-                                                val r = ApiKeyValidator.validateKey(context, service.serviceType, key, region)
+                                                val r = ApiKeyValidator.validateKey(context, service.serviceType, key, null)
                                                 poolResults = poolResults + (idx to r)
                                             } finally {
                                                 testingIdx = null

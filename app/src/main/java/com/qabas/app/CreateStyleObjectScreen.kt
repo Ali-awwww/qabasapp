@@ -73,7 +73,7 @@ fun CreateStyleObjectScreen(
 
     // 4. Voice & Audio Style
     var voiceStyle by remember { mutableStateOf("صوت رخيم هادئ وتأملي") }
-    var voiceEngine by remember { mutableStateOf("ElevenLabs Neural HD") }
+    var voiceEngine by remember { mutableStateOf("محرك خادم المسلم الصوتي المدمج") }
     var audioMood by remember { mutableStateOf("مؤثرات طبيعية هادئة (خرير ماء ونسيم هواء)") }
 
     // 5. Motion Rhythm & Camera
@@ -529,8 +529,6 @@ fun CreateStyleObjectScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     val engines = listOf(
-                        "ElevenLabs Neural HD",
-                        "Azure Speech Islamic",
                         "محرك خادم المسلم الصوتي المدمج"
                     )
                     ChipSelector(

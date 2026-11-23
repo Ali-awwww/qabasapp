@@ -27,7 +27,7 @@ data class ModelBenchmarkResult(
 /**
  * ⚡ مدير وموجّه نماذج الذكاء الاصطناعي الذكي حسب سرعة الاستجابة الحية (AI Model Latency Router)
  *
- * يسمح بالتبديل الفوري والتلقائي بين النماذج (مثل Gemini و Groq و OpenAI)
+ * يسمح بالتبديل الفوري والتلقائي بين النماذج (مثل Gemini و Groq)
  * بناءً على أدنى سرعة استجابة (Latency) مقاسة فعلياً في اللحظة الحالية.
  */
 object AiModelLatencyRouter {
@@ -133,11 +133,7 @@ object AiModelLatencyRouter {
             val geminiResult = pingGemini()
             results["Gemini"] = geminiResult
 
-            // 3. فحص OpenAI (GPT-4o Mini)
-            val openaiResult = pingOpenAI()
-            results["OpenAI"] = openaiResult
-
-            // 4. فحص Pollinations (النموذج المجاني بلا مفتاح)
+            // 3. فحص Pollinations (النموذج المجاني بلا مفتاح)
             val pollResult = pingPollinations()
             results["Pollinations"] = pollResult
 
@@ -185,9 +181,8 @@ object AiModelLatencyRouter {
     private fun tryPingGroq(apiKey: String): ModelBenchmarkResult {
         val startTime = System.currentTimeMillis()
         return try {
-            val isXai = apiKey.startsWith("xai-", ignoreCase = true)
-            val apiUrl = if (isXai) "https://api.x.ai/v1/chat/completions" else "https://api.groq.com/openai/v1/chat/completions"
-            val modelName = if (isXai) "grok-2-latest" else "llama-3.3-70b-versatile"
+            val apiUrl = "https://api.groq.com/openai/v1/chat/completions"
+            val modelName = "llama-3.3-70b-versatile"
 
             val jsonBody = JSONObject().apply {
                 put("model", modelName)
@@ -355,86 +350,7 @@ object AiModelLatencyRouter {
         }
     }
 
-    private fun pingOpenAI(): ModelBenchmarkResult {
-        val keys = KeyPoolManager.orderedKeys("openai_key", KeyVault.openai)
-        var last: ModelBenchmarkResult? = null
-        for (k in keys) {
-            last = tryPingOpenAI(k)
-            if (last.isSuccess) {
-                KeyPoolManager.promoteKey("openai_key", k)
-                return last
-            }
-        }
-        return last ?: ModelBenchmarkResult(
-            id = "openai",
-            name = "OpenAI",
-            provider = "OpenAI Platform",
-            modelSpec = "gpt-4o-mini",
-            latencyMs = -1L,
-            isSuccess = false,
-            message = "مفتاح OpenAI غير متوفر"
-        )
-    }
 
-    private fun tryPingOpenAI(apiKey: String): ModelBenchmarkResult {
-        val startTime = System.currentTimeMillis()
-        return try {
-            val jsonBody = JSONObject().apply {
-                put("model", "gpt-4o-mini")
-                put("messages", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", "ping: قل كلمة واحدة: جاهز")
-                    })
-                })
-                put("max_tokens", 10)
-            }
-
-            val request = Request.Builder()
-                .url("https://api.openai.com/v1/chat/completions")
-                .addHeader("Authorization", "Bearer $apiKey")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val latency = System.currentTimeMillis() - startTime
-
-            if (response.isSuccessful) {
-                val resObj = JSONObject(response.body?.string() ?: "")
-                val text = resObj.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content", "") ?: ""
-                ModelBenchmarkResult(
-                    id = "openai",
-                    name = "OpenAI",
-                    provider = "OpenAI Platform",
-                    modelSpec = "gpt-4o-mini",
-                    latencyMs = latency,
-                    isSuccess = true,
-                    message = "استجابة سحابية متزنة",
-                    previewOutput = text.trim()
-                )
-            } else {
-                ModelBenchmarkResult(
-                    id = "openai",
-                    name = "OpenAI",
-                    provider = "OpenAI Platform",
-                    modelSpec = "gpt-4o-mini",
-                    latencyMs = latency,
-                    isSuccess = false,
-                    message = "خطأ HTTP ${response.code}"
-                )
-            }
-        } catch (e: Exception) {
-            ModelBenchmarkResult(
-                id = "openai",
-                name = "OpenAI",
-                provider = "OpenAI Platform",
-                modelSpec = "gpt-4o-mini",
-                latencyMs = System.currentTimeMillis() - startTime,
-                isSuccess = false,
-                message = "فشل الاتصال: ${e.message ?: "خطأ شبكة"}"
-            )
-        }
-    }
 
     private suspend fun pingPollinations(): ModelBenchmarkResult {
         val startTime = System.currentTimeMillis()
