@@ -485,7 +485,6 @@ fun PrayerTimesScreen(
                 ) {
                     HeroPrayerCountdownCard(
                         prayerTimes = prayerTimes,
-                        cityName = currentCity.nameAr,
                         onCountdownExpired = { timesVersion++ },
                         onOpenVoices = { showAudioSheet = true },
                         onShareTimetable = {
@@ -499,7 +498,7 @@ fun PrayerTimesScreen(
                                 • العشاء: ${prayerTimes.isha}
                                 • الثلث الأخير وقيام الليل: ${prayerTimes.qiyamStart}
 
-                                ⏱️ الصلاة القادمة: صلاة ${prayerTimes.nextPrayerName} بعد ${PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer)}
+                                ⏱️ ${PrayerCalculationHelper.nextEventTitle(prayerTimes.nextPrayerName)} بعد ${PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer)}
                                 ﴿إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَّوْقُوتًا﴾
                                 تطبيق خادم المسلم — مشكاة الهدى
                             """.trimIndent()
@@ -538,6 +537,10 @@ fun PrayerTimesScreen(
                     0 -> TimetableAndControlsTab(
                         prayerTimes = prayerTimes,
                         prefs = prefs,
+                        // ق114: مفتاح تحديث التنبيهات — نافذة التخصيص تكتب
+                        // notify_<key> ثم تغلق، فبلا مفتاح يبقى جرس الصف
+                        // على قيمته المُتذكَّرة القديمة فيكذّب النافذة.
+                        notifyRefreshKey = selectedPrayerForConfig,
                         onConfigPrayer = { prayerKey -> selectedPrayerForConfig = prayerKey },
                         onOpenVoices = { showAudioSheet = true }
                     )
@@ -681,7 +684,7 @@ private fun prayerKeyLabel(key: String): String = when (key) {
     "asr" -> "العصر"
     "maghrib" -> "المغرب"
     "isha" -> "العشاء"
-    "qiyam" -> "قيام الليل"
+    "suhur", "qiyam" -> "قيام الليل"
     else -> key
 }
 
@@ -704,15 +707,24 @@ private fun PrayerNotificationConfigDialog(
         mutableStateOf(prefs.getBoolean("notify_$prayerKey", true))
     }
     var soundMode by remember {
-        mutableStateOf(prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN")
+        // الشروق بلا أذان: قيمة FULL_AZAN محفوظة قديماً تُطبَّع عند القراءة
+        // (والجدولة تفرض «تنبيه فقط» للشروق مهما حُفظ).
+        val saved = prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN"
+        mutableStateOf(if (prayerKey == PrayerAlarmManager.PRAYER_SUNRISE) "NOTIFICATION_ONLY" else saved)
     }
     // صوت هذه الصلاة تحديداً؛ null = اتّباع الصوت الافتراضي العام.
     // (قبل هذه الجولة لم يكن للمفتاح voice_id_<prayer> أي واجهة تكتب فيه،
     // فكان المنبه يرجع دائماً للافتراضي العام رغم وجود السباكة كاملة.)
-    val availableVoices = remember { MuezzinVoiceManager.getAllVoices(context) }
+    val allVoices = remember { MuezzinVoiceManager.getAllVoices(context) }
     val globalDefaultVoiceId = remember { MuezzinVoiceManager.getDefaultVoiceId(context) }
     var selectedVoiceId by remember {
         mutableStateOf(prefs.getString("voice_id_$prayerKey", null))
+    }
+    // أصوات «الفجر فقط» لا تُعرض لغير الفجر — إلا الصوت المختار حالياً
+    // لهذه الصلاة فيبقى ظاهراً حتى يستطيع المستخدم تبديله.
+    val availableVoices = allVoices.filter { voice ->
+        !voice.isFajrSpecific || prayerKey == PrayerAlarmManager.PRAYER_FAJR ||
+            voice.id == selectedVoiceId
     }
     var backgroundSelection by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
     var backgroundInfo by remember { mutableStateOf(AdhanBackgroundPreferences.currentMediaInfo(context)) }
@@ -766,6 +778,13 @@ private fun PrayerNotificationConfigDialog(
         SoundOption("SILENT", "صامت", Icons.Default.NotificationsNone, "إشعار صامت بلا صوت")
     )
 
+    // الشروق بلا أذان: لا يُعرض خيار الأذان الكامل أصلاً.
+    val visibleSoundOptions = if (prayerKey == PrayerAlarmManager.PRAYER_SUNRISE) {
+        soundOptions.filter { it.value != "FULL_AZAN" }
+    } else {
+        soundOptions
+    }
+
     val theme = QabasTheme.current
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -789,7 +808,8 @@ private fun PrayerNotificationConfigDialog(
                         fontSize = 16.sp
                     )
                     Text(
-                        text = "خصّص نداء الأذان لهذه الصلاة",
+                        text = if (prayerKey == PrayerAlarmManager.PRAYER_SUNRISE) "الشروق بلا أذان — تنبيه بدخول الوقت فقط"
+                        else "خصّص نداء الأذان لهذه الصلاة",
                         color = GeoColor.textMuted(),
                         fontFamily = NotoSansFont,
                         fontSize = 10.sp
@@ -806,7 +826,8 @@ private fun PrayerNotificationConfigDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "تفعيل تنبيه الأذان",
+                            text = if (prayerKey == PrayerAlarmManager.PRAYER_SUNRISE) "تفعيل التنبيه"
+                            else "تفعيل تنبيه الأذان",
                             color = GeoColor.textPrimary(),
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -841,7 +862,7 @@ private fun PrayerNotificationConfigDialog(
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )
-                soundOptions.forEach { option ->
+                visibleSoundOptions.forEach { option ->
                     val isSelected = soundMode == option.value
                     Surface(
                         onClick = { soundMode = option.value },
@@ -895,6 +916,8 @@ private fun PrayerNotificationConfigDialog(
                     }
                 }
 
+                // صوت المؤذن وخلفية شاشة الأذان لا معنى لهما للشروق (بلا أذان).
+                if (prayerKey != PrayerAlarmManager.PRAYER_SUNRISE) {
                 // صوت المؤذن لهذه الصلاة — خيار مستقل عن الافتراضي العام
                 Text(
                     text = "صوت المؤذن لهذه الصلاة",
@@ -987,7 +1010,7 @@ private fun PrayerNotificationConfigDialog(
                     variant = GeoButtonStyle.Filled,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        AzanPlaybackService.startAzan(context, selectedVoiceId ?: "", "تجربة $prayerLabel")
+                        AzanPlaybackService.startAzan(context, selectedVoiceId ?: "", "تجربة $prayerLabel", prayerKey)
                     }
                 )
                 Text(
@@ -1093,6 +1116,7 @@ private fun PrayerNotificationConfigDialog(
                         }
                     }
                 }
+                }
             }
         },
         confirmButton = {
@@ -1127,24 +1151,25 @@ private fun PrayerNotificationConfigDialog(
 @Composable
 fun HeroPrayerCountdownCard(
     prayerTimes: CalculatedPrayerTimes,
-    cityName: String,
     onOpenVoices: () -> Unit,
     onShareTimetable: () -> Unit,
     onCountdownExpired: () -> Unit = {}
 ) {
-    // العدّاد الحي: لقطة millisUntilNextPrayer ثابتة منذ التركيب، فيُنقَص منها
-    // ثانية كل ثانية محلياً؛ وعند بلوغ الصفر يُطلب من الأب إعادة الحساب
-    // للصلاة التالية بدل التجمد على 00:00:00.
-    var elapsedSeconds by remember(prayerTimes) { mutableLongStateOf(0L) }
+    // العدّاد الحي: لقطة millisUntilNextPrayer ثابتة منذ التركيب، فيُحسب
+    // المتبقي من ساعة الحائط لا من عدّ ثوانٍ محلي — عدّ delay(1000) ينجرف
+    // (كل دورة 1000ms + زمن إعادة التركيب) فيتأخر العدّاد وتبديل الصلاة
+    // عشرات الثواني على مدى ساعات؛ والدقّة (tick) تُجبر إعادة التركيب فقط.
+    var tick by remember(prayerTimes) { mutableLongStateOf(0L) }
+    val snapshotAtMillis = remember(prayerTimes) { System.currentTimeMillis() }
     LaunchedEffect(prayerTimes) {
         while (true) {
             delay(1000L)
-            elapsedSeconds++
+            tick++
         }
     }
-    val remainingMillis = (prayerTimes.millisUntilNextPrayer - elapsedSeconds * 1000L).coerceAtLeast(0L)
+    val remainingMillis = (prayerTimes.millisUntilNextPrayer - (System.currentTimeMillis() - snapshotAtMillis)).coerceAtLeast(0L)
     LaunchedEffect(remainingMillis == 0L) {
-        if (remainingMillis == 0L && elapsedSeconds > 0L) onCountdownExpired()
+        if (remainingMillis == 0L && tick > 0L) onCountdownExpired()
     }
     // تقدّم الحلقة الحي: يُستنتج طول الفترة الكلي من تقدّم اللقطة اللحظي.
     val totalIntervalMillis = remember(prayerTimes) {
@@ -1183,7 +1208,7 @@ fun HeroPrayerCountdownCard(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "صلاة ${prayerTimes.nextPrayerName}",
+                        text = PrayerCalculationHelper.nextEventNoun(prayerTimes.nextPrayerName),
                         color = GeoColor.textPrimary(),
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -1236,7 +1261,7 @@ fun HeroPrayerCountdownCard(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "الأذان ${prayerTimes.nextPrayerTimeFormatted}",
+                        text = PrayerCalculationHelper.nextEventTimeLabel(prayerTimes.nextPrayerName, prayerTimes.nextPrayerTimeFormatted),
                         color = PresetPrimary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.5.sp,
@@ -1337,9 +1362,11 @@ fun HeroPrayerCountdownCard(
 fun TimetableAndControlsTab(
     prayerTimes: CalculatedPrayerTimes,
     prefs: android.content.SharedPreferences,
+    notifyRefreshKey: Any? = null,
     onConfigPrayer: (String) -> Unit,
     onOpenVoices: () -> Unit
 ) {
+    val context = LocalContext.current
     val prayers = listOf(
         PrayerRowItem("fajr", "الفجر", prayerTimes.fajr, Icons.Default.Brightness3, GeoColor.Dhikr),
         PrayerRowItem("sunrise", "الشروق", prayerTimes.sunrise, Icons.Default.WbSunny, GeoColor.Reward),
@@ -1347,7 +1374,9 @@ fun TimetableAndControlsTab(
         PrayerRowItem("asr", "العصر", prayerTimes.asr, Icons.Default.WbTwilight, Color(0xFFFB923C)),
         PrayerRowItem("maghrib", "المغرب", prayerTimes.maghrib, Icons.Default.NightsStay, GeoColor.Dua),
         PrayerRowItem("isha", "العشاء", prayerTimes.isha, Icons.Default.Bedtime, GeoColor.Qibla),
-        PrayerRowItem("qiyam", "قيام الليل والثلث الأخير", prayerTimes.qiyamStart, Icons.Default.Star, PresetPrimary)
+        // المفتاح "suhur" لا "qiyam": المجدول يقرأ notify_suhur وحده،
+        // فمفتاح qiyam كان يكتب مفاتيح ميتة لا يقرؤها أحد.
+        PrayerRowItem(PrayerAlarmManager.PRAYER_SUHUR, "قيام الليل والثلث الأخير", prayerTimes.qiyamStart, Icons.Default.Star, PresetPrimary)
     )
 
     LazyColumn(
@@ -1360,7 +1389,10 @@ fun TimetableAndControlsTab(
         item {
             val context = LocalContext.current
             var showBgDialog by remember { mutableStateOf(false) }
-            val isBgReady = remember { BackgroundPermissionManager.isAllBackgroundPermissionsGranted(context) }
+            // ق114: مفتاح الحوار يعيد الفحص عند إغلاقه — بلا مفتاح كانت
+            // البطاقة تُحسب مرة عند التركيب فتبقى «تفعيل العمل بالخلفية»
+            // بعد منح الأذونات فعلاً حتى مغادرة الشاشة والعودة.
+            val isBgReady = remember(showBgDialog) { BackgroundPermissionManager.isAllBackgroundPermissionsGranted(context) }
             val statusAccent = if (isBgReady) GeoColor.Quran else PresetPrimary
 
             Surface(
@@ -1449,7 +1481,10 @@ fun TimetableAndControlsTab(
 
         items(prayers) { prayer ->
             val isNext = prayerTimes.nextPrayerName.contains(prayer.nameAr)
-            var isNotifyEnabled by remember {
+            // ق114: مفتاح التحديث يعيد قراءة التفضيل بعد إغلاق نافذة
+            // التخصيص — بلا مفتاح كان الجرس يبقى على قيمة فتح الشاشة
+            // رغم أن النافذة كتبت القيمة الجديدة في التفضيل نفسه.
+            var isNotifyEnabled by remember(prayer.key, notifyRefreshKey) {
                 mutableStateOf(prefs.getBoolean("notify_${prayer.key}", true))
             }
 
@@ -1501,7 +1536,7 @@ fun TimetableAndControlsTab(
                         }
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = if (prayer.key == "qiyam") "يبدأ وقت النزول الإلهي" else "وقت النداء",
+                            text = if (prayer.key == PrayerAlarmManager.PRAYER_SUHUR) "يبدأ وقت النزول الإلهي" else "وقت النداء",
                             fontFamily = NotoSansFont,
                             color = GeoColor.textMuted(),
                             fontSize = 10.sp,
@@ -1532,6 +1567,11 @@ fun TimetableAndControlsTab(
                             .clickable {
                                 isNotifyEnabled = !isNotifyEnabled
                                 prefs.edit().putBoolean("notify_${prayer.key}", isNotifyEnabled).apply()
+                                // إعادة الجدولة فوراً: بلا هذا يبقى المنبه
+                                // المجدول مسلحاً حتى إطلاق الصلاة التالية
+                                // فيعيد الجدولة — فيسمع المستخدم أذاناً
+                                // ألغاه، أو يبقى تنبيه فعّله بلا منبه.
+                                runCatching { PrayerAlarmManager.scheduleAllPrayers(context) }
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -2241,7 +2281,7 @@ fun QiblaAndKhushooTab(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (compass.isSensorAvailable) "بوصلة القبلة" else "اتجاه القبلة",
+                                text = if (compass.isSensorAvailable && !compass.isSensorTimedOut) "بوصلة القبلة" else "اتجاه القبلة",
                                 color = GeoColor.textPrimary(),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -2343,6 +2383,7 @@ fun QiblaAndKhushooTab(
                     Text(
                         text = when {
                             !compass.isSensorAvailable -> "هذا الجهاز بلا حساس بوصلة — يُعرض اتجاه القبلة الثابت من الشمال."
+                            compass.isSensorTimedOut -> "تعذّر قراءة حساس البوصلة — يُعرض اتجاه القبلة الثابت من الشمال."
                             compass.azimuthDeg == null -> "جارٍ قراءة البوصلة… وجّه أعلى الهاتف نحو الأمام."
                             compass.isCalibrationNeeded -> "دقّة البوصلة منخفضة — حرّك الهاتف على شكل رقم 8 لمعايرتها."
                             else -> "بوصلة حية — أدر الهاتف حتى تستقيم الإبرة للأعلى."
@@ -2432,6 +2473,9 @@ fun AzanVoicesDialog(
     var editCloudDescription by remember { mutableStateOf("") }
     var cloudVoicePendingDelete by remember { mutableStateOf<AzanVoice?>(null) }
     var personalVoicePendingDelete by remember { mutableStateOf<AzanVoice?>(null) }
+    // ق128: الحذف المحلي كان فورياً بنقرة واحدة (ومعه ملف الصوت) —
+    // بينما حذف السحابة والسحابة الشخصية بحواري تأكيد.
+    var customVoicePendingDelete by remember { mutableStateOf<AzanVoice?>(null) }
     var editingPersonalVoice by remember { mutableStateOf<AzanVoice?>(null) }
     var personalVoiceTitle by remember { mutableStateOf("") }
     var pickedPersonalAudioUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -2449,6 +2493,27 @@ fun AzanVoicesDialog(
     fun reloadVoices() {
         voicesList = MuezzinVoiceManager.getAllVoices(context)
         defaultVoiceId = MuezzinVoiceManager.getDefaultVoiceId(context)
+    }
+
+    // إعادة جلب الأصوات العامة يدوياً (ق50): بلا هذا لا سبيل لإعادة
+    // المحاولة بعد فشل الجلب إلا بإغلاق الحوار وفتحه من جديد.
+    fun retryCloudFetch() {
+        if (isSyncingCloud) return
+        isSyncingCloud = true
+        scope.launch {
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                AzanCloudRepository.fetchCloudVoices()
+            }
+            cloudFetchFailed = result.isFailure
+            result.onSuccess {
+                MuezzinVoiceManager.cacheCloudVoices(context, it)
+                reloadVoices()
+            }
+            isSyncingCloud = false
+            if (result.isFailure) {
+                Toast.makeText(context, "تعذّر جلب أصوات السحابة — تحقق من الاتصال", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     // اختيار ملف من الهاتف ثم إظهار اسمه المسجل وإتاحة حفظه في السحابة الخاصة بالحساب.
@@ -2474,8 +2539,10 @@ fun AzanVoicesDialog(
             val publicCloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 AzanCloudRepository.fetchCloudVoices()
             }
-            cloudFetchFailed = publicCloud.isEmpty()
-            if (publicCloud.isNotEmpty()) MuezzinVoiceManager.cacheCloudVoices(context, publicCloud)
+            // فشل حقيقي لا «جدول فارغ» (ق50): النجاح بقائمة فارغة يمسح
+            // كاشاً عتيقاً (حُذف آخر صوت)، والفشل يبقي الكاش كما هو.
+            cloudFetchFailed = publicCloud.isFailure
+            publicCloud.onSuccess { MuezzinVoiceManager.cacheCloudVoices(context, it) }
 
             val personalCloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 UserAzanCloudRepository.fetchMyVoices()
@@ -2579,6 +2646,64 @@ fun AzanVoicesDialog(
                                 )
                             }
                         }
+                        Surface(
+                            onClick = { showAddMuezzinDialog = true },
+                            shape = GeoShape.Chip,
+                            color = PresetPrimary.copy(alpha = 0.14f),
+                            border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline())
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.AddCircle,
+                                    contentDescription = null,
+                                    tint = PresetPrimary,
+                                    modifier = Modifier.size(Geo.I_XS)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    "إضافة برابط",
+                                    color = PresetPrimary,
+                                    fontSize = 11.sp,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        // يظهر فقط عند فشل جلب السحابة (ق50): إعادة محاولة
+                        // بلا إغلاق الحوار وفتحه من جديد.
+                        if (cloudFetchFailed) {
+                            Surface(
+                                onClick = { retryCloudFetch() },
+                                shape = GeoShape.Chip,
+                                color = GeoColor.Quran.copy(alpha = 0.14f),
+                                border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.42f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        tint = GeoColor.Quran,
+                                        modifier = Modifier.size(Geo.I_XS)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        if (isSyncingCloud) "جارٍ الجلب…" else "إعادة جلب السحابة",
+                                        color = GeoColor.Quran,
+                                        fontSize = 11.sp,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                         if (isDeveloper) {
                             Surface(
                                 onClick = { showDevUploadDialog = true },
@@ -2624,12 +2749,87 @@ fun AzanVoicesDialog(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                 Text(
-                    "أصوات الأذان الحية المعتمدة حصراً بصوت كبار المؤذنين، ويمكنك تعيين المؤذن الافتراضي أو إضافة أصوات أخرى لاحقاً:",
+                    "أصوات الأذان المتاحة: الصوت العام المعتمد، وأصواتك المضافة من هاتفك أو برابط — عيّن المؤذن الافتراضي للصلوات، أو نزّل صوتاً للاستماع دون إنترنت:",
                     color = dialogTheme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 11.5.sp,
                     lineHeight = 17.sp
                 )
+
+                // ق128: فشل المعاينة كان صامتاً — حالة الخطأ في المشغّل
+                // (AzanPlaybackState.Error) لا يعرضها أحد في هذا الحوار،
+                // فيتوقف المؤشر ويعود زر التشغيل بلا أي تفسير رغم أن
+                // المشغّل يحفظ رسالة الخطأ عمداً بدل مسحها.
+                val playbackError = playbackState as? AzanPlaybackState.Error
+                if (playbackError != null) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = dialogTheme.destructive.copy(alpha = 0.12f),
+                        border = BorderStroke(0.75.dp, dialogTheme.destructive.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = dialogTheme.destructive, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = playbackError.message,
+                                color = dialogTheme.destructive,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { AzanAudioPlayer.stop() }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "إغلاق التنبيه", tint = dialogTheme.destructive, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // ق128: بلا اتصال ولا أصوات محفوظة كان الجسم فارغاً تماماً —
+                // نافذة الإرشاد لا تظهر إلا عند توفر Supabase، وشريحة إعادة
+                // الجلب لا تظهر إلا بعد فشل جلب داخل الفرع المتاح.
+                if (voicesList.isEmpty() && !isSyncingCloud && !showVoiceSetupPrompt) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = dialogTheme.secondarySurface,
+                        border = BorderStroke(0.75.dp, dialogTheme.separator),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "لا توجد أصوات أذان محفوظة بعد.",
+                                color = dialogTheme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = "أضف صوتاً من هاتفك أو برابط من الأزرار أعلاه، أو اجلب أصوات السحابة عند توفر الاتصال.",
+                                color = dialogTheme.textSecondary,
+                                fontFamily = NotoSansFont,
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp
+                            )
+                            OutlinedButton(
+                                onClick = { retryCloudFetch() },
+                                shape = GeoShape.ButtonSmCompat,
+                                border = BorderStroke(Geo.B_HAIRLINE, GeoColor.Quran.copy(alpha = 0.45f)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = GeoColor.Quran, modifier = Modifier.size(Geo.I_XS))
+                                Spacer(Modifier.width(5.dp))
+                                Text("إعادة جلب السحابة", color = GeoColor.Quran, fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
                 voicesList.forEach { voice ->
                     val isDefault = defaultVoiceId == voice.id
@@ -2732,7 +2932,7 @@ fun AzanVoicesDialog(
                                         } else {
                                             Icon(
                                                 imageVector = if (isPlaying) Icons.Default.StopCircle else Icons.Default.PlayCircle,
-                                                contentDescription = "تشغيل",
+                                                contentDescription = if (isPlaying) "إيقاف" else "تشغيل",
                                                 tint = PresetPrimary,
                                                 modifier = Modifier.size(32.dp)
                                             )
@@ -2741,11 +2941,7 @@ fun AzanVoicesDialog(
 
                                     if (isCustom) {
                                         IconButton(
-                                            onClick = {
-                                                MuezzinVoiceManager.deleteCustomVoice(context, voice.id)
-                                                reloadVoices()
-                                                Toast.makeText(context, "تم حذف الصوت المحلي من الهاتف", Toast.LENGTH_SHORT).show()
-                                            },
+                                            onClick = { customVoicePendingDelete = voice },
                                             modifier = Modifier.size(48.dp)
                                         ) {
                                             Icon(Icons.Default.DeleteOutline, contentDescription = "حذف محلي", tint = dialogTheme.destructive, modifier = Modifier.size(18.dp))
@@ -2990,7 +3186,7 @@ fun AzanVoicesDialog(
             title = { Text("أضف صوت مؤذّن للمحراب", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    if (cloudFetchFailed) "لا توجد أصوات عامة متاحة حالياً أو تعذر جلبها. يمكنك حفظ ملف أذان من هاتفك في سحابتك الخاصة، أو إعادة محاولة جلب الأصوات العامة." 
+                    if (cloudFetchFailed) "تعذّر جلب الأصوات العامة — تحقق من اتصالك بالإنترنت، ثم أعد المحاولة من زر «جلب أصوات السحابة» أدناه، أو أضف صوت أذان من هاتفك."
                     else "مكتبتك فارغة. احفظ ملف أذان من هاتفك في حسابك الخاص أو نزّل صوتاً عاماً متاحاً.",
                     color = GeoColor.textPrimary(), fontFamily = CairoFont
                 )
@@ -3006,11 +3202,18 @@ fun AzanVoicesDialog(
                     scope.launch {
                         isSyncingCloud = true
                         val cloud = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AzanCloudRepository.fetchCloudVoices() }
-                        if (cloud.isNotEmpty()) {
-                            MuezzinVoiceManager.cacheCloudVoices(context, cloud)
+                        // فشل حقيقي لا «جدول فارغ» (ق50): لكلٍّ رسالته.
+                        cloudFetchFailed = cloud.isFailure
+                        cloud.onSuccess { list ->
+                            MuezzinVoiceManager.cacheCloudVoices(context, list)
                             reloadVoices()
-                            Toast.makeText(context, "تم تحديث أصوات السحابة. اختر الصوت ثم نزّله للاستماع دون إنترنت.", Toast.LENGTH_LONG).show()
-                        } else {
+                            Toast.makeText(
+                                context,
+                                if (list.isNotEmpty()) "تم تحديث أصوات السحابة. اختر الصوت ثم نزّله للاستماع دون إنترنت."
+                                else "لا توجد أصوات سحابية عامة حالياً.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }.onFailure {
                             Toast.makeText(context, "لم نتمكن من جلب أصوات السحابة. تحقق من الاتصال ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
                         }
                         isSyncingCloud = false
@@ -3185,6 +3388,37 @@ fun AzanVoicesDialog(
                 }) { Text("حذف نهائياً", color = Color(0xFFEF4444)) }
             },
             dismissButton = { TextButton(onClick = { personalVoicePendingDelete = null }) { Text("إلغاء") } }
+        )
+    }
+
+    // ق128: حوار تأكيد للحذف المحلي — كان فورياً بنقرة واحدة ويمسح
+    // ملف الصوت، بينما حذفا السحابة بحواري تأكيد.
+    if (customVoicePendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { customVoicePendingDelete = null },
+            containerColor = GeoColor.surfaceSunken(),
+            title = { Text("حذف الصوت المحلي؟", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("سيُحذف صوت الأذان وملفه من الهاتف نهائياً، ولا يمكن التراجع.", color = GeoColor.textPrimary(), fontFamily = CairoFont) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val voice = customVoicePendingDelete ?: return@TextButton
+                    // أوقف معاينة الصوت المحذوف نفسه حتى لا يبقى مشغّل
+                    // بلا بطاقة توقفه بعد اختفائه من القائمة.
+                    val playingId = when (val s = playbackState) {
+                        is AzanPlaybackState.Playing -> s.voiceId
+                        is AzanPlaybackState.Loading -> s.voiceId
+                        is AzanPlaybackState.Paused -> s.voiceId
+                        else -> null
+                    }
+                    if (playingId == voice.id) onStopVoice()
+                    MuezzinVoiceManager.deleteCustomVoice(context, voice.id)
+                    reloadVoices()
+                    BackgroundPermissionManager.refreshBackgroundSchedulers(context)
+                    Toast.makeText(context, "تم حذف الصوت المحلي من الهاتف", Toast.LENGTH_SHORT).show()
+                    customVoicePendingDelete = null
+                }) { Text("حذف نهائياً", color = Color(0xFFEF4444)) }
+            },
+            dismissButton = { TextButton(onClick = { customVoicePendingDelete = null }) { Text("إلغاء") } }
         )
     }
 

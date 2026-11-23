@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -1136,7 +1137,7 @@ fun SystemControlsSection(context: Context) {
     var autoAiReply by remember { mutableStateOf(initial.autoAiReply) }
     var customMessage by remember { mutableStateOf(initial.maintenanceMessage) }
     var syncState by remember { mutableStateOf(
-        if (initial.lastSyncMs > 0) "آخر مزامنة سحابية: ${AuditLogger.formatTime(initial.lastSyncMs)}" else "لم تتم المزامنة مع السحابة بعد"
+        if (initial.lastSyncMs > 0) "آخر حفظ محلي: ${AuditLogger.formatTime(initial.lastSyncMs)}" else "لم يُحفظ بعد"
     ) }
     val controllerScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
@@ -1155,11 +1156,11 @@ fun SystemControlsSection(context: Context) {
             lastSyncMs = System.currentTimeMillis()
         )
         controllerScope.launch {
-            val pushed = AppRemoteConfig.pushToCloud(context, next)
-            syncState = if (pushed) {
-                "تم الحفظ والمزامنة سحابياً بنجاح ☁️ (${AuditLogger.formatTime(System.currentTimeMillis())})"
+            val saved = AppRemoteConfig.saveLocal(context, next)
+            syncState = if (saved) {
+                "تم الحفظ محلياً على هذا الجهاز 💾 (${AuditLogger.formatTime(System.currentTimeMillis())}) — لا مزامنة سحابية بعد (تحتاج جدول app_config)"
             } else {
-                "تم الحفظ محلياً فقط 💾"
+                "فشل الحفظ المحلي"
             }
         }
     }
@@ -1301,7 +1302,7 @@ fun SystemControlsSection(context: Context) {
                     onClick = {
                         AppSoundManager.playSuccess()
                         saveConfig(message = customMessage)
-                        Toast.makeText(context, "تم حفظ رسالة الصيانة سحابياً بنجاح ✦", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "تم حفظ رسالة الصيانة محلياً ✦", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
@@ -1309,7 +1310,7 @@ fun SystemControlsSection(context: Context) {
                 ) {
                     Icon(Icons.Default.Save, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("حفظ نص الرسالة سحابياً", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("حفظ نص الرسالة", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
@@ -1341,7 +1342,7 @@ fun SystemControlsSection(context: Context) {
             ConfigOverridesEditor(context = context)
         }
 
-        // ── إعدادات الدعم ومجتمع واتساب السحابية ──
+        // ── إعدادات الدعم ومجتمع واتساب (محلية فقط — بلا نشر سحابي بعد) ──
         SupportConfigDevSection(context = context)
     }
 }
@@ -1658,7 +1659,7 @@ fun ConfigOverridesEditor(context: Context) {
                         }
                         TextButton(onClick = {
                             scope.launch {
-                                val ok = AppRemoteConfig.deleteOverride(rule.id)
+                                val ok = AppRemoteConfig.deleteOverride(context, rule.id)
                                 Toast.makeText(context, if (ok) "حُذفت القاعدة" else "فشل الحذف", Toast.LENGTH_SHORT).show()
                                 if (ok) reload()
                             }
@@ -1900,9 +1901,19 @@ fun LiveCloudGuardLogsCard(context: Context) {
 
 @Composable
 fun WeeklyEngagementTrendsChart(context: Context) {
-    var selectedMetric by remember { mutableIntStateOf(0) } // 0: إنتاج الفيديو, 1: نصوص الذكاء الاصطناعي, 2: بطاقات الأحاديث
+    var selectedMetric by rememberSaveable { mutableIntStateOf(0) } // 0: إنتاج الفيديو, 1: نصوص الذكاء الاصطناعي, 2: بطاقات الأحاديث
 
-    val daysOfWeek = listOf("السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة")
+    // ق111: التسميات كانت قائمة ثابتة (السبت..الجمعة) بينما الأعمدة
+    // تواريخ حقيقية (قبل 6 أيام..اليوم) — فعمود اليوم كان يُسمى
+    // «الجمعة» في غير يوم الجمعة. تُشتق الآن من تواريخ الأعمدة نفسها
+    // (Calendar: الأحد=1 .. السبت=7).
+    val daysOfWeek = remember {
+        val weekdays = listOf("الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت")
+        (6 downTo 0).map { back ->
+            val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -back) }
+            weekdays[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+        }
+    }
 
     // عدّ حقيقي من قاعدة البيانات أثناء الافتتاح — لا أرقام مزيفة
     var videoData by remember { mutableStateOf(IntArray(7)) }
@@ -1928,11 +1939,16 @@ fun WeeklyEngagementTrendsChart(context: Context) {
         val v = IntArray(7)
         val s = IntArray(7)
         val c = IntArray(7)
-        for (i in 0..6) {
-            v[i] = db.projectDao().countProjectsBetween(dayStarts[i], dayEnds[i])
-            s[i] = db.reelScriptDao().countScriptsBetween(dayStarts[i], dayEnds[i])
-            c[i] = db.hadithCardDao().countCardsBetween(dayStarts[i], dayEnds[i])
-        }
+        // ق111: عدّادات Room بلا حماية — رمي قاعدة البيانات هنا كان
+        // ينهار بالتأثير كاملاً ويسقط التطبيق عند فتح اللوحة؛ والفشل
+        // الآن يُبقي الأصفار فيعرض الرسم حالة الفراغ الصادقة.
+        runCatching {
+            for (i in 0..6) {
+                v[i] = db.projectDao().countProjectsBetween(dayStarts[i], dayEnds[i])
+                s[i] = db.reelScriptDao().countScriptsBetween(dayStarts[i], dayEnds[i])
+                c[i] = db.hadithCardDao().countCardsBetween(dayStarts[i], dayEnds[i])
+            }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         videoData = v
         scriptData = s
         cardsData = c
@@ -2212,7 +2228,10 @@ fun FirebaseStorageCapacityCard(context: Context) {
             0L
         }
     }
-    val cacheMB = (cacheBytes / (1024.0 * 1024.0)).coerceAtLeast(0.5)
+    // ق111: أرضية 0.5MB مختلقة — الكاش الفارغ كان يُعرض 0.5MB رغم
+    // تعليق البطاقة نفسه «بلا أرقام مختلقة»، وتضخم المستهلك وتُنقص
+    // المتبقي بالقدر نفسه. الآن القيمة الحقيقية (0.0 عند الفراغ).
+    val cacheMB = cacheBytes / (1024.0 * 1024.0)
 
     // Real local data & database usage (no fabricated numbers)
     val dataBytes = remember {
@@ -3096,7 +3115,7 @@ fun SupportConfigDevSection(context: Context) {
     var isSaving by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        cfg = SupportConfigManager.refreshFromCloud(context)
+        cfg = SupportConfigManager.reloadLocal(context)
     }
 
     var whatsappUrl by remember(cfg) { mutableStateOf(cfg.whatsappGroupUrl) }
@@ -3114,14 +3133,14 @@ fun SupportConfigDevSection(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text("إعدادات الدعم ومجتمع واتساب السحابية", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("تعديل روابط ومحافظ الدعم ومجموعة واتساب لجميع المستخدمين.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text("إعدادات الدعم ومجتمع واتساب", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("تعديل روابط ومحافظ الدعم ومجموعة واتساب على هذا الجهاز فقط — لا تصل لباقي المستخدمين بعد (تحتاج مصدراً سحابياً).", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
             Surface(
                 color = QabasTheme.current.success.copy(alpha = 0.2f),
                 shape = RoundedCornerShape(6.dp)
             ) {
-                Text("WhatsApp + Cloud", color = QabasTheme.current.success, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                Text("محلي فقط", color = QabasTheme.current.success, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
             }
         }
 
@@ -3186,23 +3205,33 @@ fun SupportConfigDevSection(context: Context) {
 
                 Button(
                     onClick = {
+                        val next = cfg.copy(
+                            whatsappGroupUrl = whatsappUrl.trim(),
+                            whatsappGroupName = whatsappName.trim(),
+                            paypalUrl = paypalUrl.trim(),
+                            usdtTronAddress = usdtAddress.trim(),
+                            bankName = bankName.trim(),
+                            bankIban = bankIban.trim(),
+                            hadithQuote = hadithQuote.trim()
+                        )
+                        // ق21: لا تُحفظ قيمة تبرع مستحيلة — الآيبان السابق
+                        // فشل في mod-97 والعنوان السابق كان نائباً.
+                        if (next.bankIban.isNotBlank() && !SupportConfigManager.isValidIban(next.bankIban)) {
+                            android.widget.Toast.makeText(context, "رقم الآيبان غير صحيح (فشل فحص IBAN) — راجعه قبل الحفظ", android.widget.Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        if (next.usdtTronAddress.isNotBlank() && !SupportConfigManager.isValidTronAddress(next.usdtTronAddress)) {
+                            android.widget.Toast.makeText(context, "عنوان محفظة USDT غير صحيح — يجب أن يكون 34 حرفاً يبدأ بـ T", android.widget.Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
                         isSaving = true
                         coroutineScope.launch {
-                            val next = cfg.copy(
-                                whatsappGroupUrl = whatsappUrl.trim(),
-                                whatsappGroupName = whatsappName.trim(),
-                                paypalUrl = paypalUrl.trim(),
-                                usdtTronAddress = usdtAddress.trim(),
-                                bankName = bankName.trim(),
-                                bankIban = bankIban.trim(),
-                                hadithQuote = hadithQuote.trim()
-                            )
-                            val ok = SupportConfigManager.saveAndPublish(context, next, AdminGuard.currentIdentity(context))
+                            val ok = SupportConfigManager.saveLocal(context, next, AdminGuard.currentIdentity(context))
                             cfg = next
                             isSaving = false
                             android.widget.Toast.makeText(
                                 context,
-                                if (ok) "تم نشر بيانات الدعم ومجموعة واتساب لجميع المستخدمين سحابياً! 🚀" else "تم الحفظ محلياً",
+                                if (ok) "تم حفظ بيانات الدعم محلياً على هذا الجهاز 💾 — لا تصل لباقي المستخدمين بعد" else "فشل الحفظ المحلي",
                                 android.widget.Toast.LENGTH_LONG
                             ).show()
                         }
@@ -3216,10 +3245,10 @@ fun SupportConfigDevSection(context: Context) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(6.dp))
                     } else {
-                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Save, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                     }
-                    Text("حفظ ونشر التعديلات سحابياً للجميع", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("حفظ التعديلات محلياً", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
         }

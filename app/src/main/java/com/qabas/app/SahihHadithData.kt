@@ -1251,6 +1251,13 @@ object SahihHadithsRepository {
         return baseList.filter { it.quranEvidence != null }
     }
 
+    /**
+     * بحث في الأحاديث المنقّاة. المطابقة مطبَّعة عبر
+     * HadithSearchNormalizer (بلا تشكيل، وتوحيد الألف والهمزة):
+     * نص الحديث مشكول («بِالنِّيَّاتِ») فلا يجده contains خام على
+     * استعلام بلا تشكيل («النيات») — وهذا التطبيع هو ما يحلّه.
+     * الاستعلام الفارغ يرجع كل أحاديث الباب (لقائمة الفصل).
+     */
     fun searchHadiths(
         bookType: SahihBookType?,
         chapterId: String?,
@@ -1261,19 +1268,19 @@ object SahihHadithsRepository {
         return baseList.filter { hadith ->
             val matchChapter = chapterId.isNullOrEmpty() || hadith.chapterId == chapterId
             val quranMatch = hadith.quranEvidence?.let { qe ->
-                qe.verseText.contains(trimmedQuery, ignoreCase = true) ||
-                        qe.surahName.contains(trimmedQuery, ignoreCase = true) ||
-                        qe.relationType.contains(trimmedQuery, ignoreCase = true) ||
-                        qe.commentary.contains(trimmedQuery, ignoreCase = true)
+                HadithSearchNormalizer.matches(qe.verseText, trimmedQuery) ||
+                        HadithSearchNormalizer.matches(qe.surahName, trimmedQuery) ||
+                        HadithSearchNormalizer.matches(qe.relationType, trimmedQuery) ||
+                        HadithSearchNormalizer.matches(qe.commentary, trimmedQuery)
             } ?: false
             val matchQuery = trimmedQuery.isEmpty() ||
-                    hadith.title.contains(trimmedQuery, ignoreCase = true) ||
-                    hadith.matn.contains(trimmedQuery, ignoreCase = true) ||
-                    hadith.narrator.contains(trimmedQuery, ignoreCase = true) ||
-                    hadith.explanation.contains(trimmedQuery, ignoreCase = true) ||
-                    hadith.wisdomCapsule.contains(trimmedQuery, ignoreCase = true) ||
+                    HadithSearchNormalizer.matches(hadith.title, trimmedQuery) ||
+                    HadithSearchNormalizer.matches(hadith.matn, trimmedQuery) ||
+                    HadithSearchNormalizer.matches(hadith.narrator, trimmedQuery) ||
+                    HadithSearchNormalizer.matches(hadith.explanation, trimmedQuery) ||
+                    HadithSearchNormalizer.matches(hadith.wisdomCapsule, trimmedQuery) ||
                     hadith.hadithNumber.toString() == trimmedQuery ||
-                    hadith.tags.any { it.contains(trimmedQuery, ignoreCase = true) } ||
+                    hadith.tags.any { HadithSearchNormalizer.matches(it, trimmedQuery) } ||
                     quranMatch
             matchChapter && matchQuery
         }
@@ -1281,12 +1288,6 @@ object SahihHadithsRepository {
 
     fun getHadithById(id: String): SahihHadithItem? {
         return bukhariHadiths.find { it.id == id } ?: muslimHadiths.find { it.id == id }
-    }
-
-    fun getRandomDailyHadith(): SahihHadithItem {
-        val all = getAllHadiths()
-        val dayOfYear = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
-        return all[dayOfYear % all.size]
     }
 
     // Bookmarking helpers (using SharedPreferences for durable zero-overhead local storage)

@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.app.Activity
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,6 +87,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -97,6 +100,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -105,16 +109,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleTopBar
-import com.qabas.app.ui.theme.AmiriFont
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasDesignTheme
 import com.qabas.app.ui.theme.QabasTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -134,6 +143,66 @@ import java.util.Locale
 // - عند مغادرة الشاشة (onDispose) يُحفظ آخر موضع معروف فوراً.
 // - عند دخول سورة جديدة يُحفظ موضعها الأول ضمن المهلة نفسها.
 // ============================================================================
+
+// ق148: لوحة الدراسة تنجو من التدوير — كانت studyVerse وpendingStudyVerse
+// وstudyIrabBookOverride بـ remember عادٍ، فيغلق التدويرُ اللوحةَ كلها
+// وتضيع الآية والمنتقى (والدرويش المفروض من المكتبة، وهو لا يُحفظ في
+// التفضيلات عمداً)؛ والمنتقيان أنفسهما ينجوان عبر التفضيلات لأن كل نقرة
+// تحفظ الكتاب فوراً. الحافظتان على سابقة DirectorChatScreen
+// (Saver<…, List<String>>) — كل الحقول نصوص أو أعداد فتُرمَّز نصاً.
+private val mushafStudyVerseSaver = Saver<QuranVerseDetail?, List<String>>(
+    save = { verse ->
+        verse?.let {
+            listOf(
+                it.surahNumber.toString(),
+                it.surahName,
+                it.verseNumber.toString(),
+                it.verseText,
+                it.tafseer,
+                it.tajweedNotes
+            )
+        } ?: emptyList()
+    },
+    restore = { list ->
+        if (list.size != 6) null else QuranVerseDetail(
+            surahNumber = list[0].toIntOrNull() ?: return@Saver null,
+            surahName = list[1],
+            verseNumber = list[2].toIntOrNull() ?: return@Saver null,
+            verseText = list[3],
+            tafseer = list[4],
+            tajweedNotes = list[5]
+        )
+    }
+)
+
+private val mushafPendingStudyVerseSaver = Saver<Pair<Int, Int>?, List<String>>(
+    save = { ref -> ref?.let { listOf(it.first.toString(), it.second.toString()) } ?: emptyList() },
+    restore = { list ->
+        if (list.size != 2) null else {
+            val surah = list[0].toIntOrNull() ?: return@Saver null
+            val ayah = list[1].toIntOrNull() ?: return@Saver null
+            surah to ayah
+        }
+    }
+)
+
+// ق153: الآيات المكشوفة في وضع الحفظ كانت بـ remember عادٍ فتضيع
+// بالتدوير فيُعاد إخفاء ما كشفه المستخدم للتسميع — والحافظة على
+// سابقة ق148 نفسها (زوج «سورة:آية» نصاً)؛ وتبقى تُصفَّر عند
+// إيقاف الوضع كما هو موثق، فالنجاة من التدوير لا من إيقاف الوضع.
+private val mushafRevealedVersesSaver = Saver<Set<Pair<Int, Int>>, List<String>>(
+    save = { set -> set.map { "${it.first}:${it.second}" } },
+    restore = { list ->
+        list.mapNotNull { item ->
+            val parts = item.split(":")
+            if (parts.size != 2) null else {
+                val surah = parts[0].toIntOrNull() ?: return@mapNotNull null
+                val ayah = parts[1].toIntOrNull() ?: return@mapNotNull null
+                surah to ayah
+            }
+        }.toSet()
+    }
+)
 
 @Composable
 fun MushafReaderScreen(
@@ -165,6 +234,17 @@ fun MushafReaderScreen(
     )
     val quranFontSize by UserPreferencesManager.quranFontSize.collectAsState()
     val verseFontSize = quranFontSize.coerceIn(14f, 30f)
+    // خط المصحف المختار في الإعدادات: كان القارئ يثبّت الأميري ويتجاهل
+    // الاختيار كلياً (المنتقي لم يكن يغيّر إلا معاينة الإعدادات).
+    val readingFontFamily by UserPreferencesManager.readingFontFamily.collectAsState()
+    val verseFontFamily = remember(readingFontFamily) {
+        UserPreferencesManager.getResolvedFontFamily(readingFontFamily)
+    }
+    // ألوان التجويد حسب إضاءة خلفية سمة القراءة الفعلية (فاتحة/داكنة):
+    // اللوحة الواحدة كانت تفشل تبايناً على أحد النوعين حتماً.
+    val tajweedColors = remember(readerPalette) {
+        QuranDataProvider.tajweedRuleColors(readerPalette.background.luminance() > 0.5f)
+    }
 
     var quranReady by remember { mutableStateOf(false) }
     // فشل تحميل المصحف: كان ensureQuranLoaded=false يترك القارئ على مؤشر
@@ -206,10 +286,10 @@ fun MushafReaderScreen(
     var playingTimings by remember { mutableStateOf<List<QuranAudioService.QuranWordTiming>>(emptyList()) }
     var activeWordPosition by remember { mutableStateOf<Int?>(null) }
     var audioMessage by remember { mutableStateOf<String?>(null) }
-    var reciterMenuOpen by remember { mutableStateOf(false) }
-    var speedMenuOpen by remember { mutableStateOf(false) }
-    var sleepMenuOpen by remember { mutableStateOf(false) }
-    var downloadMenuOpen by remember { mutableStateOf(false) }
+    var reciterMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var speedMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var sleepMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var downloadMenuOpen by rememberSaveable { mutableStateOf(false) }
     var sleepMinutes by remember { mutableStateOf<Int?>(null) }
     var sleepRemainingText by remember { mutableStateOf<String?>(null) }
     var downloadStatus by remember { mutableStateOf(MushafDownloadStatus.IDLE) }
@@ -218,9 +298,12 @@ fun MushafReaderScreen(
     var downloadBytes by remember { mutableStateOf(0L) }
     var downloadScopeLabel by remember { mutableStateOf<String?>(null) }
     var downloadError by remember { mutableStateOf<String?>(null) }
+    // ق113: مقبض مهمة التنزيل — بلا مقبض كان الإلغاء مستحيلاً من القارئ
+    // نفسه (صنف ق109)؛ والمخرج الوحيد مغادرة الشاشة بلا إخبار.
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     val audioScope = rememberCoroutineScope()
 
-    fun resetAudioPlaybackState() {
+    fun resetAudioPlaybackState(preserveSleepTimer: Boolean = false) {
         isPlayingAudio = false
         playingPage = null
         playingSurah = null
@@ -228,26 +311,48 @@ fun MushafReaderScreen(
         playingAyahIndex = -1
         playingTimings = emptyList()
         activeWordPosition = null
-        sleepMinutes = null
-        sleepRemainingText = null
+        // ق43: إعادة بناء القائمة أو القفز داخل الجلسة لا يمسّان
+        // عدّاد المؤقت الظاهر؛ الإيقاف الصريح وحده يصفّره.
+        if (!preserveSleepTimer) {
+            sleepMinutes = null
+            sleepRemainingText = null
+        }
     }
 
-    fun stopAudio() {
-        QuranAudioPlayer.stop()
-        resetAudioPlaybackState()
+    fun stopAudio(preserveSleepTimer: Boolean = false) {
+        if (preserveSleepTimer) QuranAudioPlayer.stopKeepingSleepTimer() else QuranAudioPlayer.stop()
+        resetAudioPlaybackState(preserveSleepTimer)
     }
 
     /** تشغيل قائمة آيات (صفحة أو سورة) مع ربط التمييز والخطأ بالواجهة. */
-    fun startPlayback(ayahs: List<QuranAudioService.QuranTimedAyahAudio>, page: Int?, surah: Int?) {
+    fun startPlayback(
+        ayahs: List<QuranAudioService.QuranTimedAyahAudio>,
+        page: Int?,
+        surah: Int?,
+        startIndex: Int = 0
+    ) {
+        // ق188: «تكرار الصفحة» بلا صفحة كذب على التسمية — يحصل من
+        // حالة محفوظة (PAGE من جلسة سابقة) مع تشغيل سورة حين تغيب
+        // خريطة الصفحات: المشغّل يكرر السورة كلها (REPEAT_MODE_ALL
+        // على قائمة السورة) والتسمية تقول صفحة؛ فتُطبَّع الحالة
+        // هنا إلى SURAH مع حفظها، فيطابق الشريط المشغّل دائماً.
+        if (repeatMode == QuranRepeatMode.PAGE && page == null && surah != null) {
+            repeatMode = QuranRepeatMode.SURAH
+            UserPreferencesManager.saveMushafAudioRepeat(context, QuranRepeatMode.SURAH.name)
+        }
+        val safeStart = startIndex.coerceIn(0, (ayahs.size - 1).coerceAtLeast(0))
         playingAyahs = ayahs
-        playingAyahIndex = 0
-        playingTimings = ayahs.firstOrNull()?.timings ?: emptyList()
+        playingAyahIndex = safeStart
+        playingTimings = ayahs.getOrNull(safeStart)?.timings ?: emptyList()
         activeWordPosition = null
         QuranAudioPlayer.playAyahs(
             context = context,
             ayahs = ayahs,
+            startIndex = safeStart,
             repeatMode = repeatMode,
             speed = audioSpeed,
+            page = page,
+            surah = surah,
             onAyahChanged = { index ->
                 playingAyahIndex = index
                 playingTimings = ayahs.getOrNull(index)?.timings ?: emptyList()
@@ -262,6 +367,46 @@ fun MushafReaderScreen(
         playingPage = page
         playingSurah = surah
         isPlayingAudio = true
+    }
+
+    // ق186: إعادة ربط جلسة التلاوة بعد التدوير — حالة الصوت في
+    // الشاشة remember فتموت بالتدوير، بينما المشغّل singleton
+    // ينجو ويواصل التشغيل؛ عند أول تركيب تُستعاد القائمة والمؤشر
+    // والصفحة/السورة والسرعة والتكرار وحالة التشغيل من لقطته،
+    // وتُعاد تسجيل الردود نفسها (تمييز الآية/النهاية/الخطأ) دون
+    // إعادة بناء القائمة أو إيقاف الصوت. بلا جلسة جارية (دخول أول
+    // أو إيقاف صريح أو نهاية) لا شيء يُستعاد. مؤقت النوم المسلّح
+    // يُستعاد عدّاده أيضاً من بقيّته الحيّة فيعيد حلقة العدّ التنازلي
+    // ويبقى زر إلغائه عاملاً.
+    LaunchedEffect(Unit) {
+        if (playingAyahs.isEmpty()) {
+            QuranAudioPlayer.currentSession()?.let { session ->
+                playingAyahs = session.ayahs
+                playingAyahIndex = session.index
+                playingTimings = session.ayahs.getOrNull(session.index)?.timings ?: emptyList()
+                activeWordPosition = null
+                playingPage = session.page
+                playingSurah = session.surah
+                audioSpeed = session.speed
+                repeatMode = session.repeatMode
+                isPlayingAudio = session.playing
+                QuranAudioPlayer.sleepRemainingMs()?.let { remaining ->
+                    sleepMinutes = ((remaining + 59_999L) / 60_000L).toInt().coerceAtLeast(1)
+                }
+                QuranAudioPlayer.reattachCallbacks(
+                    onAyahChanged = { index ->
+                        playingAyahIndex = index
+                        playingTimings = session.ayahs.getOrNull(index)?.timings ?: emptyList()
+                        activeWordPosition = null
+                    },
+                    onEnded = { resetAudioPlaybackState() },
+                    onError = { message ->
+                        resetAudioPlaybackState()
+                        audioMessage = message
+                    }
+                )
+            }
+        }
     }
 
     fun togglePageAudio() {
@@ -317,6 +462,9 @@ fun MushafReaderScreen(
     /** تنزيل تلاوة صفحة (آية آية، مع تقدّم حقيقي) عبر مخزن التنزيلات الموحّد. */
     fun downloadPageAudio(page: Int) {
         if (downloadStatus == MushafDownloadStatus.DOWNLOADING) return
+        // ق113: حارس المقبض مع حارس الحالة — نقرة مزدوجة قبل تعيين الحالة
+        // كانت تطلق حلقتين على الملفات نفسها.
+        if (downloadJob?.isActive == true) return
         val refs = MushafPageData.getPageRefs(page)
         if (refs.isEmpty()) {
             downloadError = "تعذّر تحديد آيات الصفحة."
@@ -328,13 +476,13 @@ fun MushafReaderScreen(
         downloadTotal = refs.size
         downloadDone = 0
         downloadBytes = 0L
-        audioScope.launch {
+        downloadJob = audioScope.launch {
             var done = 0
             var bytes = 0L
             try {
                 for ((s, a) in refs) {
                     val url = QuranAudioService.getAyahAudioUrl(s, a, selectedReciter)
-                    val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة صفحة $page — آية $a")
+                    val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة صفحة $page — آية $a", subtitle = "تلاوة قرآنية")
                     if (ok) {
                         done++
                         bytes += DownloadsHubManager.audioFileForUrl(context, url)?.length() ?: 0L
@@ -350,6 +498,20 @@ fun MushafReaderScreen(
                 if (downloadStatus == MushafDownloadStatus.ERROR) {
                     downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // ق113: إلغاء صريح (زر الإلغاء) ليس خطأ اتصال — كتلة finally
+                // كانت تصنّف الإلغاء ERROR مع «تحقق من الاتصال» المضللة؛
+                // والجزئي يبقى جزئياً صادقاً فيُتاح حذفه وإكماله.
+                downloadDone = done
+                downloadBytes = bytes
+                if (done > 0) {
+                    downloadStatus = MushafDownloadStatus.PARTIAL
+                    downloadError = null
+                } else {
+                    downloadStatus = MushafDownloadStatus.ERROR
+                    downloadError = "تم إلغاء التنزيل — يمكنك إعادة المحاولة لاحقاً."
+                }
+                throw e
             } finally {
                 // إن أُلغي التنزيل (مغادرة الشاشة مثلاً) لا يبقى
                 // «جارٍ التنزيل» عالقاً: يُغلق بالحالة الفعلية.
@@ -367,11 +529,14 @@ fun MushafReaderScreen(
                 }
             }
         }
+        downloadJob?.invokeOnCompletion { downloadJob = null }
     }
 
     /** تنزيل تلاوة سورة كاملة (كل آياتها) — التقدّم بعدد الملفات لا بحجم مخمّن. */
     fun downloadSurahAudio(surah: Int) {
         if (downloadStatus == MushafDownloadStatus.DOWNLOADING) return
+        // ق113: حارس المقبض مع حارس الحالة (كما في تنزيل الصفحة).
+        if (downloadJob?.isActive == true) return
         val count = QuranDataProvider.surahs.firstOrNull { it.id == surah }?.versesCount ?: 0
         if (count < 1) {
             downloadError = "تعذّر تحديد آيات السورة."
@@ -383,13 +548,13 @@ fun MushafReaderScreen(
         downloadTotal = count
         downloadDone = 0
         downloadBytes = 0L
-        audioScope.launch {
+        downloadJob = audioScope.launch {
             var done = 0
             var bytes = 0L
             try {
                 for (ayah in 1..count) {
                     val url = QuranAudioService.getAyahAudioUrl(surah, ayah, selectedReciter)
-                    val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة سورة ${QuranDataProvider.surahNameOf(surah)} — آية $ayah")
+                    val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة سورة ${QuranDataProvider.surahNameOf(surah)} — آية $ayah", subtitle = "تلاوة قرآنية")
                     if (ok) {
                         done++
                         bytes += DownloadsHubManager.audioFileForUrl(context, url)?.length() ?: 0L
@@ -405,6 +570,18 @@ fun MushafReaderScreen(
                 if (downloadStatus == MushafDownloadStatus.ERROR) {
                     downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // ق113: إلغاء صريح ليس خطأ اتصال (كما في تنزيل الصفحة).
+                downloadDone = done
+                downloadBytes = bytes
+                if (done > 0) {
+                    downloadStatus = MushafDownloadStatus.PARTIAL
+                    downloadError = null
+                } else {
+                    downloadStatus = MushafDownloadStatus.ERROR
+                    downloadError = "تم إلغاء التنزيل — يمكنك إعادة المحاولة لاحقاً."
+                }
+                throw e
             } finally {
                 // إن أُلغي التنزيل (مغادرة الشاشة مثلاً) لا يبقى
                 // «جارٍ التنزيل» عالقاً: يُغلق بالحالة الفعلية.
@@ -422,14 +599,22 @@ fun MushafReaderScreen(
                 }
             }
         }
+        downloadJob?.invokeOnCompletion { downloadJob = null }
     }
 
     /** حذف ملفات تلاوة الصفحة المنزّلة من مخزن التنزيلات الموحّد. */
     fun deletePageAudio(page: Int) {
         val refs = MushafPageData.getPageRefs(page)
-        for ((s, a) in refs) {
-            val url = QuranAudioService.getAyahAudioUrl(s, a, selectedReciter)
-            DownloadsHubManager.deleteDownloadedMedia(context, DownloadsHubManager.audioMediaIdForUrl(url))
+        // ق150: الحذف كان لقارئ واحد فقط (الحالي) رغم أن عنصر القائمة
+        // «حذف تنزيل الصفحة» بلا اسم قارئ — فمن نزّل بالقارئ أ ثم بدّل
+        // إلى ب وحذف، لم يُحذف شيء وبقيت الحالة IDLE كاذبة (ملفات أ
+        // موجودة وتشغل التخزين وتُستعمل دون اتصال) حتى إعادة الحساب.
+        // التنزيل لكل قارئ على حدة، والحذف لكل القراء معاً فيُصدق.
+        for (reciter in QuranAudioService.availableReciters) {
+            for ((s, a) in refs) {
+                val url = QuranAudioService.getAyahAudioUrl(s, a, reciter.id)
+                DownloadsHubManager.deleteDownloadedMedia(context, DownloadsHubManager.audioMediaIdForUrl(url))
+            }
         }
         downloadStatus = MushafDownloadStatus.IDLE
         downloadDone = 0
@@ -465,9 +650,20 @@ fun MushafReaderScreen(
     // --- علامات المصحف + الانتقال السريع (خارطة المصحف — المرحلة 1) ---
     // العلامات محلية فقط (UserPreferencesManager) — بلا مزامنة سحابية.
     var bookmarks by remember { mutableStateOf<List<UserPreferencesManager.MushafBookmark>>(emptyList()) }
-    var navDialogOpen by remember { mutableStateOf(false) }
+    // ق77: فهرس العلامات بالمرجع — كان كل بطاقة آية تفحص قائمة
+    // العلامات كاملة (firstOrNull) في كل تركيب، فصار البحث خريطة O(1)
+    // تُبنى مرة واحدة عند تغيّر العلامات فقط.
+    val bookmarkByRef = remember(bookmarks) {
+        bookmarks.associateBy { it.surah to it.ayah }
+    }
+    // ق105: فتح حوار الانتقال محفوظ عبر التدوير مع استعلاماته.
+    var navDialogOpen by rememberSaveable { mutableStateOf(false) }
     var bookmarksDialogOpen by remember { mutableStateOf(false) }
     var editingBookmark by remember { mutableStateOf<UserPreferencesManager.MushafBookmark?>(null) }
+    // ق87: علامة بانتظار تأكيد الحذف — الحذف كان فورياً بلا تأكيد ولا
+    // تراجع من القائمة والمحرر معاً، فأي نقرة سهو على أيقونة الحذف
+    // (بجوار أيقونة التعديل مباشرة) كانت تُفقد الملاحظة نهائياً.
+    var bookmarkPendingDelete by remember { mutableStateOf<UserPreferencesManager.MushafBookmark?>(null) }
 
     // --- الدراسة (خارطة المصحف — المرحلة 3) ---
     // الترجمة الإنجليزية (Saheeh International من QuranEnc) تحت كل آية،
@@ -478,18 +674,29 @@ fun MushafReaderScreen(
     // الترجمة الإنجليزية المختارة (قسم القرآن — الكتب): محفوظة محلياً،
     // وتبديلها يعيد جلب الترجمة السطرية بالمعرّف الجديد.
     var mushafTranslationId by remember { mutableStateOf(UserPreferencesManager.getMushafTranslation(context)) }
+    // ق96: اسم الترجمة النشطة للافتتي التحميل والخطأ — كان النص
+    // عاماً («الترجمة الإنجليزية») فلا يعرف القارئ أي ترجمة تُجلب
+    // أو فشل جلبها عند التبديل بين الثلاث.
+    val activeTranslationName = remember(mushafTranslationId) {
+        QuranDataProvider.MUSHAF_TRANSLATIONS.firstOrNull { it.id == mushafTranslationId }?.arabicName
+            ?: QuranDataProvider.MUSHAF_TRANSLATIONS[0].arabicName
+    }
     var translationMaps by remember { mutableStateOf<Map<Int, Map<Int, String>>>(emptyMap()) }
     var translationLoading by remember { mutableStateOf(false) }
     var translationError by remember { mutableStateOf<String?>(null) }
     var translationRetryTick by remember { mutableStateOf(0) }
-    var studyVerse by remember { mutableStateOf<QuranVerseDetail?>(null) }
+    var studyVerse by rememberSaveable(saver = mushafStudyVerseSaver) {
+        mutableStateOf<QuranVerseDetail?>(null)
+    }
     // آية معلّقة للدراسة من ورقة المكتبة: حين تكون سورتها غير
     // السورة المعروضة، ننتقل إليها أولاً ثم نفتح لوحتها عند
     // وصول آياتها — لا نفتح دراسة آية أخرى برقمها نفسه.
-    var pendingStudyVerse by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var pendingStudyVerse by rememberSaveable(saver = mushafPendingStudyVerseSaver) {
+        mutableStateOf<Pair<Int, Int>?>(null)
+    }
     // كتاب الإعراب المفروض عند فتح الدراسة من فئة البلاغة في المكتبة
     // (الدرويش، لعرض قسم البلاغة)؛ يُمسح عند إغلاق اللوحة.
-    var studyIrabBookOverride by remember { mutableStateOf<String?>(null) }
+    var studyIrabBookOverride by rememberSaveable { mutableStateOf<String?>(null) }
 
     // --- الحفظ والختمة (خارطة المصحف — المرحلة 4) ---
     // وضع الحفظ إخفاء عرض فقط (النص لا يُغيَّر أبداً)؛ والآيات
@@ -499,7 +706,9 @@ fun MushafReaderScreen(
     var memorizationMode by remember {
         mutableStateOf(UserPreferencesManager.getMushafMemorizationMode(context))
     }
-    var revealedVerses by remember { mutableStateOf<Set<Pair<Int, Int>>>(emptySet()) }
+    var revealedVerses by rememberSaveable(saver = mushafRevealedVersesSaver) {
+        mutableStateOf<Set<Pair<Int, Int>>>(emptySet())
+    }
     var khatmahDialogOpen by remember { mutableStateOf(false) }
     var khatmahPlan by remember { mutableStateOf(UserPreferencesManager.getMushafKhatmahPlan(context)) }
     var khatmahLastRead by remember { mutableStateOf<UserPreferencesManager.LastReadQuran?>(null) }
@@ -544,15 +753,25 @@ fun MushafReaderScreen(
     val spreadSurahs = remember(spreadRefs) {
         (spreadRefs.first + spreadRefs.second).map { it.first }.distinct().toSet()
     }
+    // ق77: تفاصيل الصفحتين تُبنى من مراجع الصفحتين فقط (~15 آية)
+    // عبر getVerseText/getTafsirForVerse — لا من سور كاملة: كان
+    // getVersesForSurah يرتّب ويبني 286 كائناً للبقرة مثلاً في كل
+    // قلب صفحة بينما المعروض 15 آية فقط.
     val spreadDetails = remember(spreadRefs, quranReady) {
         if (!quranReady) {
             emptyMap<Pair<Int, Int>, QuranVerseDetail>()
         } else {
             val map = LinkedHashMap<Pair<Int, Int>, QuranVerseDetail>()
-            for (surah in spreadSurahs) {
-                for (detail in QuranDataProvider.getVersesForSurah(surah, QuranDataProvider.surahNameOf(surah))) {
-                    map[surah to detail.verseNumber] = detail
-                }
+            for (ref in spreadRefs.first + spreadRefs.second) {
+                val text = QuranDataProvider.getVerseText(ref.first, ref.second) ?: continue
+                map[ref] = QuranVerseDetail(
+                    surahNumber = ref.first,
+                    surahName = QuranDataProvider.surahNameOf(ref.first),
+                    verseNumber = ref.second,
+                    verseText = text,
+                    tafseer = QuranDataProvider.getTafsirForVerse(ref.first, ref.second) ?: "",
+                    tajweedNotes = ""
+                )
             }
             map
         }
@@ -584,6 +803,10 @@ fun MushafReaderScreen(
             translationLoading = false
             return@LaunchedEffect
         }
+        // ق96: تُنشر الخرائط المخزنة فوراً قبل الجلب — كان نص
+        // الترجمة القديمة (لمعرّف آخر لنفس السور) يبقى معروضاً
+        // أثناء جلب الجديدة فيُقرأ كأنه الترجمة المختارة.
+        translationMaps = ready
         translationLoading = true
         translationError = null
         var failed = false
@@ -593,7 +816,7 @@ fun MushafReaderScreen(
         }
         translationMaps = ready
         translationError = if (failed) {
-            "تعذّر تحميل الترجمة — تحقق من الاتصال وحاول مجدداً."
+            "تعذّر تحميل ترجمة $activeTranslationName — تحقق من الاتصال وحاول مجدداً."
         } else {
             null
         }
@@ -656,6 +879,9 @@ fun MushafReaderScreen(
             scriptLoading = false
             return@LaunchedEffect
         }
+        // ق96: كالترجمة — تُنشر الخرائط المخزنة فوراً قبل الجلب،
+        // وإلا بقي نص الرسم القديم معروضاً كأنه الرسم المختار.
+        scriptMaps = ready
         scriptLoading = true
         scriptError = null
         var failed = false
@@ -680,24 +906,32 @@ fun MushafReaderScreen(
     // وتفتح السورة عند الآية المطلوبة عبر آلية targetAyah نفسها.
     fun jumpTo(surah: Int, ayah: Int) {
         if (surah !in 1..114 || ayah < 1) return
-        stopAudio()
+        // قيد رقم الآية بعدد آيات سورتها الحقيقي: آية خارج النطاق كانت
+        // تترك القارئ أعلى السورة بصمت — بلا قفزة ولا رسالة.
+        val safeAyah = QuranDataProvider.surahs.firstOrNull { it.id == surah }
+            ?.versesCount?.let { ayah.coerceIn(1, it) } ?: ayah
+        // ق43: القفز داخل الجلسة لا يلغي مؤقت نوم مسلّحاً — كان
+        // stopAudio() هنا يلغيه بصمت، فمن يعيد التشغيل بعد القفز
+        // يكمل بلا مؤقت ولا عدّاد ظاهر.
+        stopAudio(preserveSleepTimer = true)
         audioMessage = null
         selectedSurah = surah
-        targetAyah = ayah
+        targetAyah = safeAyah
         targetConsumed = false
         // في العرض المزدوج: التقط الصفحة الفردية المحيطة بالآية،
         // وأخبر العمود الحاوي أن يتمركز عليها.
         if (spreadActive) {
-            val page = MushafPageData.getPageForAyah(surah, ayah)
+            val page = MushafPageData.getPageForAyah(surah, safeAyah)
             if (page > 0) spreadPage = mushafSpreadStartPage(page)
-            spreadTarget = surah to ayah
+            spreadTarget = surah to safeAyah
         }
     }
 
     /** تلاوة السورة كاملة من آيتها الأولى (لتكرار السورة)، مع قفزة القارئ إليها. */
     fun startSurahAudio(surah: Int) {
         if (isLoadingAudio) return
-        stopAudio()
+        // ق43: إعادة بناء لا إيقاف صريح — مؤقت النوم ينجو مع الجلسة.
+        stopAudio(preserveSleepTimer = true)
         audioMessage = null
         isLoadingAudio = true
         audioScope.launch {
@@ -714,9 +948,20 @@ fun MushafReaderScreen(
 
     /** تبديل وضع التكرار؛ الصفحة/السورة تعيد بناء قائمة التشغيل المناسبة. */
     fun cycleRepeatMode() {
+        // ق43: أثناء تحميل قائمة تُبنى يُتجاهل التدوير — بلا حارس كان
+        // تدوير سريع يطلق إعادة بناء متداخلة فيفوز آخرها بقائمة لا
+        // تطابق التسمية المعروضة (صفحة تُعاد بتسمية «تكرار السورة»).
+        if (isLoadingAudio) return
+        // ق188: بلا صفحة معروفة (خريطة الصفحات غائبة فيُشغَّل صوت
+        // السورة) كانت خطوة «تكرار الصفحة» تعيّن الحالة والتسمية
+        // وتُحفظ، بينما فرع PAGE لا يجد صفحة فلا يستدعي setRepeatMode
+        // ولا يعيد البناء — فيبقى المشغّل على وضع الآية السابق
+        // والتسمية كاذبة؛ فتُتخطى خطوة الصفحة في التدوير حين لا
+        // صفحة: إيقاف ← آية ← سورة ← إيقاف.
+        val hasPage = (playingPage ?: currentPage) != null
         val next = when (repeatMode) {
             QuranRepeatMode.OFF -> QuranRepeatMode.VERSE
-            QuranRepeatMode.VERSE -> QuranRepeatMode.PAGE
+            QuranRepeatMode.VERSE -> if (hasPage) QuranRepeatMode.PAGE else QuranRepeatMode.SURAH
             QuranRepeatMode.PAGE -> QuranRepeatMode.SURAH
             QuranRepeatMode.SURAH -> QuranRepeatMode.OFF
         }
@@ -731,7 +976,9 @@ fun MushafReaderScreen(
                     QuranAudioPlayer.setRepeatMode(next)
                 } else if (page != null) {
                     // قائمة سورة جارية: أعد البناء كصفحة لتكرار الصفحة فعلاً.
-                    stopAudio()
+                    // ق43: الإيقاف هنا إعادة بناء لا إيقاف صريح — مؤقت
+                    // النوم ينجو مع الجلسة.
+                    stopAudio(preserveSleepTimer = true)
                     audioMessage = null
                     isLoadingAudio = true
                     audioScope.launch {
@@ -912,7 +1159,7 @@ fun MushafReaderScreen(
                 (secondPageState.firstVisibleItemIndex - 1).coerceAtLeast(0)
             )
             listOfNotNull(first, second).minByOrNull { (s, a) ->
-                mushafGlobalAyahIndex(s, a)
+                UserPreferencesManager.globalAyahIndex(s, a)
             }
         }
             .distinctUntilChanged()
@@ -1030,7 +1277,14 @@ fun MushafReaderScreen(
     }
 
     // حالة تنزيل الصفحة الحالية (من وجود الملفات فعلاً في المخزن الموحّد).
-    LaunchedEffect(currentPage, selectedReciter, downloadStatus) {
+    // ق98: مفاتيح الأثر الصفحة والقارئ وحدهما — كانت حالة التنزيل
+    // نفسها مفتاحاً فأعاد الأثر تصنيفها فور تعيينها: الجزئي والخطأ
+    // كانا يُمحيان إلى IDLE لحظة تعيينهما فمات فرعا «منزّلة جزئياً»
+    // و«تعذّر التنزيل» في اللافتة، والتصنيف ثنائي فلا جزئي أصلاً.
+    // دوال التنزيل/الحذف تعيّن الحالة النهائية بنفسها فلا يحتاج
+    // الأثر لإعادة التشغيل عند تغيّرها؛ وحارس التنزيل الجاري يبقى
+    // فلا يطمس الأثر حالة DOWNLOADING عند تبديل الصفحة أثنائه.
+    LaunchedEffect(currentPage, selectedReciter) {
         if (downloadStatus == MushafDownloadStatus.DOWNLOADING) return@LaunchedEffect
         val page = currentPage ?: return@LaunchedEffect
         val refs = MushafPageData.getPageRefs(page)
@@ -1047,13 +1301,24 @@ fun MushafReaderScreen(
         downloadDone = done
         downloadTotal = refs.size
         downloadBytes = bytes
-        downloadStatus = if (done == refs.size) MushafDownloadStatus.DONE else MushafDownloadStatus.IDLE
+        downloadStatus = when {
+            done == refs.size -> MushafDownloadStatus.DONE
+            done > 0 -> MushafDownloadStatus.PARTIAL
+            else -> MushafDownloadStatus.IDLE
+        }
     }
 
     // حفظ آخر موضع عند مغادرة الشاشة (رجوع أو تنقّل) + إيقاف التلاوة.
     DisposableEffect(Unit) {
         onDispose {
-            QuranAudioPlayer.stop()
+            // ق186: التدوير يعيد إنشاء النشاط فيُستدعى onDispose أيضاً —
+            // إيقاف المشغّل هنا كان يقتل التلاوة الجارية عند كل تدوير؛
+            // يُتخطى الإيقاف عند تغيير الإعدادات فتكمل التلاوة وتُعاد
+            // ربط حالتها من لقطة المشغّل عند أول تركيب (أعلاه)، بينما
+            // المغادرة الحقيقية ما زالت توقفه. حفظ آخر موضع يبقى دائماً.
+            if ((context as? Activity)?.isChangingConfigurations != true) {
+                QuranAudioPlayer.stop()
+            }
             latestPosition.value?.let { position ->
                 UserPreferencesManager.saveLastReadQuran(
                     context,
@@ -1094,18 +1359,37 @@ fun MushafReaderScreen(
         } else {
             detail.verseText
         }
-        val verseText: AnnotatedString = buildMushafVerseAnnotatedString(
-            plainText = displayPlainText,
-            tajweedMarkup = tajweedMarkup,
-            timings = playingTimings,
-            activeWordPosition = if (isPlayingVerse) activeWordPosition else null,
-            wordHighlightColor = theme.primary.copy(alpha = 0.30f)
-        )
+        // ق77: النص المُنسَّق يُحفظ بـ remember لكل بطاقة — كان
+        // buildMushafVerseAnnotatedString (مسح وسوم التجويد حرفاً
+        // حرفاً + تقسيم النص + indexOf لكل كلمة) يُعاد بناؤه لكل
+        // آية ظاهرة في كل تركيب للشاشة، فكل تحديث لكلمة التلاوة
+        // كان يعيد تحليل تجويد كل الآيات الظاهرة. والآن لا تُقرأ
+        // حالة التوقيت إلا في الآية الجارية وحدها، فتحديث الكلمة
+        // لا يعيد تركيب بقية البطاقات أصلاً.
+        val timingsForVerse = if (isPlayingVerse) playingTimings else emptyList()
+        val activeWordForVerse = if (isPlayingVerse) activeWordPosition else null
+        val verseText: AnnotatedString = remember(
+            detail.surahNumber,
+            detail.verseNumber,
+            displayPlainText,
+            tajweedMarkup,
+            tajweedColors,
+            timingsForVerse,
+            activeWordForVerse,
+            theme.primary
+        ) {
+            buildMushafVerseAnnotatedString(
+                plainText = displayPlainText,
+                tajweedMarkup = tajweedMarkup,
+                tajweedColors = tajweedColors,
+                timings = timingsForVerse,
+                activeWordPosition = activeWordForVerse,
+                wordHighlightColor = theme.primary.copy(alpha = 0.30f)
+            )
+        }
         val isHiddenVerse = memorizationMode &&
             (detail.surahNumber to detail.verseNumber) !in revealedVerses
-        val verseBookmark = bookmarks.firstOrNull {
-            it.surah == detail.surahNumber && it.ayah == detail.verseNumber
-        }
+        val verseBookmark = bookmarkByRef[detail.surahNumber to detail.verseNumber]
         MushafVerseCard(
             ayah = detail.verseNumber,
             verseText = verseText,
@@ -1145,6 +1429,7 @@ fun MushafReaderScreen(
                 }
             },
             verseFontSize = verseFontSize,
+            verseFontFamily = verseFontFamily,
             theme = theme
         )
     }
@@ -1204,7 +1489,18 @@ fun MushafReaderScreen(
                 .padding(paddingValues)
         ) {
             // شريط السور: اختيار سورة يعيد التمرير لأول آياتها ويُسجَّل موضعها.
+            // ق138: حالة تمرير + تمرير للشريحة المختارة — كان الصف بلا حالة
+            // تمرير إطلاقاً، فبعد قفزة من الحوار أو استئناف موضع محفوظ
+            // (أو تقدم التلاوة لسورة تالية) تبقى الشريحة المختارة خارج
+            // الشاشة ويعرض الصف سوراً أخرى؛ والتمرير اليدوي للصف لا يغيّر
+            // selectedSurah فلا يصارع هذا الأثرُ تمريرَ المستخدم.
+            val surahRowState = rememberLazyListState()
+            LaunchedEffect(selectedSurah) {
+                val index = QuranDataProvider.surahs.indexOfFirst { it.id == selectedSurah }
+                if (index >= 0) surahRowState.scrollToItem(index)
+            }
             LazyRow(
+                state = surahRowState,
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1219,11 +1515,11 @@ fun MushafReaderScreen(
                             )
                             .clickable {
                                 if (surah.id != selectedSurah) {
-                                    stopAudio()
-                                    audioMessage = null
-                                    selectedSurah = surah.id
-                                    targetAyah = 1
-                                    targetConsumed = false
+                                    // عبر jumpTo لا بالتعيين المباشر: التعيين
+                                    // المباشر كان يترك العرض المزدوج على
+                                    // صفحتيه القديمتين بينما يتبدل عنوان
+                                    // الشريط العلوي إلى السورة الجديدة.
+                                    jumpTo(surah.id, 1)
                                 }
                             }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -1357,7 +1653,7 @@ fun MushafReaderScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = Translator.tr("جارٍ تحميل الترجمة الإنجليزية…"),
+                            text = Translator.trf("جارٍ تحميل ترجمة {0}…", activeTranslationName),
                             color = theme.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp
@@ -1457,6 +1753,12 @@ fun MushafReaderScreen(
                 }
                 val audioSubLabel = buildString {
                     append("القارئ: $reciterName")
+                    // ق98: تقدّم التلاوة في الشريط نفسه — كانت التسمية
+                    // ثابتة بلا أي موضع داخل القائمة، فالآية الجارية
+                    // تُرى بتمييزها في القائمة فقط.
+                    if (playingAyahs.isNotEmpty() && playingAyahIndex >= 0) {
+                        append(" • آية ${playingAyahIndex + 1} من ${playingAyahs.size}")
+                    }
                     sleepRemainingText?.let { append(" • $it") }
                     when (downloadStatus) {
                         MushafDownloadStatus.DOWNLOADING ->
@@ -1578,13 +1880,71 @@ fun MushafReaderScreen(
                                                     color = theme.textPrimary
                                                 )
                                             },
+                                            // ق123: علامة القارئ الحالي داخل القائمة —
+                                            // كانت القائمة بلا أي تمييز للمختار.
+                                            trailingIcon = {
+                                                if (reciter.id == selectedReciter) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = theme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            },
                                             onClick = {
                                                 reciterMenuOpen = false
                                                 if (reciter.id != selectedReciter) {
-                                                    stopAudio()
+                                                    // ق150: تبديل القارئ أثناء التلاوة كان
+                                                    // يوقف التشغيل فقط بلا إعادة بناء — رغم
+                                                    // أن تعليق ق123 يسميه «إعادة بناء» —
+                                                    // فيضطر المستخدم لإعادة التشغيل من أول
+                                                    // الصفحة/السورة ويفقد موضعه؛ والآن تُعاد
+                                                    // بناء القائمة بالقارئ الجديد وتُستأنف
+                                                    // من الآية نفسها (مؤقت النوم يبقى مسلّحاً
+                                                    // بموعدِه كما في ق123/ق43).
+                                                    val wasPlaying = isPlayingAudio &&
+                                                        (playingPage != null || playingSurah != null)
+                                                    val resumeIndex = playingAyahIndex.coerceAtLeast(0)
+                                                    val resumePage = playingPage
+                                                    val resumeSurah = playingSurah
+                                                    val newReciterId = reciter.id
+                                                    stopAudio(preserveSleepTimer = true)
                                                     audioMessage = null
-                                                    selectedReciter = reciter.id
-                                                    UserPreferencesManager.saveMushafAudioReciter(context, reciter.id)
+                                                    selectedReciter = newReciterId
+                                                    UserPreferencesManager.saveMushafAudioReciter(context, newReciterId)
+                                                    if (wasPlaying) {
+                                                        isLoadingAudio = true
+                                                        audioScope.launch {
+                                                            val ayahs: List<QuranAudioService.QuranTimedAyahAudio> = when {
+                                                                resumeSurah != null ->
+                                                                    QuranAudioService.getSurahAudioUrls(resumeSurah, newReciterId)
+                                                                resumePage != null -> {
+                                                                    val timed = QuranAudioService.getPageAudioWithTimings(context, resumePage, newReciterId)
+                                                                    timed ?: run {
+                                                                        val urls = QuranAudioService.getPageAudioUrls(context, resumePage, newReciterId)
+                                                                        val refs = MushafPageData.getPageRefs(resumePage)
+                                                                        urls.mapIndexed { index, url ->
+                                                                            val (s, a) = refs.getOrNull(index) ?: (selectedSurah to 0)
+                                                                            QuranAudioService.QuranTimedAyahAudio(s, a, url)
+                                                                        }
+                                                                    }
+                                                                }
+                                                                else -> emptyList()
+                                                            }
+                                                            isLoadingAudio = false
+                                                            if (ayahs.isEmpty()) {
+                                                                audioMessage = \"تعذّر تحميل تلاوة هذا القارئ.\"
+                                                            } else {
+                                                                startPlayback(
+                                                                    ayahs,
+                                                                    page = resumePage,
+                                                                    surah = resumeSurah,
+                                                                    startIndex = resumeIndex.coerceIn(0, ayahs.lastIndex)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         )
@@ -1786,7 +2146,18 @@ fun MushafReaderScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Text(
-                                                text = "تنزيل تلاوة الصفحة",
+                                                // ق113: بعد خطأ أو تنزيل جزئي يصير العنصر
+                                                // «إعادة/إكمال» — فإعادة النقر تتخطى المنزّل
+                                                // (إزالة التكرار في المساعد) لا تعيد الكل.
+                                                // ق123: التنزيل لكل قارئ على حدة (حالة
+                                                // الزر والأثر بمفتاحي الصفحة والقارئ) —
+                                                // كان العنصر بلا اسم قارئ فينقلب زر «منزّلة»
+                                                // إلى «تنزيل» عند التبديل بلا أي تفسير.
+                                                text = when (downloadStatus) {
+                                                    MushafDownloadStatus.PARTIAL -> "إكمال تنزيل تلاوة الصفحة • $reciterName"
+                                                    MushafDownloadStatus.ERROR -> "إعادة تنزيل تلاوة الصفحة • $reciterName"
+                                                    else -> "تنزيل تلاوة الصفحة • $reciterName"
+                                                },
                                                 fontFamily = CairoFont,
                                                 color = theme.textPrimary
                                             )
@@ -1800,7 +2171,11 @@ fun MushafReaderScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Text(
-                                                text = "تنزيل تلاوة السورة",
+                                                text = when (downloadStatus) {
+                                                    MushafDownloadStatus.PARTIAL -> "إكمال تنزيل تلاوة السورة • $reciterName"
+                                                    MushafDownloadStatus.ERROR -> "إعادة تنزيل تلاوة السورة • $reciterName"
+                                                    else -> "تنزيل تلاوة السورة • $reciterName"
+                                                },
                                                 fontFamily = CairoFont,
                                                 color = theme.textPrimary
                                             )
@@ -1809,6 +2184,22 @@ fun MushafReaderScreen(
                                         onClick = {
                                             downloadMenuOpen = false
                                             downloadSurahAudio(selectedSurah)
+                                        }
+                                    )
+                                    // ق113: إلغاء التنزيل الجاري من القارئ نفسه —
+                                    // كان بلا زر إطلاقاً والمخرج الوحيد مغادرة الشاشة.
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "إلغاء التنزيل",
+                                                fontFamily = CairoFont,
+                                                color = theme.textPrimary
+                                            )
+                                        },
+                                        enabled = downloadStatus == MushafDownloadStatus.DOWNLOADING,
+                                        onClick = {
+                                            downloadMenuOpen = false
+                                            downloadJob?.cancel()
                                         }
                                     )
                                     DropdownMenuItem(
@@ -1926,8 +2317,13 @@ fun MushafReaderScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             item(key = "header-$page") {
+                                // ق133: حارس -1 كما في ترويسة الشريط العلوي — كان
+                                // العرض المزدوج يعرض «الجزء -1» قبل اكتمال تحميل
+                                // خريطة الصفحات (أو عند فشل قراءة الأصل).
+                                val pageJuzLabel = MushafPageData.getJuzForPage(page)
+                                    .takeIf { it in 1..30 }?.let { " • الجزء $it" } ?: ""
                                 Text(
-                                    text = "صفحة $page • الجزء ${MushafPageData.getJuzForPage(page)}",
+                                    text = "صفحة $page$pageJuzLabel",
                                     color = theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
@@ -1971,7 +2367,9 @@ fun MushafReaderScreen(
         if (navDialogOpen) {
             MushafNavigationDialog(
                 pageMapReady = pageMapReady,
+                currentPage = currentPage,
                 quranReady = quranReady,
+                verseFontFamily = verseFontFamily,
                 onDismiss = { navDialogOpen = false },
                 onJumpTo = { surah, ayah ->
                     navDialogOpen = false
@@ -1993,8 +2391,9 @@ fun MushafReaderScreen(
                     editingBookmark = bookmark
                 },
                 onDelete = { bookmark ->
-                    UserPreferencesManager.removeMushafBookmark(context, bookmark.surah, bookmark.ayah)
-                    refreshBookmarks()
+                    // ق87: تأكيد قبل الحذف بدل الحذف الفوري — تبقى القائمة
+                    // مفتوحة خلف حوار التأكيد، فيعود إليها المستخدم عند الإلغاء.
+                    bookmarkPendingDelete = bookmark
                 }
             )
         }
@@ -2008,20 +2407,51 @@ fun MushafReaderScreen(
                     editingBookmark = null
                 },
                 onDelete = {
-                    UserPreferencesManager.removeMushafBookmark(context, bookmark.surah, bookmark.ayah)
-                    refreshBookmarks()
+                    // ق87: من المحرر أيضاً عبر التأكيد نفسه — يُغلق المحرر
+                    // ويُسأل المستخدم، فالإلغاء يُبقي العلامة (يُعاد فتح
+                    // محررها من القائمة أو من بطاقة الآية).
+                    bookmarkPendingDelete = bookmark
                     editingBookmark = null
                 }
+            )
+        }
+        // ق87: حوار تأكيد الحذف — النقطة الوحيدة التي يُحذف فيها
+        // فعلياً؛ كل مسارات الحذف (القائمة والمحرر) تمر به.
+        bookmarkPendingDelete?.let { doomed ->
+            MushafBookmarkDeleteConfirmDialog(
+                bookmark = doomed,
+                onConfirm = {
+                    UserPreferencesManager.removeMushafBookmark(context, doomed.surah, doomed.ayah)
+                    refreshBookmarks()
+                    bookmarkPendingDelete = null
+                },
+                onDismiss = { bookmarkPendingDelete = null }
             )
         }
         studyVerse?.let { verse ->
             MushafStudyDialog(
                 verse = verse,
+                verseFontFamily = verseFontFamily,
                 onDismiss = {
                     studyVerse = null
                     studyIrabBookOverride = null
                 },
-                initialIrabBookId = studyIrabBookOverride
+                initialIrabBookId = studyIrabBookOverride,
+                onOpenStudyVerse = { surah, ayah ->
+                    // الآية المشابهة من لوحة الدراسة: إن كانت معروضة
+                    // تُفتح لوحتها فوراً؛ وإلا ننتقل إلى سورتها وتفتحها
+                    // آلية الآية المعلّقة عند وصول آياتها — الآلية نفسها
+                    // المستعملة من مكتبة الكتب (بلا فرض كتاب إعراب هنا).
+                    val detail = verses.firstOrNull {
+                        it.surahNumber == surah && it.verseNumber == ayah
+                    }
+                    if (detail != null) {
+                        studyVerse = detail
+                    } else {
+                        pendingStudyVerse = surah to ayah
+                        jumpTo(surah, ayah)
+                    }
+                }
             )
         }
         if (khatmahDialogOpen) {
@@ -2109,7 +2539,10 @@ fun MushafReaderScreen(
             )
         }
         if (tajweedLegendOpen) {
-            MushafTajweedLegendDialog(onDismiss = { tajweedLegendOpen = false })
+            MushafTajweedLegendDialog(
+                tajweedColors = tajweedColors,
+                onDismiss = { tajweedLegendOpen = false }
+            )
         }
     }
 }
@@ -2130,21 +2563,38 @@ private enum class MushafDownloadStatus { IDLE, DOWNLOADING, DONE, PARTIAL, ERRO
 @Composable
 private fun MushafNavigationDialog(
     pageMapReady: Boolean,
+    currentPage: Int?,
     quranReady: Boolean,
+    verseFontFamily: FontFamily,
     onDismiss: () -> Unit,
     onJumpTo: (Int, Int) -> Unit
 ) {
     val theme = QabasTheme.current
-    var surahQuery by remember { mutableStateOf("") }
-    var pageText by remember { mutableStateOf("") }
-    var pageError by remember { mutableStateOf<String?>(null) }
+    // ق105: استعلامات البحث محفوظة عبر التدوير — كانت remember عادياً
+    // فيغلق التدوير الحوار ويمسح ما كُتب.
+    var surahQuery by rememberSaveable { mutableStateOf("") }
+    var pageText by rememberSaveable { mutableStateOf("") }
+    var pageError by rememberSaveable { mutableStateOf<String?>(null) }
     val surahResults = remember(surahQuery) { QuranDataProvider.searchSurahs(surahQuery) }
     // بحث نصي كامل في آيات المصحف (الدالة موجودة أصلاً وكانت بلا
     // واجهة داخل القارئ): 3 أحرف على الأقل، و20 نتيجة حداً أقصى.
-    var verseQuery by remember { mutableStateOf("") }
+    var verseQuery by rememberSaveable { mutableStateOf("") }
+    // ق105: يُطلب 21 نتيجة ويُعرض 20 — كان الحد 20 صامتاً فيُخفى
+    // باقي المطابقات بلا أي إشارة للمستخدم.
     val verseResults = remember(verseQuery, quranReady) {
         if (!quranReady || verseQuery.trim().length < 3) emptyList()
-        else QuranDataProvider.searchVerses(verseQuery, limit = 20)
+        else QuranDataProvider.searchVerses(verseQuery, limit = 21)
+    }
+    val hasMoreVerseResults = verseResults.size > 20
+    val shownVerseResults = verseResults.take(20)
+    // ق133: الجزء والحزب الحاليان لتمييز شريحتيهما في صفّي الانتقال —
+    // كانتا أرقاماً مجردة بلا أي علامة للموضع الحالي. يُعاد حسابهما
+    // عند اكتمال تحميل الخريطة (قبلها -1 فيُصفَّى بـ takeIf).
+    val currentJuz = remember(currentPage, pageMapReady) {
+        currentPage?.let { MushafPageData.getJuzForPage(it) }?.takeIf { it in 1..30 }
+    }
+    val currentHizb = remember(currentPage, pageMapReady) {
+        currentPage?.let { MushafPageData.getHizbForPage(it) }?.takeIf { it in 1..60 }
     }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = theme.primary,
@@ -2231,7 +2681,9 @@ private fun MushafNavigationDialog(
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Text(
-                                text = "${surah.type} • ${surah.versesCount} آية",
+                                // ق133: جزء بدء السورة — كان حقل surah.juz
+                                // (صحيح في الـ 114 كلها) ميتاً لا يقرؤه أي موضع.
+                                text = "${surah.type} • ${surah.versesCount} آية • الجزء ${surah.juz}",
                                 color = theme.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp
@@ -2309,7 +2761,7 @@ private fun MushafNavigationDialog(
                                 .heightIn(max = 200.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            items(verseResults, key = { "${it.surahNumber}:${it.verseNumber}" }) { verse ->
+                            items(shownVerseResults, key = { "${it.surahNumber}:${it.verseNumber}" }) { verse ->
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2325,14 +2777,26 @@ private fun MushafNavigationDialog(
                                         fontSize = 12.sp
                                     )
                                     Text(
-                                        text = verse.verseText.take(90),
+                                        // ق105: مقتطف حول المطابقة لا أول
+                                        // 90 حرفاً من الآية (كانت الكلمة
+                                        // المطابقة تُخفى في الآيات الطويلة).
+                                        text = QuranDataProvider.verseSnippet(verse.verseText, verseQuery),
                                         color = theme.textPrimary,
-                                        fontFamily = AmiriFont,
+                                        fontFamily = verseFontFamily,
                                         fontSize = 13.sp,
                                         maxLines = 2
                                     )
                                 }
                             }
+                        }
+                        if (hasMoreVerseResults) {
+                            Text(
+                                text = Translator.tr("عُرضت أول 20 نتيجة — ضيّق البحث لرؤية المزيد."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
                         }
                     }
                 }
@@ -2348,17 +2812,29 @@ private fun MushafNavigationDialog(
                     contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
                     items((1..30).toList(), key = { it }) { juz ->
+                        // ق133: الشريحة الحالية بنمط شرائح السور نفسه في
+                        // هذا الملف (خلفية theme.primary + نص theme.background).
+                        val isCurrentJuz = juz == currentJuz
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(theme.background)
-                                .clickable { jumpToPage(MushafPageData.getPageForJuz(juz)) }
+                                .background(if (isCurrentJuz) theme.primary else theme.background)
+                                .clickable {
+                                    // ق175: القفز لأول آية في الجزء نفسه لا لأول
+                                    // آية في صفحتها — 4 أجزاء من 30 تبدأ منتصف
+                                    // الصفحة (مثلاً الجزء 7 يبدأ 5:82 وصفحته
+                                    // تبدأ 5:77) فكان الانتقال يفتح أعلى الصفحة
+                                    // ويترك المستخدم يبحث عن البداية يدوياً.
+                                    val first = MushafPageData.getJuzFirstRef(juz)
+                                    if (first != null) onJumpTo(first.first, first.second)
+                                    else jumpToPage(MushafPageData.getPageForJuz(juz))
+                                }
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = juz.toString(),
-                                color = theme.textPrimary,
+                                color = if (isCurrentJuz) theme.background else theme.textPrimary,
                                 fontFamily = NotoSansFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp
@@ -2378,17 +2854,25 @@ private fun MushafNavigationDialog(
                     contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
                     items((1..60).toList(), key = { it }) { hizb ->
+                        val isCurrentHizb = hizb == currentHizb
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(theme.background)
-                                .clickable { jumpToPage(MushafPageData.getPageForHizb(hizb)) }
+                                .background(if (isCurrentHizb) theme.primary else theme.background)
+                                .clickable {
+                                    // ق175: كالجزء أعلاه — 22 حزباً من 60 تبدأ
+                                    // منتصف الصفحة، فيُقفز لأول آية في الحزب
+                                    // نفسها لا لأول آية في صفحتها.
+                                    val first = MushafPageData.getHizbFirstRef(hizb)
+                                    if (first != null) onJumpTo(first.first, first.second)
+                                    else jumpToPage(MushafPageData.getPageForHizb(hizb))
+                                }
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = hizb.toString(),
-                                color = theme.textPrimary,
+                                color = if (isCurrentHizb) theme.background else theme.textPrimary,
                                 fontFamily = NotoSansFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp
@@ -2710,6 +3194,66 @@ private fun MushafBookmarkEditorDialog(
     )
 }
 
+/**
+ * ق87: حوار تأكيد حذف علامة مصحف — يصرّح بالمرجع وبأن الملاحظة
+ * تُحذف معها بلا تراجع، فلا يفقد المستخدم ملاحظته بنقرة سهو.
+ */
+@Composable
+private fun MushafBookmarkDeleteConfirmDialog(
+    bookmark: UserPreferencesManager.MushafBookmark,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val theme = QabasTheme.current
+    val surahName = QuranDataProvider.surahNameOf(bookmark.surah)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = theme.cardSurface,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                text = Translator.tr("حذف العلامة؟"),
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+        },
+        text = {
+            Text(
+                text = "سورة $surahName • آية ${bookmark.ayah}" +
+                    if (bookmark.note.isNotBlank()) " — ستُحذف ملاحظتك معها ولا يمكن التراجع." else " — لا يمكن التراجع عن الحذف.",
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 13.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = Translator.tr("حذف"),
+                    color = Color(0xFFEF4444),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = Translator.tr("إلغاء"),
+                    color = theme.primary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    )
+}
+
 // ============================================================================
 // لوحة دراسة الآية (خارطة المصحف — المرحلة 3 + قسم القرآن — الكتب).
 //
@@ -2759,13 +3303,38 @@ private fun MushafStudySectionCaption(text: String) {
     )
 }
 
+// زر إعادة المحاولة الموحّد لأقسام لوحة الدراسة عند فشل الجلب —
+// يعيد جلب القسم الفاشل وحده عبر studyRetryTick (بلا إغلاق اللوحة).
+@Composable
+private fun MushafStudyRetryButton(onRetry: () -> Unit) {
+    val theme = QabasTheme.current
+    TextButton(onClick = onRetry) {
+        Text(
+            text = Translator.tr("إعادة المحاولة"),
+            color = theme.primary,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.5.sp
+        )
+    }
+}
+
 @Composable
 private fun MushafStudyDialog(
     verse: QuranVerseDetail,
+    verseFontFamily: FontFamily,
     onDismiss: () -> Unit,
-    initialIrabBookId: String? = null
+    initialIrabBookId: String? = null,
+    onOpenStudyVerse: (Int, Int) -> Unit
 ) {
     val theme = QabasTheme.current
+
+    // إعادة المحاولة: كل قسم فاشل يعيد جلبه وحده عبر هذا العدّاد —
+    // قبلها كان الفشل طريقاً مسدوداً لا عودة منه إلا بإغلاق اللوحة
+    // وإعادة فتحها (فيُعاد جلب الأقسام الستة كلها).
+    var studyRetryTick by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf(0)
+    }
 
     // التفسير: منتقٍ بين كتب MUSHAF_TAFSIR_BOOKS؛ الكتاب المختار محفوظ
     // محلياً (getMushafTafsirBook)، والجلب عبر fetchTafsirForBook عند
@@ -2788,7 +3357,7 @@ private fun MushafStudyDialog(
     var tafsirFailed by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(false)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber, tafsirBookId) {
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, tafsirBookId, studyRetryTick) {
         tafsirLoading = true
         tafsirFailed = false
         tafsirText = null
@@ -2809,6 +3378,8 @@ private fun MushafStudyDialog(
     // الترجمة: من ذاكرة السورة بالترجمة المختارة، وإلا جلب السورة
     // كاملة (مكالمة واحدة). الترجمة المختارة محفوظة محلياً وتُقرأ عند
     // فتح اللوحة؛ وتبديلها من مكتبة الكتب يسري على الفتح التالي.
+    // ق96: معرّف الترجمة مفتاح للأثر — كان الاسم المعروض يتحدث
+    // مع أي إعادة تركيب بينما النص يبقى من الترجمة القديمة.
     val studyTranslationId = UserPreferencesManager.getMushafTranslation(context)
     val selectedTranslation =
         QuranDataProvider.MUSHAF_TRANSLATIONS.firstOrNull { it.id == studyTranslationId }
@@ -2819,7 +3390,7 @@ private fun MushafStudyDialog(
     var translationLoading by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(true)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, studyTranslationId, studyRetryTick) {
         translationLoading = true
         val cached = QuranDataProvider.getCachedSurahTranslationFor(
             studyTranslationId, verse.surahNumber
@@ -2837,7 +3408,7 @@ private fun MushafStudyDialog(
     var wordsLoading by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(true)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, studyRetryTick) {
         wordsLoading = true
         words = QuranDataProvider.fetchVerseWords(verse.surahNumber, verse.verseNumber)
         wordsLoading = false
@@ -2856,7 +3427,7 @@ private fun MushafStudyDialog(
     var irabLoading by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(true)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber, irabBookId) {
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, irabBookId, studyRetryTick) {
         irabLoading = true
         irabText = QuranDataProvider.fetchIrab(irabBookId, verse.surahNumber, verse.verseNumber)
         irabLoading = false
@@ -2892,7 +3463,7 @@ private fun MushafStudyDialog(
     var asbabLoading by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(true)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, studyRetryTick) {
         asbabLoading = true
         asbabList = QuranDataProvider.fetchAsbabForVerse(verse.surahNumber, verse.verseNumber)
         asbabLoading = false
@@ -2910,7 +3481,7 @@ private fun MushafStudyDialog(
     var mutashabihatLoading by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(true)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, studyRetryTick) {
         mutashabihatLoading = true
         mutashabihatFailed = false
         val data = QuranDataProvider.fetchMutashabihat()
@@ -2950,7 +3521,7 @@ private fun MushafStudyDialog(
                     Text(
                         text = verse.verseText,
                         color = theme.textPrimary,
-                        fontFamily = AmiriFont,
+                        fontFamily = verseFontFamily,
                         fontSize = 18.sp,
                         lineHeight = 30.sp,
                         textAlign = TextAlign.Right,
@@ -3024,9 +3595,7 @@ private fun MushafStudyDialog(
                                 lineHeight = 21.sp
                             )
                             MushafStudySectionCaption(
-                                Translator.tr(
-                                    "المصدر: ${selectedTafsirBook.source} — ${selectedTafsirBook.author}"
-                                )
+                                Translator.trf("المصدر: {0} — {1}", selectedTafsirBook.source, selectedTafsirBook.author)
                             )
                         }
                         else -> {
@@ -3041,13 +3610,16 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            if (tafsirFailed) {
+                                MushafStudyRetryButton(onRetry = { studyRetryTick++ })
+                            }
                         }
                     }
                 }
                 // 2) الترجمة الإنجليزية — بالترجمة المختارة من مكتبة الكتب.
                 item {
                     MushafStudySectionTitle(
-                        Translator.tr("الترجمة الإنجليزية — ${selectedTranslation.label}")
+                        Translator.trf("الترجمة الإنجليزية — {0}", selectedTranslation.label)
                     )
                     when {
                         translationLoading -> {
@@ -3077,7 +3649,7 @@ private fun MushafStudyDialog(
                                 modifier = Modifier.fillMaxWidth()
                             )
                             MushafStudySectionCaption(
-                                Translator.tr("المصدر: QuranEnc — ${selectedTranslation.label}")
+                                Translator.trf("المصدر: QuranEnc — {0}", selectedTranslation.label)
                             )
                         }
                         else -> {
@@ -3088,6 +3660,7 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            MushafStudyRetryButton(onRetry = { studyRetryTick++ })
                         }
                     }
                 }
@@ -3125,6 +3698,7 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            MushafStudyRetryButton(onRetry = { studyRetryTick++ })
                         }
                     }
                 }
@@ -3140,7 +3714,7 @@ private fun MushafStudyDialog(
                             Text(
                                 text = word.textUthmani,
                                 color = theme.textPrimary,
-                                fontFamily = AmiriFont,
+                                fontFamily = verseFontFamily,
                                 fontSize = 18.sp,
                                 textAlign = TextAlign.Right,
                                 modifier = Modifier.weight(1f)
@@ -3260,6 +3834,9 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            if (irabText.isNullOrBlank()) {
+                                MushafStudyRetryButton(onRetry = { studyRetryTick++ })
+                            }
                         }
                     }
                 }
@@ -3305,6 +3882,7 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            MushafStudyRetryButton(onRetry = { studyRetryTick++ })
                         }
                         !balaghaText.isNullOrBlank() -> {
                             Text(
@@ -3360,6 +3938,7 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            MushafStudyRetryButton(onRetry = { studyRetryTick++ })
                         }
                         asbabList!!.isEmpty() -> {
                             Text(
@@ -3391,7 +3970,7 @@ private fun MushafStudyDialog(
                         }
                     }
                 }
-                // 6) الآيات المشابهة — عرض فقط، بلا تنقّل بالنقر.
+                // 6) الآيات المشابهة — النقر على أي آية مشابهة يفتح لوحة دراستها.
                 item {
                     MushafStudySectionTitle(Translator.tr("الآيات المشابهة"))
                     when {
@@ -3419,6 +3998,7 @@ private fun MushafStudyDialog(
                                 fontSize = 12.5.sp,
                                 lineHeight = 20.sp
                             )
+                            MushafStudyRetryButton(onRetry = { studyRetryTick++ })
                         }
                         mutashabihatList.isNullOrEmpty() -> {
                             Text(
@@ -3430,6 +4010,10 @@ private fun MushafStudyDialog(
                             )
                         }
                         else -> {
+                            MushafStudySectionCaption(
+                                Translator.tr("انقر أي آية مشابهة لفتح لوحة دراستها")
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 mutashabihatList!!.forEach { (similarSurah, similarAyah) ->
                                     val similarSurahName =
@@ -3437,11 +4021,15 @@ private fun MushafStudyDialog(
                                     val similarText = QuranDataProvider.getVerseText(
                                         similarSurah, similarAyah
                                     )
-                                    Column {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                onOpenStudyVerse(similarSurah, similarAyah)
+                                            }
+                                    ) {
                                         Text(
-                                            text = Translator.tr(
-                                                "سورة $similarSurahName • آية $similarAyah"
-                                            ),
+                                            text = Translator.trf("سورة {0} • آية {1}", similarSurahName, similarAyah),
                                             color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
@@ -3451,7 +4039,7 @@ private fun MushafStudyDialog(
                                             Text(
                                                 text = similarText,
                                                 color = theme.textPrimary,
-                                                fontFamily = AmiriFont,
+                                                fontFamily = verseFontFamily,
                                                 fontSize = 16.sp,
                                                 lineHeight = 28.sp,
                                                 textAlign = TextAlign.Right,
@@ -3498,8 +4086,7 @@ private fun MushafStudyDialog(
 // القرآني لا يُغيَّر، والكشف يعيده كما هو حرفاً حرفاً.
 // ============================================================================
 
-private const val MUSHAF_KHATMAH_DAY_MS = 86_400_000L
-private const val MUSHAF_KHATMAH_TOTAL_AYAH_COUNT = 6236
+private const val MUSHAF_KHATMAH_TOTAL_AYAH_COUNT = UserPreferencesManager.KHATMAH_TOTAL_AYAH_COUNT
 
 // ============================================================================
 // بناء نص الآية المعروض (خارطة المصحف — المرحلة 5).
@@ -3513,6 +4100,7 @@ private const val MUSHAF_KHATMAH_TOTAL_AYAH_COUNT = 6236
 private fun buildMushafVerseAnnotatedString(
     plainText: String,
     tajweedMarkup: String?,
+    tajweedColors: Map<String, Color> = QuranDataProvider.TAJWEED_RULE_COLORS,
     timings: List<QuranAudioService.QuranWordTiming>,
     activeWordPosition: Int?,
     wordHighlightColor: Color
@@ -3540,7 +4128,7 @@ private fun buildMushafVerseAnnotatedString(
         if (segments != null) {
             var offset = 0
             for (segment in segments) {
-                val ruleColor = segment.ruleClass?.let { QuranDataProvider.TAJWEED_RULE_COLORS[it] }
+                val ruleColor = segment.ruleClass?.let { tajweedColors[it] }
                 if (ruleColor != null && segment.text.isNotEmpty()) {
                     addStyle(SpanStyle(color = ruleColor), offset, offset + segment.text.length)
                 }
@@ -3557,17 +4145,7 @@ private fun buildMushafVerseAnnotatedString(
     }
 }
 
-/** الترتيب العام لآية (سورة، آية) بين آيات المصحف الـ 6236 (1-based). */
-private fun mushafGlobalAyahIndex(surah: Int, ayah: Int): Int {
-    var index = ayah.coerceAtLeast(1)
-    for (item in QuranDataProvider.surahs) {
-        if (item.id >= surah) break
-        index += item.versesCount
-    }
-    return index.coerceIn(1, MUSHAF_KHATMAH_TOTAL_AYAH_COUNT)
-}
-
-/** عكس الدالة السابقة: ترتيب عام ← (سورة، آية). */
+/** عكس دالة الترتيب العام: ترتيب عام ← (سورة، آية). */
 private fun mushafRefForGlobalIndex(index: Int): Pair<Int, Int> {
     var remaining = index.coerceIn(1, MUSHAF_KHATMAH_TOTAL_AYAH_COUNT)
     for (item in QuranDataProvider.surahs) {
@@ -3595,10 +4173,11 @@ private data class MushafKhatmahProgress(
 )
 
 /**
- * تقدّم خطة ختمة من موضع القراءة الفعلي. الوحدة صفحات عند جاهزية
- * خريطة الصفحات، وإلا آيات. «المقترح اليوم» سقف قسمة المتبقي على
- * الأيام المتبقية (بما فيها اليوم) — يُعاد حسابه كل يوم من الواقع،
- * فلا ورد ثابت يتجاوز الحقيقة إن تأخر القارئ أو تقدّم.
+ * تقدّم خطة ختمة من موضع القراءة الفعلي الحي. النواة (النسبة،
+ * المقروء، المتبقي، المقترح اليوم) من الحساب المشترك في
+ * UserPreferencesManager.computeKhatmahProgress؛ هنا يُضاف إليها
+ * نطاق «ورد اليوم» (من–إلى) للقفز إليه. الوحدة صفحات عند جاهزية
+ * خريطة الصفحات، وإلا آيات.
  */
 private fun computeMushafKhatmahProgress(
     plan: UserPreferencesManager.MushafKhatmahPlan,
@@ -3608,36 +4187,31 @@ private fun computeMushafKhatmahProgress(
     pageMapReady: Boolean,
     nowMillis: Long
 ): MushafKhatmahProgress {
-    val daysElapsed = ((nowMillis - plan.startMillis) / MUSHAF_KHATMAH_DAY_MS + 1)
-        .toInt().coerceAtLeast(1)
-    val daysLeft = (plan.targetDays - daysElapsed + 1).coerceAtLeast(0)
-    val currentGlobal = mushafGlobalAyahIndex(currentSurah, currentAyah)
-    val completed = currentGlobal >= MUSHAF_KHATMAH_TOTAL_AYAH_COUNT
-    val overdue = daysLeft == 0 && !completed
-    val dailyFor = { left: Int ->
-        if (left <= 0) 0 else (left + maxOf(1, daysLeft) - 1) / maxOf(1, daysLeft)
-    }
     val usePages = pageMapReady && plan.startPage != null && currentPage != null
+    val core = UserPreferencesManager.computeKhatmahProgress(
+        plan = plan,
+        currentSurah = currentSurah,
+        currentAyah = currentAyah,
+        currentPage = currentPage,
+        usePages = usePages,
+        nowMillis = nowMillis
+    )
+    val daily = core.suggestedDailyUnits
     return if (usePages) {
-        val startPage = plan.startPage!!
-        val total = (MushafPageData.PAGE_COUNT - startPage + 1).coerceAtLeast(1)
-        val read = if (completed) total else (currentPage!! - startPage).coerceIn(0, total)
-        val left = (total - read).coerceAtLeast(0)
-        val daily = dailyFor(left)
-        val todayStartPage = currentPage
+        val todayStartPage = currentPage!!
         val todayEndPage = (currentPage + daily - 1)
             .coerceIn(1, MushafPageData.PAGE_COUNT)
         MushafKhatmahProgress(
-            fraction = if (completed) 1f else read.toFloat() / total.toFloat(),
-            completed = completed,
-            overdue = overdue,
-            daysElapsed = daysElapsed,
-            daysLeft = daysLeft,
-            totalUnits = total,
-            readUnits = read,
-            leftUnits = left,
-            suggestedDailyUnits = daily,
-            unitWord = "صفحة",
+            fraction = core.fraction,
+            completed = core.completed,
+            overdue = core.overdue,
+            daysElapsed = core.daysElapsed,
+            daysLeft = core.daysLeft,
+            totalUnits = core.totalUnits,
+            readUnits = core.readUnits,
+            leftUnits = core.leftUnits,
+            suggestedDailyUnits = core.suggestedDailyUnits,
+            unitWord = core.unitWord,
             todayStart = MushafPageData.getPageRefs(todayStartPage).firstOrNull()
                 ?: (currentSurah to currentAyah),
             todayEnd = MushafPageData.getPageRefs(todayEndPage).lastOrNull()
@@ -3646,22 +4220,18 @@ private fun computeMushafKhatmahProgress(
             todayEndPage = todayEndPage
         )
     } else {
-        val startGlobal = mushafGlobalAyahIndex(plan.startSurah, plan.startAyah)
-        val total = (MUSHAF_KHATMAH_TOTAL_AYAH_COUNT - startGlobal + 1).coerceAtLeast(1)
-        val read = if (completed) total else (currentGlobal - startGlobal).coerceIn(0, total)
-        val left = (total - read).coerceAtLeast(0)
-        val daily = dailyFor(left)
+        val currentGlobal = UserPreferencesManager.globalAyahIndex(currentSurah, currentAyah)
         MushafKhatmahProgress(
-            fraction = if (completed) 1f else read.toFloat() / total.toFloat(),
-            completed = completed,
-            overdue = overdue,
-            daysElapsed = daysElapsed,
-            daysLeft = daysLeft,
-            totalUnits = total,
-            readUnits = read,
-            leftUnits = left,
-            suggestedDailyUnits = daily,
-            unitWord = "آية",
+            fraction = core.fraction,
+            completed = core.completed,
+            overdue = core.overdue,
+            daysElapsed = core.daysElapsed,
+            daysLeft = core.daysLeft,
+            totalUnits = core.totalUnits,
+            readUnits = core.readUnits,
+            leftUnits = core.leftUnits,
+            suggestedDailyUnits = core.suggestedDailyUnits,
+            unitWord = core.unitWord,
             todayStart = mushafRefForGlobalIndex(currentGlobal),
             todayEnd = mushafRefForGlobalIndex(
                 (currentGlobal + daily - 1).coerceAtMost(MUSHAF_KHATMAH_TOTAL_AYAH_COUNT)
@@ -3685,6 +4255,24 @@ private fun startOfMushafDay(millis: Long): Long =
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
+// ق153: حساب الأيام تقويمياً لا بقسمة المللي ثوانٍ — القسمة على
+// 24 ساعة تُخطئ عبر تغيير التوقيت الصيفي (يوم 23/25 ساعة):
+// فتاريخ الانتهاء المعروض يسبق يوماً، وعدد الأيام من تاريخ
+// منتقى ينقص يوماً في المناطق غرب UTC لأن المنتقي يعيد منتصف
+// الليل UTC. التاريخ المحلي من المللي ثوانٍ، والتاريخ المنتقى
+// من حقول UTC، وبداية اليوم المحلي لأي منهما.
+/** التاريخ المحلي (تقويم الجهاز) للحظة ما. */
+private fun mushafLocalDateOf(millis: Long): LocalDate =
+    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+
+/** التاريخ الذي اختاره المستخدم في منتقي التاريخ (منتصف الليل UTC). */
+private fun mushafPickedLocalDate(utcMillis: Long): LocalDate =
+    Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+
+/** بداية اليوم المحلي لتاريخ — لعرض تاريخ بصيغة التاريخ. */
+private fun mushafStartOfLocalDate(date: LocalDate): Long =
+    date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MushafKhatmahDialog(
@@ -3704,12 +4292,20 @@ private fun MushafKhatmahDialog(
     var showCreateForm by remember(plan) { mutableStateOf(plan == null) }
     var confirmClear by remember { mutableStateOf(false) }
 
+    // تعديل هدف خطة نشطة: يغيّر عدد الأيام فقط ويُبقي بداية الخطة
+    // وتاريخها؛ بلا حذف وإعادة إنشاء يفقدان التقدّم.
+    var editingPlan by remember(plan) { mutableStateOf(false) }
+
     // --- حالة نموذج الإنشاء (تُستخدم فقط عند غياب الخطة) ---
     var targetMode by remember { mutableStateOf(0) } // 0 = عدد أيام، 1 = تاريخ محدد
     var daysText by remember { mutableStateOf("30") }
     var datePickerOpen by remember { mutableStateOf(false) }
     var targetDateMillis by remember {
-        mutableStateOf(System.currentTimeMillis() + 29L * MUSHAF_KHATMAH_DAY_MS)
+        // ق153: اليوم + 29 كتاريخ لا كلحظة — لحظة «الآن + 29 يوماً»
+        // يفسّرها المنتقي بتوقيت UTC فيفتح على يوم أسبق أحياناً.
+        mutableStateOf(
+            LocalDate.now().plusDays(29).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        )
     }
     var startFromCurrent by remember { mutableStateOf(true) }
 
@@ -3730,14 +4326,19 @@ private fun MushafKhatmahDialog(
     val todayStart = startOfMushafDay(System.currentTimeMillis())
     val targetDays = when (targetMode) {
         0 -> daysText.toIntOrNull()
-        else -> ((startOfMushafDay(targetDateMillis) - todayStart) / MUSHAF_KHATMAH_DAY_MS + 1).toInt()
+        // ق153: فرق تقويمي بين تاريخ اليوم والتاريخ المنتقى (لا قسمة
+        // مللي ثوانٍ) — وإلا نقص يوم غرب UTC وعبر التوقيت الصيفي.
+        else -> (ChronoUnit.DAYS.between(
+            mushafLocalDateOf(todayStart),
+            mushafPickedLocalDate(targetDateMillis)
+        ).toInt() + 1)
     }
     val daysValid = targetDays != null && targetDays in 1..3650
     val formUnitWord = if (pageMapReady && startPage != null) "صفحة" else "آية"
     val formTotalUnits = if (pageMapReady && startPage != null) {
         MushafPageData.PAGE_COUNT - startPage + 1
     } else {
-        MUSHAF_KHATMAH_TOTAL_AYAH_COUNT - mushafGlobalAyahIndex(startSurah, startAyah) + 1
+        MUSHAF_KHATMAH_TOTAL_AYAH_COUNT - UserPreferencesManager.globalAyahIndex(startSurah, startAyah) + 1
     }
     val formSuggestedDaily = if (daysValid) {
         (formTotalUnits + targetDays!! - 1) / targetDays
@@ -3755,6 +4356,15 @@ private fun MushafKhatmahDialog(
             pageMapReady = pageMapReady,
             nowMillis = System.currentTimeMillis()
         )
+    }
+
+    // في وضع التعديل: المقترح من المتبقي الفعلي والأيام المتبقية
+    // من الهدف الجديد، لا من إجمالي الخطة.
+    val editSuggestedDaily = if (editingPlan && plan != null && progress != null && daysValid) {
+        val remainingDays = (targetDays!! - progress.daysElapsed + 1).coerceAtLeast(1)
+        (progress.leftUnits + remainingDays - 1) / remainingDays
+    } else {
+        0
     }
 
     if (datePickerOpen) {
@@ -3814,15 +4424,19 @@ private fun MushafKhatmahDialog(
                 if (showCreateForm || plan == null) {
                     item {
                         Text(
-                            text = Translator.tr("اختر هدفك وبدايتك؛ التقدّم يُحسب من قراءتك الفعلية فقط، لا من زر تأكيد يدوي."),
+                            text = Translator.tr(
+                                if (editingPlan) "غيّر عدد أيام الخطة؛ تبقى بدايتها وتقدّمك كما هما."
+                                else "اختر هدفك وبدايتك؛ التقدّم يُحسب من قراءتك الفعلية فقط، لا من زر تأكيد يدوي."
+                            ),
                             color = theme.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 12.5.sp,
                             lineHeight = 20.sp
                         )
                     }
-                    // نوع الهدف: عدد أيام أو تاريخ محدد.
-                    item {
+                    // نوع الهدف: عدد أيام أو تاريخ محدد — لا يظهر في وضع التعديل (الهدف أيام فقط).
+                    if (!editingPlan) {
+                        item {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -3849,6 +4463,7 @@ private fun MushafKhatmahDialog(
                                     )
                                 }
                             }
+                        }
                         }
                     }
                     if (targetMode == 0) {
@@ -3922,7 +4537,11 @@ private fun MushafKhatmahDialog(
                             ) {
                                 Text(
                                     text = Translator.tr("تاريخ الانتهاء: ") +
-                                        formatMushafKhatmahDate(targetDateMillis),
+                                        formatMushafKhatmahDate(
+                                            // ق153: التاريخ المنتقى لا اللحظة UTC —
+                                            // وإلا عُرض يوم أسبق غرب UTC.
+                                            mushafStartOfLocalDate(mushafPickedLocalDate(targetDateMillis))
+                                        ),
                                     color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 13.sp
@@ -3932,7 +4551,7 @@ private fun MushafKhatmahDialog(
                         if (daysValid) {
                             item {
                                 Text(
-                                    text = Translator.tr("أي $targetDays يوماً من اليوم."),
+                                    text = Translator.trf("أي {0} يوماً من اليوم.", targetDays),
                                     color = theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
@@ -3941,8 +4560,9 @@ private fun MushafKhatmahDialog(
                             }
                         }
                     }
-                    // نقطة البداية: من حيث توقفت أو من أول المصحف.
-                    item {
+                    // نقطة البداية: من حيث توقفت أو من أول المصحف — لا تظهر في وضع التعديل (البداية ثابتة).
+                    if (!editingPlan) {
+                        item {
                         Text(
                             text = Translator.tr("نقطة البداية:"),
                             color = theme.textPrimary,
@@ -4009,16 +4629,25 @@ private fun MushafKhatmahDialog(
                                 )
                             }
                         }
+                        }
                     }
                     // معاينة حيّة من البيانات الحقيقية.
                     if (daysValid) {
                         item {
                             Text(
-                                text = Translator.tr("المتبقي من المصحف: ") +
-                                    "$formTotalUnits $formUnitWord" +
-                                    Translator.tr(" — نحو ") +
-                                    "$formSuggestedDaily $formUnitWord" +
-                                    Translator.tr(" يومياً."),
+                                text = if (editingPlan && progress != null) {
+                                    Translator.tr("المتبقي: ") +
+                                        "${progress.leftUnits} ${progress.unitWord}" +
+                                        Translator.tr(" — نحو ") +
+                                        "$editSuggestedDaily ${progress.unitWord}" +
+                                        Translator.tr(" يومياً في الأيام المتبقية.")
+                                } else {
+                                    Translator.tr("المتبقي من المصحف: ") +
+                                        "$formTotalUnits $formUnitWord" +
+                                        Translator.tr(" — نحو ") +
+                                        "$formSuggestedDaily $formUnitWord" +
+                                        Translator.tr(" يومياً.")
+                                },
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -4068,7 +4697,7 @@ private fun MushafKhatmahDialog(
                         }
                         item {
                             Text(
-                                text = Translator.tr("قرأت آخر آية في المصحف (سورة الناس، آية 6) خلال ${progress.daysElapsed} يوماً من أصل ${plan!!.targetDays}."),
+                                text = Translator.trf("بدأت خطتك في {0}.", formatMushafKhatmahDate(plan!!.startMillis)),
                                 color = theme.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.5.sp,
@@ -4147,7 +4776,12 @@ private fun MushafKhatmahDialog(
                                     formatMushafKhatmahDate(plan!!.startMillis) +
                                     Translator.tr(" • تنتهي في ") +
                                     formatMushafKhatmahDate(
-                                        plan!!.startMillis + (plan!!.targetDays - 1) * MUSHAF_KHATMAH_DAY_MS
+                                        // ق153: نهاية تقويمية لا «بداية + أيام × 24 ساعة» —
+                                        // فالضرب يسبق يوماً عبر تغيير التوقيت الصيفي.
+                                        mushafStartOfLocalDate(
+                                            mushafLocalDateOf(plan!!.startMillis)
+                                                .plusDays((plan!!.targetDays - 1).toLong())
+                                        )
                                     ) +
                                     ".",
                                 color = theme.textSecondary,
@@ -4160,7 +4794,7 @@ private fun MushafKhatmahDialog(
                         if (progress.overdue) {
                             item {
                                 Text(
-                                    text = Translator.tr("انتهت المدة وبقي ${progress.leftUnits} ${progress.unitWord} — المقترح الجديد: ${progress.suggestedDailyUnits} ${progress.unitWord} يومياً لإنهائها."),
+                                    text = Translator.trf("انتهت المدة وبقي {0} {1} — المقترح الجديد: {2} {3} يومياً لإنهائها.", progress.leftUnits, progress.unitWord, progress.suggestedDailyUnits, progress.unitWord),
                                     color = Color(0xFFEF4444),
                                     fontFamily = CairoFont,
                                     fontSize = 12.5.sp,
@@ -4191,21 +4825,26 @@ private fun MushafKhatmahDialog(
                     TextButton(
                         onClick = {
                             if (!daysValid) return@TextButton
-                            onSavePlan(
-                                UserPreferencesManager.MushafKhatmahPlan(
-                                    startSurah = startSurah,
-                                    startAyah = startAyah,
-                                    startPage = startPage,
-                                    startMillis = todayStart,
-                                    targetDays = targetDays!!,
-                                    createdAtMillis = System.currentTimeMillis()
+                            if (editingPlan && plan != null) {
+                                // تعديل الهدف فقط — البداية وتاريخها يبقيان كما هما.
+                                onSavePlan(plan!!.copy(targetDays = targetDays!!))
+                            } else {
+                                onSavePlan(
+                                    UserPreferencesManager.MushafKhatmahPlan(
+                                        startSurah = startSurah,
+                                        startAyah = startAyah,
+                                        startPage = startPage,
+                                        startMillis = todayStart,
+                                        targetDays = targetDays!!,
+                                        createdAtMillis = System.currentTimeMillis()
+                                    )
                                 )
-                            )
+                            }
                         },
                         enabled = daysValid
                     ) {
                         Text(
-                            text = Translator.tr("بدء الخطة"),
+                            text = Translator.tr(if (editingPlan) "حفظ التعديل" else "بدء الخطة"),
                             color = theme.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -4240,6 +4879,22 @@ private fun MushafKhatmahDialog(
         dismissButton = {
             Row {
                 if (!showCreateForm && plan != null) {
+                    if (progress?.completed != true) {
+                        TextButton(onClick = {
+                            daysText = plan!!.targetDays.toString()
+                            targetMode = 0
+                            editingPlan = true
+                            showCreateForm = true
+                        }) {
+                            Text(
+                                text = Translator.tr("تعديل الهدف"),
+                                color = theme.primary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
                     TextButton(onClick = {
                         if (confirmClear) {
                             onClearPlan()
@@ -5211,9 +5866,7 @@ private fun MushafBookReaderDialog(
                                 lineHeight = 21.sp
                             )
                             MushafStudySectionCaption(
-                                Translator.tr(
-                                    "المصدر: quranpedia.net — ${book.arabicTitle} — ${book.author}"
-                                )
+                                Translator.trf("المصدر: quranpedia.net — {0} — {1}", book.arabicTitle, book.author)
                             )
                         }
                     }
@@ -5277,11 +5930,7 @@ private fun MushafBookReaderDialog(
                         }
                         item {
                             MushafStudySectionCaption(
-                                Translator.tr(
-                                    "المصدر: quranpedia.net — ${book.arabicTitle} — ${book.author}؛ " +
-                                        "كتاب كامل يُجلب شبكياً عند الطلب ولا يُضمَّن نصه في التطبيق. " +
-                                        "تجميع المقاطع في الفصول يتبع ترتيب الكتاب حيث لا يسمّي المصدر الفصل بدقة."
-                                )
+                                Translator.trf("المصدر: quranpedia.net — {0} — {1}؛ كتاب كامل يُجلب شبكياً عند الطلب ولا يُضمَّن نصه في التطبيق. تجميع المقاطع في الفصول يتبع ترتيب الكتاب حيث لا يسمّي المصدر الفصل بدقة.", book.arabicTitle, book.author)
                             )
                         }
                     }
@@ -5378,6 +6027,7 @@ private fun MushafBookReaderRow(
 
 @Composable
 private fun MushafTajweedLegendDialog(
+    tajweedColors: Map<String, Color>,
     onDismiss: () -> Unit
 ) {
     val theme = QabasTheme.current
@@ -5412,7 +6062,7 @@ private fun MushafTajweedLegendDialog(
                                 .size(18.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    QuranDataProvider.TAJWEED_RULE_COLORS[ruleClass]
+                                    tajweedColors[ruleClass]
                                         ?: theme.textSecondary
                                 )
                         )
@@ -5461,6 +6111,7 @@ private fun MushafVerseCard(
     bookmark: UserPreferencesManager.MushafBookmark?,
     onBookmarkClick: () -> Unit,
     verseFontSize: Float,
+    verseFontFamily: FontFamily,
     theme: QabasDesignTheme
 ) {
     AppleCard(
@@ -5530,7 +6181,7 @@ private fun MushafVerseCard(
                     Text(
                         text = verseText,
                         color = theme.textPrimary,
-                        fontFamily = AmiriFont,
+                        fontFamily = verseFontFamily,
                         fontSize = verseFontSize.sp,
                         lineHeight = (verseFontSize * 1.6f).sp,
                         textAlign = TextAlign.Right,

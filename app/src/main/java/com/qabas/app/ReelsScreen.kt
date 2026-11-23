@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +69,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -175,8 +177,25 @@ fun ReelsScreen(
 
     // Collect Reel Settings
     val startMuted by ReelPreferencesManager.startMuted.collectAsState()
-    var audioVolume by remember { mutableFloatStateOf(if (startMuted) 0f else 1f) }
+    val lastVolume by ReelPreferencesManager.lastVolume.collectAsState()
+    // مستوى الصوت الأخير غير الصفري (ق76): الكتم يستعيده بدل القفز
+    // إلى 100%، ويُستعاد بين الجلسات بدل العودة إلى 100% كل مرة.
+    var audioVolume by remember { mutableFloatStateOf(if (startMuted) 0f else lastVolume) }
+    var lastNonZeroVolume by remember { mutableFloatStateOf(lastVolume) }
     val isAudioMuted = audioVolume <= 0.01f
+
+    fun applyVolume(level: Float) {
+        audioVolume = level.coerceIn(0f, 1f)
+        if (level > 0.01f) lastNonZeroVolume = audioVolume
+    }
+
+    // حفظ المستوى عند مغادرة الشاشة (مرة واحدة، لا مع كل حركة إيماءة).
+    val lastNonZeroVolumeState = rememberUpdatedState(lastNonZeroVolume)
+    DisposableEffect(Unit) {
+        onDispose {
+            ReelPreferencesManager.setLastVolume(context, lastNonZeroVolumeState.value)
+        }
+    }
     val autoplayWifiOnly by ReelPreferencesManager.autoplayWifiOnly.collectAsState()
     val autoScrollOnFinish by ReelPreferencesManager.autoScrollOnFinish.collectAsState()
     val playbackSpeed by ReelPreferencesManager.playbackSpeed.collectAsState()
@@ -198,6 +217,21 @@ fun ReelsScreen(
     }
     var isLoading by remember { mutableStateOf(true) }
     var loadingProgress by remember { mutableFloatStateOf(0.12f) }
+    // ق81: مواضع استئناف المشاهدة لكل ريل (آخر موضع معروف بالمللي
+    // ثانية) — خريطة عادية لا حالة: كتابتها كل 500ms أثناء التشغيل
+    // يجب ألا تعيد تركيب الشاشة؛ تُقرأ عند تركيب الصفحة من جديد
+    // بعد تحرر مشغّلها فيستأنف المقطع من موضعه لا من البداية.
+    // ق165: تُزرع بالمواضع المحفوظة من الجلسات السابقة (لا خريطة
+    // فارغة) — وإلا ضاع الاستئناف بمغادرة الشاشة.
+    val reelResumePositions = remember { ReelPreferencesManager.getResumePositions(context).toMutableMap() }
+
+    // ق165: حفظ مواضع الاستئناف عند مغادرة الشاشة — كانت الخريطة
+    // ذاكرةً فقط فتضيع بمغادرة الشاشة ويعيد كل ريل من البداية.
+    DisposableEffect(Unit) {
+        onDispose {
+            ReelPreferencesManager.saveResumePositions(context, reelResumePositions)
+        }
+    }
     // فشل الشبكة (يُميَّز عن القائمة الفارغة فعلاً) — يعرض حالة خطأ مع إعادة محاولة
     var loadError by remember { mutableStateOf(false) }
     // سجل التشخيص الفني الأخير لجلب المقاطع من السحابة
@@ -229,11 +263,13 @@ fun ReelsScreen(
     val likeInFlight = remember { mutableStateMapOf<String, Boolean>() }
 
     // Top Navigation & Filter State
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: الأثر (Al-Athar), 3: الأحدث (Newest)
-    var selectedCategory by remember { mutableStateOf("ALL") }
+    // ق106: حالة الفلاتر محفوظة عبر التدوير — كانت remember عادياً
+    // فيعيد التدوير التبويب إلى «لك» ويمسح الفئة والبحث.
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0: لك (For You), 1: متابعون (Following), 2: الأثر (Al-Athar), 3: الأحدث (Newest)
+    var selectedCategory by rememberSaveable { mutableStateOf("ALL") }
     var showExplore by remember { mutableStateOf(false) }
-    var isSearchActive by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
 
     var showAlAtharExplanation by remember { mutableStateOf(false) }
 
@@ -471,7 +507,12 @@ fun ReelsScreen(
 
         // تم حذف النظام المحلي: لا زيادة وهمية للعداد محلياً ولا كتابة محلية
         if (isOnline && selectedTab != 2 && !isAlAtharMode && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
-            scope.launch {
+            // ق146: التسجيل يُطلق بـ NonCancellable — finalizeWatch تُستدعى
+            // أيضاً من onDispose عند مغادرة الشاشة، ونطاق التكوين يُلغى
+            // عندها فيُلغى التسجيل الشبكي قبل اكتماله، فيضيع إثبات آخر
+            // مقطع شاهده المستخدم في الجلسة (لا سجل ولا عدّاد مشاهدة).
+            // التسجيل كتابة صغيرة يجب أن تكمل متى بدأت.
+            scope.launch(NonCancellable) {
                 val effectiveUser = currentSupabaseId ?: return@launch
                 val cloudViews = SupabaseServices.Profiles.recordReelWatch(rid, effectiveUser, secs)
                     ?: return@launch
@@ -666,25 +707,42 @@ fun ReelsScreen(
 
     // Filter reels based on Tab, Category, Search Query and Hidden status
     val sourceReels = if (selectedTab == 2) atharReels else allReels
+    // لقطة الترتيب المعروض فعلاً (ق42): تُحدَّث بعد كل تركيب في
+    // LaunchedEffect أدناه، فيثبّت الترتيب التالي المقطع الحالي في
+    // موضعه فلا يتبدل على الشاشة بلا تمرير.
+    var lastShownOrder by remember { mutableStateOf<List<String>>(emptyList()) }
     // مفاتيح إعادة الترتيب: تتغير بتغيّر البيانات أو إشارات المشاهد، لا مع
     // كل ثانية مشاهدة (watchSeconds.size يتغير فقط عند بدء مقطع جديد).
-    val displayReels = remember(sourceReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion, likedReelIds, cloudBookmarks, commentBumps, watchSeconds.size) {
+    // ق42: أُضيف lastWatchedReelId وlastShownOrder للتثبيت.
+    val displayReels = remember(sourceReels, hiddenReelIds, selectedTab, selectedCategory, searchQuery, followVersion, likedReelIds, cloudBookmarks, commentBumps, watchSeconds.size, lastWatchedReelId, lastShownOrder) {
         val filtered = sourceReels.filterNot { hiddenReelIds.contains(it.id) }
             .filter { reel ->
+                // ق106: كانت المطابقة contains خاماً على العنوان والوسوم
+                // فوسم/عنوان مشكَّل («تِلَاوَة»، «قُرْآن») لا يطابق شريحة
+                // الفئة، بينما البحث نفسه مطبَّع منذ ق42 — فالشريحة
+                // والبحث كانا يعطيان نتائج مختلفة للكلمة نفسها.
                 when (selectedCategory) {
-                    "QURAN" -> reel.tags.contains("قرآن") || reel.title.contains("قرآن") || reel.title.contains("تلاوة")
-                    "HADITH" -> reel.tags.contains("حديث") || reel.title.contains("حديث") || reel.title.contains("سنة")
-                    "STORIES" -> reel.tags.contains("قصص") || reel.title.contains("قصة") || reel.title.contains("عبرة")
+                    "QURAN" -> reel.tags.any { HadithSearchNormalizer.matches(it, "قرآن") } ||
+                        HadithSearchNormalizer.matches(reel.title, "قرآن") ||
+                        HadithSearchNormalizer.matches(reel.title, "تلاوة")
+                    "HADITH" -> reel.tags.any { HadithSearchNormalizer.matches(it, "حديث") } ||
+                        HadithSearchNormalizer.matches(reel.title, "حديث") ||
+                        HadithSearchNormalizer.matches(reel.title, "سنة")
+                    "STORIES" -> reel.tags.any { HadithSearchNormalizer.matches(it, "قصص") } ||
+                        HadithSearchNormalizer.matches(reel.title, "قصة") ||
+                        HadithSearchNormalizer.matches(reel.title, "عبرة")
                     else -> true
                 }
             }
             .filter { reel ->
+                // ق42: بحث مطبَّع (تشكيل/همزة/ألف) كبقية البحث العام —
+                // «قران» بلا همزة كان لا يجد «قرآن» هنا.
                 if (searchQuery.isBlank()) true
                 else {
-                    reel.title.contains(searchQuery, ignoreCase = true) ||
-                    (reel.userName?.contains(searchQuery, ignoreCase = true) == true) ||
-                    (reel.description?.contains(searchQuery, ignoreCase = true) == true) ||
-                    reel.tags.contains(searchQuery)
+                    HadithSearchNormalizer.matches(reel.title, searchQuery) ||
+                    (reel.userName?.let { HadithSearchNormalizer.matches(it, searchQuery) } == true) ||
+                    (reel.description?.let { HadithSearchNormalizer.matches(it, searchQuery) } == true) ||
+                    reel.tags.any { HadithSearchNormalizer.matches(it, searchQuery) }
                 }
             }
             .filter { reel ->
@@ -707,11 +765,10 @@ fun ReelsScreen(
             }
         // الترتيب (الدفعة 3): «لك» بالنقاط عند وصول البيانات، و«الأحدث»
         // زمني بحت؛ «متابعون» و«الأثر» كما هما.
-        when (selectedTab) {
+        val ordered = when (selectedTab) {
             0 -> {
                 val signals = filtered.associate { reel ->
                     reel.id to ReelFeedScoring.ViewerSignals(
-                        liked = likedReelIds[reel.id] == true,
                         saved = cloudBookmarks.contains(reel.id),
                         watchSeconds = watchSeconds[reel.id] ?: 0,
                         commentsAdded = commentBumps[reel.id] ?: 0
@@ -722,10 +779,23 @@ fun ReelsScreen(
             3 -> filtered.sortedByDescending { it.createdAt.orEmpty() }
             else -> filtered
         }
+        // ق42: تثبيت المقطع الحالي في موضعه المعروض — إعادة الترتيب
+        // الحية لا تُبدّل المقطع على الشاشة بلا تمرير من المستخدم.
+        ReelFeedScoring.pinCurrentReel(ordered, lastShownOrder, lastWatchedReelId)
+    }
+
+    // ق42: لقطة الترتيب بعد كل تركيب — أساس التثبيت في إعادة الترتيب
+    // التالية؛ لا تُعيد التشغيل عند تساوي القائمة فيعيد التركيب نفسه.
+    LaunchedEffect(displayReels) {
+        lastShownOrder = displayReels.map { it.id }
     }
 
     val pagerState = rememberPagerState(pageCount = { displayReels.size })
-    LaunchedEffect(selectedTab, displayReels.size) {
+    // ق42: العودة للصفحة الأولى عند تبديل التبويب أو الفئة أو البحث
+    // فقط — لا عند تغيّر حجم القائمة؛ فالمفتاح القديم
+    // (selectedTab, displayReels.size) كان يعيد المستخدم إلى أول مقطع
+    // كلما أضاف التمرير اللانهائي صفحة جديدة.
+    LaunchedEffect(selectedTab, selectedCategory, searchQuery) {
         if (displayReels.isNotEmpty() && pagerState.currentPage != 0) pagerState.scrollToPage(0)
     }
 
@@ -947,8 +1017,16 @@ fun ReelsScreen(
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
+                                    // ق79: هذا الفرع لا يُبلغ إلا عند فشل
+                                    // الجلب مع خلوّ الكاش (loadError) — أما
+                                    // النجاح الفارغ فيعرض مقاطع البداية،
+                                    // فادعاء «لا توجد مقاطع منشورة» هنا كان
+                                    // كذباً يوهم بخلوّ المجتمع ويدفع للنشر.
+                                    // الآن: عند الفشل رسالة صادقة مع سبب
+                                    // التشخيص وزر إعادة محاولة؛ وعند الفراغ
+                                    // الحقيقي تبقى الدعوة للنشر كما كانت.
                                     Text(
-                                        text = "لا توجد مقاطع منشورة حالياً",
+                                        text = if (loadError) "تعذّر تحميل المقاطع" else "لا توجد مقاطع منشورة حالياً",
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 17.sp,
@@ -959,7 +1037,12 @@ fun ReelsScreen(
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     Text(
-                                        text = "كن أول من ينشر مقطعاً قرآنياً أو دعوياً مباركاً ليظهر للمجتمع.",
+                                        text = if (loadError) {
+                                            lastDiagnostic?.errorMessage
+                                                ?: "تحقق من اتصال جهازك بالإنترنت وحاول مجدداً."
+                                        } else {
+                                            "كن أول من ينشر مقطعاً قرآنياً أو دعوياً مباركاً ليظهر للمجتمع."
+                                        },
                                         fontFamily = NotoSansFont,
                                         fontSize = 13.sp,
                                         color = theme.textSecondary,
@@ -973,16 +1056,24 @@ fun ReelsScreen(
                                         verticalArrangement = Arrangement.spacedBy(10.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        ApplePrimaryButton(
-                                            text = "نشر مقطع الآن",
-                                            icon = Icons.Default.Add,
-                                            onClick = { checkGuestInteraction { showPublishDialog = true } }
-                                        )
-                                        AppleSecondaryButton(
-                                            text = "تحديث",
-                                            icon = Icons.Default.Refresh,
-                                            onClick = { loadReels() }
-                                        )
+                                        if (loadError) {
+                                            ApplePrimaryButton(
+                                                text = "إعادة المحاولة",
+                                                icon = Icons.Default.Refresh,
+                                                onClick = { loadReels(isManualRetry = true) }
+                                            )
+                                        } else {
+                                            ApplePrimaryButton(
+                                                text = "نشر مقطع الآن",
+                                                icon = Icons.Default.Add,
+                                                onClick = { checkGuestInteraction { showPublishDialog = true } }
+                                            )
+                                            AppleSecondaryButton(
+                                                text = "تحديث",
+                                                icon = Icons.Default.Refresh,
+                                                onClick = { loadReels() }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1008,23 +1099,41 @@ fun ReelsScreen(
                                     modifier = Modifier.size(46.dp)
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
+                                // ق106: فراغ تبويب «متابعون» بلا بحث/فئة سببه
+                                // التبويب نفسه (لا متابَعين) لا البحث — فكانت
+                                // الرسالة تنسبه للبحث وزر «مسح الفلاتر» يبقي
+                                // المستخدم على التبويب الفارغ نفسه بلا أثر.
+                                val isFollowingWithNoFollows = selectedTab == 1 &&
+                                    searchQuery.isBlank() && selectedCategory == "ALL"
                                 Text(
-                                    text = "لا نتائج مطابقة لبحثك أو تصنيفك الحالي",
+                                    text = if (isFollowingWithNoFollows) "لا تتابع أي صانع بعد"
+                                    else "لا نتائج مطابقة لبحثك أو تصنيفك الحالي",
                                     color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp,
                                     textAlign = TextAlign.Center
                                 )
+                                if (isFollowingWithNoFollows) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "تابع صنّاعاً من تبويب «لك» ليظهروا هنا",
+                                        color = theme.textSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 13.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(16.dp))
                                 AppleSecondaryButton(
-                                    text = "مسح الفلاتر",
-                                    icon = Icons.Default.FilterAltOff,
+                                    text = if (isFollowingWithNoFollows) "تصفح تبويب «لك»" else "مسح الفلاتر",
+                                    icon = if (isFollowingWithNoFollows) Icons.Default.Home else Icons.Default.FilterAltOff,
                                     modifier = Modifier.widthIn(max = 220.dp),
                                     onClick = {
                                         selectedCategory = "ALL"
                                         searchQuery = ""
                                         isSearchActive = false
+                                        if (isFollowingWithNoFollows) selectedTab = 0
                                     }
                                 )
                             }
@@ -1165,7 +1274,7 @@ fun ReelsScreen(
                                 volume = audioVolume,
                                 brightness = screenBrightness,
                                 onBrightnessChange = { screenBrightness = it },
-                                onVolumeChange = { audioVolume = it },
+                                onVolumeChange = { applyVolume(it) },
                                 onVideoEnded = if (!loopCurrentReel && autoScrollOnFinish && page < displayReels.size - 1) {
                                     {
                                         scope.launch {
@@ -1186,6 +1295,11 @@ fun ReelsScreen(
                                     }
                                 },
                                 onSingleTap = { chromeVisible = !chromeVisible },
+                                // ق81: استئناف المشاهدة — موضع البدء من
+                                // آخر موضع محفوظ لهذا الريل، والموضع
+                                // الجديد يُحفظ في الخريطة أعلاه.
+                                startPositionMs = reelResumePositions[reel.id] ?: 0L,
+                                onPositionChanged = { pos -> reelResumePositions[reel.id] = pos },
                                 // قياس التشغيل الفعلي لكل صفحة (لعدّاد مدة المشاهدة)
                                 onActualPlayingChanged = { playing ->
                                     pagePlayingStates[page] = playing
@@ -1227,6 +1341,7 @@ fun ReelsScreen(
                                 showCaptions = showCaptions,
                                 likesCount = currentLikes,
                                 commentsCount = reel.commentsCount + (commentBumps[reel.id] ?: 0),
+                                sharesCount = reel.sharesCount,
                                 isKhushuMode = isKhushuMode,
                                 onToggleKhushu = { isKhushuMode = !isKhushuMode },
                                 isGuest = isGuest,
@@ -1259,6 +1374,22 @@ fun ReelsScreen(
                                             val shareIntent = Intent.createChooser(sendIntent, "مشاركة الريلز")
                                             context.startActivity(shareIntent)
                                             ReelPreferencesManager.recordShare(context)
+                                            // ق42: إثبات المشاركة سحابياً (مرة واحدة لكل
+                                            // مستخدم/مقطع عبر record_reel_share) وتحديث
+                                            // العدّاد الظاهر من القيمة السحابية المرجَعة
+                                            // فقط — بلا زيادة محلية وهمية؛ ويفشل بصمت
+                                            // قبل تطبيق ترحيل الدالة فيبقى العدّاد على
+                                            // قيمة الصف الحقيقية.
+                                            if (isOnline && selectedTab != 2 && !isAlAtharMode && ReelSafetyGuardrails.isSupabaseCallsAllowed()) {
+                                                scope.launch {
+                                                    val authId = currentSupabaseId ?: return@launch
+                                                    val cloudShares = SupabaseServices.Profiles.recordReelShare(reel.id, authId)
+                                                        ?: return@launch
+                                                    allReels = allReels.map { item ->
+                                                        if (item.id == reel.id) item.copy(sharesCount = cloudShares) else item
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 },
@@ -1313,7 +1444,7 @@ fun ReelsScreen(
                                 icon = if (isAudioMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
                                 label = "الصوت",
                                 onClick = {
-                                    audioVolume = if (audioVolume <= 0.01f) 1f else 0f
+                                    applyVolume(if (audioVolume <= 0.01f) lastNonZeroVolume else 0f)
                                     ReelPreferencesManager.triggerHaptic(context)
                                 },
                                 active = isAudioMuted,
@@ -1890,7 +2021,29 @@ fun ReelsScreen(
         ReelHistorySheet(
             onDismiss = { showHistorySheet = false },
             // القفزة الموحّدة نفسها (الدفعة 3) بدل منطق مكرر هنا.
-            onSelectReel = { targetReelId -> jumpToReel(targetReelId) }
+            onSelectReel = { targetReelId -> jumpToReel(targetReelId) },
+            // ق131: إلغاء حفظ من الورقة يحدّث حالة «محفوظ» في الخلاصة
+            // فوراً — وإلا بقي الريل «محفوظاً» فيها بعد إلغاء حفظه.
+            onBookmarksChanged = {
+                scope.launch {
+                    val userId = SupabaseServices.Auth.getCurrentUserId()
+                    if (userId != null) {
+                        withTimeoutOrNull(8_000L) {
+                            SupabaseServices.Profiles.getBookmarkedReelIds(userId)?.let { cloudBookmarks = it }
+                        }
+                    }
+                }
+            },
+            // ق134: إلغاء إعجاب من الورقة يحدّث حالة «معجب» في الخلاصة
+            // فوراً — وإلا بقي القلب أحمر والعدّاد مضخماً بعد إلغاء الإعجاب.
+            onLikesChanged = {
+                scope.launch {
+                    val userId = SupabaseServices.Auth.getCurrentUserId()
+                    if (userId != null) {
+                        refreshLikedReelsFromCloud(userId)
+                    }
+                }
+            }
         )
     }
 
@@ -2087,6 +2240,10 @@ fun ReelSpatialHUDOverlays(
     onToggleKhushu: () -> Unit,
     // العدّ الفعلي بعد التعليقات المُضافة جالسياً (الافتراضي يأخذ عدّاد الصف)
     commentsCount: Int = reel.commentsCount,
+    // ق42: عدّاد المشاركات يُعرض مجدداً — صار حياً بدالة الخادم
+    // record_reel_share (مرة لكل مستخدم/مقطع)؛ قبل تطبيق ترحيلها يبقى
+    // على قيمة الصف الحقيقية بلا زيادة وهمية.
+    sharesCount: Int = reel.sharesCount,
     isGuest: Boolean = false,
     onRequireLogin: () -> Unit = {},
     onLike: () -> Unit,
@@ -2213,13 +2370,10 @@ fun ReelSpatialHUDOverlays(
                         )
                         ReelRailButton(
                             icon = Icons.Default.Share,
-                            // review-r15: لا يُعرض عدّاد مشاركات هنا — لا يوجد أي مسار
-                            // في التطبيق يزيد shares_count سحابياً (لا RPC ولا جدول
-                            // علاقة كما في الإعجاب/المشاهدة)، فالرقم كان متجمداً على
-                            // قيمة الصف مهما شارك المستخدم. يبقى زر المشاركة نفسه
-                            // يعمل (ACTION_SEND) بلا رقم مضلل؛ يُعاد العدّاد حين
-                            // تُضاف دالة خادم record_reel_share على غرار record_reel_view.
-                            label = "مشاركة",
+                            // ق42: عاد عدّاد المشاركات — دالة الخادم
+                            // record_reel_share تزيده (مرة لكل مستخدم/
+                            // مقطع) فلم يعد متجمداً كما في review-r15.
+                            label = formatCount(sharesCount),
                             tint = Color.White,
                             onClick = onShare
                         )
@@ -2440,8 +2594,13 @@ fun ReelCommentsBottomSheet(
     var managingCommentId by remember { mutableStateOf<String?>(null) }
     var commentsLoading by remember { mutableStateOf(true) }
     var commentsError by remember { mutableStateOf(false) }
+    var commentsReloadKey by remember { mutableIntStateOf(0) }
+    // ق67: فرق التعليقات في هذه الجلسة (نشر +1 / حذف −1) — أساس عدّاد
+    // الترويسة الصادق؛ فحجم القائمة المحملة وحدها يكذب عند اقتطاع
+    // التحميل (أحدث 200) أو عند فشل التحميل (قائمة فارغة).
+    var commentDelta by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(reel.id) {
+    LaunchedEffect(reel.id, commentsReloadKey) {
         commentsLoading = true
         commentsError = false
         val loaded = runCatching {
@@ -2456,7 +2615,13 @@ fun ReelCommentsBottomSheet(
     }
 
     val submitComment: (String) -> Unit = submit@{ raw ->
-        val sanitized = ReelSafetyGuardrails.sanitizeCommentText(raw) ?: return@submit
+        // ق67: التعقيم يرفض النص الفارغ أو الأقل من حرفين؛ كان الرفض
+        // صامتاً (زر الإرسال مفعّل لحرف واحد) فيظن المستخدم أن النقرة
+        // لم تُسجَّل. أبلغه بالسبب بدل الصمت.
+        val sanitized = ReelSafetyGuardrails.sanitizeCommentText(raw) ?: run {
+            Toast.makeText(context, "التعليق قصير جداً — اكتب حرفين على الأقل", Toast.LENGTH_SHORT).show()
+            return@submit
+        }
         if (isPosting) return@submit
         if (!ReelSafetyGuardrails.canPostComment()) {
             Toast.makeText(context, "يرجى الانتظار قليلاً قبل إرسال تعليق آخر", Toast.LENGTH_SHORT).show()
@@ -2474,6 +2639,7 @@ fun ReelCommentsBottomSheet(
             if (inserted != null) {
                 commentsList = commentsList + inserted
                 commentText = ""
+                commentDelta += 1
                 commentFeedback = "تم نشر تعليقك بنجاح"
                 commentFeedbackIsError = false
                 onCommentPosted()
@@ -2503,7 +2669,10 @@ fun ReelCommentsBottomSheet(
                 .fillMaxHeight(0.62f)
         ) {
             Text(
-                text = "التعليقات (${commentsList.size})",
+                // ق67: عدّاد الترويسة من عدّاد السحابة + فرق الجلسة، وبحد
+                // أدنى حجم القائمة المحملة — فلا يظهر 0 عند فشل التحميل
+                // ولا 200 عند اقتطاع الأحدث.
+                text = "التعليقات (${(reel.commentsCount + commentDelta).coerceAtLeast(commentsList.size)})",
                 color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
@@ -2526,18 +2695,33 @@ fun ReelCommentsBottomSheet(
                     CircularProgressIndicator(color = theme.primary, modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
                 }
             } else if (commentsError) {
+                // ق67: حالة الفشل كانت طريقاً مسدوداً — لا إعادة محاولة
+                // إلا بإغلاق الورقة وفتحها من جديد.
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "تعذر تحميل التعليقات",
-                        color = theme.textSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 14.sp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "تعذر تحميل التعليقات",
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { commentsReloadKey++ },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = theme.primary,
+                                contentColor = theme.onPrimary
+                            ),
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("إعادة المحاولة", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             } else if (commentsList.isEmpty()) {
                 Box(
@@ -2804,7 +2988,12 @@ fun ReelCommentsBottomSheet(
                     enabled = editCommentText.isNotBlank() && managingCommentId == null,
                     modifier = Modifier.heightIn(min = 48.dp),
                     onClick = {
-                        val safeText = ReelSafetyGuardrails.sanitizeCommentText(editCommentText) ?: return@TextButton
+                        // ق67: كما في النشر، رفض التعقيم (أقل من حرفين)
+                        // كان صامتاً رغم أن زر الحفظ مفعّل.
+                        val safeText = ReelSafetyGuardrails.sanitizeCommentText(editCommentText) ?: run {
+                            Toast.makeText(context, "التعليق قصير جداً — اكتب حرفين على الأقل", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
                         managingCommentId = target.id
                         coroutineScope.launch {
                             val updated = runCatching {
@@ -2862,6 +3051,7 @@ fun ReelCommentsBottomSheet(
                             }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                             if (deleted) {
                                 commentsList = commentsList.filterNot { it.id == target.id }
+                                commentDelta -= 1
                                 pendingDeleteComment = null
                                 onCommentDeleted()
                                 Toast.makeText(context, "تم حذف التعليق", Toast.LENGTH_SHORT).show()

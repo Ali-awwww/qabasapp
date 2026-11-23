@@ -26,8 +26,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okhttp3.Response
 import okio.BufferedSink
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import io.ktor.client.call.body
 import kotlinx.serialization.SerialName
@@ -172,17 +174,18 @@ object SupabaseServices {
 
         /**
          * مهام فيديو الاستوديو للمستخدم الحالي (جدول studio_jobs، الدفعة 4).
-         * تفشل بلطف إلى فارغة عند غياب الجدول (لم يُطبَّق الترحيل بعد).
+         * (ق41) null عند فشل التحميل لا قائمة فارغة: الفشل كان يُعرض
+         * «لا مهام بعد» في المكتبة — كأن الطابور فارغ فعلاً.
          */
-        suspend fun getStudioJobs(): List<StudioJobRow> = runCatching {
-            val client = client ?: return emptyList()
-            val userId = Auth.getCurrentUserId() ?: return emptyList()
+        suspend fun getStudioJobs(): List<StudioJobRow>? = runCatching {
+            val client = client ?: return null
+            val userId = Auth.getCurrentUserId() ?: return null
             client.postgrest.from("studio_jobs").select {
                 filter { eq("user_id", userId) }
                 order("created_at", Order.DESCENDING)
                 limit(50)
             }.decodeList<StudioJobRow>()
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getStudioJobs failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getStudioJobs failed: ${it.message}") }.getOrNull()
 
         /** تسجيل مهمة فيديو منتهية (التنفيذ متزامن في الأداة؛ الطابور يسجّل النتيجة فقط). */
         suspend fun insertStudioJob(job: StudioJobRow): Boolean = runCatching {
@@ -198,17 +201,17 @@ object SupabaseServices {
 
         /**
          * سجل توليدات الاستوديو للمستخدم الحالي (جدول ai_generations، الدفعة 4).
-         * فارغ عند غياب الجدول.
+         * (ق41) null عند فشل التحميل — كـ getStudioJobs.
          */
-        suspend fun getAiGenerations(): List<AiGenerationRow> = runCatching {
-            val client = client ?: return emptyList()
-            val userId = Auth.getCurrentUserId() ?: return emptyList()
+        suspend fun getAiGenerations(): List<AiGenerationRow>? = runCatching {
+            val client = client ?: return null
+            val userId = Auth.getCurrentUserId() ?: return null
             client.postgrest.from("ai_generations").select {
                 filter { eq("user_id", userId) }
                 order("created_at", Order.DESCENDING)
                 limit(100)
             }.decodeList<AiGenerationRow>()
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAiGenerations failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAiGenerations failed: ${it.message}") }.getOrNull()
 
         /**
          * تسجيل توليد واحد. التكلفة الفعلية تُسجَّل 0 حتى تُقاس من المزود
@@ -732,6 +735,23 @@ object SupabaseServices {
             client.postgrest.from("users").select().decodeList<UserRow>()
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAllUsers failed: ${it.message}") }.getOrDefault(emptyList())
 
+        /**
+         * أوقات إنشاء الحسابات منذ لحظة معينة — لعدّ التسجيلات في التنبيهات
+         * دون سحب جدول users كاملاً (ق55: getAllUsers بلا حد كان يُنزَّل
+         * كله لعدّ تسجيلات 24 ساعة). null عند تعذّر القياس (لا صفر مختلق).
+         * سقف 5000 صف: فوقه يبقى العدّ حداً أدنى صادقاً لفحص الموجة.
+         */
+        suspend fun getUserCreatedAtsSince(sinceIso: String): List<String>? = runCatching {
+            val client = client ?: return null
+            client.postgrest.from("users").select(
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("created_at")
+            ) {
+                filter { gte("created_at", sinceIso) }
+                order("created_at", Order.ASCENDING)
+                limit(5000)
+            }.decodeList<UserRow>().mapNotNull { it.createdAt }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUserCreatedAtsSince failed: ${it.message}") }.getOrNull()
+
         /** Role changes must pass the server-authorized RPC; never fall back to direct profile writes. */
         suspend fun updateUserRole(userId: String, newType: String): Boolean = runCatching {
             val client = client ?: return false
@@ -982,6 +1002,13 @@ object SupabaseServices {
             @SerialName("created_at") val createdAt: String? = null
         )
 
+        /** إجماليات نقاط مستخدم واحد: هذا الأسبوع، هذا الشهر، كل الأوقات. */
+        data class MyPointsTotals(
+            val week: Long = 0L,
+            val month: Long = 0L,
+            val allTime: Long = 0L
+        )
+
         @Serializable
         data class UserNameRow(
             val id: String = "",
@@ -1003,6 +1030,14 @@ object SupabaseServices {
         /** بداية الشهر الميلادي الحالي (00:00 UTC). */
         private fun monthStartUtc(): String {
             val first = java.time.LocalDate.now(java.time.ZoneOffset.UTC).withDayOfMonth(1)
+            return first.atStartOfDay(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+        }
+
+        /** نهاية الشهر الميلادي الحالي (أول الشهر التالي 00:00 UTC). */
+        private fun monthEndUtc(): String {
+            val first = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+                .plusMonths(1).withDayOfMonth(1)
             return first.atStartOfDay(java.time.ZoneOffset.UTC)
                 .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
         }
@@ -1113,10 +1148,7 @@ object SupabaseServices {
                 }
                 PointsWindow.MONTH -> {
                     val start = monthStartUtc()
-                    val end = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
-                        .plusMonths(1).withDayOfMonth(1)
-                        .atStartOfDay(java.time.ZoneOffset.UTC)
-                        .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+                    val end = monthEndUtc()
                     val sums = ledgerSumsInWindow(client, start, end)
                     val names = resolveUserNames(client, sums.keys.toList())
                     toLeaderboardRows(sums, names, emptyMap(), limit)
@@ -1126,10 +1158,100 @@ object SupabaseServices {
             .getOrDefault(emptyList())
 
         /**
+         * ترتيب مستخدم واحد في نافذة لوحة الشرف — لمن لا يظهر في
+         * الخمسين الأوائل: 1 + عدد من يتقدمه في النقاط (المتعادل لا
+         * يتقدمه فيُشاركه الترتيب). null بلا نقاط في النافذة أو عند
+         * غياب السحابة. ق99: كان ترتيب المستخدم لا يظهر إطلاقاً إلا
+         * إن كان ضمن الخمسين المعروضين.
+         */
+        suspend fun getMyLeaderboardRank(
+            window: PointsWindow = PointsWindow.WEEK,
+            userId: String
+        ): Int? = runCatching {
+            val client = client ?: return null
+            if (userId.isBlank()) return null
+            when (window) {
+                PointsWindow.WEEK, PointsWindow.LAST_WEEK -> {
+                    val weeksAgo = if (window == PointsWindow.WEEK) 0 else 1
+                    val (start, end) = isoWeekBoundsUtc(weeksAgo)
+                    val sums = ledgerSumsInWindow(client, start, end)
+                    val mine = sums[userId] ?: return null
+                    1 + sums.values.count { it > mine }
+                }
+                PointsWindow.MONTH -> {
+                    val sums = ledgerSumsInWindow(client, monthStartUtc(), monthEndUtc())
+                    val mine = sums[userId] ?: return null
+                    1 + sums.values.count { it > mine }
+                }
+                PointsWindow.ALL_TIME -> {
+                    val mine = client.postgrest.from("user_points").select {
+                        filter { eq("user_id", userId) }
+                        limit(1)
+                    }.decodeSingleOrNull<UserPointsRow>()?.points ?: return null
+                    if (mine <= 0L) return null
+                    val above = client.postgrest.from("user_points").select(
+                        columns = io.github.jan.supabase.postgrest.query.Columns.list("user_id")
+                    ) {
+                        filter { gt("points", mine) }
+                        limit(10_000)
+                    }.decodeList<UserPointsRow>()
+                    above.size + 1
+                }
+            }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMyLeaderboardRank failed: ${it.message}") }
+            .getOrNull()
+
+        /**
+         * سجل نقاط المستخدم نفسه من سجل التدقيق: كل منح بسببه وتاريخه،
+         * الأحدث أولاً. ق61: كان السجل يُكتب عند كل منح لكن لا شاشة
+         * تعرضه للمستخدم إطلاقاً — لا يعرف لماذا كسب نقاطه ولا متى.
+         */
+        suspend fun getMyPointsLedger(
+            userId: String,
+            limit: Long = 30L
+        ): List<PointsLedgerRow> = runCatching {
+            val client = client ?: return emptyList()
+            if (userId.isBlank()) return emptyList()
+            client.postgrest.from("points_ledger").select(
+                columns = io.github.jan.supabase.postgrest.query.Columns.list("id, user_id, points_delta, reason, created_at")
+            ) {
+                filter { eq("user_id", userId) }
+                order("created_at", Order.DESCENDING)
+                limit(limit)
+            }.decodeList<PointsLedgerRow>()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMyPointsLedger failed: ${it.message}") }
+            .getOrDefault(emptyList())
+
+        /**
+         * إجماليات نقاط المستخدم نفسه: هذا الأسبوع وهذا الشهر من سجل
+         * التدقيق (النوافذ نفسها التي تحسب بها لوحة الشرف)، وكل
+         * الأوقات من `user_points.points`. ق61: `weekly_points` كان
+         * يُحسب ويُخزَّن عند كل منح لكن لا شاشة تعرضه.
+         */
+        suspend fun getMyPointsTotals(userId: String): MyPointsTotals = runCatching {
+            val client = client ?: return MyPointsTotals()
+            if (userId.isBlank()) return MyPointsTotals()
+            val (weekStart, weekEnd) = isoWeekBoundsUtc(0)
+            val week = ledgerSumsInWindow(client, weekStart, weekEnd)[userId] ?: 0L
+            val month = ledgerSumsInWindow(client, monthStartUtc(), monthEndUtc())[userId] ?: 0L
+            val row = client.postgrest.from("user_points").select {
+                filter { eq("user_id", userId) }
+                limit(1)
+            }.decodeSingleOrNull<UserPointsRow>()
+            MyPointsTotals(week = week, month = month, allTime = row?.points ?: 0L)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMyPointsTotals failed: ${it.message}") }
+            .getOrDefault(MyPointsTotals())
+
+        /**
          * يسجّل منح نقاط كصف تدقيق في `points_ledger` ثم يحدّث إجمالي
          * `user_points` (النقاط الكلية + نقاط الأسبوع الحالي من السجل).
-         * أفضل جهد: يفشل بصمت (false) عند غياب الجدولين أو الجلسة، فتبقى
-         * النقاط محلية فقط في SharedPreferences حتى يُطبَّق الترحيل.
+         * ق26: الإجمالي الكلي صار مجموع السجل نفسه لا قراءة-ثم-كتابة
+         * (اقرأ الإجمالي ثم أضف): منحان متزامنان كانا يقرآن الإجمالي
+         * نفسه فيكتبان القيمة نفسها فيفقد أحدهما من الإجمالي إلى الأبد
+         * رغم وجود صفيه في السجل؛ والمجموع من السجل يشفي نفسه عند كل
+         * منح لاحق. أفضل جهد: يفشل بصمت (false) عند غياب الجدولين أو
+         * الجلسة، فتبقى النقاط محلية فقط في SharedPreferences حتى
+         * يُطبَّق الترحيل.
          */
         suspend fun recordPointsAward(
             userId: String,
@@ -1147,16 +1269,19 @@ object SupabaseServices {
                     put("created_at", now)
                 }
             )
-            val current = client.postgrest.from("user_points").select {
-                filter { eq("user_id", userId) }
-                limit(1)
-            }.decodeSingleOrNull<UserPointsRow>()
             val (weekStart, weekEnd) = isoWeekBoundsUtc(0)
             val weekSum = ledgerSumsInWindow(client, weekStart, weekEnd)[userId] ?: 0L
+            // الإجمالي الكلي = مجموع السجل كاملاً (نافذة منذ 1970) لا
+            // الإجمالي المقروء + الدلتا — انظر تعليق الدالة.
+            val totalSum = ledgerSumsInWindow(
+                client,
+                "1970-01-01T00:00:00Z",
+                java.time.Instant.now().plusSeconds(3600).toString()
+            )[userId] ?: 0L
             client.postgrest.from("user_points").upsert(
                 kotlinx.serialization.json.buildJsonObject {
                     put("user_id", userId)
-                    put("points", (current?.points ?: 0L) + pointsDelta)
+                    put("points", totalSum)
                     put("weekly_points", weekSum)
                     put("updated_at", now)
                 }
@@ -1696,6 +1821,9 @@ object SupabaseServices {
                 email = email,
                 redirectUrl = SupabaseConfig.PASSWORD_RESET_REDIRECT_URL
             )
+            // ق85: سجّل نية الاستعادة قبل وصول الرابط — بها يميّز
+            // معالج qabas://auth هذا الرابط عن رابط تأكيد البريد.
+            PasswordRecoveryManager.markRequested(AppServices.appContext)
             true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "resetPassword failed: ${it.message}") }.getOrDefault(false)
 
@@ -1797,7 +1925,20 @@ object SupabaseServices {
                 "reel_likes",
                 "reel_bookmarks",
                 "reel_history",
-                "reel_comments"
+                "reel_comments",
+                // ق156: جداول مملوكة للمستخدم كانت تُترك بعد الحذف —
+                // نقاطه وسجله (user_points/points_ledger)، وأصواته
+                // (review_helpful_votes)، وأحداثه (analytics_events)،
+                // ومهامه وتوليداته (studio_jobs/ai_generations)،
+                // ومراجعاته (app_reviews)، ومشاريعه (projects).
+                "user_points",
+                "points_ledger",
+                "review_helpful_votes",
+                "analytics_events",
+                "studio_jobs",
+                "ai_generations",
+                "app_reviews",
+                "projects"
             )
             val results = linkedMapOf<String, Boolean>()
             for (table in byUserId) {
@@ -1811,6 +1952,31 @@ object SupabaseServices {
                 client.postgrest.from("users").delete { filter { eq("id", userId) } }
                 true
             }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: users failed: ${it.message}") }
+                .getOrDefault(false)
+            // ق156: صفوف بمفاتيح أخرى — المرآة العامة (profiles) وصف
+            // التوثيق (verified_creators) بمفتاح id، والمتابعات
+            // (creator_follows) بمفتاحي follower_id وcreator_id معاً:
+            // متابعاته هو، ومتابعو ملفه هو (وإلا بقيت قوائم متابعين
+            // تشير لحساب محذوف).
+            results["profiles"] = runCatching {
+                client.postgrest.from("profiles").delete { filter { eq("id", userId) } }
+                true
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: profiles failed: ${it.message}") }
+                .getOrDefault(false)
+            results["verified_creators"] = runCatching {
+                client.postgrest.from("verified_creators").delete { filter { eq("id", userId) } }
+                true
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: verified_creators failed: ${it.message}") }
+                .getOrDefault(false)
+            results["creator_follows_as_follower"] = runCatching {
+                client.postgrest.from("creator_follows").delete { filter { eq("follower_id", userId) } }
+                true
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: creator_follows(follower) failed: ${it.message}") }
+                .getOrDefault(false)
+            results["creator_follows_as_creator"] = runCatching {
+                client.postgrest.from("creator_follows").delete { filter { eq("creator_id", userId) } }
+                true
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: creator_follows(creator) failed: ${it.message}") }
                 .getOrDefault(false)
             return results
         }
@@ -2142,12 +2308,26 @@ object SupabaseServices {
             }
 
             return try {
+                // نافذة النشر: المجدول لموعد لاحق لا يظهر قبل موعده، والمنتهي
+                // لا يظهر بعد انتهائه. القيم null تعني «بلا قيد» (صفوف قديمة
+                // قبل إضافة العمودين) فتبقى ظاهرة. التصفية هنا في الخادم
+                // لا في العميل حتى لا ينكسر ترقيم الصفحات (canLoadMore في
+                // ReelsScreen يعتمد على حجم الصفحة الخام).
+                val nowIso = java.time.Instant.now().toString()
                 val response = client.postgrest.from("reels").select {
                     filter {
                         eq("is_active", true)
                         neq("publish_type", "injection")
                         neq("is_silent_seed", true)
                         filterNot("tags", FilterOperator.CS, "{silent_seed}")
+                        or {
+                            exact("publish_at", null)
+                            lte("publish_at", nowIso)
+                        }
+                        or {
+                            exact("expiry_at", null)
+                            gt("expiry_at", nowIso)
+                        }
                     }
                     order("created_at", Order.DESCENDING)
                     order("id", Order.DESCENDING)
@@ -2240,10 +2420,20 @@ object SupabaseServices {
         suspend fun getPublicCreatorReels(creatorId: String, maxItems: Int = 60): List<ReelRow> = runCatching {
             val client = client ?: return emptyList()
             if (creatorId.isBlank()) return emptyList()
+            // النافذة نفسها كالخلاصة: المجدول والمنتهي لا يظهران في العرض العام.
+            val nowIso = java.time.Instant.now().toString()
             client.postgrest.from("reels").select {
                 filter {
                     eq("user_id", creatorId)
                     eq("is_active", true)
+                    or {
+                        exact("publish_at", null)
+                        lte("publish_at", nowIso)
+                    }
+                    or {
+                        exact("expiry_at", null)
+                        gt("expiry_at", nowIso)
+                    }
                 }
                 order("created_at", Order.DESCENDING)
                 limit(maxItems.coerceIn(1, 100).toLong())
@@ -2480,12 +2670,16 @@ object SupabaseServices {
 
         suspend fun getReelComments(reelId: String): List<ReelCommentRow>? = runCatching {
             val client = client ?: return null
+            // ق67: بلا حدّ كان التحميل غير محدود (مقطع شعبي = آلاف
+            // التعليقات دفعة واحدة). الأحدث 200 أولاً ثم تُعكَس لتُعرض
+            // الأقدم أولاً كما كان.
             client.postgrest.from("reel_comments").select {
                 filter {
                     eq("reel_id", reelId)
                 }
-                order("created_at", Order.ASCENDING)
-            }.decodeList<ReelCommentRow>()
+                order("created_at", Order.DESCENDING)
+                limit(200)
+            }.decodeList<ReelCommentRow>().reversed()
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
 
         suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
@@ -2690,6 +2884,24 @@ object SupabaseServices {
             }
             client.postgrest.rpc("record_reel_view", params).decodeAs<Int>()
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrNull()
+
+        /**
+         * يسجل مشاركة واحدة لكل مستخدم/مقطع عبر معاملة ذرّية في Supabase
+         * (ق42 — على غرار record_reel_view: جدول reel_shares بمفتاح
+         * فريد (reel_id, user_id)، والزيادة عند أول إدراج فقط).
+         * القيمة المعادة هي العدد السحابي الحالي، بما في ذلك عند تكرار
+         * المشاركة. يرجع null بصمت قبل تطبيق ترحيل record_reel_share.
+         */
+        suspend fun recordReelShare(reelId: String, userId: String): Int? = runCatching {
+            val client = client ?: return null
+            val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return null
+            if (authUid != userId || reelId.isBlank()) return null
+
+            val params = buildJsonObject {
+                put("p_reel_id", reelId)
+            }
+            client.postgrest.rpc("record_reel_share", params).decodeAs<Int>()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordReelShare failed: ${it.message}") }.getOrNull()
     }
 
     // ==========================================
@@ -3038,7 +3250,16 @@ object SupabaseServices {
     // Storage Operations
     // ==========================================
     object Storage {
-        val DEFAULT_BUCKETS = listOf("media-assets", "audio-tracks", "bug_reports")
+        /**
+         * السلال العامة التي تُسرد ملفاتها في مكتبة الوسائط — عامة فقط.
+         * ق89: أُخرجت «bug_reports» من القائمة: سلة خاصة منذ هجرة
+         * 202611010004 (public=false وقراءة للمالك المصدَّق أو دعم
+         * فقط)، فكان listFiles يبني لها روابط عامة ترفض 403 وتظهر
+         * لقطات بلاغات الدعم في المكتبة كوسائط سحابية لا تفتح؛ ولقطات
+         * البلاغات تُعرض من صفوفها في قاعدة البيانات (مسار الكائن)
+         * لا من سرد المكتبة، فسردها هنا كان تسرباً لا ميزة.
+         */
+        val DEFAULT_BUCKETS = listOf("media-assets", "audio-tracks")
 
         /**
          * Return the access JWT for the active Supabase session. Reflection keeps this
@@ -3068,6 +3289,40 @@ object SupabaseServices {
                 .readTimeout(10, TimeUnit.MINUTES)
                 .writeTimeout(10, TimeUnit.MINUTES)
                 .build()
+        }
+
+        /**
+         * (ق63) ترميز مقاطع مسار الكائن مقطعاً مقطعاً — المسار الخام بمسافات
+         * أو عربية أو `#`/`?` يكسر رابط الطلب (OkHttp يرفض المسافات) ويعيد
+         * رابطاً عاماً مكسوراً حتى حين ينجح الطلب. كان الرفع الخاص يرمّز
+         * والرفع العام لا — الآن دالة واحدة مشتركة للمسارين.
+         */
+        private fun encodeObjectPath(path: String): String =
+            path.split('/').joinToString("/") {
+                java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20")
+            }
+
+        /**
+         * (ق63) تنفيذ طلب رفع مع محاولة إضافية واحدة عند عطل شبكة عابر
+         * (IOException) فقط — أخطاء HTTP (401/403/409/413) حاسمة ولا تُعاد،
+         * والتحقق من الملف/المفتاح/الرمز قبل الطلب لا يُعاد أصلاً. جسم
+         * الطلب يُعاد فتحه من الملف في كل محاولة (CountingRequestBody
+         * يفتح مجرى جديداً في كل writeTo) فلا بايتات مكررة داخل المحاولة.
+         * غير معلَّق (بلا delay) لأن المنادين داخل runCatching غير معلَّق؛
+         * النوم ثانية واحدة على خيط IO مقبول.
+         */
+        private fun executeUploadWithRetry(request: Request): Response {
+            var lastError: IOException? = null
+            repeat(2) { attempt ->
+                try {
+                    return rawHttpClient.newCall(request).execute()
+                } catch (e: IOException) {
+                    lastError = e
+                    Log.w(TAG, "upload network attempt ${attempt + 1}/2 failed: ${e.message}")
+                    if (attempt == 0) runCatching { Thread.sleep(1000L) }
+                }
+            }
+            throw lastError ?: IOException("upload failed")
         }
 
         /** جسم طلب عدّاد: يبث البايتات المرسلة أثناء الرفع (عداد رقمي حقيقي). */
@@ -3104,6 +3359,11 @@ object SupabaseServices {
             path: String,
             file: File,
             contentType: String,
+            // (ق63) upsert=false كان مكتوباً داخل التابع بلا مفرّ: مسار
+            // تسجيل المشروع حتمي (المشروع + اسم الملف) فكانت إعادة
+            // التسجيل بنفس الاسم تصطدم 409 وتفشل بصمت. الافتراضي false
+            // يبقى للمسارات الفريدة (أذان شخصي UUID)؛ والتسجيل يمرر true.
+            upsert: Boolean = false,
             onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
         ): Boolean = withContext(Dispatchers.IO) {
             runCatching {
@@ -3112,23 +3372,21 @@ object SupabaseServices {
                 val anon = SupabaseConfig.key
                 if (anon.isBlank()) return@runCatching false
                 val bearerToken = currentAccessToken() ?: return@runCatching false
-                val encodedPath = path.split('/').joinToString("/") {
-                    java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20")
-                }
+                val encodedPath = encodeObjectPath(path)
                 val request = Request.Builder()
                     .url("$base/storage/v1/object/$bucketName/$encodedPath")
                     .header("apikey", anon)
                     .header("Authorization", "Bearer $bearerToken")
-                    .header("x-upsert", "false")
+                    .header("x-upsert", if (upsert) "true" else "false")
                     .post(CountingRequestBody(file, contentType, onProgress))
                     .build()
-                rawHttpClient.newCall(request).execute().use { response ->
+                executeUploadWithRetry(request).use { response ->
                     if (!response.isSuccessful) {
                         Log.e(TAG, "private upload HTTP ${response.code}: ${response.body?.string().orEmpty().take(200)}")
                         false
                     } else true
                 }
-            }.onFailure { Log.e(TAG, "private upload failed: ${it.message}", it) }.getOrDefault(false)
+            }.onFailure { if (it is CancellationException) throw it }.onFailure { Log.e(TAG, "private upload failed: ${it.message}", it) }.getOrDefault(false)
         }
 
         /** Upload a project voice recording to the private, owner-scoped bucket. */
@@ -3153,6 +3411,9 @@ object SupabaseServices {
                 path = path,
                 file = file,
                 contentType = contentType,
+                // (ق63) المسار حتمي لكل مشروع: إعادة التسجيل بنفس اسم
+                // الملف يجب أن تستبدل التسجيل القديم لا أن تفشل 409.
+                upsert = true,
                 onProgress = onProgress
             )
             return path.takeIf { uploaded }
@@ -3179,21 +3440,26 @@ object SupabaseServices {
                     return@runCatching null
                 }
                 val bearerToken = currentAccessToken() ?: anon
+                // (ق63) المسار يُرمَّز مقطعاً مقطعاً قبل بناء الرابط: اسم
+                // ملف أصلي بمسافات أو عربية (CentralMediaManager يبني
+                // المسار من file.name) كان يرفضه OkHttp أصلاً، و`#`/`?`
+                // فيه كانت تقطع الرابط العام المعاد وتخزّن رابطاً مكسوراً.
+                val encodedPath = encodeObjectPath(path)
                 val req = Request.Builder()
-                    .url("$base/storage/v1/object/$bucketName/$path")
+                    .url("$base/storage/v1/object/$bucketName/$encodedPath")
                     .header("apikey", anon)
                     .header("Authorization", "Bearer $bearerToken")
                     .header("x-upsert", if (upsert) "true" else "false")
                     .post(CountingRequestBody(file, contentType, onProgress))
                     .build()
-                rawHttpClient.newCall(req).execute().use { resp ->
+                executeUploadWithRetry(req).use { resp ->
                     if (!resp.isSuccessful) {
                         Log.e(TAG, "uploadFileWithProgress HTTP ${resp.code}: ${resp.body?.string().orEmpty().take(200)}")
                         return@runCatching null
                     }
-                    "$base/storage/v1/object/public/$bucketName/$path"
+                    "$base/storage/v1/object/public/$bucketName/$encodedPath"
                 }
-            }.onFailure { Log.e(TAG, "uploadFileWithProgress failed: ${it.message}") }.getOrNull()
+            }.onFailure { if (it is CancellationException) throw it }.onFailure { Log.e(TAG, "uploadFileWithProgress failed: ${it.message}") }.getOrNull()
         }
 
         suspend fun uploadFile(
@@ -3209,11 +3475,21 @@ object SupabaseServices {
             client.storage.from(bucketName).publicUrl(path)
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "uploadFile failed: ${it.message}") }.getOrNull()
 
-        suspend fun uploadAudioFile(
-            bucketName: String = "audio-tracks",
-            path: String,
-            data: ByteArray
-        ): String? = uploadFile(bucketName, path, data, true)
+        /**
+         * ق171: فك ترميز مسار كائن مستخرج من رابط عام — الروابط العامة
+         * تحمل المقاطع مرمّزة (%20 للمسافة، %D9%85... للعربية)؛ وحذف
+         * السحابة وتوقيعها يتوقعان المسار الخام، فكان حذف ملف بمسافات
+         * أو عربية في اسمه يفشل بصمت ويبقى الكائن يتيماً في الدلو.
+         * يُفكك مقطعاً مقطعاً مع حماية `+` الحرفية (URLDecoder يحوّلها
+         * لمسافة؛ والمُرمِّز يحوّل `+` الحقيقية إلى %2B أصلاً).
+         */
+        fun decodeObjectPath(path: String): String {
+            return path.split('/').joinToString("/") { segment ->
+                runCatching {
+                    java.net.URLDecoder.decode(segment.replace("+", "%2B"), "UTF-8")
+                }.getOrDefault(segment)
+            }
+        }
 
         fun normalizeObjectPath(bucketName: String, value: String?): String? {
             val raw = value?.trim().orEmpty()
@@ -3228,8 +3504,9 @@ object SupabaseServices {
                 "/storage/v1/object/authenticated/$bucketName/"
             )
             val marker = markers.firstOrNull { raw.contains(it) } ?: return null
-            return raw.substringAfter(marker).substringBefore("?")
-                .removePrefix("/")
+            // ق171: المسار المستخرج من الرابط مرمّز — يُفك قبل إعادته
+            // (حذف/توقيع بمسار مرمّز يفشل على أسماء فيها مسافات أو عربية).
+            return decodeObjectPath(raw.substringAfter(marker).substringBefore("?").removePrefix("/"))
                 .takeIf { it.isNotBlank() }
         }
 

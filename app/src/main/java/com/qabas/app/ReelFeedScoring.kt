@@ -1,13 +1,23 @@
 package com.qabas.app
 
 import java.time.Instant
+import kotlin.math.ln
 
 /**
- * ترتيب «لك» في الريلز بالنقاط (الدفعة 3).
+ * ترتيب «لك» في الريلز بالنقاط (الدفعة 3؛ رُوجع في ق42).
  *
- * النقاط = إكمال ×3 + مشاركة ×5 + حفظ ×4 + تعليق ×2 + إعجاب ×1،
- * ثم تقادم زمني 1/(1+ageDays/7) ينصّف قيمة المقطع بعد 7 أيام،
- * ثم تنويع: لا مقطعان متتاليان من الصانع نفسه أو الموضوع نفسه.
+ * النقاط = إكمال ×3 + ln(1+مشاركات) ×5 + حفظ ×4 + ln(1+تعليقات) ×2
+ *   + ln(1+إعجابات) ×1، ثم تقادم زمني 1/(1+ageDays/7) ينصّف قيمة
+ *   المقطع بعد 7 أيام، ثم تنويع: لا مقطعان متتاليان من الصانع نفسه
+ *   أو الموضوع نفسه.
+ *
+ * لماذا اللوغاريتم (ق42): الصيغة الخطية السابقة (إعجاب ×1 لكل إعجاب)
+ * كانت تجعل العدادات المجمعة تبتلع إشارات المشاهد كلها — مقطع بـ 500
+ * إعجاب يساوي 500 نقطة مقابل 4 نقاط لحفظ المشاهد نفسه — فصار ترتيب
+ * «لك» شعبيةً بحتة لا تخصيصاً. بضغط ln(1+n) يبقى ترتيب الأوزان
+ * (مشاركة > حفظ > إكمال > تعليق > إعجاب) لكن مقطعاً حفظه المشاهد
+ * وشاهده كاملاً (7 نقاط) يتفوق على مقطع بـ 100 إعجاب بلا إشارة
+ * شخصية (4.6)، ولا يتفوق عليه إلا مقطع شبه فيروسي (~10 آلاف إعجاب).
  *
  * حدود صريحة موثقة (لا تُخفى):
  * - لا عمود عدّاد حفظ إجمالي ولا معدل إكمال في قاعدة البيانات حتى الآن،
@@ -18,11 +28,10 @@ import java.time.Instant
  *   الخلاصة كلها، فالترتيب كامل عملياً.
  * - كل العدادات (إعجاب/تعليق/مشاركة/مشاهدة) من صف المقطع في قاعدة
  *   البيانات؛ لا رقم مختلق في أي مكان.
- * - استثناء موثق (review-r15): عدّاد المشاركة في الصف لا يزيده أي فعل
- *   في التطبيق حتى الآن — لا مسار خادم للمشاركة (لا RPC ولا جدول علاقة
- *   كما في الإعجاب/المشاهدة) — فوزن المشاركة ×5 خامل عملياً (كل القيم
- *   صفر) حتى تُضاف دالة record_reel_share؛ لذلك لا يُعرض عدّاد
- *   المشاركة في واجهة المقطع.
+ * - عدّاد المشاركة حي منذ ق42: دالة الخادم record_reel_share (مرة
+ *   واحدة لكل مستخدم/مقطع، على غرار record_reel_view) تزيده عند
+ *   المشاركة، ويُعرض في السكة الجانبية؛ يبقى متجمداً على قيمة الصف
+ *   حتى يُطبَّق ترحيلها في Supabase.
  */
 object ReelFeedScoring {
 
@@ -35,10 +44,13 @@ object ReelFeedScoring {
     /** أيام التقادم التي تنصّف عندها قيمة المقطع. */
     const val DECAY_HALF_LIFE_DAYS = 7.0
 
-    /** إشارات المشاهد نفسه لمقطع واحد (لا شيء منها من خادم آخر). */
+    /** إشارات المشاهد نفسه لمقطع واحد (لا شيء منها من خادم آخر).
+     *
+     * ملاحظة (ق42): لا حقل «أعجب به» هنا — إعجاب المشاهد يصل أصلاً إلى
+     * النقاط عبر likesCount نفسه (التحديث المتفائل في ReelsScreen يزيده
+     * فوراً ويعيده عند فشل الحفظ السحابي)، فحقل منفصل كان سيضاعف
+     * احتساب الإعجاب نفسه. */
     data class ViewerSignals(
-        /** أعجب به المشاهد (من مزامنة الإعجابات السحابية). */
-        val liked: Boolean = false,
         /** حفظه المشاهد (من المحفوظات السحابية). */
         val saved: Boolean = false,
         /** ثواني التشغيل الفعلية التي شاهدها هو لهذا المقطع. */
@@ -55,6 +67,14 @@ object ReelFeedScoring {
 
     /** معامل التقادم: 1 عند النشر، وينصف بعد [DECAY_HALF_LIFE_DAYS] أيام. */
     fun decayFactor(ageDays: Double): Double = 1.0 / (1.0 + ageDays / DECAY_HALF_LIFE_DAYS)
+
+    /**
+     * ضغط لوغاريتمي للعدادات المجمعة غير المحدودة (ق42): ln(1+n) —
+     * 0 عند الصفر، و~4.6 عند 100، و~9.2 عند 10 آلاف — فيبقى وزن
+     * الإشارة الشخصية (إكمال ≤3، حفظ 4) ذا معنى مهما كبرت العدادات.
+     */
+    fun compressedCount(count: Int): Double =
+        ln(1.0 + count.coerceAtLeast(0).toDouble())
 
     /**
      * نقاط مقطع واحد قبل التنويع.
@@ -74,27 +94,42 @@ object ReelFeedScoring {
             0.0
         }
         val raw = completion * COMPLETION_WEIGHT +
-            reel.sharesCount.coerceAtLeast(0) * SHARE_WEIGHT +
+            compressedCount(reel.sharesCount) * SHARE_WEIGHT +
             (if (signals.saved) 1.0 else 0.0) * SAVE_WEIGHT +
-            (reel.commentsCount.coerceAtLeast(0) + signals.commentsAdded.coerceAtLeast(0)) * COMMENT_WEIGHT +
-            reel.likesCount.coerceAtLeast(0) * LIKE_WEIGHT
+            compressedCount(reel.commentsCount + signals.commentsAdded.coerceAtLeast(0)) * COMMENT_WEIGHT +
+            compressedCount(reel.likesCount) * LIKE_WEIGHT
         return raw * decayFactor(ageDays(reel, nowMillis))
     }
 
-    /** مفتاح الصانع للتنويع: معرّف المستخدم، أو الاسم عند غيابه. */
-    fun creatorKey(reel: SupabaseServices.ReelRow): String =
-        reel.userId.ifBlank { reel.userName }
+    /** مفتاح الصانع للتنويع: معرّف المستخدم، أو الاسم عند غيابه.
+     *
+     * ق42: الاسم الافتراضي «صانع محتوى» ليس هوية — صانعان مجهولا
+     * المعرّف يحملانه معاً كانا يُعاملان صانعاً واحداً فيُبعَد أحدهما
+     * ظلماً؛ فعند غياب معرّف حقيقي واسم حقيقي يُعطى كل مقطع مفتاحاً
+     * خاصاً به (لا تنويع خاطئ خير من تنويع على هوية وهمية). */
+    fun creatorKey(reel: SupabaseServices.ReelRow): String {
+        if (reel.userId.isNotBlank()) return reel.userId
+        val name = reel.userName.trim()
+        if (name.isNotBlank() && name != "صانع محتوى") return name
+        return "§${reel.id}"
+    }
 
-    /** مفتاح الموضوع للتنويع: أول وسم، أو فئة مستنتجة من العنوان عند غياب الوسوم. */
+    /** مفتاح الموضوع للتنويع: أول وسم، أو فئة مستنتجة من العنوان عند غياب الوسوم.
+     *
+     * ق42: موضوع مجهول («») كان يجمع كل المقاطع بلا وسم وبلا كلمة
+     * مفتاحية في موضوع واحد فيمنع تتابعها ظلماً؛ فالمجهول الآن مفتاح
+     * خاص بكل مقطع — لا يمنع تتابع مقطعين إلا موضوع معروف مشترك. */
     fun topicKey(reel: SupabaseServices.ReelRow): String {
         val firstTag = reel.tags.firstOrNull()?.trim().orEmpty()
         if (firstTag.isNotBlank()) return firstTag
-        return when {
+        val topic = when {
             reel.title.contains("قرآن") || reel.title.contains("تلاوة") -> "قرآن"
             reel.title.contains("حديث") || reel.title.contains("سنة") -> "حديث"
             reel.title.contains("قصة") || reel.title.contains("عبرة") -> "قصص"
             else -> ""
         }
+        if (topic.isNotBlank()) return topic
+        return "§${reel.id}"
     }
 
     /**
@@ -129,5 +164,33 @@ object ReelFeedScoring {
             lastTopic = topicKey(picked)
         }
         return ordered
+    }
+
+    /**
+     * تثبيت المقطع الحالي في موضعه بعد إعادة ترتيب حية (ق42).
+     *
+     * السبب الجذري: المتصفح يعرض بالفهرس، وإعادة الترتيب على إشارات
+     * حية (إعجاب/حفظ/ثواني مشاهدة) قد تنقل المقطع الذي يشاهده المستخدم
+     * الآن إلى فهرس آخر — فيتبدل المقطع على الشاشة بلا تمرير منه،
+     * ويُثبَّت إثبات مشاهدة زائف للمقطع القديم عبر أثر تغيير القائمة.
+     * الحل: بعد كل ترتيب يُعاد المقطع الحالي ([currentId]) إلى موضعه
+     * في الترتيب المعروض سابقاً ([previousOrderIds])؛ بلا موضع سابق
+     * أو بلا انتقال تُرجع القائمة كما هي.
+     */
+    fun pinCurrentReel(
+        sorted: List<SupabaseServices.ReelRow>,
+        previousOrderIds: List<String>,
+        currentId: String?
+    ): List<SupabaseServices.ReelRow> {
+        if (currentId == null) return sorted
+        val previousIndex = previousOrderIds.indexOf(currentId)
+        val currentIndex = sorted.indexOfFirst { it.id == currentId }
+        if (previousIndex !in sorted.indices || currentIndex < 0 || previousIndex == currentIndex) {
+            return sorted
+        }
+        val pinned = sorted.toMutableList()
+        val reel = pinned.removeAt(currentIndex)
+        pinned.add(previousIndex, reel)
+        return pinned
     }
 }
