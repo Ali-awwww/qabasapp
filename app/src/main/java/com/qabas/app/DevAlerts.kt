@@ -313,7 +313,7 @@ object DevAlertsRepository {
     private suspend fun collectFailedApiKeys(context: Context): List<String> = runCatching {
         kotlinx.coroutines.coroutineScope {
             secretKeySpecs.map { spec ->
-                kotlinx.coroutines.async {
+                async {
                     val value = getSecretKeyActualValue(context, spec)
                     if (!isKeyConfigured(value)) return@async null
                     val result = ApiKeyValidator.validateKey(
