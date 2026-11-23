@@ -189,7 +189,7 @@ fun ChangelogFilterDock(
                 shape = RoundedCornerShape(12.dp),
                 placeholder = {
                     Text(
-                        "بحث برقم الإصدار (مثل v2.4.0) أو الكلمات المفتاحية...",
+                        "بحث برقم الإصدار (مثل v1.3.7) أو الكلمات المفتاحية...",
                         color = theme.textTertiary,
                         fontFamily = CairoFont,
                         fontSize = 11.5.sp

@@ -203,7 +203,7 @@ fun HasanatHubScreen(
                     )
                     HorizontalDivider(color = theme.separator.copy(alpha = 0.5f))
                     Text(
-                        Translator.tr("نسخة التطبيق: ${BuildConfig.VERSION_NAME} (الإصدار الذهبي)"),
+                        Translator.trf("نسخة التطبيق: {0} (الإصدار الذهبي)", BuildConfig.VERSION_NAME),
                         color = theme.primary,
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
@@ -225,10 +225,14 @@ fun HasanatHubScreen(
     when (activeToolDialog) {
         "zakat" -> ZakatCalculatorDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "fasting" -> FastingTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
-        "khatma" -> QuranKhatmaDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "khatma" -> QuranKhatmaDialog(
+            onDismiss = { viewModel.dismissToolDialog() },
+            onOpenMushaf = { viewModel.dismissToolDialog(); onNavigate(AppState.MUSHAF_READER) }
+        )
         "hajj" -> HajjUmrahDialog(onDismiss = { viewModel.dismissToolDialog() })
         "hijri" -> HijriCalendarDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "habits" -> HabitsTrackerDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
+        "tasbeeh" -> SmartTasbeehDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
         "stats" -> WorshipAnalyticsDialog(onDismiss = { viewModel.dismissToolDialog() }, engine = engine)
     }
 

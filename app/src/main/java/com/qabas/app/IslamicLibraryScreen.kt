@@ -2,6 +2,7 @@ package com.qabas.app
 
 import android.content.Intent
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -36,6 +37,7 @@ import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleSearchBar
 import com.qabas.app.ui.components.AppleTopBar
 import com.qabas.app.ui.theme.*
+import java.util.Calendar
 import java.util.Locale
 
 @Composable
@@ -56,6 +58,9 @@ fun IslamicLibraryScreen(
     var activeBookForReading by remember { mutableStateOf<IslamicBook?>(null) }
     var activeBookReadingPosition by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var activeSahihBookType by remember { mutableStateOf<SahihBookType?>(null) }
+    // حديث محدد فُتح من نتيجة بحث نصي في الصحيحين (ق149): يُمرَّر إلى
+    // SahihReaderView عبر initialHadithId فيُفتح عنده لا على أول الكتاب.
+    var activeSahihHadithId by remember { mutableStateOf<String?>(null) }
     var openFullSahihBook by remember { mutableStateOf(false) }
     var showProgressionDialog by remember { mutableStateOf(false) }
     var authorBio by remember { mutableStateOf<IslamicAuthor?>(null) }
@@ -84,6 +89,12 @@ fun IslamicLibraryScreen(
                 } else if (book.id == "sahih_muslim") {
                     activeSahihBookType = SahihBookType.MUSLIM
                 } else {
+                    // ق149: الرابط العميق كان يفتح المقتطفات من أولها
+                    // دائماً متجاهلاً الموضع المحفوظ — بينما بطاقة الكتاب
+                    // نفسها تستأنف منه؛ فيُستأنف هنا بالمنطق نفسه.
+                    val state = LibraryReadingStateStore.getState(context, book.id)
+                    activeBookReadingPosition =
+                        state?.let { it.lastChapterIndex to it.lastSectionIndex }
                     activeBookForReading = book
                 }
             }
@@ -93,6 +104,7 @@ fun IslamicLibraryScreen(
     BackHandler(enabled = activeSahihBookType != null || activeBookForReading != null) {
         if (activeSahihBookType != null) {
             activeSahihBookType = null
+            activeSahihHadithId = null
         } else if (activeBookForReading != null) {
             activeBookForReading = null
             activeBookReadingPosition = null
@@ -107,6 +119,7 @@ fun IslamicLibraryScreen(
                 onBack = {
                     openFullSahihBook = false
                     activeSahihBookType = null
+                    activeSahihHadithId = null
                 }
             )
             return
@@ -114,8 +127,8 @@ fun IslamicLibraryScreen(
 
         SahihReaderView(
             initialBookType = activeSahihBookType!!,
-            initialHadithId = initialHadithId,
-            onBack = { activeSahihBookType = null },
+            initialHadithId = initialHadithId ?: activeSahihHadithId,
+            onBack = { activeSahihBookType = null; activeSahihHadithId = null },
             onNavigateToVideoCreation = onNavigateToVideoCreation,
             onOpenFullBook = { bookType ->
                 activeSahihBookType = bookType
@@ -151,13 +164,31 @@ fun IslamicLibraryScreen(
     }
 
     // كتب «أكمل القراءة»: لها موضع محفوظ وتقدم أكبر من صفر، الأحدث أولاً.
+    // ق149: الصحيحان مستثنيان — تقدّمهما يُتتبع بالباب في قارئيهما لا
+    // بنسبة pos_، وأي صف pos_ لهما أثر قديم من عيب البحث (كان يفتحهما
+    // في قارئ المقتطفات) فلا يُعرض بنسبة وهمية؛ والزر نفسه يبقي فرعي
+    // الصحيحين أدناه شبكة أمان لذلك الأثر القديم.
     val continueReading = remember(readingStates) {
         readingStates.filter { it.progressPercent > 0 }
+            .filter { it.bookId != SahihBookType.BUKHARI.id && it.bookId != SahihBookType.MUSLIM.id }
             .mapNotNull { state -> IslamicLibraryRepository.findBook(state.bookId)?.let { it to state } }
     }
     val bookmarkedBookIds = remember(readingStates) {
         readingStates.filter { it.bookmarked }.map { it.bookId }.toSet()
     }
+
+    // كبسولة حكمة اليوم تدور على كبسولات الكتب بيوم السنة (ق48):
+    // «اليومية» كانت اقتباساً واحداً مثبتاً لا يتغير أبداً.
+    val dailyCapsule = remember {
+        IslamicLibraryRepository.dailyWisdomCapsule(
+            Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        )
+    }
+    // احتياط مستحيل عملياً (11 كبسولة في البيانات): الاقتباس القديم نفسه.
+    val dailyCapsuleText = dailyCapsule?.first
+        ?: "إضاعة الوقت أشد من الموت؛ لأن إضاعة الوقت تقطعك عن الله والدار الآخرة، والموت يقطعك عن الدنيا وأهلها."
+    val dailyCapsuleSource = dailyCapsule?.let { "من كتاب ${it.second} — ${it.third}" }
+        ?: "من درر الإمام ابن قيم الجوزية"
 
     Scaffold(
         modifier = Modifier.testTag(TestTags.ISLAMIC_LIBRARY_SCREEN),
@@ -311,13 +342,13 @@ fun IslamicLibraryScreen(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text("كبسولة الحكمة اليومية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                                        Text("من درر الإمام ابن قيم الجوزية", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                                        Text(dailyCapsuleSource, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                                     }
                                 }
 
                                 TextButton(
                                     onClick = {
-                                        onNavigateToVideoCreation("إضاعة الوقت أشد من الموت؛ لأن إضاعة الوقت تقطعك عن الله والدار الآخرة، والموت يقطعك عن الدنيا وأهلها. — ابن القيم")
+                                        onNavigateToVideoCreation("$dailyCapsuleText — $dailyCapsuleSource")
                                     },
                                     modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                                 ) {
@@ -330,7 +361,7 @@ fun IslamicLibraryScreen(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                "«إضاعة الوقت أشد من الموت؛ لأن إضاعة الوقت تقطعك عن الله والدار الآخرة، والموت يقطعك عن الدنيا وأهلها».",
+                                "«$dailyCapsuleText».",
                                 color = theme.textPrimary,
                                 fontFamily = AmiriFont,
                                 fontWeight = FontWeight.Medium,
@@ -591,8 +622,27 @@ fun IslamicLibraryScreen(
                         items(fullTextResults, key = { "${it.book.id}:${it.chapterIndex}:${it.sectionIndex}" }) { result ->
                             AppleCard(
                                 onClick = {
-                                    activeBookReadingPosition = result.chapterIndex to result.sectionIndex
-                                    activeBookForReading = result.book
+                                    // ق149: نتيجة بحث في الصحيحين كانت تفتح
+                                    // قارئ المقتطفات (InteractiveBookReaderDialog)
+                                    // — قارئ خاطئ يعرض الحديث مقطعاً ويحفظ
+                                    // موضع pos_ وهمياً للصحيحين — بينما كل
+                                    // مداخل الصحيحين الأخرى تفتح قارئ الصحيح.
+                                    // الآن تُفتح في قارئ الصحيح عند الحديث
+                                    // المطابق نفسه (معرّف المقطع = معرّف الحديث).
+                                    if (result.book.id == SahihBookType.BUKHARI.id) {
+                                        activeSahihHadithId = result.book.chapters
+                                            .getOrNull(result.chapterIndex)?.sections
+                                            ?.getOrNull(result.sectionIndex)?.id
+                                        activeSahihBookType = SahihBookType.BUKHARI
+                                    } else if (result.book.id == SahihBookType.MUSLIM.id) {
+                                        activeSahihHadithId = result.book.chapters
+                                            .getOrNull(result.chapterIndex)?.sections
+                                            ?.getOrNull(result.sectionIndex)?.id
+                                        activeSahihBookType = SahihBookType.MUSLIM
+                                    } else {
+                                        activeBookReadingPosition = result.chapterIndex to result.sectionIndex
+                                        activeBookForReading = result.book
+                                    }
                                 }
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
@@ -657,7 +707,11 @@ fun IslamicLibraryScreen(
                     items(filteredBooks, key = { it.id }) { book ->
                         IslamicBookCard(
                             book = book,
-                            progressPercent = readingStateByBookId[book.id]?.progressPercent ?: 0,
+                            // ق149: الصحيحان بلا نسبة pos_ — تقدّمهما بالباب
+                            // في قارئيهما؛ وأي صف قديم لهما أثر من عيب
+                            // البحث فلا يُعرض نسبة وهمية على البطاقة.
+                            progressPercent = if (book.id == SahihBookType.BUKHARI.id || book.id == SahihBookType.MUSLIM.id) 0
+                                else readingStateByBookId[book.id]?.progressPercent ?: 0,
                             isBookmarked = bookmarkedBookIds.contains(book.id),
                             onToggleBookmark = {
                                 LibraryReadingStateStore.toggleBookmark(context, book.id)
@@ -770,7 +824,11 @@ fun IslamicLibraryScreen(
         val openProgressionBook: (String) -> Unit = { bookId ->
             IslamicLibraryRepository.findBook(bookId)?.let { book ->
                 showProgressionDialog = false
-                activeBookReadingPosition = null
+                // ق149: كان يفتح من أول الكتاب دائماً متجاهلاً الموضع
+                // المحفوظ — كالرابط العميق؛ يُستأنف بالمنطق نفسه.
+                val state = LibraryReadingStateStore.getState(context, book.id)
+                activeBookReadingPosition =
+                    state?.let { it.lastChapterIndex to it.lastSectionIndex }
                 activeBookForReading = book
             }
         }
@@ -837,10 +895,15 @@ fun InteractiveBookReaderDialog(
             (book.chapters.getOrNull(initialChapterIndex)?.sections?.size ?: 1) - 1
         mutableIntStateOf(initialSectionIndex.coerceIn(0, maxSection.coerceAtLeast(0)))
     }
-    var fontSizeSp by remember { mutableFloatStateOf(15.5f) }
+    // حجم الخط محفوظ (ق48): كان يُصفَّر إلى 15.5 مع كل فتح كتاب.
+    var fontSizeSp by remember { mutableFloatStateOf(LibraryReadingStateStore.getReaderFontSizeSp(context)) }
+    LaunchedEffect(fontSizeSp) {
+        LibraryReadingStateStore.saveReaderFontSizeSp(context, fontSizeSp)
+    }
 
     var isSpeaking by remember { mutableStateOf(false) }
-    val ttsRate by remember { mutableFloatStateOf(1.0f) }
+    // null قبل اكتمال تهيئة المحرك؛ false إن غابت أصوات العربية عن الجهاز.
+    var ttsArabicAvailable by remember { mutableStateOf<Boolean?>(null) }
     var ttsEngine by remember { mutableStateOf<TextToSpeech?>(null) }
 
     // إشارة مرجعية على مستوى الكتاب (لا الأحاديث فقط).
@@ -867,10 +930,29 @@ fun InteractiveBookReaderDialog(
         var initializedEngine: TextToSpeech? = null
         val tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                initializedEngine?.language = Locale("ar")
+                val result = initializedEngine?.setLanguage(Locale("ar"))
+                ttsArabicAvailable = result != TextToSpeech.LANG_MISSING_DATA &&
+                    result != TextToSpeech.LANG_NOT_SUPPORTED
+            } else {
+                ttsArabicAvailable = false
             }
         }
         initializedEngine = tts
+        // مستمع اكتمال واحد على نمط قارئ الصحيح الكامل: بلا مستمع كان
+        // isSpeaking يبقى عالقاً بعد انتهاء المقطع طبيعياً (أيقونة إيقاف
+        // حمراء ولا صوت)، ونتيجة setLanguage ونتيجة speak() كانتا
+        // تُتجاهلان فيتكلم الزر «استماع» بلا صوت عند غياب العربية.
+        // يُسجَّل قبل أي نطق حتى لا يفوته اكتمال المقاطع القصيرة.
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId == "reader_tts") isSpeaking = false
+            }
+
+            override fun onError(utteranceId: String?) {
+                if (utteranceId == "reader_tts") isSpeaking = false
+            }
+        })
         ttsEngine = tts
         onDispose {
             tts.stop()
@@ -884,9 +966,44 @@ fun InteractiveBookReaderDialog(
             tts.stop()
             isSpeaking = false
         } else {
-            tts.setSpeechRate(ttsRate)
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "reader_tts")
-            isSpeaking = true
+            if (ttsArabicAvailable == false) {
+                Toast.makeText(context, "لا تتوفر أصوات عربية على هذا الجهاز للاستماع", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "reader_tts")
+            if (result == TextToSpeech.SUCCESS) isSpeaking = true
+            else Toast.makeText(context, "تعذّر تشغيل الاستماع", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // التنقل بين المقاطع (ق48): كان الانتقال يتطلب التمرير إلى تبويبات
+    // الأعلى؛ والموضع العام للتقدم يُحسب من المستودع نفسه الذي يحفظه.
+    val totalSections = IslamicLibraryRepository.totalSections(book)
+    val globalSectionIndex = IslamicLibraryRepository.sectionGlobalIndex(
+        book, selectedChapterIndex, selectedSectionIndex
+    )
+    val progressPercent = IslamicLibraryRepository.progressPercent(
+        book, selectedChapterIndex, selectedSectionIndex
+    )
+    val hasPreviousSection = selectedSectionIndex > 0 || selectedChapterIndex > 0
+    val hasNextSection = globalSectionIndex + 1 < totalSections
+
+    fun goToPreviousSection() {
+        if (selectedSectionIndex > 0) {
+            selectedSectionIndex--
+        } else if (selectedChapterIndex > 0) {
+            selectedChapterIndex--
+            selectedSectionIndex =
+                (book.chapters.getOrNull(selectedChapterIndex)?.sections?.size ?: 1) - 1
+        }
+    }
+
+    fun goToNextSection() {
+        if (selectedSectionIndex + 1 < currentChapter.sections.size) {
+            selectedSectionIndex++
+        } else if (selectedChapterIndex + 1 < book.chapters.size) {
+            selectedChapterIndex++
+            selectedSectionIndex = 0
         }
     }
 
@@ -979,6 +1096,35 @@ fun InteractiveBookReaderDialog(
                             }
                         }
                         HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.5f))
+                    }
+                }
+
+                // موضع القراءة داخل القارئ نفسه (ق48): بلا هذا لا يعرف
+                // القارئ أين هو في الكتاب إلا بالخروج إلى البطاقة.
+                if (totalSections > 0) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { progressPercent / 100f },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = theme.primary,
+                            trackColor = theme.separator.copy(alpha = 0.4f)
+                        )
+                        Text(
+                            "المقطع ${globalSectionIndex + 1} من $totalSections • $progressPercent٪",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
                     }
                 }
 
@@ -1196,6 +1342,30 @@ fun InteractiveBookReaderDialog(
                 Surface(color = theme.cardSurface, modifier = Modifier.fillMaxWidth()) {
                     Column {
                         HorizontalDivider(thickness = 0.5.dp, color = theme.separator.copy(alpha = 0.5f))
+                        // التنقل بين المقاطع (ق48): السابق/التالي يعبران
+                        // الفصول أيضاً، ويُعطَّلان عند طرفي الكتاب.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = { goToPreviousSection() },
+                                enabled = hasPreviousSection,
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Text("المقطع السابق", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            }
+                            TextButton(
+                                onClick = { goToNextSection() },
+                                enabled = hasNextSection,
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Text("المقطع التالي", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            }
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

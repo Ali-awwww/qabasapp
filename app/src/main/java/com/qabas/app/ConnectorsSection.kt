@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * نموذج بيانات نقطة الاتصال السحابية والصيانة (Cloud Touchpoint & Maintenance State)
@@ -127,8 +129,15 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Public Users Access" ON public.users;
-                        CREATE POLICY "Public Users Access" ON public.users FOR ALL USING (true);
+                        -- بلا وصول عام: البريد في هذا الجدول، وكل صف لصاحبه فقط
+                        -- (التطبيق يقرأ/يكتب بمعرّف auth.uid() نفسه — انظر ensureUser).
+                        DROP POLICY IF EXISTS "Users own row" ON public.users;
+                        CREATE POLICY "Users own row" ON public.users FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+                        -- الخط الزمني بلا سياسة أصلاً (RLS غير مفعّل عليه): للصاحب فقط.
+                        ALTER TABLE public.user_timeline ENABLE ROW LEVEL SECURITY;
+                        DROP POLICY IF EXISTS "Owner timeline" ON public.user_timeline;
+                        CREATE POLICY "Owner timeline" ON public.user_timeline FOR ALL USING (auth.uid()::text = user_id) WITH CHECK (auth.uid()::text = user_id);
                     """.trimIndent()
                 ),
                 ConnectorState(
@@ -138,7 +147,7 @@ fun ConnectorsSection(
                     icon = Icons.Default.Psychology,
                     category = "AI & DEFENSE ENGINE",
                     usedIn = "قسم المدافعة الفكرية: محرك الرد على الشبهات والوكيل الذكي والتوليد",
-                    maintenanceInfo = "بوابة استدعاء نماذج Gemini و Claude و GPT-4o الآلية",
+                    maintenanceInfo = "بوابة استدعاء النماذج الآلية عبر OpenRouter وGemini وGroq",
                     sqlQuery = """
                         -- 3. جدول سجلات وتدقيق الذكاء الاصطناعي والمدافعة (AI & Defense Telemetry)
                         CREATE TABLE IF NOT EXISTS public.ai_defense_logs (
@@ -151,8 +160,8 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.ai_defense_logs ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow AI Logs Access" ON public.ai_defense_logs;
-                        CREATE POLICY "Allow AI Logs Access" ON public.ai_defense_logs FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow AI Logs Read" ON public.ai_defense_logs;
+                        CREATE POLICY "Allow AI Logs Read" ON public.ai_defense_logs FOR SELECT USING (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
@@ -176,8 +185,8 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.push_notifications ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow Push Access" ON public.push_notifications;
-                        CREATE POLICY "Allow Push Access" ON public.push_notifications FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow Push Read" ON public.push_notifications;
+                        CREATE POLICY "Allow Push Read" ON public.push_notifications FOR SELECT USING (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
@@ -200,17 +209,17 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.reels_production ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow Reels Access" ON public.reels_production;
-                        CREATE POLICY "Allow Reels Access" ON public.reels_production FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow Reels Read" ON public.reels_production;
+                        CREATE POLICY "Allow Reels Read" ON public.reels_production FOR SELECT USING (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
                     id = "voicestudio",
                     title = "سحابة ومحرك VoiceStudio الأصوات",
-                    technicalName = "VoiceStudio Local/Hybrid Zero-Shot Cloning Engine",
+                    technicalName = "VoiceStudio Edge-Neural Voice Patterns Engine",
                     icon = Icons.Default.GraphicEq,
-                    category = "VOICE & CLONING",
-                    usedIn = "قسم الأصوات والدبلجة: استنساخ الأصوات والدبلجة لـ 16 محرك صوتي",
+                    category = "VOICE & DUBBING",
+                    usedIn = "قسم الأصوات والدبلجة: أنماط Edge-Neural ودبلجة",
                     maintenanceInfo = "خادم تحليل الترددات ودبلجة المقاطع الصوتية الفكرية",
                     sqlQuery = """
                         -- 6. جدول دبلجة الأصوات وبصمات الصوت (Voice Studio)
@@ -223,8 +232,8 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.voice_dubs ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow Voice Dubs Access" ON public.voice_dubs;
-                        CREATE POLICY "Allow Voice Dubs Access" ON public.voice_dubs FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow Voice Dubs Read" ON public.voice_dubs;
+                        CREATE POLICY "Allow Voice Dubs Read" ON public.voice_dubs FOR SELECT USING (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
@@ -258,14 +267,14 @@ fun ConnectorsSection(
                         END $$;
 
                         ALTER TABLE public.dev_chat ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow Dev Chat Access" ON public.dev_chat;
-                        CREATE POLICY "Allow Dev Chat Access" ON public.dev_chat FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow Dev Chat Read" ON public.dev_chat;
+                        CREATE POLICY "Allow Dev Chat Read" ON public.dev_chat FOR SELECT USING (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
                     id = "azan_cloud",
                     title = "سحابة مواقيت الصلاة والأذان",
-                    technicalName = "Aladhan REST API & Azan Sync Engine",
+                    technicalName = "Supabase (azan_voices) & Azan Sync Engine",
                     icon = Icons.Default.AccessTime,
                     category = "PRAYER & AZAN",
                     usedIn = "قسم الصلاة والأذان: جلب المواقيت اليومية وحساب الاتجاه والأذان السحابي",
@@ -317,8 +326,10 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.app_reviews ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow Reviews Write" ON public.app_reviews;
-                        CREATE POLICY "Allow Reviews Write" ON public.app_reviews FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow Reviews Read" ON public.app_reviews;
+                        CREATE POLICY "Allow Reviews Read" ON public.app_reviews FOR SELECT USING (true);
+                        DROP POLICY IF EXISTS "Allow Reviews Insert" ON public.app_reviews;
+                        CREATE POLICY "Allow Reviews Insert" ON public.app_reviews FOR INSERT WITH CHECK (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
@@ -363,8 +374,8 @@ fun ConnectorsSection(
                         );
 
                         ALTER TABLE public.higgsfield_videos ENABLE ROW LEVEL SECURITY;
-                        DROP POLICY IF EXISTS "Allow Higgsfield Access" ON public.higgsfield_videos;
-                        CREATE POLICY "Allow Higgsfield Access" ON public.higgsfield_videos FOR ALL USING (true);
+                        DROP POLICY IF EXISTS "Allow Higgsfield Read" ON public.higgsfield_videos;
+                        CREATE POLICY "Allow Higgsfield Read" ON public.higgsfield_videos FOR SELECT USING (true);
                     """.trimIndent()
                 ),
                 ConnectorState(
@@ -434,9 +445,24 @@ fun ConnectorsSection(
             val startTime = System.currentTimeMillis()
             when (c.id) {
                 "hadith_cloud" -> {
-                    val ok = SupabaseServices.isSupabaseAvailable || KeyVault.openrouter.isNotBlank()
+                    // ق170: كان «أو» بين Supabase ومفتاح OpenRouter يُسجّل
+                    // البطاقة متصلة بنص يعد بجزأين معاً — فيُقال «السحابة
+                    // والذكاء متصلان» بمفتاح وحده بلا سحابة، أو بسحابة
+                    // وحدها بلا ذكاء. المتصل هنا سحابة الحديث (Supabase)،
+                    // وحالة الذكاء تُذكر في النص لا في البوليان.
+                    val supabaseOk = SupabaseServices.isSupabaseAvailable
+                    val aiOk = KeyVault.openrouter.isNotBlank()
                     val latency = System.currentTimeMillis() - startTime
-                    set("hadith_cloud", true, "سحابة 365 حديثاً والذكاء الاصطناعي متصلة وجاهزة للخدمة", latency)
+                    set(
+                        "hadith_cloud", supabaseOk,
+                        when {
+                            supabaseOk && aiOk -> "سحابة 365 حديثاً والذكاء الاصطناعي متصلة وجاهزة للخدمة"
+                            supabaseOk -> "سحابة 365 حديثاً متصلة؛ الذكاء الاصطناعي يحتاج مفتاح OpenRouter"
+                            aiOk -> "سحابة الحديث غير متصلة (Supabase) — الذكاء الاصطناعي متاح بمفتاح OpenRouter"
+                            else -> "يتطلب تفعيل Supabase أو حفظ مفتاح OpenRouter"
+                        },
+                        latency
+                    )
                 }
                 "supabase_users" -> {
                     val ok = SupabaseServices.isSupabaseAvailable
@@ -455,9 +481,25 @@ fun ConnectorsSection(
                     }
                 }
                 "push_gateway" -> {
-                    delay(100)
+                    // كان تأخير 100ms ثم true دائماً بلا أي فحص. الفحص الحقيقي:
+                    // جلب رمز FCM للجهاز — بلا رمز مسجل لا بث إشعارات ممكن.
+                    val tokenOk = try {
+                        suspendCancellableCoroutine { cont ->
+                            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                                .addOnCompleteListener { task ->
+                                    if (cont.isActive) {
+                                        cont.resume(task.isSuccessful && !task.result.isNullOrBlank())
+                                    }
+                                }
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
                     val latency = System.currentTimeMillis() - startTime
-                    set("push_gateway", true, "بوابة الإشعارات السحابية جاهزة لبث رسائل 9:00 ص", latency)
+                    set(
+                        "push_gateway", tokenOk,
+                        if (tokenOk) "بوابة الإشعارات السحابية جاهزة — رمز FCM مسجل لبث رسائل 9:00 ص"
+                        else "تعذر تسجيل رمز FCM على هذا الجهاز — تحقق من إعداد Firebase والاتصال",
+                        latency
+                    )
                 }
                 "moneyprinter" -> {
                     val url = MoneyPrinterTurboService.getSavedServerUrl(context)
@@ -466,7 +508,9 @@ fun ConnectorsSection(
                     if (status.isOnline) {
                         set("moneyprinter", true, "خادم أدوات دخل المبدعين متصل بنجاح (${status.latencyMs}ms)", latency)
                     } else {
-                        set("moneyprinter", true, "المحرك المستقل نشط بـ Edge-TTS المجاني ومونتاج FFmpeg", latency)
+                        // كان الخادم المتوقف يُسجَّل متصلاً — البطاقة سحابية،
+                        // فانقطاع الخادم انقطاعها وإن بقي المحرك المحلي يعمل.
+                        set("moneyprinter", false, "خادم أدوات دخل المبدعين غير متصل — المحرك المحلي (Edge-TTS وFFmpeg) يعمل محلياً فقط", latency)
                     }
                 }
                 "voicestudio" -> {
@@ -476,7 +520,8 @@ fun ConnectorsSection(
                     if (status.isOnline) {
                         set("voicestudio", true, "خادم VoiceStudio متصل بنجاح (${status.latencyMs}ms)", latency)
                     } else {
-                        set("voicestudio", true, "النمط الهجين المستقل نشط بـ 16 محرك وبصمة الترددات", latency)
+                        // كسابقه: الخادم المتوقف لا يُسجَّل متصلاً.
+                        set("voicestudio", false, "خادم VoiceStudio غير متصل — النمط الهجين المحلي يعمل محلياً فقط", latency)
                     }
                 }
                 "realtime_chat" -> {
@@ -485,9 +530,24 @@ fun ConnectorsSection(
                     set("realtime_chat", ok, if (ok) "قنوات Realtime ونقل بيانات شات المطورين متصلة" else "يتطلب تفعيل Supabase Realtime", latency)
                 }
                 "azan_cloud" -> {
-                    delay(80)
+                    // كان تأخير 80ms ثم true دائماً. الاعتماد السحابي الحقيقي
+                    // لميزة الأذان هو أصوات الأذان في Supabase (azan_voices) —
+                    // لا تكامل Aladhan في التطبيق أصلاً (المواقيت تُحسب محلياً)،
+                    // فصُحح الاسم التقني للبطاقة كذلك. الفحص: توفر Supabase
+                    // ثم جلب الأصوات النشطة فعلاً.
+                    val ok = SupabaseServices.isSupabaseAvailable
+                    val voices = if (ok) {
+                        AzanCloudRepository.fetchCloudVoices().getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
                     val latency = System.currentTimeMillis() - startTime
-                    set("azan_cloud", true, "سحابة مواقيت الصلاة ومحرك الأذان متصل ومحدث حياً", latency)
+                    set(
+                        "azan_cloud", ok,
+                        if (ok) "سحابة أصوات الأذان متصلة — ${voices.size} صوتاً سحابياً نشطاً (المواقيت تُحسب محلياً)"
+                        else "يتطلب تفعيل Supabase لجلب أصوات الأذان السحابية",
+                        latency
+                    )
                 }
                 "feedback_reviews" -> {
                     val ok = SupabaseServices.isSupabaseAvailable
@@ -517,7 +577,12 @@ fun ConnectorsSection(
                     val token = AgentPrefs.getGitHubPat(context)
                     val latency = System.currentTimeMillis() - startTime
                     if (token.isNotBlank()) {
-                        set("app_dist", true, "خط الإنتاج السحابي و GitHub Actions متصل وجاهز", latency)
+                        // ق170: وجود الرمز المحفوظ ليس فحص اتصال حي — قد
+                        // يكون منتهياً أو ملغياً؛ النص القديم («متصل وجاهز»)
+                        // كان يدّعي اختباراً لم يحدث. يُسجَّل كإعداد موجود
+                        // (كبطاقة Higgsfield)، والاتصال الحي يُختبر فعلاً
+                        // عند جلب شجرة المستودع برمز PAT نفسه.
+                        set("app_dist", true, "رمز PAT محفوظ محلياً؛ الاتصال الحي يُختبر عند جلب شجرة المستودع", latency)
                     } else {
                         set("app_dist", false, "يتطلب إضافة PAT لمزامنة خط الإنتاج وتأكيد التحديثات", 0)
                     }
@@ -529,12 +594,9 @@ fun ConnectorsSection(
                         val count = failuresResult.getOrNull()?.size ?: 0
                         set("delta_telemetry", true, "سحابة Firestore متصلة — رصد $count نمط خطأ مسجل في update_failures", latency)
                     } else {
-                        val dbId = runCatching { context.getString(R.string.firestore_database_id) }.getOrNull()
-                        if (!dbId.isNullOrBlank()) {
-                            set("delta_telemetry", true, "سحابة Firestore مهيأة وجاهزة لاستقبال تقارير الأعطال ($dbId)", latency)
-                        } else {
-                            set("delta_telemetry", false, "تعذر فحص سحابة update_failures: ${failuresResult.exceptionOrNull()?.message}", latency)
-                        }
+                        // كان فشل الجلب يُسجَّل متصلاً بمجرد وجود معرّف قاعدة
+                        // في الإعدادات — وجود الإعداد ليس اتصالاً.
+                        set("delta_telemetry", false, "تعذر فحص سحابة update_failures: ${failuresResult.exceptionOrNull()?.message}", latency)
                     }
                 }
             }

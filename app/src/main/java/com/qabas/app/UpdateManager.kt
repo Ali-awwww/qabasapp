@@ -460,7 +460,13 @@ object UpdateManager {
                     UpdateInfo(
                     versionName = active.versionName,
                     versionCode = active.versionCode,
-                    deltaUrl = active.deltaUrl?.takeIf { baseMatches && !deltaHash.isNullOrBlank() },
+                    // ق46: رابط الدلتا المرفقة مسبقاً يُقبل فقط من مضيف الإصدارات
+                    // الرسمي — كان بلا قيد (خلاف apkUrl ودلتا الطلب الفوري
+                    // المقيدين بنفس البادئة)، فيكفي صف معطوب في Supabase
+                    // لتوجيه التنزيل إلى مضيف آخر.
+                    deltaUrl = active.deltaUrl
+                    ?.takeIf { it.startsWith("https://github.com/Ali-awwww/qabasapp/releases/download/") }
+                    ?.takeIf { baseMatches && !deltaHash.isNullOrBlank() },
                     apkUrl = active.downloadUrl,
                     releaseNotes = sanitizePublicReleaseNotes(active.releaseNotes).ifBlank {
                         "إصدار جديد متاح للتحميل والتثبيت 🚀"
@@ -891,8 +897,15 @@ object UpdateManager {
         authToken: String? = null,
         forceFull: Boolean = false
     ): DownloadHandle {
-        val handle = DownloadHandle()
+        // ق46: حارس إعادة الدخول — تنزيل واحد لكل نسخة. كان ضغط زر
+        // التثبيت مرتين (أو بدء التحديث الإلزامي تلقائياً مع نقرة يدوية)
+        // يطلق تنزيلين متوازيين يكتبان الملف الجزئي نفسه فيفسدانه،
+        // ويستبدل المقبض الثاني الأول في activeHandles فيلغي الإلغاءُ
+        // الثانيَ وحده. يُعاد المقبض النشط؛ ويُمسح من الخريطة عند انتهاء
+        // التنزيل (emitDone) فيُتاح تنزيل جديد بعدها.
         val key = "${update.versionName}|${update.versionCode}"
+        activeHandles[key]?.let { return it }
+        val handle = DownloadHandle()
         activeHandles[key] = handle
         val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         val emitProgress: (DownloadProgress) -> Unit = { p ->
@@ -909,7 +922,10 @@ object UpdateManager {
                 val resolvedAuthToken = authToken ?: getEffectiveToken(context)
                 val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
 
-                val deltaBlocked = !forceFull && !update.deltaUsable && hasRecentDeltaFailure(context, update)
+                // ق46: مهلة 24 ساعة بعد فشل دلتا تشمل الدلتا المرفقة
+                // مسبقاً أيضاً — كان الشرط `!update.deltaUsable` يستثنيها
+                // فيُعاد تنزيل دلتا معروفة الفشل وتطبيقها في كل محاولة.
+                val deltaBlocked = !forceFull && hasRecentDeltaFailure(context, update)
                 var deltaAttempted = false
                 val deltaCandidate = if (!forceFull && !deltaBlocked && !update.deltaUsable) {
                     deltaAttempted = true
@@ -1000,7 +1016,10 @@ object UpdateManager {
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "❌ downloadAndInstall: ${e.message}", e)
                 val hint = if ((e.message ?: "").contains("401")) {
-                    " — رمز GitHub المحفوظ مرفوض، حدّثه من الإعدادات ثم أعد المحاولة"
+                    // ق46: التنزيل لا يرسل أي رمز أصلاً (getEffectiveToken
+                    // يعيد null دائماً) فلا «رمز محفوظ» ليُحدَّث من
+                    // الإعدادات — كان النص القديم يوهم بوجود رمز للتحديثات.
+                    " — رفض الخادم طلب التنزيل (401)؛ أعد المحاولة لاحقاً"
                 } else ""
                 withContext(Dispatchers.Main) { emitDone(false, "خطأ: ${e.message}$hint") }
             }
@@ -1396,62 +1415,65 @@ object UpdateManager {
         // تنزيل جزئي مقطوع على أنه حزمة كاملة قابلة للتثبيت.
         val partFile = File(destDir, "$fileName.part")
         try {
-            val response = call.execute()
-            if (!response.isSuccessful) {
-                val detail = "HTTP ${response.code} ${response.message.ifBlank { "فشل الاتصال" }}"
-                Log.w(TAG, "❌ $detail $url")
-                throw IllegalStateException("تعذر التنزيل ($detail)")
-            }
-            val body = response.body
-                ?: throw IllegalStateException("تعذر التنزيل (استجابة فارغة من الخادم)")
-            val total = body.contentLength()
+            // ق46: الاستجابة تُغلق بـ use في كل المسارات — كان فرع الخطأ
+            // (HTTP غير ناجح) يرمي دون إغلاقها فيتسرب الاتصال.
+            call.execute().use { response ->
+                if (!response.isSuccessful) {
+                    val detail = "HTTP ${response.code} ${response.message.ifBlank { "فشل الاتصال" }}"
+                    Log.w(TAG, "❌ $detail $url")
+                    throw IllegalStateException("تعذر التنزيل ($detail)")
+                }
+                val body = response.body
+                    ?: throw IllegalStateException("تعذر التنزيل (استجابة فارغة من الخادم)")
+                val total = body.contentLength()
 
-            var windowStart = System.currentTimeMillis()
-            var windowBytes = 0L
-            var lastSpeed = 0L
+                var windowStart = System.currentTimeMillis()
+                var windowBytes = 0L
+                var lastSpeed = 0L
 
-            body.byteStream().use { input ->
-                partFile.outputStream().use { output ->
-                    val buf = ByteArray(65536)
-                    var n: Int
-                    var read = 0L
-                    while (true) {
-                        if (handle.cancelled) {
-                            call.cancel()
-                            throw DownloadCancelledException()
-                        }
-                        n = input.read(buf)
-                        if (n == -1) break
-                        output.write(buf, 0, n)
-                        read += n
-                        windowBytes += n
+                body.byteStream().use { input ->
+                    partFile.outputStream().use { output ->
+                        val buf = ByteArray(65536)
+                        var n: Int
+                        var read = 0L
+                        while (true) {
+                            if (handle.cancelled) {
+                                call.cancel()
+                                throw DownloadCancelledException()
+                            }
+                            n = input.read(buf)
+                            if (n == -1) break
+                            output.write(buf, 0, n)
+                            read += n
+                            windowBytes += n
 
-                        val now = System.currentTimeMillis()
-                        val elapsed = now - windowStart
-                        if (elapsed >= 200) {
-                            lastSpeed = (windowBytes * 1000L / elapsed)
-                            windowStart = now
-                            windowBytes = 0
+                            val now = System.currentTimeMillis()
+                            val elapsed = now - windowStart
+                            if (elapsed >= 200) {
+                                lastSpeed = (windowBytes * 1000L / elapsed)
+                                windowStart = now
+                                windowBytes = 0
+                            }
+                            onProgress(read, total, lastSpeed)
                         }
                         onProgress(read, total, lastSpeed)
+                        output.flush()
                     }
-                    onProgress(read, total, lastSpeed)
-                    output.flush()
                 }
+                // الاكتمال: تحقق من الحجم المعروف قبل الترويج إلى الاسم النهائي —
+                // مطابقة بيانات الحزمة وحدها لا تثبت اكتمال التنزيل بالبايتات
+                if (expectedSize != null && expectedSize > 0 && partFile.length() != expectedSize) {
+                    throw IllegalStateException(
+                        "تنزيل غير مكتمل (${partFile.length()} من $expectedSize بايت)"
+                    )
+                }
+                // الاكتمال: إعادة تسمية آلية إلى الاسم النهائي
+                if (file.exists()) file.delete()
+                if (!partFile.renameTo(file)) {
+                    throw IllegalStateException("تعذر إنهاء التنزيل (فشل إعادة التسمية)")
+                }
+                return file
             }
-            // الاكتمال: تحقق من الحجم المعروف قبل الترويج إلى الاسم النهائي —
-            // مطابقة بيانات الحزمة وحدها لا تثبت اكتمال التنزيل بالبايتات
-            if (expectedSize != null && expectedSize > 0 && partFile.length() != expectedSize) {
-                throw IllegalStateException(
-                    "تنزيل غير مكتمل (${partFile.length()} من $expectedSize بايت)"
-                )
-            }
-            // الاكتمال: إعادة تسمية آلية إلى الاسم النهائي
-            if (file.exists()) file.delete()
-            if (!partFile.renameTo(file)) {
-                throw IllegalStateException("تعذر إنهاء التنزيل (فشل إعادة التسمية)")
-            }
-            return file
         } catch (e: DownloadCancelledException) {
             try { partFile.delete() } catch (_: Exception) {}
             try { file.delete() } catch (_: Exception) {}
@@ -1566,6 +1588,10 @@ object UpdateManager {
         }
         // كشف تعارض التوقيع قبل فتح المثبّت: النسخة المثبتة موقّعة بمفتاح مختلف
         if (hasSignatureConflict(context, apkFile)) {
+            // ق46: الحزمة لا يمكن أن تُثبَّت فوق هذه النسخة أبداً — يُمسح
+            // التعليق حتى لا يعيد maybeResumePendingInstall التنبيه نفسه
+            // في كل onResume إلى أن يحذف المستخدم النسخة يدوياً.
+            clearPendingInstall(context)
             android.widget.Toast.makeText(
                 context,
                 "النسخة المثبتة موقّعة بمفتاح مختلف — لا يمكن التحديث فوقها، أزل النسخة القديمة يدوياً ثم ثبّت الجديدة",

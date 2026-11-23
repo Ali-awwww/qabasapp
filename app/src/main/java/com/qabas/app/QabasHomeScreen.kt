@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -89,6 +90,8 @@ fun HomeScreen(
     onOpenCreator: (String, String) -> Unit = { _, _ -> onReels() },
     // فتح قارئ المصحف عند موضع محدد (سورة، آية، صفحة) — الدفعة 5 الجزء C.
     onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() },
+    // ق103: فتح قارئ المصحف من الدرج بلا موضع — يستأنف آخر قراءة.
+    onMushafReader: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val homeStyle = HomeScreenStyleManager.currentStyle.collectAsState().value
@@ -139,6 +142,7 @@ fun HomeScreen(
             onOpenReel = onOpenReel,
             onOpenCreator = onOpenCreator,
             onOpenMushaf = onOpenMushaf,
+            onMushafReader = onMushafReader,
             bottomBar = bottomBar
         )
         return
@@ -152,6 +156,12 @@ fun HomeScreen(
         SupabaseServices.Auth.isAdminRole(verifiedRole) ||
             CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail())
     }
+    // ق103: الضيف يصل الرئيسية (is_guest في qabas_prefs — نفس مفتاح
+    // AppNavigation) فشارة الدرج يجب ألا تدعي له حساباً نشطاً.
+    val isGuest = remember(authState) {
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getBoolean("is_guest", false)
+    }
     val isDeveloper = remember(authState, verifiedRole) {
         AdminGuard.isDashboardAccessAllowed(context)
     }
@@ -162,6 +172,10 @@ fun HomeScreen(
 
     val currentAudioTrack by AudioPlaybackManager.currentTrack.collectAsState()
     val isAudioPlaying by AudioPlaybackManager.isPlaying.collectAsState()
+    // شارة الإشعارات غير المقروءة — كانت في النمط المكاني وحده، فالرئيسية
+    // الافتراضية تُخفي عدّاداً يتتبعه التطبيق فعلاً.
+    val liveNotifications by AppNotificationService.observeNotifications(context).collectAsState()
+    val unreadNotifications = liveNotifications.count { !it.isRead }
     var showPlaylistSheet by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
 
@@ -307,6 +321,7 @@ fun HomeScreen(
             ) {
                 QabasNavigationDrawerContent(
                     isAdmin = isAdmin,
+                    isGuest = isGuest,
                     isDrawerOpen = drawerState.isOpen,
                     onCloseDrawer = { scope.launch { drawerState.close() } },
                     onNavigateTo = { action ->
@@ -326,6 +341,7 @@ fun HomeScreen(
                     onYouTubeStudio = onYouTubeStudio,
                     onViewProjects = onViewProjects,
                     onMishkatHub = onMishkatHub,
+                    onMushafReader = onMushafReader,
                     onIslamicLibrary = onIslamicLibrary,
                     onAzkar = onAzkar,
                     onScholarBiographies = onScholarBiographies,
@@ -485,7 +501,11 @@ fun HomeScreen(
                             }
 
                             IconButton(
-                                onClick = { if (isAdmin) onDeveloperDashboard() else onViewApiDocs() },
+                                // أيقونة محرك الذكاء: وصفها «محرك الذكاء: X»؛
+                                // كانت تفتح توثيق API لغير المطوّر — وجهة لا
+                                // علاقة لها بالمحرك. الآن تفتح مساعد الذكاء
+                                // (الواجهة الأمامية للمحرك نفسه).
+                                onClick = { if (isAdmin) onDeveloperDashboard() else onAiAssistant() },
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
@@ -509,7 +529,24 @@ fun HomeScreen(
                                 onClick = onViewNotifications,
                                 modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(Icons.Default.NotificationsNone, contentDescription = "الإشعارات", tint = theme.textPrimary, modifier = Modifier.size(21.dp))
+                                BadgedBox(
+                                    badge = {
+                                        if (unreadNotifications > 0) {
+                                            Badge(
+                                                containerColor = theme.destructive,
+                                                contentColor = Color.White
+                                            ) {
+                                                Text(
+                                                    text = if (unreadNotifications > 99) "99+" else unreadNotifications.toString(),
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.NotificationsNone, contentDescription = "الإشعارات", tint = theme.textPrimary, modifier = Modifier.size(21.dp))
+                                }
                             }
 
                             IconButton(
@@ -880,8 +917,8 @@ fun HomeScreen(
                                     onClick = onMoneyPrinterTurbo
                                 )
                                 SpatialHudCard(
-                                    title = "استوديو استنساخ ودبلجة الأصوات",
-                                    subtitle = "استنساخ الأصوات والدبلجة الذكية للمقاطع",
+                                    title = "استوديو الأنماط الصوتية والدبلجة",
+                                    subtitle = "أنماط Edge-Neural ودبلجة ذكية للمقاطع",
                                     badge = "Voice",
                                     badgeColor = Color(0xFFAF52DE),
                                     icon = Icons.Default.GraphicEq,

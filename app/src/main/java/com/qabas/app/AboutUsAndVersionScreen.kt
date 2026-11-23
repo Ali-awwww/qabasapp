@@ -1146,7 +1146,7 @@ fun AboutUsAndVersionScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("أوافق وملتزم ✦", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("فهمت ✓", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                     }
                 }

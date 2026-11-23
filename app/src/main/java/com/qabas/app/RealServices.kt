@@ -56,7 +56,7 @@ object KeyVault {
         "pixabay_key", "pixabay" -> pixabay
         "supabase_url" -> supabaseUrl
         "supabase_anon_key" -> supabaseAnonKey
-        else -> (prefs().getString(prefsKey, "") ?: "").trim()
+        else -> KeyPoolManager.sanitizeApiKey(prefs().getString(prefsKey, "") ?: "")
     }
 }
 
@@ -80,13 +80,54 @@ object SharedHttpClient {
 
 object RealGeminiService {
     private val client = SharedHttpClient.instance
-        
+
+    // ق160: تسجيل استهلاك Gemini المباشر — كانت دوال هذا الكائن الخمس
+    // (تحليل فكرة/نمط، توليد مشاهد، محادثة، خطة تطوير) تمر بلا أثر في
+    // تتبع التكلفة (ق44) بينما مسار Groq يسجّل منذ ق53؛ فلوحة التكلفة
+    // وحدّها كانا أعمى عن كل استدعاءات Gemini هذه رغم أنها المزوّد
+    // الافتراضي لكثير منها. التسجيل هنا في المصدر نفسه لا عند المنادين
+    // (وهم عشرات) فيسجَّل كل استدعاء مرة واحدة: فرع Firebase تقديرياً
+    // (بلا usage حقيقي — يبقى «غير مقاس» كما في ق44)، وفرع REST
+    // بتفصيل usageMetadata عند إرساله. التسجيل runCatching فلا يسقط
+    // استدعاء ناجحاً أبداً، والسياق AppServices.appContext كمسار Groq.
+    private fun recordGeminiRest(prompt: String, responseJson: JSONObject, responseText: String?, mission: String?) {
+        if (responseText.isNullOrBlank()) return
+        runCatching {
+            val ctx = AppServices.appContext
+            val usage = responseJson.optJSONObject("usageMetadata")
+            val promptTokens = usage?.optInt("promptTokenCount", 0) ?: 0
+            val completionTokens = usage?.optInt("candidatesTokenCount", 0) ?: 0
+            if (promptTokens + completionTokens > 0) {
+                val total = usage?.optInt("totalTokenCount", 0)?.takeIf { it > 0 }
+                    ?: (promptTokens + completionTokens)
+                VibeCostTracker.record(
+                    ctx, "gemini", "gemini-2.5-flash",
+                    RealAgentResponse(responseText, total, promptTokens, completionTokens),
+                    mission
+                )
+            } else {
+                VibeCostTracker.recordEstimated(ctx, "gemini", "gemini-2.5-flash", prompt, responseText, mission)
+            }
+        }
+    }
+
+    private fun recordFirebaseEstimated(prompt: String, responseText: String, mission: String?) {
+        if (responseText.isBlank()) return
+        runCatching {
+            VibeCostTracker.recordEstimated(
+                AppServices.appContext, "gemini", "gemini-3.8-flash", prompt, responseText, mission
+            )
+        }
+    }
+
     
     suspend fun analyzeIdea(idea: String): IdeaAnalysis = withContext(Dispatchers.IO) {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbResult = FirebaseAiService.analyzeIdea(idea)
             SystemLogsManager.addLog("INFO", "تم تحليل الفكرة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
+            // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+            recordFirebaseEstimated(idea, (fbResult.hookSuggestions + fbResult.proposedScenes).joinToString("\n").ifBlank { fbResult.summary }, "تحليل فكرة")
             return@withContext fbResult
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic idea analysis attempt, falling back: ${e.message}")
@@ -156,6 +197,8 @@ object RealGeminiService {
                 val responseJson = JSONObject(responseData)
                 val text = extractGeminiText(responseJson)
                 if (!text.isNullOrBlank()) {
+                        // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                        recordGeminiRest("$systemPrompt\n\n--- الفكرة ---\n$idea", responseJson, text, "تحليل فكرة")
                         val cleanJson = text.replace("```json", "").replace("```", "").trim()
                         val resultObj = JSONObject(cleanJson)
                         
@@ -231,6 +274,12 @@ object RealGeminiService {
                 TasteManager.registerPreference(AppServices.appContext, "AUDIO", analysisResult.audioStyle, 2)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch(e: Exception) {}
 
+            // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+            recordFirebaseEstimated(
+                url,
+                listOf(analysisResult.dominantColors, analysisResult.transitionSpeed, analysisResult.movementPatterns, analysisResult.overallRhythm, analysisResult.audioStyle, analysisResult.typographyStyle, analysisResult.contentTone, analysisResult.targetAudience).joinToString(" | "),
+                "تحليل نمط فيديو"
+            )
             return@withContext analysisResult
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic video style analysis attempt, falling back: ${e.message}")
@@ -293,6 +342,8 @@ object RealGeminiService {
                 val jsonResponse = JSONObject(responseBodyString)
                 val text = extractGeminiText(jsonResponse)
                 if (!text.isNullOrBlank()) {
+                        // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                        recordGeminiRest(prompt, jsonResponse, text, "تحليل نمط فيديو")
                         val cleanJson = text.replace("```json", "").replace("```", "").trim()
                         val obj = JSONObject(cleanJson)
                         
@@ -387,6 +438,8 @@ object RealGeminiService {
             try {
                 val fbScenes = FirebaseAiService.generateScriptScenes(idea, styleDescription, contentType, contentTone)
                 if (fbScenes.size >= 2) {
+                    // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+                    recordFirebaseEstimated(prompt, fbScenes.joinToString("\n") { it.title + ": " + it.description }, "توليد مشاهد")
                     SceneEngineMonitor.report("Gemini 3.8 Flash")
                     SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini 3.8 Flash (Firebase AI Logic) أنتج ${fbScenes.size} مشاهد ✨", PresetPrimary)
                     return fbScenes
@@ -456,6 +509,8 @@ object RealGeminiService {
                 if (!response.isSuccessful) return@safeApiCall emptyList<Scene>()
                 val responseJson = JSONObject(response.body?.string() ?: "")
                 val textResponse = extractGeminiText(responseJson) ?: return@safeApiCall emptyList<Scene>()
+                // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                recordGeminiRest(prompt, responseJson, textResponse, "توليد مشاهد")
                 parseScenesJson(textResponse)
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyList() }
@@ -471,7 +526,7 @@ object RealGeminiService {
                 val item = jsonArray.getJSONObject(i)
                 scenes.add(
                     Scene(
-                        title = item.optString("title", Translator.tr("مشهد ${i + 1}")),
+                        title = item.optString("title", Translator.trf("مشهد {0}", i + 1)),
                         description = item.optString("description", ""),
                         durationInSeconds = item.optInt("durationInSeconds", 5),
                         transitionType = item.optString("transitionType", "Fade"),
@@ -673,6 +728,8 @@ object RealGeminiService {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbPlan = FirebaseAiService.generateDeveloperPlan(if (description.isNotBlank()) description else title)
+            // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+            recordFirebaseEstimated(if (description.isNotBlank()) description else title, fbPlan, "خطة تطوير")
             SystemLogsManager.addLog("INFO", "تم توليد خطة التطوير بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
             return@withContext fbPlan
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
@@ -746,7 +803,11 @@ object RealGeminiService {
                 val parts = contentObj?.optJSONArray("parts")
                 if (parts != null && parts.length() > 0) {
                     val text = parts.getJSONObject(0).optString("text", "")
-                    if (text.isNotBlank()) return@safeApiCall text
+                    if (text.isNotBlank()) {
+                        // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                        recordGeminiRest(systemPrompt, jsonResponse, text, "خطة تطوير")
+                        return@safeApiCall text
+                    }
                 }
             }
             OpenRouterService.generatePlanPooled(title, description)?.let { return@safeApiCall it }
@@ -850,6 +911,8 @@ object RealMediaLibraryService {
             val systemPrompt = customSystemInstruction ?: TasteManager.getTasteContext(AppServices.appContext)
             val fbReply = FirebaseAiService.chat(messages, systemPrompt)
             if (fbReply.isNotBlank()) {
+                // ق160: فرع Firebase كان يمر بلا أثر في تتبع التكلفة.
+                recordFirebaseEstimated(messages.joinToString("\n") { it.second }, fbReply, "محادثة المساعد")
                 SystemLogsManager.addLog("INFO", "رد المحادثة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
                 return@withContext fbReply
             }
@@ -909,6 +972,8 @@ object RealMediaLibraryService {
                 val responseJson = org.json.JSONObject(responseData)
                 val text = extractGeminiText(responseJson)
                 if (!text.isNullOrBlank()) {
+                    // ق160: فرع REST كان يمر بلا أثر في تتبع التكلفة.
+                    recordGeminiRest(messages.joinToString("\n") { it.second }, responseJson, text, "محادثة المساعد")
                     return@safeApiCallWithRetry text
                 }
             }
@@ -955,7 +1020,29 @@ object RealGroqService {
                 val choices = resObj.optJSONArray("choices")
                 if (choices != null && choices.length() > 0) {
                     val message = choices.getJSONObject(0).optJSONObject("message")
-                    return@withContext message?.optString("content")
+                    val content = message?.optString("content")
+                    if (!content.isNullOrBlank()) {
+                        // ق53: تسجيل الاستهلاك — كان مسار Groq (الأول في غرفة
+                        // المخرج وغيرها) يمر بلا أثر في تتبع التكلفة (ق44)،
+                        // بينما مسار Gemini يسجّل؛ والسعر موثق للنموذج.
+                        val usage = resObj.optJSONObject("usage")
+                        val promptTokens = usage?.optInt("prompt_tokens", 0) ?: 0
+                        val completionTokens = usage?.optInt("completion_tokens", 0) ?: 0
+                        if (promptTokens + completionTokens > 0) {
+                            val total = usage?.optInt("total_tokens", 0)?.takeIf { it > 0 }
+                                ?: (promptTokens + completionTokens)
+                            VibeCostTracker.record(
+                                AppServices.appContext, "groq", modelName,
+                                RealAgentResponse(content, total, promptTokens, completionTokens),
+                                null
+                            )
+                        } else {
+                            VibeCostTracker.recordEstimated(
+                                AppServices.appContext, "groq", modelName, prompt, content, null
+                            )
+                        }
+                    }
+                    return@withContext content
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
@@ -1538,16 +1625,18 @@ object AppServices {
     }
 
     suspend fun generateAiImage(prompt: String): String? {
-        val pollinationsImage = PollinationsAiService.generateAndDownload(
+        // ق135: بلا بديل بصورة مخزون — كان فشل Pollinations يعيد
+        // صورة Pixabay جاهزة على أنها «مولّدة»: فتُعرض في الاستوديو
+        // وتُسجَّل في السجل بمزوّد «pollinations» كذباً، بينما عقد
+        // الدالة (ووصف أداة generate_image) «مسار ملف محلي مولّد».
+        // الفشل الآن صادق (null) وكل المنادين يعالجونه بتنبيه صادق.
+        return PollinationsAiService.generateAndDownload(
             context = appContext,
             prompt = prompt,
             width = 1080,
             height = 1920,
             model = "flux"
         )
-        if (pollinationsImage != null) return pollinationsImage
-
-        return fetchMedia(prompt, "image")
     }
 
     suspend fun fetchMedia(query: String, type: String = "video"): String {

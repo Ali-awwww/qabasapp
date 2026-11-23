@@ -47,34 +47,54 @@ fun AppNavigation(
             authScope.launch {
                 try {
                     val userId = SupabaseRepository.getInstance().ensureAuthenticatedSession()
-                    val result = if (userId.isNullOrBlank()) {
-                        ActiveSessionClaimResult.UNAVAILABLE
+                    if (userId.isNullOrBlank() &&
+                        SupabaseRepository.getInstance().getCurrentSession() != null
+                    ) {
+                        // ق51: غياب المعرّف لا يعني غياب الجلسة. فشل التحقق
+                        // العابر (شبكة/ملف) مع بقاء كائن الجلسة المخزنة
+                        // يعني أن رمز التحديث سليم وسيستعيد نفسه عند عودة
+                        // الشبكة؛ والمسار القديم كان يعاملها «لا جلسة»
+                        // فينهي الجلسة المحلية (تسجيل خروج يحذف رمز
+                        // التحديث) فيتحول انقطاع عابر إلى مطالبة بكلمة
+                        // المرور. هنا: لا إنهاء جلسة ولا حظر تنقل، فيبقى
+                        // المستخدم على شاشة الدخول وتستعيده الجلسة
+                        // تلقائياً عبر تدفق الحالة عند عودة الاتصال.
+                        Toast.makeText(
+                            context,
+                            "تعذّر التحقق من جلستك — تحقق من الاتصال، وستُستعاد الجلسة تلقائياً عند عودته.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        viewModel.updateState { copy(appState = AppState.LOGIN) }
                     } else {
-                        ActiveSessionManager.claim(context, userId)
-                    }
+                        val result = if (userId.isNullOrBlank()) {
+                            ActiveSessionClaimResult.UNAVAILABLE
+                        } else {
+                            ActiveSessionManager.claim(context, userId)
+                        }
 
-                    when (result) {
-                        ActiveSessionClaimResult.CLAIMED -> {
-                            SupabaseRepository.getInstance().completeInteractiveAuthFlow(accepted = true)
-                            viewModel.updateState { copy(appState = destination) }
-                        }
-                        ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
-                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
-                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                            Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
-                            viewModel.updateState { copy(appState = AppState.LOGIN) }
-                        }
-                        ActiveSessionClaimResult.PROFILE_MISSING -> {
-                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
-                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                            Toast.makeText(context, "ملف الحساب غير موجود في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم.", Toast.LENGTH_LONG).show()
-                            viewModel.updateState { copy(appState = AppState.LOGIN) }
-                        }
-                        ActiveSessionClaimResult.UNAVAILABLE -> {
-                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
-                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                            Toast.makeText(context, "تعذر التحقق من جلستك. تحقق من الاتصال ثم سجّل الدخول مجددًا.", Toast.LENGTH_LONG).show()
-                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                        when (result) {
+                            ActiveSessionClaimResult.CLAIMED -> {
+                                SupabaseRepository.getInstance().completeInteractiveAuthFlow(accepted = true)
+                                viewModel.updateState { copy(appState = destination) }
+                            }
+                            ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
+                                SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                                withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                                Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                                viewModel.updateState { copy(appState = AppState.LOGIN) }
+                            }
+                            ActiveSessionClaimResult.PROFILE_MISSING -> {
+                                SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                                withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                                Toast.makeText(context, "ملف الحساب غير موجود في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم.", Toast.LENGTH_LONG).show()
+                                viewModel.updateState { copy(appState = AppState.LOGIN) }
+                            }
+                            ActiveSessionClaimResult.UNAVAILABLE -> {
+                                SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                                withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                                Toast.makeText(context, "تعذر التحقق من جلستك. تحقق من الاتصال ثم سجّل الدخول مجددًا.", Toast.LENGTH_LONG).show()
+                                viewModel.updateState { copy(appState = AppState.LOGIN) }
+                            }
                         }
                     }
                 } finally {
@@ -447,6 +467,18 @@ fun AppNavigation(
                         )
                     }
                 },
+                // ق103: فتح المصحف من الدرج بلا موضع — القيم null تعني
+                // استئناف آخر قراءة محفوظة (تعليق فرع MUSHAF_READER).
+                onMushafReader = {
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = null,
+                            mushafInitialAyah = null,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
                     rulesReturnToSettings = false
@@ -614,6 +646,7 @@ fun AppNavigation(
                 onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
                 onOpenProject = { project -> viewModel.openProject(project) },
                 initialBrief = studioAgentInitialBrief,
+                onBriefConsumed = { studioAgentInitialBrief = null },
                 bottomBar = bottomNav
             )
         }
@@ -974,6 +1007,7 @@ fun AppNavigation(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onOpenReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onOpenAiAssistant = { viewModel.updateState { copy(appState = AppState.AI_ASSISTANT) } },
+                onOpenAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
                 bottomBar = bottomNav
             )
         }
