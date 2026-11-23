@@ -54,7 +54,6 @@ import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.AmiriFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.RobotoMonoFont
@@ -69,9 +68,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.PI
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -640,7 +636,7 @@ fun ReelsScreen(
                 withTimeoutOrNull(7000L) {
                     SupabaseServices.Profiles.getActiveReels(limit = REELS_PAGE_SIZE, offset = remoteOffset)
                 } ?: null
-            }.onSuccess { ReelSafetyGuardrails.recordNetworkSuccess() }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onSuccess { ReelSafetyGuardrails.recordNetworkSuccess() }
                 .onFailure { ReelSafetyGuardrails.recordNetworkFailure() }
                 .getOrNull()
             isLoadingMore = false
@@ -665,7 +661,7 @@ fun ReelsScreen(
 
     // مزامنة قائمة الموثّقين عالمياً لعرض الشارة بشكل صحيح
     LaunchedEffect(isOnline) {
-        if (isOnline) runCatching { VerificationManager.refreshFromCloud(context) }
+        if (isOnline) runCatching { VerificationManager.refreshFromCloud(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     // Filter reels based on Tab, Category, Search Query and Hidden status
@@ -1073,7 +1069,7 @@ fun ReelsScreen(
                                                         SupabaseServices.Profiles.unlikeReel(reel.id, authId)
                                                     }
                                                 } ?: false
-                                            }.getOrDefault(false)
+                                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 
                                             if (!ok) {
                                                 likedReelIds[reel.id] = !newLikedState
@@ -1132,7 +1128,7 @@ fun ReelsScreen(
                                                         SupabaseServices.Profiles.removeReelBookmark(reel.id, authId)
                                                     }
                                                 } ?: false
-                                            }.getOrDefault(false)
+                                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                                             if (!ok) {
                                                 cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
                                                 Toast.makeText(context, "تعذر مزامنة المحفوظات مع السحابة", Toast.LENGTH_SHORT).show()
@@ -1792,7 +1788,7 @@ fun ReelsScreen(
                                 if (nowCloudSaved) SupabaseServices.Profiles.addReelBookmark(reel.id, authId)
                                 else SupabaseServices.Profiles.removeReelBookmark(reel.id, authId)
                             } ?: false
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         if (!ok) {
                             cloudBookmarks = if (wasCloudSaved) cloudBookmarks + reel.id else cloudBookmarks - reel.id
                         }
@@ -1838,7 +1834,7 @@ fun ReelsScreen(
                                 reason = reason,
                                 additionalNotes = details
                             )
-                        }.isSuccess
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.isSuccess
                         if (!sent) reportedReelIds = reportedReelIds - reel.id
                         Toast.makeText(
                             context,
@@ -2119,7 +2115,6 @@ fun ReelSpatialHUDOverlays(
     // أدوات التفاعل ظاهرة افتراضياً (بارتي تيك توك) — وتُطوى بسهم «التفاعل» عند الرغبة
     var actionsExpanded by remember { mutableStateOf(true) }
     // بطاقة الناشر والوصف مطوية افتراضياً، وتُفتح بسهم «التفاصيل»
-    var infoExpanded by remember { mutableStateOf(false) }
 
     // معلومات الناشر: حالة المتابعة وما إذا كان المقطع للمستخدم نفسه
     val hudContext = LocalContext.current
@@ -2218,7 +2213,13 @@ fun ReelSpatialHUDOverlays(
                         )
                         ReelRailButton(
                             icon = Icons.Default.Share,
-                            label = formatCount(reel.sharesCount),
+                            // review-r15: لا يُعرض عدّاد مشاركات هنا — لا يوجد أي مسار
+                            // في التطبيق يزيد shares_count سحابياً (لا RPC ولا جدول
+                            // علاقة كما في الإعجاب/المشاهدة)، فالرقم كان متجمداً على
+                            // قيمة الصف مهما شارك المستخدم. يبقى زر المشاركة نفسه
+                            // يعمل (ACTION_SEND) بلا رقم مضلل؛ يُعاد العدّاد حين
+                            // تُضاف دالة خادم record_reel_share على غرار record_reel_view.
+                            label = "مشاركة",
                             tint = Color.White,
                             onClick = onShare
                         )
@@ -2308,43 +2309,6 @@ fun ReelArrowButton(
                 contentDescription = label,
                 tint = theme.primary,
                 modifier = Modifier.size(26.dp)
-            )
-        }
-        Text(
-            text = label,
-            color = Color.White,
-            fontFamily = CairoFont,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 2.dp)
-        )
-    }
-}
-
-@Composable
-fun ReelActionPill(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(48.dp)
-    ) {
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Color(0xB81C1C1E))
-                .border(BorderStroke(0.5.dp, Color.White.copy(alpha = 0.20f)), CircleShape)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = tint,
-                modifier = Modifier.size(20.dp)
             )
         }
         Text(
@@ -2482,7 +2446,7 @@ fun ReelCommentsBottomSheet(
         commentsError = false
         val loaded = runCatching {
             SupabaseServices.Profiles.getReelComments(reel.id)
-        }.getOrDefault(null)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(null)
         if (loaded == null) {
             commentsError = true
         } else {
@@ -2506,7 +2470,7 @@ fun ReelCommentsBottomSheet(
                 withTimeoutOrNull(12_000L) {
                     SupabaseServices.Profiles.addReelComment(reel.id, currentUserId, currentUserName, sanitized)
                 }
-            }.getOrNull()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
             if (inserted != null) {
                 commentsList = commentsList + inserted
                 commentText = ""
@@ -2847,7 +2811,7 @@ fun ReelCommentsBottomSheet(
                                 withTimeoutOrNull(12_000L) {
                                     SupabaseServices.Profiles.updateReelComment(target.id, currentUserId, safeText)
                                 }
-                            }.getOrNull()
+                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
                             if (updated != null) {
                                 commentsList = commentsList.map { if (it.id == updated.id) updated else it }
                                 editingComment = null
@@ -2895,7 +2859,7 @@ fun ReelCommentsBottomSheet(
                                 withTimeoutOrNull(12_000L) {
                                     SupabaseServices.Profiles.deleteReelComment(target.id, currentUserId)
                                 } ?: false
-                            }.getOrDefault(false)
+                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                             if (deleted) {
                                 commentsList = commentsList.filterNot { it.id == target.id }
                                 pendingDeleteComment = null
@@ -3750,15 +3714,5 @@ fun AlAtharExplanationDialog(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun StatItem(icon: ImageVector, label: String) {
-    val theme = QabasTheme.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(text = label, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
     }
 }

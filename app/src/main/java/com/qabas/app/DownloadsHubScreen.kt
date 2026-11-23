@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.compose.animation.*
@@ -27,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -42,11 +40,9 @@ import androidx.activity.compose.BackHandler
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.CardSurface
 import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
-import com.qabas.app.ui.theme.NotoSansFont
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.RobotoMonoFont
-import com.qabas.app.ui.theme.TextPrimary
 import com.qabas.app.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,7 +53,7 @@ import java.io.File
 fun StrictBadge(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFF0A84FF)
+    color: Color = QabasTheme.current.primary
 ) {
     Surface(
         color = color.copy(alpha = 0.12f),
@@ -82,17 +78,31 @@ private val SpatialCardShape = RoundedCornerShape(14.dp)
 private val SpatialInsetShape = RoundedCornerShape(10.dp)
 private val SpatialButtonShape = RoundedCornerShape(10.dp)
 
+private enum class DownloadAccent { Cyan, Green, Violet, Gold }
+
 private enum class DownloadCategory(
     val tabIndex: Int,
     val label: String,
     val icon: ImageVector,
-    val accent: Color,
+    val accent: DownloadAccent,
     val tabWeight: Float
 ) {
-    Models(0, "نماذج الذكاء", Icons.Default.Memory, Color(0xFF00E5FF), 1f),
-    Updates(1, "تحديثات التطبيق", Icons.Default.SystemUpdate, Color(0xFF10B981), 1.15f),
-    Reels(2, "الريلز", Icons.Default.SlowMotionVideo, Color(0xFFA855F7), 0.9f),
-    Media(3, "الأصوات والوسائط", Icons.Default.Audiotrack, GoldPrimary, 0.85f)
+    Models(0, "نماذج الذكاء", Icons.Default.Memory, DownloadAccent.Cyan, 1f),
+    Updates(1, "تحديثات التطبيق", Icons.Default.SystemUpdate, DownloadAccent.Green, 1.15f),
+    Reels(2, "الريلز", Icons.Default.SlowMotionVideo, DownloadAccent.Violet, 0.9f),
+    Media(3, "الأصوات والوسائط", Icons.Default.Audiotrack, DownloadAccent.Gold, 0.85f)
+}
+
+// (R58) لون التبويب يُحلّ هنا لا في مدخلات التعداد: مدخلات enum تُبنى عند
+// تحميل الصنف خارج التركيب، فقراءة QabasTheme.current فيها خطأ ترجمة
+// (الـ getter موسوم @Composable) — والحرفية السداسية السابقة كانت
+// تعمل هناك لأنها ثابتة. الحل مفتاح يُحلّ عند الاستخدام داخل التركيب.
+@Composable
+private fun DownloadCategory.accentColor(): Color = when (accent) {
+    DownloadAccent.Cyan -> QabasTheme.current.primary
+    DownloadAccent.Green -> QabasTheme.current.success
+    DownloadAccent.Violet -> QabasTheme.current.accent
+    DownloadAccent.Gold -> PresetPrimary
 }
 
 private data class ActiveDownloadEntry(
@@ -283,14 +293,14 @@ private fun SpatialDeckDivider() {
         Box(
             modifier = Modifier
                 .size(4.dp)
-                .background(Color(0xFF00E5FF).copy(alpha = 0.8f))
+                .background(QabasTheme.current.primary.copy(alpha = 0.8f))
         )
         Spacer(modifier = Modifier.width(8.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(QabasTheme.current.textPrimary.copy(alpha = 0.08f))
         )
     }
 }
@@ -312,7 +322,7 @@ private fun ActiveDownloadsPanel(
             Icon(
                 imageVector = Icons.Default.Downloading,
                 contentDescription = null,
-                tint = Color(0xFF00E5FF),
+                tint = QabasTheme.current.primary,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -321,14 +331,14 @@ private fun ActiveDownloadsPanel(
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
-                color = Color.White,
+                color = QabasTheme.current.textPrimary,
                 maxLines = 1,
                 softWrap = false
             )
             Spacer(modifier = Modifier.weight(1f))
             StrictBadge(
                 text = "${entries.size}",
-                color = Color(0xFF00E5FF)
+                color = QabasTheme.current.primary
             )
         }
 
@@ -339,7 +349,7 @@ private fun ActiveDownloadsPanel(
                 label = "download_progress_${entry.id}"
             )
             val percent = (entry.progress.coerceIn(0f, 1f) * 100).toInt()
-            val stateColor = if (entry.statusText.contains("فشل")) Color(0xFFEF4444) else entry.category.accent
+            val stateColor = if (entry.statusText.contains("فشل")) QabasTheme.current.destructive else entry.category.accentColor()
             Surface(
                 color = stateColor.copy(alpha = 0.08f),
                 shape = SpatialInsetShape,
@@ -358,7 +368,7 @@ private fun ActiveDownloadsPanel(
                     ) {
                         StrictBadge(
                             text = entry.category.label,
-                            color = entry.category.accent
+                            color = entry.category.accentColor()
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -366,7 +376,7 @@ private fun ActiveDownloadsPanel(
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
@@ -383,7 +393,7 @@ private fun ActiveDownloadsPanel(
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp,
-                                    color = entry.category.accent,
+                                    color = entry.category.accentColor(),
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -407,7 +417,7 @@ private fun ActiveDownloadsPanel(
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
                         color = stateColor,
-                        trackColor = Color.White.copy(alpha = 0.1f)
+                        trackColor = QabasTheme.current.textPrimary.copy(alpha = 0.1f)
                     )
 
                     Row(
@@ -452,7 +462,7 @@ private fun SavedDownloadSearchControls(
     Surface(
         color = CardSurface.copy(alpha = 0.82f),
         shape = SpatialCardShape,
-        border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.12f)),
+        border = BorderStroke(0.7.dp, QabasTheme.current.textPrimary.copy(alpha = 0.12f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -466,7 +476,7 @@ private fun SavedDownloadSearchControls(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 placeholder = { Text("ابحث في الملفات المحفوظة", fontFamily = CairoFont, fontSize = 11.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF00E5FF)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = QabasTheme.current.primary) },
                 trailingIcon = if (query.isNotBlank()) {
                     {
                         IconButton(onClick = { onQueryChange("") }) {
@@ -476,11 +486,11 @@ private fun SavedDownloadSearchControls(
                 } else null,
                 shape = SpatialInsetShape,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00E5FF),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.14f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    cursorColor = Color(0xFF00E5FF)
+                    focusedBorderColor = QabasTheme.current.primary,
+                    unfocusedBorderColor = QabasTheme.current.textPrimary.copy(alpha = 0.14f),
+                    focusedTextColor = QabasTheme.current.textPrimary,
+                    unfocusedTextColor = QabasTheme.current.textPrimary,
+                    cursorColor = QabasTheme.current.primary
                 )
             )
             Box {
@@ -488,7 +498,7 @@ private fun SavedDownloadSearchControls(
                     Icon(
                         Icons.Default.Sort,
                         contentDescription = "ترتيب حسب ${sortMode.label}",
-                        tint = GoldPrimary
+                        tint = PresetPrimary
                     )
                 }
                 DropdownMenu(
@@ -1166,7 +1176,7 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
             title = {
-                Text("تنظيف الملفات الجزئية الآمنة 🧹", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("تنظيف الملفات الجزئية الآمنة 🧹", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
             },
             text = {
                 Text(
@@ -1189,7 +1199,7 @@ fun DownloadsHubScreen(
                         }
                     },
                     enabled = tempCacheEstimate > 0L,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success)
                 ) {
                     Text(if (tempCacheEstimate > 0L) "تنظيف الآن" else "لا توجد ملفات مؤقتة", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
@@ -1207,7 +1217,7 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { pendingSpaceWarning = null },
             title = {
-                Text("المساحة قد لا تكفي", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("المساحة قد لا تكفي", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
             },
             text = {
                 Text(
@@ -1223,7 +1233,7 @@ fun DownloadsHubScreen(
                         pendingSpaceWarning = null
                         warning.onContinue()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     Text("المتابعة على مسؤوليتي", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = DeepSlate)
                 }
@@ -1242,7 +1252,7 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { modelToDelete = null },
             title = {
-                Text("حذف نموذج ${model.name}؟", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("حذف نموذج ${model.name}؟", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
             },
             text = {
                 Text(
@@ -1262,7 +1272,7 @@ fun DownloadsHubScreen(
                             Toast.makeText(context, "تم حذف النموذج وتحرير المساحة 🗑️", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive)
                 ) {
                     Text("حذف الملف", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
@@ -1281,7 +1291,7 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { reelToDelete = null },
             title = {
-                Text("حذف الريل المنزّل؟", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("حذف الريل المنزّل؟", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
             },
             text = {
                 Text(
@@ -1298,7 +1308,7 @@ fun DownloadsHubScreen(
                         reelToDelete = null
                         Toast.makeText(context, "تم حذف الفيديو بنجاح", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive)
                 ) {
                     Text("تأكيد الحذف", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
@@ -1317,7 +1327,7 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { showQuickReelDownloadDialog = false },
             title = {
-                Text("تنزيل ريل أو فيديو مخصص 📥", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("تنزيل ريل أو فيديو مخصص 📥", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1333,23 +1343,23 @@ fun DownloadsHubScreen(
                         label = { Text("عنوان الفيديو أو الوصف", fontFamily = CairoFont) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = QabasTheme.current.textPrimary.copy(alpha = 0.2f),
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary
                         )
                     )
                     OutlinedTextField(
                         value = quickReelUrlInput,
                         onValueChange = { quickReelUrlInput = it },
                         label = { Text("رابط الفيديو (URL .mp4)", fontFamily = CairoFont) },
-                        placeholder = { Text("https://example.com/video.mp4", color = Color.Gray) },
+                        placeholder = { Text("https://example.com/video.mp4", color = QabasTheme.current.textTertiary) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00E5FF),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = QabasTheme.current.primary,
+                            unfocusedBorderColor = QabasTheme.current.textPrimary.copy(alpha = 0.2f),
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary
                         )
                     )
                 }
@@ -1377,7 +1387,7 @@ fun DownloadsHubScreen(
                             Toast.makeText(context, "يرجى إدخال رابط فيديو آمن يبدأ بـ https://", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     Text("بدء التنزيل", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = DeepSlate)
                 }
@@ -1404,7 +1414,7 @@ fun DownloadsHubScreen(
         AlertDialog(
             onDismissRequest = { showDeleteUpdateDialog = false },
             title = {
-                Text("حذف ملف التحديث؟ 🗑️", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("حذف ملف التحديث؟ 🗑️", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
             },
             text = {
                 Text(
@@ -1421,7 +1431,7 @@ fun DownloadsHubScreen(
                         showDeleteUpdateDialog = false
                         Toast.makeText(context, "تم حذف ملف التحديث وتحرير الذاكرة ✨", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive)
                 ) {
                     Text("حذف الملف", fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
@@ -1463,7 +1473,7 @@ private fun SpatialStorageIndicatorWidget(
                     Icon(
                         imageVector = Icons.Default.PieChart,
                         contentDescription = null,
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1472,7 +1482,7 @@ private fun SpatialStorageIndicatorWidget(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.5.sp,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -1480,7 +1490,7 @@ private fun SpatialStorageIndicatorWidget(
                     Spacer(modifier = Modifier.width(6.dp))
                     StrictBadge(
                         text = "مباشر",
-                        color = Color(0xFF10B981)
+                        color = QabasTheme.current.success
                     )
                 }
 
@@ -1491,7 +1501,7 @@ private fun SpatialStorageIndicatorWidget(
                     Icon(
                         imageVector = Icons.Default.CleaningServices,
                         contentDescription = null,
-                        tint = Color(0xFF00E5FF),
+                        tint = QabasTheme.current.primary,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -1499,7 +1509,7 @@ private fun SpatialStorageIndicatorWidget(
                         text = "تنظيف الملفات المؤقتة",
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
-                        color = Color(0xFF00E5FF),
+                        color = QabasTheme.current.primary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1507,9 +1517,9 @@ private fun SpatialStorageIndicatorWidget(
 
             if (metrics.totalBytes > 0L && metrics.availableBytes < 512L * 1024L * 1024L) {
                 Surface(
-                    color = Color(0xFFF59E0B).copy(alpha = 0.12f),
+                    color = QabasTheme.current.warning.copy(alpha = 0.12f),
                     shape = SpatialInsetShape,
-                    border = BorderStroke(0.7.dp, Color(0xFFF59E0B).copy(alpha = 0.45f)),
+                    border = BorderStroke(0.7.dp, QabasTheme.current.warning.copy(alpha = 0.45f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -1517,12 +1527,12 @@ private fun SpatialStorageIndicatorWidget(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(16.dp))
                         Text(
                             text = "المساحة منخفضة — المتاح ${metrics.availableFormatted}. راجع الملفات قبل بدء تنزيل كبير.",
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp,
-                            color = Color(0xFFFCD34D)
+                            color = QabasTheme.current.warning
                         )
                     }
                 }
@@ -1539,13 +1549,13 @@ private fun SpatialStorageIndicatorWidget(
                 StorageStatPill(
                     label = "المتاح",
                     value = metrics.availableFormatted,
-                    color = Color(0xFF10B981),
+                    color = QabasTheme.current.success,
                     modifier = Modifier.weight(1f)
                 )
                 StorageStatPill(
                     label = "إجمالي الهاتف",
                     value = metrics.totalFormatted,
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1557,20 +1567,20 @@ private fun SpatialStorageIndicatorWidget(
                 StorageStatPill(
                     label = "نماذج الذكاء",
                     value = metrics.llmModelsFormatted,
-                    color = Color(0xFF00E5FF),
+                    color = QabasTheme.current.primary,
                     modifier = Modifier.weight(1f)
                 )
                 StorageStatPill(
                     label = "الريلز والوسائط",
                     value = metrics.reelsFormatted,
-                    color = Color(0xFFA855F7),
+                    color = QabasTheme.current.accent,
                     modifier = Modifier.weight(1f)
                 )
                 if (metrics.updatesBytes > 0L) {
                     StorageStatPill(
                         label = "التحديثات",
                         value = metrics.updatesFormatted,
-                        color = Color(0xFFF59E0B),
+                        color = QabasTheme.current.warning,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -1583,7 +1593,7 @@ private fun SpatialStorageIndicatorWidget(
         Surface(
             color = CardSurface.copy(alpha = 0.85f),
             shape = SpatialCardShape,
-            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             content()
@@ -1609,7 +1619,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                 .fillMaxWidth()
                 .height(10.dp)
                 .clip(CutCornerShape(3.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(QabasTheme.current.textPrimary.copy(alpha = 0.08f))
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
                 if (llmRatio > 0f) {
@@ -1617,7 +1627,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                         modifier = Modifier
                             .weight(llmRatio.coerceAtLeast(0.02f))
                             .fillMaxHeight()
-                            .background(Color(0xFF00E5FF))
+                            .background(QabasTheme.current.primary)
                     )
                 }
                 if (updatesRatio > 0f) {
@@ -1625,7 +1635,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                         modifier = Modifier
                             .weight(updatesRatio.coerceAtLeast(0.02f))
                             .fillMaxHeight()
-                            .background(Color(0xFFF59E0B))
+                            .background(QabasTheme.current.warning)
                     )
                 }
                 if (reelsRatio > 0f) {
@@ -1633,7 +1643,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                         modifier = Modifier
                             .weight(reelsRatio.coerceAtLeast(0.02f))
                             .fillMaxHeight()
-                            .background(Color(0xFFA855F7))
+                            .background(QabasTheme.current.accent)
                     )
                 }
                 if (otherUsedRatio > 0f) {
@@ -1641,7 +1651,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                         modifier = Modifier
                             .weight(otherUsedRatio.coerceAtLeast(0.02f))
                             .fillMaxHeight()
-                            .background(Color(0xFF475569))
+                            .background(QabasTheme.current.textTertiary)
                     )
                 }
                 if (freeRatio > 0f) {
@@ -1649,7 +1659,7 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                         modifier = Modifier
                             .weight(freeRatio.coerceAtLeast(0.02f))
                             .fillMaxHeight()
-                            .background(Color(0xFF10B981).copy(alpha = 0.6f))
+                            .background(QabasTheme.current.success.copy(alpha = 0.6f))
                     )
                 }
             }
@@ -1663,13 +1673,13 @@ private fun MultiSegmentStorageBar(metrics: StorageMetrics) {
                 text = "مساحة خادم المسلم: ${metrics.totalQabasFormatted}",
                 fontFamily = CairoFont,
                 fontSize = 10.5.sp,
-                color = Color.White.copy(alpha = 0.8f)
+                color = QabasTheme.current.textPrimary.copy(alpha = 0.8f)
             )
             Text(
                 text = "مساحة فارغة: ${metrics.availableFormatted}",
                 fontFamily = CairoFont,
                 fontSize = 10.5.sp,
-                color = Color(0xFF10B981),
+                color = QabasTheme.current.success,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -1706,7 +1716,7 @@ private fun StorageStatPill(
                 fontFamily = RobotoMonoFont,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = QabasTheme.current.textPrimary,
                 maxLines = 1,
                 softWrap = false
             )
@@ -1733,8 +1743,8 @@ private fun OfflineAiModeBanner(
                     .fillMaxWidth()
                     .clip(SpatialInsetShape)
                     .background(
-                        if (isActive) Color(0xFF00E5FF).copy(alpha = 0.08f)
-                        else Color.White.copy(alpha = 0.03f)
+                        if (isActive) QabasTheme.current.primary.copy(alpha = 0.08f)
+                        else QabasTheme.current.textPrimary.copy(alpha = 0.03f)
                     )
                     .padding(horizontal = 10.dp, vertical = 10.dp)
             } else {
@@ -1751,13 +1761,13 @@ private fun OfflineAiModeBanner(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(if (isActive) Color(0xFF00E5FF).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f)),
+                        .background(if (isActive) QabasTheme.current.primary.copy(alpha = 0.2f) else QabasTheme.current.textPrimary.copy(alpha = 0.08f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isActive) Icons.Default.OfflineBolt else Icons.Default.Cloud,
                         contentDescription = null,
-                        tint = if (isActive) Color(0xFF00E5FF) else GoldPrimary,
+                        tint = if (isActive) QabasTheme.current.primary else PresetPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1771,14 +1781,14 @@ private fun OfflineAiModeBanner(
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp,
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.width(5.dp))
                         StrictBadge(
                             text = if (isActive) "محلي" else "سحابي",
-                            color = if (isActive) Color(0xFF00E5FF) else GoldPrimary
+                            color = if (isActive) QabasTheme.current.primary else PresetPrimary
                         )
                     }
                     Text(
@@ -1796,8 +1806,8 @@ private fun OfflineAiModeBanner(
                 checked = isActive,
                 onCheckedChange = onToggle,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color(0xFF00E5FF),
-                    checkedTrackColor = Color(0xFF00E5FF).copy(alpha = 0.35f),
+                    checkedThumbColor = QabasTheme.current.primary,
+                    checkedTrackColor = QabasTheme.current.primary.copy(alpha = 0.35f),
                     uncheckedThumbColor = Color.LightGray,
                     uncheckedTrackColor = Color.DarkGray
                 ),
@@ -1809,9 +1819,9 @@ private fun OfflineAiModeBanner(
         content()
     } else {
         Surface(
-            color = if (isActive) Color(0xFF0F2E2E) else CardSurface.copy(alpha = 0.85f),
+            color = if (isActive) QabasTheme.current.primary.copy(alpha = 0.15f) else CardSurface.copy(alpha = 0.85f),
             shape = SpatialCardShape,
-            border = BorderStroke(1.dp, if (isActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.15f)),
+            border = BorderStroke(1.dp, if (isActive) QabasTheme.current.primary else QabasTheme.current.textPrimary.copy(alpha = 0.15f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             content()
@@ -1864,186 +1874,9 @@ private fun SpatialDownloadsTabsRow(
                     },
                     icon = category.icon,
                     isSelected = selectedTab == category.tabIndex,
-                    activeColor = category.accent,
+                    activeColor = category.accentColor(),
                     onClick = { onTabSelected(category.tabIndex) }
                 )
-            }
-        }
-    }
-}
-
-/**
- * بنر شريطي فضائي مباشر يعرض تقدم تنزيل التحديث من أي مكان داخل مركز التنزيلات
- */
-@Composable
-private fun SpatialLiveUpdateStickyBanner(
-    updateItem: AppUpdateDownloadItem,
-    onInstall: () -> Unit,
-    onCancel: () -> Unit,
-    onOpenTab: () -> Unit
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "updatePulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(850, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
-    Surface(
-        color = CardSurface.copy(alpha = 0.95f),
-        shape = SpatialCardShape,
-        border = BorderStroke(
-            1.2.dp,
-            if (updateItem.isCompleted) Color(0xFF10B981)
-            else Color(0xFF00E5FF).copy(alpha = pulseAlpha)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onOpenTab() }
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (updateItem.isCompleted) Color(0xFF10B981).copy(alpha = 0.2f)
-                                else Color(0xFF00E5FF).copy(alpha = 0.2f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (updateItem.isCompleted) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
-                            contentDescription = null,
-                            tint = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "تحديث التطبيق: ${updateItem.versionName}",
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            StrictBadge(
-                                text = if (updateItem.isCompleted) "جاهز للتثبيت ⚡" else "تنزيل تلقائي نشط 🚀",
-                                color = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF)
-                            )
-                        }
-                        Text(
-                            text = when {
-                                updateItem.isCompleted -> "اكتمل التنزيل بنجاح — انقر هنا للتثبيت الفوري"
-                                updateItem.phase == "APPLYING_PATCH" -> "جاري معالجة وتحسين ملف التحديث (Patching)..."
-                                else -> "جاري التنزيل تلقائياً في الخلفية فور اكتشاف الإصدار الجديد"
-                            },
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp,
-                            color = if (updateItem.phase == "APPLYING_PATCH") GoldPrimary else TextSecondary
-                        )
-                    }
-                }
-            }
-
-            // شريط التقدم
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LinearProgressIndicator(
-                    progress = { updateItem.progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(CutCornerShape(2.dp)),
-                    color = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF),
-                    trackColor = Color.White.copy(alpha = 0.1f)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "${updateItem.percentInt}% • ${updateItem.formattedDownloaded} من ${updateItem.formattedSize}",
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 10.5.sp,
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
-                    if (updateItem.isDownloading && updateItem.speedBytesPerSec > 0 && updateItem.phase != "APPLYING_PATCH") {
-                        Text(
-                            text = "السرعة: ${updateItem.formattedSpeed}",
-                            fontFamily = RobotoMonoFont,
-                            fontSize = 10.5.sp,
-                            color = Color(0xFF00E5FF),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            // أزرار الإجراء السريع
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (updateItem.isCompleted) {
-                    Button(
-                        onClick = onInstall,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                        shape = SpatialInsetShape,
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SystemUpdate,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "تثبيت التحديث الآن ⚡",
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = Color.White
-                        )
-                    }
-                } else if (updateItem.isDownloading) {
-                    OutlinedButton(
-                        onClick = onCancel,
-                        border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
-                        shape = SpatialInsetShape,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "إلغاء التنزيل",
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp,
-                            color = Color(0xFFEF4444)
-                        )
-                    }
-                }
             }
         }
     }
@@ -2074,7 +1907,7 @@ private fun AppUpdatesHubSection(
         Surface(
             color = CardSurface.copy(alpha = 0.85f),
             shape = SpatialCardShape,
-            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
+            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -2090,7 +1923,7 @@ private fun AppUpdatesHubSection(
                         Icon(
                             imageVector = Icons.Default.Android,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -2099,13 +1932,13 @@ private fun AppUpdatesHubSection(
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.5.sp,
-                            color = Color.White
+                            color = QabasTheme.current.textPrimary
                         )
                     }
 
                     StrictBadge(
                         text = "المصدر الرسمي",
-                        color = Color(0xFF00E5FF)
+                        color = QabasTheme.current.primary
                     )
                 }
 
@@ -2114,9 +1947,9 @@ private fun AppUpdatesHubSection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
-                        color = Color.White.copy(alpha = 0.05f),
+                        color = QabasTheme.current.textPrimary.copy(alpha = 0.05f),
                         shape = SpatialInsetShape,
-                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.15f)),
+                        border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.15f)),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
@@ -2134,21 +1967,21 @@ private fun AppUpdatesHubSection(
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = Color.White
+                                color = QabasTheme.current.textPrimary
                             )
                             Text(
                                 text = "Build #$currentVersionCode",
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 9.sp,
-                                color = GoldPrimary
+                                color = PresetPrimary
                             )
                         }
                     }
 
                     Surface(
-                        color = Color.White.copy(alpha = 0.05f),
+                        color = QabasTheme.current.textPrimary.copy(alpha = 0.05f),
                         shape = SpatialInsetShape,
-                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.15f)),
+                        border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.15f)),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
@@ -2171,7 +2004,7 @@ private fun AppUpdatesHubSection(
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp,
-                                color = Color(0xFF00E5FF),
+                                color = QabasTheme.current.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -2179,7 +2012,7 @@ private fun AppUpdatesHubSection(
                                 text = UpdateChannelFacade.checkSourceLabel(context),
                                 fontFamily = CairoFont,
                                 fontSize = 9.sp,
-                                color = Color(0xFF10B981)
+                                color = QabasTheme.current.success
                             )
                         }
                     }
@@ -2190,7 +2023,7 @@ private fun AppUpdatesHubSection(
                     onClick = onCheckUpdates,
                     enabled = !isChecking,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = SpatialButtonShape
                 ) {
                     if (isChecking) {
@@ -2225,7 +2058,7 @@ private fun AppUpdatesHubSection(
                     }
                 }
 
-                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                HorizontalDivider(color = QabasTheme.current.textPrimary.copy(alpha = 0.08f))
 
                 // الفحص التلقائي: الحد الأدنى ساعتان — المدة المختارة تُحفظ فوراً
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2241,7 +2074,7 @@ private fun AppUpdatesHubSection(
                             Icon(
                                 imageVector = Icons.Default.Schedule,
                                 contentDescription = null,
-                                tint = Color(0xFF00E5FF),
+                                tint = QabasTheme.current.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -2250,7 +2083,7 @@ private fun AppUpdatesHubSection(
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -2279,12 +2112,12 @@ private fun AppUpdatesHubSection(
                         listOf(2, 4, 6, 12, 24).forEach { hours ->
                             val selected = autoCheckHours == hours
                             Surface(
-                                color = if (selected) Color(0xFF00E5FF).copy(alpha = 0.16f)
-                                    else Color.White.copy(alpha = 0.05f),
+                                color = if (selected) QabasTheme.current.primary.copy(alpha = 0.16f)
+                                    else QabasTheme.current.textPrimary.copy(alpha = 0.05f),
                                 shape = SpatialInsetShape,
                                 border = BorderStroke(
                                     0.7.dp,
-                                    if (selected) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.15f)
+                                    if (selected) QabasTheme.current.primary else QabasTheme.current.textPrimary.copy(alpha = 0.15f)
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -2303,7 +2136,7 @@ private fun AppUpdatesHubSection(
                                     fontFamily = RobotoMonoFont,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 11.sp,
-                                    color = if (selected) Color(0xFF00E5FF) else TextSecondary,
+                                    color = if (selected) QabasTheme.current.primary else TextSecondary,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2335,9 +2168,9 @@ private fun AppUpdatesHubSection(
                 shape = SpatialCardShape,
                 border = BorderStroke(
                     1.dp,
-                    if (updateItem.isCompleted) Color(0xFF10B981)
-                    else if (updateItem.isError) Color(0xFFEF4444)
-                    else Color(0xFF00E5FF)
+                    if (updateItem.isCompleted) QabasTheme.current.success
+                    else if (updateItem.isError) QabasTheme.current.destructive
+                    else QabasTheme.current.primary
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -2356,15 +2189,15 @@ private fun AppUpdatesHubSection(
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (updateItem.isCompleted) Color(0xFF10B981).copy(alpha = 0.2f)
-                                        else Color(0xFF00E5FF).copy(alpha = 0.2f)
+                                        if (updateItem.isCompleted) QabasTheme.current.success.copy(alpha = 0.2f)
+                                        else QabasTheme.current.primary.copy(alpha = 0.2f)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = if (updateItem.isCompleted) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
                                     contentDescription = null,
-                                    tint = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF),
+                                    tint = if (updateItem.isCompleted) QabasTheme.current.success else QabasTheme.current.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -2375,7 +2208,7 @@ private fun AppUpdatesHubSection(
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
-                                    color = Color.White
+                                    color = QabasTheme.current.textPrimary
                                 )
                                 Text(
                                     text = "رقم البناء: ${updateItem.versionCode}",
@@ -2392,7 +2225,7 @@ private fun AppUpdatesHubSection(
                         ) {
                             StrictBadge(
                                 text = "تحديث",
-                                color = Color(0xFF10B981)
+                                color = QabasTheme.current.success
                             )
                             StrictBadge(
                                 text = when {
@@ -2403,10 +2236,10 @@ private fun AppUpdatesHubSection(
                                     else -> "تحديث متوفر"
                                 },
                                 color = when {
-                                    updateItem.isCompleted -> Color(0xFF10B981)
-                                    updateItem.phase == "APPLYING_PATCH" -> GoldPrimary
-                                    updateItem.isError -> Color(0xFFEF4444)
-                                    else -> Color(0xFF00E5FF)
+                                    updateItem.isCompleted -> QabasTheme.current.success
+                                    updateItem.phase == "APPLYING_PATCH" -> PresetPrimary
+                                    updateItem.isError -> QabasTheme.current.destructive
+                                    else -> QabasTheme.current.primary
                                 }
                             )
                         }
@@ -2420,8 +2253,8 @@ private fun AppUpdatesHubSection(
                                 .fillMaxWidth()
                                 .height(9.dp)
                                 .clip(CutCornerShape(2.dp)),
-                            color = if (updateItem.isCompleted) Color(0xFF10B981) else Color(0xFF00E5FF),
-                            trackColor = Color.White.copy(alpha = 0.1f)
+                            color = if (updateItem.isCompleted) QabasTheme.current.success else QabasTheme.current.primary,
+                            trackColor = QabasTheme.current.textPrimary.copy(alpha = 0.1f)
                         )
 
                         Row(
@@ -2435,14 +2268,14 @@ private fun AppUpdatesHubSection(
                                 },
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
-                                color = if (updateItem.phase == "APPLYING_PATCH") GoldPrimary else Color.White
+                                color = if (updateItem.phase == "APPLYING_PATCH") PresetPrimary else QabasTheme.current.textPrimary
                             )
                             if (updateItem.isDownloading && updateItem.speedBytesPerSec > 0 && updateItem.phase != "APPLYING_PATCH") {
                                 Text(
                                     text = "السرعة: ${updateItem.formattedSpeed}",
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 11.sp,
-                                    color = Color(0xFF00E5FF),
+                                    color = QabasTheme.current.primary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -2462,7 +2295,7 @@ private fun AppUpdatesHubSection(
                             text = "ملف التحديث غير موجود في المسار المتوقع؛ أعد فحص التحديث لتنزيله مجدداً.",
                             fontFamily = CairoFont,
                             fontSize = 10.sp,
-                            color = Color(0xFFF59E0B)
+                            color = QabasTheme.current.warning
                         )
                     }
 
@@ -2471,7 +2304,7 @@ private fun AppUpdatesHubSection(
                         Surface(
                             color = Color.Black.copy(alpha = 0.3f),
                             shape = SpatialInsetShape,
-                            border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.1f)),
+                            border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.1f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
@@ -2480,14 +2313,14 @@ private fun AppUpdatesHubSection(
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
-                                    color = GoldPrimary
+                                    color = PresetPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = updateItem.releaseNotes,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.85f),
+                                    color = QabasTheme.current.textPrimary.copy(alpha = 0.85f),
                                     lineHeight = 16.sp
                                 )
                             }
@@ -2502,7 +2335,7 @@ private fun AppUpdatesHubSection(
                         if (updateItem.isCompleted) {
                             Button(
                                 onClick = onInstall,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success),
                                 shape = SpatialInsetShape,
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -2510,7 +2343,7 @@ private fun AppUpdatesHubSection(
                                     imageVector = Icons.Default.SystemUpdate,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
-                                    tint = Color.White
+                                    tint = QabasTheme.current.onPrimary
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -2518,26 +2351,26 @@ private fun AppUpdatesHubSection(
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
-                                    color = Color.White
+                                    color = QabasTheme.current.textPrimary
                                 )
                             }
 
                             OutlinedButton(
                                 onClick = onDeleteApk,
-                                border = BorderStroke(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+                                border = BorderStroke(0.8.dp, QabasTheme.current.destructive.copy(alpha = 0.6f)),
                                 shape = SpatialInsetShape
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
                                     contentDescription = null,
-                                    tint = Color(0xFFEF4444),
+                                    tint = QabasTheme.current.destructive,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
                         } else if (updateItem.isDownloading) {
                             OutlinedButton(
                                 onClick = onCancel,
-                                border = BorderStroke(0.8.dp, Color(0xFFEF4444)),
+                                border = BorderStroke(0.8.dp, QabasTheme.current.destructive),
                                 shape = SpatialInsetShape,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -2545,7 +2378,7 @@ private fun AppUpdatesHubSection(
                                     text = "إلغاء تنزيل التحديث ✖",
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
-                                    color = Color(0xFFEF4444)
+                                    color = QabasTheme.current.destructive
                                 )
                             }
                         }
@@ -2557,7 +2390,7 @@ private fun AppUpdatesHubSection(
             Surface(
                 color = CardSurface.copy(alpha = 0.8f),
                 shape = SpatialCardShape,
-                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+                border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -2569,13 +2402,13 @@ private fun AppUpdatesHubSection(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981).copy(alpha = 0.15f)),
+                            .background(QabasTheme.current.success.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Verified,
                             contentDescription = null,
-                            tint = Color(0xFF10B981),
+                            tint = QabasTheme.current.success,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -2585,7 +2418,7 @@ private fun AppUpdatesHubSection(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = Color.White
+                        color = QabasTheme.current.textPrimary
                     )
 
                     Text(
@@ -2601,9 +2434,9 @@ private fun AppUpdatesHubSection(
 
         // 3. كرت توضيحي لآلية التحديث التلقائي الفضائية
         Surface(
-            color = Color.White.copy(alpha = 0.04f),
+            color = QabasTheme.current.textPrimary.copy(alpha = 0.04f),
             shape = SpatialInsetShape,
-            border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.1f)),
+            border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.1f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -2614,7 +2447,7 @@ private fun AppUpdatesHubSection(
                     Icon(
                         imageVector = Icons.Default.Info,
                         contentDescription = null,
-                        tint = Color(0xFF00E5FF),
+                        tint = QabasTheme.current.primary,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -2623,14 +2456,14 @@ private fun AppUpdatesHubSection(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
-                        color = Color(0xFF00E5FF)
+                        color = QabasTheme.current.primary
                     )
                 }
                 Text(
                     text = UpdateChannelFacade.behaviorText(context),
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = QabasTheme.current.textPrimary.copy(alpha = 0.75f),
                     lineHeight = 16.sp
                 )
             }
@@ -2672,13 +2505,13 @@ private fun SpatialTabButton(
                 fontFamily = CairoFont,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 fontSize = 11.sp,
-                color = if (isSelected) Color.White else TextSecondary,
+                color = if (isSelected) QabasTheme.current.textPrimary else TextSecondary,
                 maxLines = 1,
                 softWrap = false
             )
             Spacer(modifier = Modifier.width(4.dp))
             Surface(
-                color = if (isSelected) activeColor.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f),
+                color = if (isSelected) activeColor.copy(alpha = 0.3f) else QabasTheme.current.textPrimary.copy(alpha = 0.08f),
                 shape = CircleShape
             ) {
                 Text(
@@ -2711,13 +2544,12 @@ private fun GgufModelCard(
     onTestPromptClick: () -> Unit
 ) {
     val isDownloadingThis = downloadState is ModelDownloadState.Downloading && downloadState.modelId == model.id
-    val isInterruptedThis = downloadState is ModelDownloadState.Interrupted && downloadState.modelId == model.id
 
     val borderColor = when {
-        isDownloadingThis -> Color(0xFF00E5FF)
-        isSelected -> GoldPrimary
-        isInstalled -> Color(0xFF10B981)
-        else -> Color.White.copy(alpha = 0.12f)
+        isDownloadingThis -> QabasTheme.current.primary
+        isSelected -> PresetPrimary
+        isInstalled -> QabasTheme.current.success
+        else -> QabasTheme.current.textPrimary.copy(alpha = 0.12f)
     }
 
     Surface(
@@ -2746,7 +2578,7 @@ private fun GgufModelCard(
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -2757,7 +2589,7 @@ private fun GgufModelCard(
                         if (model.isRecommended) {
                             StrictBadge(
                                 text = "موصى به ⭐",
-                                color = GoldPrimary
+                                color = PresetPrimary
                             )
                         }
                     }
@@ -2785,16 +2617,16 @@ private fun GgufModelCard(
 
                 // الحجم التخزيني
                 Surface(
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = QabasTheme.current.textPrimary.copy(alpha = 0.08f),
                     shape = SpatialInsetShape,
-                    border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.2f))
+                    border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.2f))
                 ) {
                     Text(
                         text = model.sizeFormatted,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         maxLines = 1,
                         softWrap = false
@@ -2832,7 +2664,7 @@ private fun GgufModelCard(
                             text = "جارٍ التنزيل: ${(state.progress * 100).toInt()}%",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
-                            color = Color(0xFF00E5FF),
+                            color = QabasTheme.current.primary,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -2849,8 +2681,8 @@ private fun GgufModelCard(
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(CutCornerShape(2.dp)),
-                        color = Color(0xFF00E5FF),
-                        trackColor = Color.White.copy(alpha = 0.1f)
+                        color = QabasTheme.current.primary,
+                        trackColor = QabasTheme.current.textPrimary.copy(alpha = 0.1f)
                     )
 
                     Row(
@@ -2861,16 +2693,16 @@ private fun GgufModelCard(
                             onClick = onCancelClick,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Close, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("إلغاء التنزيل", fontFamily = CairoFont, color = Color(0xFFEF4444), fontSize = 11.sp)
+                            Text("إلغاء التنزيل", fontFamily = CairoFont, color = QabasTheme.current.destructive, fontSize = 11.sp)
                         }
                     }
                 }
             }
 
             // صف الإجراءات والأزرار
-            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.8.dp)
+            HorizontalDivider(color = QabasTheme.current.textPrimary.copy(alpha = 0.08f), thickness = 0.8.dp)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2886,7 +2718,7 @@ private fun GgufModelCard(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF10B981),
+                            tint = QabasTheme.current.success,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -2894,7 +2726,7 @@ private fun GgufModelCard(
                             text = if (isSelected) "النموذج النشط حالياً ✅" else "جاهز للاستخدام بدون إنترنت",
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
-                            color = Color(0xFF10B981),
+                            color = QabasTheme.current.success,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -2908,20 +2740,20 @@ private fun GgufModelCard(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
+                                .background(QabasTheme.current.primary.copy(alpha = 0.15f))
                         ) {
-                            Icon(Icons.Default.Terminal, contentDescription = "تجربة", tint = Color(0xFF00E5FF), modifier = Modifier.size(17.dp))
+                            Icon(Icons.Default.Terminal, contentDescription = "تجربة", tint = QabasTheme.current.primary, modifier = Modifier.size(17.dp))
                         }
 
                         if (!isSelected) {
                             OutlinedButton(
                                 onClick = onSelectAsDefault,
                                 shape = SpatialInsetShape,
-                                border = BorderStroke(0.8.dp, GoldPrimary),
+                                border = BorderStroke(0.8.dp, PresetPrimary),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 modifier = Modifier.height(34.dp)
                             ) {
-                                Text("تعيين كنشط", fontFamily = CairoFont, fontSize = 11.sp, color = GoldPrimary)
+                                Text("تعيين كنشط", fontFamily = CairoFont, fontSize = 11.sp, color = PresetPrimary)
                             }
                         }
 
@@ -2930,9 +2762,9 @@ private fun GgufModelCard(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                                .background(QabasTheme.current.destructive.copy(alpha = 0.15f))
                         ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(17.dp))
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = QabasTheme.current.destructive, modifier = Modifier.size(17.dp))
                         }
                     }
                 } else if (!isDownloadingThis) {
@@ -2961,7 +2793,7 @@ private fun GgufModelCard(
                     Button(
                         onClick = onDownloadClick,
                         shape = SpatialInsetShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                         modifier = Modifier.height(36.dp)
                     ) {
@@ -2986,7 +2818,7 @@ private fun ReelsDownloadsHeader(
     Surface(
         color = CardSurface.copy(alpha = 0.85f),
         shape = SpatialCardShape,
-        border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.35f)),
+        border = BorderStroke(0.8.dp, QabasTheme.current.accent.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -2997,7 +2829,7 @@ private fun ReelsDownloadsHeader(
                 Icon(
                     imageVector = Icons.Default.SlowMotionVideo,
                     contentDescription = null,
-                    tint = Color(0xFFA855F7),
+                    tint = QabasTheme.current.accent,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -3007,7 +2839,7 @@ private fun ReelsDownloadsHeader(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -3029,21 +2861,21 @@ private fun ReelsDownloadsHeader(
                 OutlinedButton(
                     onClick = onOpenQuickDownload,
                     shape = SpatialButtonShape,
-                    border = BorderStroke(0.8.dp, Color(0xFFA855F7)),
+                    border = BorderStroke(0.8.dp, QabasTheme.current.accent),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(34.dp)
                 ) {
-                    Icon(Icons.Default.AddLink, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.AddLink, contentDescription = null, tint = QabasTheme.current.accent, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("رابط", fontFamily = CairoFont, fontSize = 10.5.sp, color = Color(0xFFA855F7), maxLines = 1)
+                    Text("رابط", fontFamily = CairoFont, fontSize = 10.5.sp, color = QabasTheme.current.accent, maxLines = 1)
                 }
 
                 Button(
                     onClick = onBrowseReels,
                     shape = SpatialButtonShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA855F7)),
+                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.accent),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                     modifier = Modifier
                         .weight(1f)
@@ -3054,44 +2886,9 @@ private fun ReelsDownloadsHeader(
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = QabasTheme.current.onPrimary,
                         maxLines = 1
                     )
-                }
-            }
-        }
-    }
-}
-
-/**
- * بطاقة ريل قيد التنزيل حالياً
- */
-@Composable
-private fun ActiveReelDownloadCard(
-    progress: ReelDownloadProgress,
-    onCancel: () -> Unit
-) {
-    Surface(
-        color = CardSurface.copy(alpha = 0.95f),
-        shape = SpatialCardShape,
-        border = BorderStroke(1.dp, Color(0xFFA855F7)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // عدّاد تنزيل الريلز — موحّد عبر TransferCounterBar
-            TransferCounterBar(
-                label = "تنزيل: ${progress.title}",
-                sentBytes = progress.downloadedBytes,
-                totalBytes = progress.totalBytes,
-                isUpload = false,
-                speedText = if (progress.speedKbps > 0) "${progress.speedKbps} ك.ب/ث" else null
-            )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onCancel) {
-                    Text("إلغاء التنزيل", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
                 }
             }
         }
@@ -3112,7 +2909,7 @@ private fun DownloadedReelCard(
     Surface(
         color = CardSurface.copy(alpha = 0.85f),
         shape = SpatialCardShape,
-        border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.15f)),
+        border = BorderStroke(0.7.dp, QabasTheme.current.textPrimary.copy(alpha = 0.15f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -3125,9 +2922,9 @@ private fun DownloadedReelCard(
             ) {
                 // أيقونة الفيديو
                 Surface(
-                    color = Color(0xFFA855F7).copy(alpha = 0.15f),
+                    color = QabasTheme.current.accent.copy(alpha = 0.15f),
                     shape = SpatialButtonShape,
-                    border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.4f)),
+                    border = BorderStroke(0.8.dp, QabasTheme.current.accent.copy(alpha = 0.4f)),
                     modifier = Modifier
                         .size(44.dp)
                         .clickable { if (reel.fileExists) onPlay() else onRetry() }
@@ -3136,7 +2933,7 @@ private fun DownloadedReelCard(
                         Icon(
                             imageVector = if (reel.fileExists) Icons.Default.PlayArrow else Icons.Default.CloudDownload,
                             contentDescription = if (reel.fileExists) "تشغيل" else "إعادة تنزيل",
-                            tint = if (reel.fileExists) Color(0xFFA855F7) else Color(0xFFF59E0B),
+                            tint = if (reel.fileExists) QabasTheme.current.accent else QabasTheme.current.warning,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -3150,7 +2947,7 @@ private fun DownloadedReelCard(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -3171,14 +2968,14 @@ private fun DownloadedReelCard(
                             text = "• ${reel.formattedSize}",
                             fontFamily = RobotoMonoFont,
                             fontSize = 10.sp,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false
                         )
                         StrictBadge(
                             text = "ريلز",
-                            color = Color(0xFFA855F7)
+                            color = QabasTheme.current.accent
                         )
                     }
                 }
@@ -3189,7 +2986,7 @@ private fun DownloadedReelCard(
                     else "الملف مفقود من مساحة خادم المسلم — يمكنك إعادة تنزيله أو إزالة السجل.",
                 fontFamily = CairoFont,
                 fontSize = 10.sp,
-                color = if (reel.fileExists) TextSecondary else Color(0xFFF59E0B)
+                color = if (reel.fileExists) TextSecondary else QabasTheme.current.warning
             )
 
             // أزرار التحكم في صف مستقل — لا تزاحم النص
@@ -3200,16 +2997,16 @@ private fun DownloadedReelCard(
             ) {
                 if (reel.fileExists) {
                     IconButton(onClick = onPlay, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Default.PlayCircleOutline, contentDescription = "تشغيل", tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.PlayCircleOutline, contentDescription = "تشغيل", tint = QabasTheme.current.success, modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = onShare, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(17.dp))
+                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = QabasTheme.current.textPrimary.copy(alpha = 0.8f), modifier = Modifier.size(17.dp))
                     }
                 } else {
                     TextButton(onClick = onRetry) {
-                        Icon(Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.FileDownload, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("إعادة تنزيل", fontFamily = CairoFont, color = Color(0xFFF59E0B), fontSize = 11.sp)
+                        Text("إعادة تنزيل", fontFamily = CairoFont, color = QabasTheme.current.warning, fontSize = 11.sp)
                     }
                 }
 
@@ -3217,7 +3014,7 @@ private fun DownloadedReelCard(
                     onClick = onDelete,
                     modifier = Modifier.size(34.dp)
                 ) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = QabasTheme.current.destructive, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -3236,7 +3033,7 @@ private fun DownloadedMediaCard(
     Surface(
         color = CardSurface.copy(alpha = 0.85f),
         shape = SpatialInsetShape,
-        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.12f)),
+        border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.12f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -3251,7 +3048,7 @@ private fun DownloadedMediaCard(
                 Icon(
                     imageVector = Icons.Default.Audiotrack,
                     contentDescription = null,
-                    tint = if (media.fileExists) GoldPrimary else Color(0xFFF59E0B),
+                    tint = if (media.fileExists) PresetPrimary else QabasTheme.current.warning,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -3261,7 +3058,7 @@ private fun DownloadedMediaCard(
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -3280,7 +3077,7 @@ private fun DownloadedMediaCard(
                         )
                         StrictBadge(
                             text = "صوتيات",
-                            color = GoldPrimary
+                            color = PresetPrimary
                         )
                     }
                     Text(
@@ -3291,7 +3088,7 @@ private fun DownloadedMediaCard(
                         },
                         fontFamily = CairoFont,
                         fontSize = 9.5.sp,
-                        color = if (media.fileExists) TextSecondary else Color(0xFFF59E0B),
+                        color = if (media.fileExists) TextSecondary else QabasTheme.current.warning,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -3300,14 +3097,14 @@ private fun DownloadedMediaCard(
 
             if (!media.fileExists && !media.sourceUrl.isNullOrBlank()) {
                 TextButton(onClick = onRetry, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) {
-                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(3.dp))
-                    Text("إعادة تنزيل", fontFamily = CairoFont, color = Color(0xFFF59E0B), fontSize = 10.sp)
+                    Text("إعادة تنزيل", fontFamily = CairoFont, color = QabasTheme.current.warning, fontSize = 10.sp)
                 }
             }
 
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = if (media.fileExists) "حذف" else "إزالة السجل", tint = Color(0xFFEF4444), modifier = Modifier.size(17.dp))
+                Icon(Icons.Default.DeleteOutline, contentDescription = if (media.fileExists) "حذف" else "إزالة السجل", tint = QabasTheme.current.destructive, modifier = Modifier.size(17.dp))
             }
         }
     }
@@ -3326,7 +3123,7 @@ private fun EmptyDownloadsPlaceholder(
     Surface(
         color = CardSurface.copy(alpha = 0.5f),
         shape = SpatialCardShape,
-        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.08f)),
+        border = BorderStroke(0.8.dp, QabasTheme.current.textPrimary.copy(alpha = 0.08f)),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp)
@@ -3340,13 +3137,13 @@ private fun EmptyDownloadsPlaceholder(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.05f)),
+                    .background(QabasTheme.current.textPrimary.copy(alpha = 0.05f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.CloudDownload,
                     contentDescription = null,
-                    tint = GoldPrimary.copy(alpha = 0.7f),
+                    tint = PresetPrimary.copy(alpha = 0.7f),
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -3356,7 +3153,7 @@ private fun EmptyDownloadsPlaceholder(
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.5.sp,
-                color = Color.White,
+                color = QabasTheme.current.textPrimary,
                 textAlign = TextAlign.Center
             )
 
@@ -3372,7 +3169,7 @@ private fun EmptyDownloadsPlaceholder(
             Button(
                 onClick = onAction,
                 shape = SpatialInsetShape,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 modifier = Modifier.padding(top = 6.dp)
             ) {
                 Text(
@@ -3409,13 +3206,13 @@ private fun LocalInferenceTestDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Icon(Icons.Default.Terminal, contentDescription = null, tint = Color(0xFF00E5FF))
+                Icon(Icons.Default.Terminal, contentDescription = null, tint = QabasTheme.current.primary)
                 Text(
                     text = "اختبار ${model.name} (GGUF)",
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = Color.White
+                    color = QabasTheme.current.textPrimary
                 )
             }
         },
@@ -3438,10 +3235,10 @@ private fun LocalInferenceTestDialog(
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF00E5FF),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = QabasTheme.current.primary,
+                        unfocusedBorderColor = QabasTheme.current.textPrimary.copy(alpha = 0.2f),
+                        focusedTextColor = QabasTheme.current.textPrimary,
+                        unfocusedTextColor = QabasTheme.current.textPrimary
                     )
                 )
 
@@ -3450,8 +3247,8 @@ private fun LocalInferenceTestDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00E5FF))
-                        Text("جارٍ المعالجة في الذاكرة...", fontFamily = CairoFont, fontSize = 11.sp, color = Color(0xFF00E5FF))
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = QabasTheme.current.primary)
+                        Text("جارٍ المعالجة في الذاكرة...", fontFamily = CairoFont, fontSize = 11.sp, color = QabasTheme.current.primary)
                     }
                 }
 
@@ -3459,7 +3256,7 @@ private fun LocalInferenceTestDialog(
                     Surface(
                         color = Color.Black.copy(alpha = 0.5f),
                         shape = SpatialInsetShape,
-                        border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.2f)),
+                        border = BorderStroke(0.6.dp, QabasTheme.current.textPrimary.copy(alpha = 0.2f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 180.dp)
@@ -3469,15 +3266,15 @@ private fun LocalInferenceTestDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("الاستجابة المولدة:", fontFamily = CairoFont, fontSize = 10.sp, color = GoldPrimary)
-                                Text("${latencyMs}ms", fontFamily = RobotoMonoFont, fontSize = 9.sp, color = Color(0xFF10B981))
+                                Text("الاستجابة المولدة:", fontFamily = CairoFont, fontSize = 10.sp, color = PresetPrimary)
+                                Text("${latencyMs}ms", fontFamily = RobotoMonoFont, fontSize = 9.sp, color = QabasTheme.current.success)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = outputText,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
-                                color = Color.White
+                                color = QabasTheme.current.textPrimary
                             )
                         }
                     }
@@ -3506,7 +3303,7 @@ private fun LocalInferenceTestDialog(
                     }
                 },
                 enabled = !isGenerating,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF))
+                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary)
             ) {
                 Text("توليد محلي ⚡", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = DeepSlate)
             }

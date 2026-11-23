@@ -11,19 +11,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CutCornerShape
-import com.qabas.app.ui.agent.AgentDesign
-import com.qabas.app.ui.agent.AgentNeonButton
-import com.qabas.app.ui.agent.AgentNeonCard
-import com.qabas.app.ui.agent.AgentSectionHeader
-import com.qabas.app.ui.components.GlassmorphicSurface
-import com.qabas.app.HudCornerDecor
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -38,16 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
-import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
 
 import androidx.compose.foundation.BorderStroke
@@ -60,8 +48,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import java.io.File
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 
 enum class DashboardSection {
@@ -168,9 +154,9 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Lock, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(48.dp))
+            Icon(Icons.Default.Lock, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(48.dp))
             Spacer(modifier = Modifier.height(12.dp))
-            Text("لوحة تحكم المطور محمية سحابياً 🔒", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("لوحة تحكم المطور محمية سحابياً 🔒", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(modifier = Modifier.height(6.dp))
             val currentRole = SupabaseServices.Auth.getUserRoleFromMetadata()
             Text(
@@ -179,7 +165,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
+            Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)) {
                 Text("رجوع", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
         }
@@ -199,7 +185,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -284,10 +270,9 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
                         val cleanRowEmail = row.email?.trim().orEmpty()
                         if (cleanRowEmail.isBlank() || !cleanRowEmail.contains("@")) return@forEach
                         val targetUid = row.externalId ?: row.id
-                        val rowEmail = cleanRowEmail.lowercase(java.util.Locale.ROOT)
                         val projectCount = runCatching {
                             SupabaseServices.Database.getUserProjects(targetUid).size
-                        }.getOrDefault(0)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0)
                         val roleDisplay = when (row.type.lowercase(java.util.Locale.ROOT)) {
                             "developer", "مطور" -> "مطور"
                             "special", "خاص" -> "خاص"
@@ -322,7 +307,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
 
                     // دمج البيانات السحابية مع المحلية الحالية
                     mergeUsers(LocalAccountRegistry.getAllAccounts(context), cloudList)
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                     android.util.Log.w("DeveloperDashboard", "Supabase users fetch failed: ${e.message}")
                 }
             }
@@ -507,20 +492,20 @@ fun DevHubScaffold(
                             Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
                         }
                         Column {
-                            Text(title, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.5.sp)
+                            Text(title, color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.5.sp)
                             Text(subtitle, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                     }
                 },
                 actions = {
                     if (currentHub != null && onNavigateSection != null) {
                         IconButton(onClick = { onNavigateSection(DashboardSection.MAIN) }) {
-                            Icon(Icons.Default.Dashboard, contentDescription = "الرئيسية", tint = GoldPrimary)
+                            Icon(Icons.Default.Dashboard, contentDescription = "الرئيسية", tint = PresetPrimary)
                         }
                     }
                 },
@@ -537,13 +522,13 @@ fun DevHubScaffold(
 
             Surface(
                 color = CardSurface,
-                border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                border = BorderStroke(1.dp, QabasTheme.current.separator),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 ScrollableTabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color.Transparent,
-                    contentColor = GoldPrimary,
+                    contentColor = PresetPrimary,
                     edgePadding = 12.dp,
                     indicator = { tabPositions ->
                         if (selectedTab < tabPositions.size) {
@@ -596,7 +581,7 @@ fun CloudApiHubScreen(
         title = "مركز المفاتيح والربط السحابي",
         subtitle = "إدارة المفاتيح، فحص الاستجابة، وتكامل الخدمات السحابية ومراقبة التحديثات",
         icon = Icons.Default.VpnKey,
-        accentColor = GoldPrimary,
+        accentColor = PresetPrimary,
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
@@ -636,7 +621,7 @@ fun HealthDiagnosticsHubScreen(
         title = "مركز الصحة والتشخيص الشامل",
         subtitle = "فحص الذاكرة والشبكة وسجلات الانهيارات والعمليات والملاحظات",
         icon = Icons.Default.MedicalServices,
-        accentColor = Color(0xFF0EA5E9),
+        accentColor = QabasTheme.current.primary,
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
@@ -677,7 +662,7 @@ fun UsersCommunityHubScreen(
         title = "إدارة المستخدمين والمجتمع",
         subtitle = "إدارة الحسابات، الصلاحيات، والتواصل المباشر مع المستخدمين",
         icon = Icons.Default.Group,
-        accentColor = Color(0xFF10B981),
+        accentColor = QabasTheme.current.success,
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
@@ -708,7 +693,7 @@ fun BusinessRevenueHubScreen(
         title = "مركز الأعمال والإيرادات",
         subtitle = "الاشتراكات والمالية، الفواتير والإحصائيات الشاملة",
         icon = Icons.Default.MonetizationOn,
-        accentColor = Color(0xFFF59E0B),
+        accentColor = QabasTheme.current.warning,
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
@@ -742,7 +727,7 @@ fun SystemIdentityHubScreen(
         title = "نظام المطور والهوية الفنية",
         subtitle = "إعدادات المنصة، الهوية الفنية، أنماط الذكاء، والنسخ الاحتياطي",
         icon = Icons.Default.AdminPanelSettings,
-        accentColor = Color(0xFFEC4899),
+        accentColor = QabasTheme.current.accent,
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
@@ -777,7 +762,7 @@ fun ReleaseManagementHubScreen(
         title = "الإصدارات والتحديثات",
         subtitle = "من البناء إلى الاعتماد والنشر، في مسار واحد واضح",
         icon = Icons.Default.SystemUpdate,
-        accentColor = Color(0xFF8B5CF6),
+        accentColor = QabasTheme.current.accent,
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
@@ -819,10 +804,10 @@ fun DashboardMainGrid(
         coroutineScope.launch {
             isCheckingCloud = true
             val started = System.currentTimeMillis()
-            val cloudOk = runCatching { SupabaseServices.Database.ping() }.getOrDefault(false)
+            val cloudOk = runCatching { SupabaseServices.Database.ping() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
             cloudLatency = if (cloudOk) System.currentTimeMillis() - started else -1L
             isSupabaseOnline = cloudOk
-            val reports = runCatching { AppSelfDoctor.runFullDiagnosis(context) }.getOrDefault(emptyList())
+            val reports = runCatching { AppSelfDoctor.runFullDiagnosis(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
             val critical = reports.count { it.severity == "حرج" }
             val improvements = reports.count { it.severity == "تحسين" }
             diagnosticSummary = when {
@@ -842,10 +827,10 @@ fun DashboardMainGrid(
         }
     }
 
-    val cyan = Color(0xFF22D3EE)
-    val green = Color(0xFF10B981)
-    val amber = Color(0xFFF59E0B)
-    val violet = Color(0xFF8B5CF6)
+    val cyan = QabasTheme.current.primary
+    val green = QabasTheme.current.success
+    val amber = QabasTheme.current.warning
+    val violet = QabasTheme.current.accent
     data class MainHub(
         val title: String,
         val subtitle: String,
@@ -856,19 +841,19 @@ fun DashboardMainGrid(
     )
     val hubs = listOf(
         MainHub("نظرة عامة", "المستخدمون النشطون يومياً وشهرياً وأحداث التطبيق", "النمو", Icons.Default.TrendingUp, cyan, onOverview),
-        MainHub("قوائم العمل", "إشراف المحتوى، الدعم، والأعطال — بحالات", "${queueCounts.totalPending} معلّق", Icons.Default.Assignment, Color(0xFFF59E0B), onWorkQueues),
-        MainHub("التنبيهات", "قفزة أعطال، فشل مفتاح، خطأ بوابة، موجة تسجيلات", "داخل التطبيق", Icons.Default.NotificationsActive, Color(0xFFEF4444), onAlerts),
+        MainHub("قوائم العمل", "إشراف المحتوى، الدعم، والأعطال — بحالات", "${queueCounts.totalPending} معلّق", Icons.Default.Assignment, QabasTheme.current.warning, onWorkQueues),
+        MainHub("التنبيهات", "قفزة أعطال، فشل مفتاح، خطأ بوابة، موجة تسجيلات", "داخل التطبيق", Icons.Default.NotificationsActive, QabasTheme.current.destructive, onAlerts),
         MainHub("التشغيل والصحة", "حالة الخدمات، الأعطال، السجلات، والتدقيق في مكان واحد", "صحة النظام", Icons.Default.MedicalServices, cyan, onHealthDiagnosticsHub),
         MainHub("المستخدمون والدعم", "الحسابات، الرتب، الرسائل، البلاغات، والإشعارات", "$userCount مستخدم", Icons.Default.Group, green, onUsersCommunityHub),
         MainHub("الإصدارات والتحديثات", "البناء، خط الإنتاج، اعتماد التحديثات، وDelta", "Release Center", Icons.Default.SystemUpdate, violet, onReleaseHub),
-        MainHub("التكاملات والخدمات", "المفاتيح، مزودو الخدمة، حالة الاتصال، وإعدادات النماذج", "Integrations", Icons.Default.CloudQueue, GoldPrimary, onCloudApiHub),
+        MainHub("التكاملات والخدمات", "المفاتيح، مزودو الخدمة، حالة الاتصال، وإعدادات النماذج", "Integrations", Icons.Default.CloudQueue, PresetPrimary, onCloudApiHub),
         MainHub("الإعدادات والنسخ الاحتياطي", "إعدادات النظام، الحساب، التخصيص، والنسخ الاحتياطي", "Settings", Icons.Default.Settings, amber, onSystemIdentityHub)
     )
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF050811))) {
+    Column(modifier = Modifier.fillMaxSize().background(QabasTheme.current.background)) {
         Surface(
-            color = Color(0xFF090E1A).copy(alpha = 0.98f),
-            border = BorderStroke(0.8.dp, Color(0xFF1E293B)),
+            color = QabasTheme.current.background.copy(alpha = 0.98f),
+            border = BorderStroke(0.8.dp, QabasTheme.current.separator),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -882,20 +867,20 @@ fun DashboardMainGrid(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(GoldPrimary.copy(alpha = 0.14f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.45f), CircleShape)
+                        .background(PresetPrimary.copy(alpha = 0.14f))
+                        .border(1.dp, PresetPrimary.copy(alpha = 0.45f), CircleShape)
                         .clickable { onBack() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("نظرة عامة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                    Text("لوحة المطور • مركز التشغيل", color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 11.sp)
+                    Text("نظرة عامة", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                    Text("لوحة المطور • مركز التشغيل", color = QabasTheme.current.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                 }
                 TextButton(onClick = { refreshOverview() }, enabled = !isCheckingCloud) {
-                    Text(if (isCheckingCloud) "فحص…" else "تحديث", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text(if (isCheckingCloud) "فحص…" else "تحديث", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         }
@@ -906,20 +891,20 @@ fun DashboardMainGrid(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp)
         ) {
             item {
-                Text("الحالة الآن", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("الحالة الآن", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    CyberTelemetryPill(Modifier.weight(1f), "الخدمات السحابية", if (isCheckingCloud) "فحص…" else if (isSupabaseOnline) "تعمل" else "متوقفة", if (cloudLatency > 0) "${cloudLatency}ms" else "Supabase", if (isSupabaseOnline) green else Color(0xFFEF4444), Icons.Default.CloudQueue) { refreshOverview() }
+                    CyberTelemetryPill(Modifier.weight(1f), "الخدمات السحابية", if (isCheckingCloud) "فحص…" else if (isSupabaseOnline) "تعمل" else "متوقفة", if (cloudLatency > 0) "${cloudLatency}ms" else "Supabase", if (isSupabaseOnline) green else QabasTheme.current.destructive, Icons.Default.CloudQueue) { refreshOverview() }
                     CyberTelemetryPill(Modifier.weight(1f), "الصحة العامة", diagnosticSummary, "فحص تلقائي", cyan, Icons.Default.Shield) { refreshOverview() }
                     CyberTelemetryPill(Modifier.weight(1f), "المستخدمون", "$userCount", "حسابًا", green, Icons.Default.People, onUsersCommunityHub)
                 }
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.width(3.dp).height(18.dp).background(GoldPrimary))
+                    Box(Modifier.width(3.dp).height(18.dp).background(PresetPrimary))
                     Spacer(Modifier.width(8.dp))
-                    Text("مسارات العمل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("مسارات العمل", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
             items(hubs) { hub ->
@@ -948,7 +933,7 @@ private fun CyberTelemetryPill(
     onClick: () -> Unit
 ) {
     Surface(
-        color = Color(0xFF0F172A).copy(alpha = 0.7f),
+        color = QabasTheme.current.secondarySurface.copy(alpha = 0.7f),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(0.8.dp, accent.copy(alpha = 0.35f)),
         modifier = modifier
@@ -972,14 +957,14 @@ private fun CyberTelemetryPill(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = Color(0xFF94A3B8),
+                    color = QabasTheme.current.textSecondary,
                     fontSize = 9.sp,
                     fontFamily = CairoFont,
                     maxLines = 1
                 )
                 Text(
                     text = value,
-                    color = Color.White,
+                    color = QabasTheme.current.textPrimary,
                     fontSize = 11.5.sp,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
@@ -1012,7 +997,7 @@ private fun CyberCommandHubCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF090E1A).copy(alpha = 0.9f)),
+        colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background.copy(alpha = 0.9f)),
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.35f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -1025,7 +1010,7 @@ private fun CyberCommandHubCard(
                         listOf(
                             accent.copy(alpha = 0.12f),
                             Color.Transparent,
-                            Color(0xFF0A0F1D).copy(alpha = 0.6f)
+                            QabasTheme.current.background.copy(alpha = 0.6f)
                         )
                     )
                 )
@@ -1071,7 +1056,7 @@ private fun CyberCommandHubCard(
                     ) {
                         Text(
                             text = title,
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.5.sp,
@@ -1100,7 +1085,7 @@ private fun CyberCommandHubCard(
 
                     Text(
                         text = subtitle,
-                        color = Color(0xFF94A3B8),
+                        color = QabasTheme.current.textSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
@@ -1127,7 +1112,7 @@ private fun CyberCommandHubCard(
                     modifier = Modifier
                         .size(30.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF0F172A))
+                        .background(QabasTheme.current.secondarySurface)
                         .border(1.dp, accent.copy(alpha = 0.35f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1190,11 +1175,11 @@ fun SystemControlsSection(context: Context) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(CardSurface, RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("التحكم في خيارات النظام المباشرة", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("التحكم في خيارات النظام المباشرة", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1202,8 +1187,8 @@ fun SystemControlsSection(context: Context) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("وضع الصيانة (Maintenance Mode)", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("إيقاف الوصول المؤقت للتطبيق للعملاء عند تحديث الخوادم.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Text("وضع الصيانة (Maintenance Mode)", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("إيقاف الوصول المؤقت للتطبيق للعملاء عند تحديث الخوادم.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
                 Switch(
                     checked = isMaintenanceMode,
@@ -1213,11 +1198,11 @@ fun SystemControlsSection(context: Context) {
                         saveConfig(maintenance = it)
                         Toast.makeText(context, if (it) "تم تفعيل وضع الصيانة ⚠️" else "تم إيقاف وضع الصيانة وإتاحة التطبيق ✅", Toast.LENGTH_SHORT).show()
                     },
-                    colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldSecondary)
+                    colors = SwitchDefaults.colors(checkedThumbColor = PresetPrimary, checkedTrackColor = PresetAccent)
                 )
             }
 
-            HorizontalDivider(color = Color(0xFF1E293B))
+            HorizontalDivider(color = QabasTheme.current.separator)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1225,8 +1210,8 @@ fun SystemControlsSection(context: Context) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("استقبال طلبات جديدة", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("السماح للمستخدمين بإرسال مشاريع جديدة.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Text("استقبال طلبات جديدة", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("السماح للمستخدمين بإرسال مشاريع جديدة.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
                 Switch(
                     checked = acceptNewRequests,
@@ -1236,11 +1221,11 @@ fun SystemControlsSection(context: Context) {
                         saveConfig(accept = it)
                         Toast.makeText(context, if (it) "تم تفعيل استقبال الطلبات الجديدة ✅" else "تم إيقاف استقبال الطلبات مؤقتاً 🛑", Toast.LENGTH_SHORT).show()
                     },
-                    colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldSecondary)
+                    colors = SwitchDefaults.colors(checkedThumbColor = PresetPrimary, checkedTrackColor = PresetAccent)
                 )
             }
 
-            HorizontalDivider(color = Color(0xFF1E293B))
+            HorizontalDivider(color = QabasTheme.current.separator)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1248,8 +1233,8 @@ fun SystemControlsSection(context: Context) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("الرد الآلي (AI Auto-Reply)", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("تفعيل الاستجابة التلقائية للذكاء الاصطناعي مع المستخدمين.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Text("الرد الآلي (AI Auto-Reply)", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("تفعيل الاستجابة التلقائية للذكاء الاصطناعي مع المستخدمين.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
                 Switch(
                     checked = autoAiReply,
@@ -1259,31 +1244,31 @@ fun SystemControlsSection(context: Context) {
                         saveConfig(aiReply = it)
                         Toast.makeText(context, if (it) "تم تفعيل الرد الآلي للذكاء الاصطناعي 🤖" else "تم تعطيل الرد الآلي ⏸️", Toast.LENGTH_SHORT).show()
                     },
-                    colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldSecondary)
+                    colors = SwitchDefaults.colors(checkedThumbColor = PresetPrimary, checkedTrackColor = PresetAccent)
                 )
             }
 
-            HorizontalDivider(color = Color(0xFF1E293B))
+            HorizontalDivider(color = QabasTheme.current.separator)
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("رسالة توقف الخدمة المخصصة (تظهر للمستخدمين)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("سيتم إظهار هذا النص للمستخدمين عند تفعيل وضع الصيانة أو إيقاف الخدمة.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text("رسالة توقف الخدمة المخصصة (تظهر للمستخدمين)", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("سيتم إظهار هذا النص للمستخدمين عند تفعيل وضع الصيانة أو إيقاف الخدمة.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
 
                 OutlinedTextField(
                     value = customMessage,
                     onValueChange = { customMessage = it },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = QabasTheme.current.separator,
+                        focusedTextColor = QabasTheme.current.textPrimary,
+                        unfocusedTextColor = QabasTheme.current.textPrimary
                     ),
                     shape = RoundedCornerShape(8.dp),
                     minLines = 2
                 )
 
-                Text("نماذج جاهزة للرسائل:", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text("نماذج جاهزة للرسائل:", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1301,11 +1286,11 @@ fun SystemControlsSection(context: Context) {
                                 AppSoundManager.playToggle()
                                 customMessage = msg
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.separator),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(6.dp)
                         ) {
-                            Text(title, color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
+                            Text(title, color = PresetPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
                         }
                     }
                 }
@@ -1319,22 +1304,22 @@ fun SystemControlsSection(context: Context) {
                         Toast.makeText(context, "تم حفظ رسالة الصيانة سحابياً بنجاح ✦", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Save, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("حفظ نص الرسالة سحابياً", color = Color.Black, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("حفظ نص الرسالة سحابياً", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
+                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text(
                     syncState,
-                    color = GoldSecondary,
+                    color = PresetAccent,
                     fontFamily = NotoSansFont,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(12.dp)
@@ -1347,12 +1332,12 @@ fun SystemControlsSection(context: Context) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(CardSurface, RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("القواعد المشروطة وتجارب A/B", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text("تجاوز قيمة مفتاح لشريحة فقط (إصدار/نوع مستخدم/نسبة طرح) — تُقيَّم الأعلى أولوية أولاً.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+            Text("القواعد المشروطة وتجارب A/B", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("تجاوز قيمة مفتاح لشريحة فقط (إصدار/نوع مستخدم/نسبة طرح) — تُقيَّم الأعلى أولوية أولاً.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
             ConfigOverridesEditor(context = context)
         }
 
@@ -1377,7 +1362,7 @@ fun NotificationsSection(context: Context) {
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldPrimary)
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, PresetPrimary)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -1386,10 +1371,10 @@ fun NotificationsSection(context: Context) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("الحديث النبوي اليومي التلقائي 📖", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("الحديث النبوي اليومي التلقائي 📖", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(
                                 "نشر حديث يومي صحيح من الكتب المعتمدة (البخاري ومسلم) بدون الحاجة لدخول التطبيق.",
                                 color = TextSecondary,
@@ -1411,9 +1396,9 @@ fun NotificationsSection(context: Context) {
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = DeepSlate,
-                            checkedTrackColor = GoldPrimary,
-                            uncheckedThumbColor = Color.Gray,
-                            uncheckedTrackColor = Color(0xFF151B2B)
+                            checkedTrackColor = PresetPrimary,
+                            uncheckedThumbColor = QabasTheme.current.textTertiary,
+                            uncheckedTrackColor = QabasTheme.current.cardSurface
                         )
                     )
                 }
@@ -1425,7 +1410,7 @@ fun NotificationsSection(context: Context) {
                         notificationScope.launch {
                             runCatching {
                                 AppNotificationService.triggerDailyHadithNow(context, force = true)
-                            }.onSuccess {
+                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onSuccess {
                                 sentNotifications = AppNotificationService.getNotifications(context)
                                 Toast.makeText(context, "تم تجهيز حديث اليوم وإضافته إلى سجل الإشعارات بنجاح ✨", Toast.LENGTH_SHORT).show()
                             }.onFailure { error ->
@@ -1438,12 +1423,12 @@ fun NotificationsSection(context: Context) {
                     enabled = !isSendingHadith,
                     modifier = Modifier.fillMaxWidth().height(42.dp),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.2f)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary.copy(alpha = 0.2f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary)
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Send, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isSendingHadith) "جارٍ تجهيز الحديث…" else "إرسال حديث نبوي صحيح الآن للمستخدمين 🚀", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(if (isSendingHadith) "جارٍ تجهيز الحديث…" else "إرسال حديث نبوي صحيح الآن للمستخدمين 🚀", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -1452,21 +1437,21 @@ fun NotificationsSection(context: Context) {
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldPrimary)
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, PresetPrimary)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("إرسال إشعار عام للمستخدمين", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("إرسال إشعار عام للمستخدمين", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = notifTitle,
                     onValueChange = { notifTitle = it },
-                    label = { Text("عنوان الإشعار", color = Color.Gray, fontFamily = CairoFont) },
+                    label = { Text("عنوان الإشعار", color = QabasTheme.current.textTertiary, fontFamily = CairoFont) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = QabasTheme.current.separator,
+                        focusedTextColor = QabasTheme.current.textPrimary,
+                        unfocusedTextColor = QabasTheme.current.textPrimary
                     ),
                     shape = RoundedCornerShape(8.dp)
                 )
@@ -1474,13 +1459,13 @@ fun NotificationsSection(context: Context) {
                 OutlinedTextField(
                     value = notifMessage,
                     onValueChange = { notifMessage = it },
-                    label = { Text("نص الإشعار", color = Color.Gray, fontFamily = CairoFont) },
+                    label = { Text("نص الإشعار", color = QabasTheme.current.textTertiary, fontFamily = CairoFont) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = QabasTheme.current.separator,
+                        focusedTextColor = QabasTheme.current.textPrimary,
+                        unfocusedTextColor = QabasTheme.current.textPrimary
                     ),
                     shape = RoundedCornerShape(8.dp)
                 )
@@ -1511,25 +1496,25 @@ fun NotificationsSection(context: Context) {
                     enabled = !isSendingBroadcast,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black)
+                    Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isSendingBroadcast) "جارٍ الإرسال…" else "إرسال الإشعار الآن", color = Color.Black, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (isSendingBroadcast) "جارٍ الإرسال…" else "إرسال الإشعار الآن", color = DeepSlate, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }
 
         // Display sent notifications log
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("الإشعارات المرسلة سابقاً (${sentNotifications.size})", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("الإشعارات المرسلة سابقاً (${sentNotifications.size})", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             if (sentNotifications.isNotEmpty()) {
                 TextButton(onClick = {
                     AppNotificationService.clearNotifications(context)
                     sentNotifications = emptyList()
                     Toast.makeText(context, "تم مسح جميع الإشعارات", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text("مسح الكل", color = Color.Red, fontFamily = NotoSansFont, fontSize = 12.sp)
+                    Text("مسح الكل", color = QabasTheme.current.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
             }
         }
@@ -1537,19 +1522,19 @@ fun NotificationsSection(context: Context) {
         Text("البث يعمل عبر Supabase Realtime — يصل كل الأجهزة المتصلة فوراً.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
 
         if (sentNotifications.isEmpty()) {
-            Text("لا توجد إشعارات مرسلة حالياً", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp)
+            Text("لا توجد إشعارات مرسلة حالياً", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 14.sp)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(200.dp)) {
                 items(sentNotifications) { notif ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF111111)),
+                        colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background),
                         shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(notif.title, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                            Text(notif.message, color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp)
+                            Text(notif.title, color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Text(notif.message, color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
                         }
                     }
                 }
@@ -1618,7 +1603,7 @@ fun ConfigOverridesEditor(context: Context) {
         }
         // النسبة + أدنى إصدار
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("الطرح: $selPercent٪", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.width(90.dp))
+            Text("الطرح: $selPercent٪", color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.width(90.dp))
             Slider(value = selPercent.toFloat(), onValueChange = { selPercent = it.toInt() }, valueRange = 0f..100f, modifier = Modifier.weight(1f))
         }
         OutlinedTextField(
@@ -1642,29 +1627,29 @@ fun ConfigOverridesEditor(context: Context) {
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
             shape = RoundedCornerShape(8.dp)
         ) {
-            Text("إضافة القاعدة", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            Text("إضافة القاعدة", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
         }
 
         if (loading) {
-            CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(24.dp))
+            CircularProgressIndicator(color = PresetPrimary, modifier = Modifier.size(24.dp))
         } else if (rules.isEmpty()) {
-            Text("لا قواعد بعد — القيم العامة هي الفعالة.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+            Text("لا قواعد بعد — القيم العامة هي الفعالة.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
         } else {
             rules.forEach { rule ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
+                    colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background),
                     shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "${keyLabels[rule.key] ?: rule.key} = ${rule.value}",
-                                color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp
+                                color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp
                             )
                             Text(
                                 "${typeLabels[rule.userType] ?: rule.userType} • ${rule.percent}٪ • v${rule.minVersion}+",
@@ -1678,7 +1663,7 @@ fun ConfigOverridesEditor(context: Context) {
                                 if (ok) reload()
                             }
                         }) {
-                            Text("حذف", color = Color.Red, fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("حذف", color = QabasTheme.current.destructive, fontFamily = CairoFont, fontSize = 12.sp)
                         }
                     }
                 }
@@ -1708,17 +1693,17 @@ fun StatsSection(userCount: Int) {
             when (selectedTab) {
                 0 -> {
                     item {
-                        Text("اللوحة المرئية لاستهلاك المفاتيح الحقيقي", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("اللوحة المرئية لاستهلاك المفاتيح الحقيقي", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         ApiConsumptionChart(context = context)
                     }
                     item {
-                        Text("مؤشرات الأداء وصحة النظام وقواعد البيانات (Health & Room DB)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("مؤشرات الأداء وصحة النظام وقواعد البيانات (Health & Room DB)", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         SystemPerformanceHealthKpiGrid(context = context)
                     }
                     item {
-                        Text("إحصائيات النظام والشبكة الحقيقية", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("إحصائيات النظام والشبكة الحقيقية", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             StatCard(
@@ -1738,19 +1723,19 @@ fun StatsSection(userCount: Int) {
                 }
                 1 -> {
                     item {
-                        Text("رسم بياني لتفاعل وإنتاجية صناع المحتوى (Engagement Trends)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("رسم بياني لتفاعل وإنتاجية صناع المحتوى (Engagement Trends)", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         WeeklyEngagementTrendsChart(context = context)
                     }
                 }
                 else -> {
                     item {
-                        Text("سجلات حارس المحتوى السحابية المباشرة (Cloud Guard Activity)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("سجلات حارس المحتوى السحابية المباشرة (Cloud Guard Activity)", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         LiveCloudGuardLogsCard(context = context)
                     }
                     item {
-                        Text("مساحة التطبيق والتخزين المحلي", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("مساحة التطبيق والتخزين المحلي", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         FirebaseStorageCapacityCard(context = context)
                     }
@@ -1769,7 +1754,7 @@ fun LiveCloudGuardLogsCard(context: Context) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1781,14 +1766,14 @@ fun LiveCloudGuardLogsCard(context: Context) {
                     Box(
                         modifier = Modifier
                             .size(38.dp)
-                            .background(Color(0xFF10B981).copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                            .background(QabasTheme.current.success.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.Security, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(22.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
-                        Text("سجلات التدقيق الشرعي السحابي", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("سجلات التدقيق الشرعي السحابي", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(
                             if (cloudLogs.isEmpty()) "في انتظار عمليات الفحص السحابية..." else "${cloudLogs.size} عملية فحص مسجلة",
                             color = TextSecondary,
@@ -1799,13 +1784,13 @@ fun LiveCloudGuardLogsCard(context: Context) {
                 }
 
                 Surface(
-                    color = if (CloudServices.isFirebaseInitialized) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                    color = if (CloudServices.isFirebaseInitialized) QabasTheme.current.success.copy(alpha = 0.15f) else QabasTheme.current.destructive.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (CloudServices.isFirebaseInitialized) Color(0xFF10B981) else Color(0xFFEF4444))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (CloudServices.isFirebaseInitialized) QabasTheme.current.success else QabasTheme.current.destructive)
                 ) {
                     Text(
                         if (CloudServices.isFirebaseInitialized) "Firestore 🟢" else "محلي فقط 🟡",
-                        color = if (CloudServices.isFirebaseInitialized) Color(0xFF10B981) else Color(0xFFF59E0B),
+                        color = if (CloudServices.isFirebaseInitialized) QabasTheme.current.success else QabasTheme.current.warning,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
@@ -1820,13 +1805,13 @@ fun LiveCloudGuardLogsCard(context: Context) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
+                        .background(QabasTheme.current.background, RoundedCornerShape(10.dp))
                         .padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         "لا توجد سجلات تدقيق متاحة حتى الآن.",
-                        color = Color.Gray,
+                        color = QabasTheme.current.textTertiary,
                         fontFamily = NotoSansFont,
                         fontSize = 12.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1841,13 +1826,13 @@ fun LiveCloudGuardLogsCard(context: Context) {
                         val textSnippet = logMap["textSnippet"] as? String ?: ""
 
                         val badgeColor = when (verdict) {
-                            "REJECTED" -> Color(0xFFEF4444)
-                            "NEEDS_REVIEW" -> Color(0xFFF59E0B)
-                            else -> Color(0xFF10B981)
+                            "REJECTED" -> QabasTheme.current.destructive
+                            "NEEDS_REVIEW" -> QabasTheme.current.warning
+                            else -> QabasTheme.current.success
                         }
 
                         Surface(
-                            color = Color(0xFF0B0F19),
+                            color = QabasTheme.current.background,
                             shape = RoundedCornerShape(10.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.3f))
                         ) {
@@ -1889,7 +1874,7 @@ fun LiveCloudGuardLogsCard(context: Context) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = reason,
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 11.sp,
                                         maxLines = 1
@@ -1964,7 +1949,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1972,8 +1957,8 @@ fun WeeklyEngagementTrendsChart(context: Context) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("معدل الإنتاج الأسبوعي", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("إجمالي الأسبوع: ${currentData.sum()}", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("معدل الإنتاج الأسبوعي", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("إجمالي الأسبوع: ${currentData.sum()}", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -1982,7 +1967,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
+                    .background(QabasTheme.current.background, RoundedCornerShape(10.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -1992,14 +1977,14 @@ fun WeeklyEngagementTrendsChart(context: Context) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) GoldPrimary else Color.Transparent)
+                            .background(if (isSelected) PresetPrimary else Color.Transparent)
                             .clickable { selectedMetric = idx }
                             .padding(vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             label,
-                            color = if (isSelected) DeepSlate else Color.Gray,
+                            color = if (isSelected) DeepSlate else QabasTheme.current.textTertiary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
@@ -2025,7 +2010,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
                     for (i in 0..steps) {
                         val y = (maxBarHeight / steps) * i
                         drawLine(
-                            color = Color(0xFF1E293B).copy(alpha = 0.5f),
+                            color = QabasTheme.current.separator.copy(alpha = 0.5f),
                             start = androidx.compose.ui.geometry.Offset(0f, y),
                             end = androidx.compose.ui.geometry.Offset(size.width, y),
                             strokeWidth = 1f,
@@ -2042,7 +2027,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
 
                         // Background pillar
                         drawRoundRect(
-                            color = Color(0xFF0B0F19),
+                            color = QabasTheme.current.background,
                             topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
                             size = androidx.compose.ui.geometry.Size(barWidth, maxBarHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
@@ -2051,7 +2036,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
                         // Active gradient bar
                         drawRoundRect(
                             brush = Brush.verticalGradient(
-                                listOf(GoldPrimary, GoldPrimary.copy(alpha = 0.4f))
+                                listOf(PresetPrimary, PresetPrimary.copy(alpha = 0.4f))
                             ),
                             topLeft = androidx.compose.ui.geometry.Offset(x, yOffset),
                             size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
@@ -2071,7 +2056,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
                 daysOfWeek.forEachIndexed { idx, day ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                         Text(day, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        Text("${currentData[idx]}", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("${currentData[idx]}", color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -2104,7 +2089,7 @@ fun SystemPerformanceHealthKpiGrid(context: Context) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -2113,17 +2098,17 @@ fun SystemPerformanceHealthKpiGrid(context: Context) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Speed, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Speed, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("مؤشرات زمن الاستجابة والاستقرار الحقيقية", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("مؤشرات زمن الاستجابة والاستقرار الحقيقية", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 Surface(
-                    color = if (hasMeasurements) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF475569).copy(alpha = 0.2f),
+                    color = if (hasMeasurements) QabasTheme.current.success.copy(alpha = 0.15f) else QabasTheme.current.textTertiary.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         if (hasMeasurements) "مستقر $overallSuccessRate% ⚡" else "لا قياسات بعد",
-                        color = if (hasMeasurements) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        color = if (hasMeasurements) QabasTheme.current.success else QabasTheme.current.textSecondary,
                         fontSize = 12.sp,
                         fontFamily = NotoSansFont,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -2193,9 +2178,9 @@ fun KpiMetricBox(
 ) {
     Surface(
         modifier = modifier,
-        color = Color(0xFF0B0F19),
+        color = QabasTheme.current.background,
         shape = RoundedCornerShape(10.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF151B2B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.cardSurface)
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -2205,13 +2190,13 @@ fun KpiMetricBox(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 value,
-                color = if (isPositive) Color(0xFF10B981) else GoldPrimary,
+                color = if (isPositive) QabasTheme.current.success else PresetPrimary,
                 fontFamily = RobotoMonoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(subtitle, color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+            Text(subtitle, color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
         }
     }
 }
@@ -2253,7 +2238,7 @@ fun FirebaseStorageCapacityCard(context: Context) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFirebaseActive) GoldPrimary else Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFirebaseActive) PresetPrimary else QabasTheme.current.separator)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -2265,30 +2250,30 @@ fun FirebaseStorageCapacityCard(context: Context) {
                     Box(
                         modifier = Modifier
                             .size(38.dp)
-                            .background(GoldPrimary.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                            .background(PresetPrimary.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.CloudQueue, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.CloudQueue, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
-                        Text("سعة تخزين السيرفر و Firebase", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("سعة تخزين السيرفر و Firebase", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(
                             if (isFirebaseActive) "سحابة Firebase Firestore نشطة 🔥" else "وضع التخزين المحلي المؤقت 💾",
-                            color = if (isFirebaseActive) Color(0xFF10B981) else Color.Gray,
+                            color = if (isFirebaseActive) QabasTheme.current.success else QabasTheme.current.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp
                         )
                     }
                 }
                 Surface(
-                    color = if (remainingPercentage > 20) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFEF4444).copy(alpha = 0.2f),
+                    color = if (remainingPercentage > 20) QabasTheme.current.success.copy(alpha = 0.2f) else QabasTheme.current.destructive.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (remainingPercentage > 20) Color(0xFF10B981) else Color(0xFFEF4444))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (remainingPercentage > 20) QabasTheme.current.success else QabasTheme.current.destructive)
                 ) {
                     Text(
                         "متبقي $remainingPercentage%",
-                        color = if (remainingPercentage > 20) Color(0xFF10B981) else Color(0xFFEF4444),
+                        color = if (remainingPercentage > 20) QabasTheme.current.success else QabasTheme.current.destructive,
                         fontSize = 11.sp,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -2307,11 +2292,11 @@ fun FirebaseStorageCapacityCard(context: Context) {
                     .height(10.dp)
                     .clip(RoundedCornerShape(5.dp)),
                 color = when {
-                    usedPercentageRatio < 0.7f -> Color(0xFF10B981)
-                    usedPercentageRatio < 0.9f -> GoldPrimary
-                    else -> Color(0xFFEF4444)
+                    usedPercentageRatio < 0.7f -> QabasTheme.current.success
+                    usedPercentageRatio < 0.9f -> PresetPrimary
+                    else -> QabasTheme.current.destructive
                 },
-                trackColor = Color(0xFF0B0F19)
+                trackColor = QabasTheme.current.background
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -2323,20 +2308,20 @@ fun FirebaseStorageCapacityCard(context: Context) {
             ) {
                 Column {
                     Text("المساحة المستهلكة", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    Text(String.format("%.1f MB", totalUsedMB), color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(String.format("%.1f MB", totalUsedMB), color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("المساحة المتبقية مجاناً", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    Text(String.format("%.1f MB", remainingMB), color = Color(0xFF10B981), fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(String.format("%.1f MB", remainingMB), color = QabasTheme.current.success, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("حد الباقة المجانية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                    Text("1,024 MB (1 GB)", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("1,024 MB (1 GB)", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color(0xFF1E293B))
+            HorizontalDivider(color = QabasTheme.current.separator)
             Spacer(modifier = Modifier.height(10.dp))
 
             Row(
@@ -2349,13 +2334,13 @@ fun FirebaseStorageCapacityCard(context: Context) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("حجم ملفات الذاكرة المؤقتة (Cache):", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
-                Text(String.format("%.1f MB", cacheMB), color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(String.format("%.1f MB", cacheMB), color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 "ملاحظة صادقة: استهلاك Firebase السحابي لا يُقاس محلياً؛ الأرقام المعروضة قياس فعلي لملفات التطبيق وقاعدة البيانات والكاش على هذا الجهاز.",
-                color = Color(0xFF64748B),
+                color = QabasTheme.current.textTertiary,
                 fontFamily = NotoSansFont,
                 fontSize = 11.sp
             )
@@ -2378,7 +2363,7 @@ fun ApiConsumptionChart(context: Context) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -2387,18 +2372,18 @@ fun ApiConsumptionChart(context: Context) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.VpnKey, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.VpnKey, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("استهلاك مفاتيح API الحقيقي", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("استهلاك مفاتيح API الحقيقي", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 Surface(
-                    color = if (totalCalls > 0) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF475569).copy(alpha = 0.2f),
+                    color = if (totalCalls > 0) QabasTheme.current.success.copy(alpha = 0.2f) else QabasTheme.current.textTertiary.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (totalCalls > 0) Color(0xFF10B981) else Color(0xFF64748B))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (totalCalls > 0) QabasTheme.current.success else QabasTheme.current.textTertiary)
                 ) {
                     Text(
                         if (totalCalls > 0) "$totalCalls استدعاء مسجّل" else "لا قياسات بعد",
-                        color = if (totalCalls > 0) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        color = if (totalCalls > 0) QabasTheme.current.success else QabasTheme.current.textSecondary,
                         fontSize = 10.sp,
                         fontFamily = CairoFont,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -2420,7 +2405,7 @@ fun ApiConsumptionChart(context: Context) {
                     for (i in 0..steps) {
                         val y = (maxBarHeight / steps) * i
                         drawLine(
-                            color = Color(0xFF1E293B),
+                            color = QabasTheme.current.separator,
                             start = androidx.compose.ui.geometry.Offset(0f, y),
                             end = androidx.compose.ui.geometry.Offset(size.width, y),
                             strokeWidth = 1f,
@@ -2436,12 +2421,12 @@ fun ApiConsumptionChart(context: Context) {
                         val yOffset = maxBarHeight - targetHeight
 
                         drawRoundRect(
-                            color = Color(0xFF0B0F19),
+                            color = QabasTheme.current.background,
                             topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
                             size = androidx.compose.ui.geometry.Size(barWidth, maxBarHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
                         )
-                        val barColor = if (calls > 0) Color(0xFF10B981) else Color(0xFF334155)
+                        val barColor = if (calls > 0) QabasTheme.current.success else QabasTheme.current.separator
                         drawRoundRect(
                             brush = Brush.verticalGradient(listOf(barColor.copy(alpha = 0.8f), barColor.copy(alpha = 0.3f))),
                             topLeft = androidx.compose.ui.geometry.Offset(x, yOffset),
@@ -2457,10 +2442,10 @@ fun ApiConsumptionChart(context: Context) {
                 apis.forEach { name ->
                     val calls = stats[name]?.totalCalls ?: 0L
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        Text(name.replace("HuggingFace", "HF AI"), color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(name.replace("HuggingFace", "HF AI"), color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Text(
                             if (calls > 0) "$calls استدعاء" else "0",
-                            color = if (calls > 0) Color(0xFF10B981) else Color(0xFF64748B),
+                            color = if (calls > 0) QabasTheme.current.success else QabasTheme.current.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 9.sp
                         )
@@ -2476,9 +2461,9 @@ fun ApiConsumptionChart(context: Context) {
 fun LogsSection(devLogs: androidx.compose.runtime.snapshots.SnapshotStateList<SystemLogEntry>) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("سجلات النظام الحية (${devLogs.size})", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("سجلات النظام الحية (${devLogs.size})", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             TextButton(onClick = { devLogs.clear() }) {
-                Text("مسح السجلات", color = Color.Red, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text("مسح السجلات", color = QabasTheme.current.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
         }
 
@@ -2486,19 +2471,19 @@ fun LogsSection(devLogs: androidx.compose.runtime.snapshots.SnapshotStateList<Sy
             modifier = Modifier
                 .fillMaxSize()
                 .background(CardSurface, RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
                 .padding(16.dp)
         ) {
             if (devLogs.isEmpty()) {
-                Text("لا توجد سجلات حالياً (النظام يعمل بصفاء تام)", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp)
+                Text("لا توجد سجلات حالياً (النظام يعمل بصفاء تام)", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 14.sp)
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(devLogs) { log ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("[${log.level}]", color = log.color, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(log.message, color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                            Text(log.time, color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text(log.message, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            Text(log.time, color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 }
@@ -2569,7 +2554,7 @@ fun firstAppFrame(fullStack: String): String {
     return fullStack.lineSequence()
         .firstOrNull { line ->
             val t = line.trim()
-            t.startsWith("at com.qabas.app.") && "(:\\d+)" in t
+            t.startsWith("at com.qabas.app.") && ".kt:" in t
         }
         ?.trim()
         ?.removePrefix("at ")
@@ -2849,17 +2834,17 @@ fun StatCard(title: String, value: String, icon: ImageVector, modifier: Modifier
     Box(
         modifier = modifier
             .background(CardSurface, RoundedCornerShape(12.dp))
-            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+            .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
             .padding(16.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                Icon(icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(title, color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text(title, color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Text(value, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Text(value, color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
         }
     }
 }
@@ -2878,7 +2863,7 @@ fun PromoCodesSection(context: Context) {
 
     // تحديث الكاش من Firestore كلما فُتحت هذه الشاشة، ضماناً لرؤية أحدث الأكواد.
     LaunchedEffect(Unit) {
-        runCatching { giftManager.loadValidCodesFromCloud() }
+        runCatching { giftManager.loadValidCodesFromCloud() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             .onFailure { android.util.Log.e("PromoCodesSection", "loadValidCodesFromCloud failed: ${it.message}", it) }
     }
 
@@ -2890,7 +2875,7 @@ fun PromoCodesSection(context: Context) {
             // Header
             Text(
                 "نظام المكافآت والأكواد",
-                color = GoldPrimary,
+                color = PresetPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
@@ -2908,23 +2893,23 @@ fun PromoCodesSection(context: Context) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("توليد كود ترقية (خادم المسلم برو)", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("توليد كود ترقية (خادم المسلم برو)", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     OutlinedTextField(
                         value = promoCode,
                         onValueChange = { promoCode = it.uppercase() },
-                        label = { Text("رمز الكود (مثال: NEW-YEAR-PRO)", color = Color.Gray, fontFamily = CairoFont) },
+                        label = { Text("رمز الكود (مثال: NEW-YEAR-PRO)", color = QabasTheme.current.textTertiary, fontFamily = CairoFont) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = QabasTheme.current.separator,
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -2932,14 +2917,14 @@ fun PromoCodesSection(context: Context) {
                     OutlinedTextField(
                         value = durationDays,
                         onValueChange = { durationDays = it },
-                        label = { Text("المدة بالأيام (مثال: 30)", color = Color.Gray, fontFamily = CairoFont) },
+                        label = { Text("المدة بالأيام (مثال: 30)", color = QabasTheme.current.textTertiary, fontFamily = CairoFont) },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = QabasTheme.current.separator,
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -2962,7 +2947,7 @@ fun PromoCodesSection(context: Context) {
                                 Toast.makeText(context, "تأكد من إدخال البيانات بشكل صحيح", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -2977,23 +2962,23 @@ fun PromoCodesSection(context: Context) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("توليد بطاقة هدايا (نقاط ذهبية)", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("توليد بطاقة هدايا (نقاط ذهبية)", color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     OutlinedTextField(
                         value = giftCode,
                         onValueChange = { giftCode = it.uppercase() },
-                        label = { Text("رمز البطاقة (مثال: WELCOME-1000)", color = Color.Gray, fontFamily = CairoFont) },
+                        label = { Text("رمز البطاقة (مثال: WELCOME-1000)", color = QabasTheme.current.textTertiary, fontFamily = CairoFont) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = QabasTheme.current.separator,
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -3001,14 +2986,14 @@ fun PromoCodesSection(context: Context) {
                     OutlinedTextField(
                         value = pointsAmount,
                         onValueChange = { pointsAmount = it },
-                        label = { Text("عدد النقاط (مثال: 500)", color = Color.Gray, fontFamily = CairoFont) },
+                        label = { Text("عدد النقاط (مثال: 500)", color = QabasTheme.current.textTertiary, fontFamily = CairoFont) },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = QabasTheme.current.separator,
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -3031,7 +3016,7 @@ fun PromoCodesSection(context: Context) {
                                 Toast.makeText(context, "تأكد من إدخال البيانات بشكل صحيح", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -3042,9 +3027,9 @@ fun PromoCodesSection(context: Context) {
         }
         
         item {
-            Text("الأكواد المخصصة النشطة", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+            Text("الأكواد المخصصة النشطة", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
             if (customPromos.isEmpty() && customGifts.isEmpty()) {
-                Text("لا توجد أكواد مخصصة بعد.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp)
+                Text("لا توجد أكواد مخصصة بعد.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 14.sp)
             }
         }
 
@@ -3072,10 +3057,10 @@ fun ActiveCodeItem(code: String, type: String, icon: ImageVector) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(code, color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(code, color = QabasTheme.current.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text(type, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                 }
             }
@@ -3086,14 +3071,14 @@ fun ActiveCodeItem(code: String, type: String, icon: ImageVector) {
                     clipboard?.setPrimaryClip(clip)
                     Toast.makeText(context, "تم نسخ الكود: $code", Toast.LENGTH_SHORT).show()
                 }) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ الكود", tint = GoldPrimary)
+                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ الكود", tint = PresetPrimary)
                 }
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.2f),
+                    color = QabasTheme.current.success.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.success)
                 ) {
-                    Text("فعال", color = Color(0xFF10B981), fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    Text("فعال", color = QabasTheme.current.success, fontFamily = NotoSansFont, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                 }
             }
         }
@@ -3126,39 +3111,39 @@ fun SupportConfigDevSection(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text("إعدادات الدعم ومجتمع واتساب السحابية", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("تعديل روابط ومحافظ الدعم ومجموعة واتساب لجميع المستخدمين.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text("إعدادات الدعم ومجتمع واتساب السحابية", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("تعديل روابط ومحافظ الدعم ومجموعة واتساب لجميع المستخدمين.", color = QabasTheme.current.textTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
             Surface(
-                color = Color(0xFF25D366).copy(alpha = 0.2f),
+                color = QabasTheme.current.success.copy(alpha = 0.2f),
                 shape = RoundedCornerShape(6.dp)
             ) {
-                Text("WhatsApp + Cloud", color = Color(0xFF25D366), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                Text("WhatsApp + Cloud", color = QabasTheme.current.success, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
             }
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+            colors = CardDefaults.cardColors(containerColor = QabasTheme.current.secondarySurface),
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("رابط مجموعة واتساب الرسمية:", color = Color(0xFF25D366), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("رابط مجموعة واتساب الرسمية:", color = QabasTheme.current.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 OutlinedTextField(
                     value = whatsappUrl,
                     onValueChange = { whatsappUrl = it },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF25D366),
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = QabasTheme.current.success,
+                        unfocusedBorderColor = QabasTheme.current.separator,
+                        focusedTextColor = QabasTheme.current.textPrimary,
+                        unfocusedTextColor = QabasTheme.current.textPrimary
                     )
                 )
 
-                Text("رابط PayPal / بطاقة الدفع:", color = Color(0xFF0070BA), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("رابط PayPal / بطاقة الدفع:", color = QabasTheme.current.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 OutlinedTextField(
                     value = paypalUrl,
                     onValueChange = { paypalUrl = it },
@@ -3167,7 +3152,7 @@ fun SupportConfigDevSection(context: Context) {
                     singleLine = true
                 )
 
-                Text("عنوان محفظة USDT (Tron TRC20):", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("عنوان محفظة USDT (Tron TRC20):", color = QabasTheme.current.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 OutlinedTextField(
                     value = usdtAddress,
                     onValueChange = { usdtAddress = it },
@@ -3176,7 +3161,7 @@ fun SupportConfigDevSection(context: Context) {
                     singleLine = true
                 )
 
-                Text("رقم الآيبان (IBAN):", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("رقم الآيبان (IBAN):", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 OutlinedTextField(
                     value = bankIban,
                     onValueChange = { bankIban = it },
@@ -3220,18 +3205,18 @@ fun SupportConfigDevSection(context: Context) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp),
                     enabled = !isSaving
                 ) {
                     if (isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = DeepSlate, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(6.dp))
                     } else {
-                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                     }
-                    Text("حفظ ونشر التعديلات سحابياً للجميع", color = Color.Black, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("حفظ ونشر التعديلات سحابياً للجميع", color = DeepSlate, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
         }
@@ -3270,26 +3255,26 @@ fun DeveloperAudioLibraryManagementScreen(onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary) }
             Column(modifier = Modifier.weight(1f)) {
                 Text("إدارة مكتبة الصوتيات", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                 Text("${tracks.size} تسجيل نشط في قاعدة البيانات", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
             }
-            IconButton(onClick = { refreshTracks() }, enabled = !isLoading) { Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = GoldPrimary) }
+            IconButton(onClick = { refreshTracks() }, enabled = !isLoading) { Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = PresetPrimary) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { showUploadDialog = true }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
+            Button(onClick = { showUploadDialog = true }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)) {
                 Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate)
                 Spacer(Modifier.width(6.dp))
                 Text("رفع تسجيل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(onClick = { refreshTracks() }, modifier = Modifier.weight(1f), enabled = !isLoading) {
-                Text("مزامنة القائمة", color = GoldPrimary, fontFamily = CairoFont)
+                Text("مزامنة القائمة", color = PresetPrimary, fontFamily = CairoFont)
             }
         }
-        statusMessage?.let { Text(it, color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp) }
+        statusMessage?.let { Text(it, color = QabasTheme.current.primary, fontFamily = CairoFont, fontSize = 12.sp) }
         if (isLoading) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GoldPrimary) }
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PresetPrimary) }
         } else if (tracks.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text("لا توجد تسجيلات نشطة. استخدم «رفع تسجيل» لإضافة محتوى.", color = TextSecondary, fontFamily = CairoFont, textAlign = TextAlign.Center)
@@ -3297,15 +3282,15 @@ fun DeveloperAudioLibraryManagementScreen(onBack: () -> Unit) {
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
                 items(tracks, key = { it.id }) { track ->
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF111B2E)), border = BorderStroke(1.dp, Color(0xFF26364D)), shape = RoundedCornerShape(14.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface), border = BorderStroke(1.dp, QabasTheme.current.separator), shape = RoundedCornerShape(14.dp)) {
                         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.GraphicEq, tint = Color(0xFF38BDF8), modifier = Modifier.size(30.dp), contentDescription = null)
+                            Icon(Icons.Default.GraphicEq, tint = QabasTheme.current.primary, modifier = Modifier.size(30.dp), contentDescription = null)
                             Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(track.title, color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 Text("${track.category} • ${track.artist.ifBlank { track.author }} • ${track.duration}", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                             }
-                            IconButton(onClick = { pendingDelete = track }) { Icon(Icons.Default.DeleteOutline, contentDescription = "حذف ${track.title}", tint = Color(0xFFF87171)) }
+                            IconButton(onClick = { pendingDelete = track }) { Icon(Icons.Default.DeleteOutline, contentDescription = "حذف ${track.title}", tint = QabasTheme.current.destructive) }
                         }
                     }
                 }
@@ -3334,7 +3319,7 @@ fun DeveloperAudioLibraryManagementScreen(onBack: () -> Unit) {
                         statusMessage = if (deleted) "تم حذف التسجيل" else "تعذر حذف التسجيل؛ تحقق من الاتصال والصلاحيات"
                         if (deleted) refreshTracks()
                     }
-                }) { Text("حذف", color = Color(0xFFF87171), fontFamily = CairoFont) }
+                }) { Text("حذف", color = QabasTheme.current.destructive, fontFamily = CairoFont) }
             },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("إلغاء", color = TextSecondary, fontFamily = CairoFont) } }
         )
