@@ -50,9 +50,9 @@ fun ClipExtractorScreen(
                 استخرج 5 لحظات ذهبية تصلح ريلزات قصيرة. أخرج JSON فقط: [{"hook":"جملة خطافة أول ثانيتين","text":"نص المقطع 30-50 كلمة"}].
             """.trimIndent()
             val raw = withContext(Dispatchers.IO) {
-                try { RealGroqService.chatOrGenerate(p) } catch (_: Exception) { null }
-                    ?: try { RealOpenAIService.chatOrGenerate(p) } catch (_: Exception) { null }
-                    ?: try { RealGeminiService.generateScript(longText, "", "موعظة", "مؤثر").joinToString("\n") { it.title } } catch (_: Exception) { null }
+                try { RealGroqService.chatOrGenerate(p) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                    ?: try { RealOpenAIService.chatOrGenerate(p) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                    ?: try { RealGeminiService.generateScript(longText, "", "موعظة", "مؤثر").joinToString("\n") { it.title } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             }
             clips = try {
                 if (raw != null && raw.contains("[")) {
@@ -72,7 +72,7 @@ fun ClipExtractorScreen(
         containerColor = DeepSlate,
         topBar = {
             TopAppBar(
-                title = { Text("مقص المقاطع ✂️", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("مقص المقاطع ✂️", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = CardSurface)
             )
@@ -85,7 +85,7 @@ fun ClipExtractorScreen(
                     modifier = Modifier.fillMaxWidth().height(140.dp),
                     placeholder = { Text("الصق نص الخطبة أو التفريغ الطويل هنا...", fontFamily = CairoFont, color = TextSecondary) },
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
                 Spacer(Modifier.height(8.dp))
                 ProdPrimaryButton(text = if (working) "المقص يعمل..." else "قص اللحظات الذهبية ✂️", onClick = { extract() })
@@ -93,9 +93,9 @@ fun ClipExtractorScreen(
             itemsIndexed(clips) { i, c ->
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)), shape = RoundedCornerShape(14.dp)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("المقطع ${i + 1}: ${c.hook}", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("المقطع ${i + 1}: ${c.hook}", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(c.text, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
-                        Button(onClick = { onCreateProject(c.text, c.hook.take(30)) }, colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary), shape = RoundedCornerShape(10.dp)) {
+                        Button(onClick = { onCreateProject(c.text, c.hook.take(30)) }, colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary), shape = RoundedCornerShape(10.dp)) {
                             Text("إنتاج فيديو 🎬", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }

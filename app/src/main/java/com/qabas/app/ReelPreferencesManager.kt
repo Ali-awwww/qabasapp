@@ -15,7 +15,6 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 /**
  * عنصر في سجل الريلز (مشاهدات أو محفوظات أو معجبات)
@@ -75,7 +74,6 @@ object ReelPreferencesManager {
     private const val KEY_AUTO_SCROLL = "reels_auto_scroll"
     private const val KEY_PLAYBACK_SPEED = "reels_playback_speed"
     private const val KEY_SHOW_CAPTIONS = "reels_show_captions"
-    private const val KEY_CONTENT_CATEGORY = "reels_content_category"
     private const val KEY_DOUBLE_TAP_ACTION = "reels_double_tap_action" // "LIKE", "SAVE", "PAUSE"
     private const val KEY_WATCH_HISTORY = "reels_watch_history_json"
     private const val KEY_SAVED_REELS = "reels_saved_reels_json"
@@ -107,8 +105,6 @@ object ReelPreferencesManager {
     private val _showCaptions = MutableStateFlow(true)
     val showCaptions: StateFlow<Boolean> = _showCaptions.asStateFlow()
 
-    private val _contentCategory = MutableStateFlow("ALL")
-    val contentCategory: StateFlow<String> = _contentCategory.asStateFlow()
 
     private val _doubleTapAction = MutableStateFlow("LIKE")
     val doubleTapAction: StateFlow<String> = _doubleTapAction.asStateFlow()
@@ -145,7 +141,6 @@ object ReelPreferencesManager {
         _autoScrollOnFinish.value = prefs.getBoolean(KEY_AUTO_SCROLL, false)
         _playbackSpeed.value = prefs.getFloat(KEY_PLAYBACK_SPEED, 1.0f)
         _showCaptions.value = prefs.getBoolean(KEY_SHOW_CAPTIONS, true)
-        _contentCategory.value = prefs.getString(KEY_CONTENT_CATEGORY, "ALL") ?: "ALL"
         _doubleTapAction.value = prefs.getString(KEY_DOUBLE_TAP_ACTION, "LIKE") ?: "LIKE"
         _alAtharEnabled.value = prefs.getBoolean(KEY_AL_ATHAR_ENABLED, true)
 
@@ -222,12 +217,6 @@ object ReelPreferencesManager {
             .putBoolean(KEY_SHOW_CAPTIONS, enabled).apply()
     }
 
-    fun setContentCategory(context: Context, category: String) {
-        _contentCategory.value = category
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_CONTENT_CATEGORY, category).apply()
-    }
-
     fun setDoubleTapAction(context: Context, action: String) {
         _doubleTapAction.value = action
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -246,13 +235,6 @@ object ReelPreferencesManager {
 
     fun hideReel(context: Context, reelId: String): Set<String> {
         val hidden = getHiddenReelIds(context) + reelId
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putStringSet(KEY_HIDDEN_REELS, hidden).apply()
-        return hidden
-    }
-
-    fun unhideReel(context: Context, reelId: String): Set<String> {
-        val hidden = getHiddenReelIds(context) - reelId
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putStringSet(KEY_HIDDEN_REELS, hidden).apply()
         return hidden
@@ -375,111 +357,10 @@ object ReelPreferencesManager {
         return _savedReels.value.any { it.reelId == reelId }
     }
 
-    fun toggleSave(
-        context: Context,
-        reelId: String,
-        title: String,
-        userName: String?,
-        userAvatar: String?,
-        videoUrl: String,
-        category: String = "عام"
-    ): Boolean {
-        init(context)
-        val currentList = _savedReels.value.toMutableList()
-        val existing = currentList.find { it.reelId == reelId }
-        val isNowSaved: Boolean
-
-        if (existing != null) {
-            currentList.remove(existing)
-            isNowSaved = false
-        } else {
-            val item = ReelHistoryItem(
-                reelId = reelId,
-                title = ReelSafetyGuardrails.cleanText(title, 80),
-                userName = ReelSafetyGuardrails.cleanText(userName ?: "صانع محتوى خادم المسلم", 40),
-                userAvatar = userAvatar,
-                videoUrl = videoUrl,
-                timestamp = System.currentTimeMillis(),
-                category = category
-            )
-            currentList.add(0, item)
-            while (currentList.size > ReelSafetyGuardrails.MAX_SAVED_REELS_COUNT) {
-                currentList.removeAt(currentList.lastIndex)
-            }
-            isNowSaved = true
-        }
-        _savedReels.value = currentList
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_SAVED_REELS, serializeItemsJson(currentList)).apply()
-
-        // Update stats
-        val curStats = _userStats.value
-        val updatedStats = curStats.copy(totalSaved = currentList.size)
-        _userStats.value = updatedStats
-        saveStats(context, updatedStats)
-
-        triggerHaptic(context)
-        return isNowSaved
-    }
-
-    fun clearSavedReels(context: Context) {
-        init(context)
-        _savedReels.value = emptyList()
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_SAVED_REELS, "[]").apply()
-    }
-
     // --- Liked Reels Operations ---
 
     fun isLiked(reelId: String): Boolean {
         return _likedReels.value.any { it.reelId == reelId }
-    }
-
-    fun toggleLiked(
-        context: Context,
-        reelId: String,
-        title: String,
-        userName: String?,
-        userAvatar: String?,
-        videoUrl: String,
-        category: String = "عام"
-    ): Boolean {
-        init(context)
-        val currentList = _likedReels.value.toMutableList()
-        val existing = currentList.find { it.reelId == reelId }
-        val isNowLiked: Boolean
-
-        if (existing != null) {
-            currentList.remove(existing)
-            isNowLiked = false
-        } else {
-            val item = ReelHistoryItem(
-                reelId = reelId,
-                title = ReelSafetyGuardrails.cleanText(title, 80),
-                userName = ReelSafetyGuardrails.cleanText(userName ?: "صانع محتوى خادم المسلم", 40),
-                userAvatar = userAvatar,
-                videoUrl = videoUrl,
-                timestamp = System.currentTimeMillis(),
-                category = category
-            )
-            currentList.add(0, item)
-            while (currentList.size > ReelSafetyGuardrails.MAX_LIKED_REELS_COUNT) {
-                currentList.removeAt(currentList.lastIndex)
-            }
-            isNowLiked = true
-        }
-        _likedReels.value = currentList
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(KEY_LIKED_REELS, serializeItemsJson(currentList)).apply()
-
-        // Update stats
-        val curStats = _userStats.value
-        val updatedStats = curStats.copy(totalLikes = currentList.size)
-        _userStats.value = updatedStats
-        saveStats(context, updatedStats)
-
-        triggerHaptic(context)
-        return isNowLiked
     }
 
     fun recordShare(context: Context) {

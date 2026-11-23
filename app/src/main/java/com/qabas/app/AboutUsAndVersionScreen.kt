@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -28,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -45,7 +43,7 @@ import kotlinx.coroutines.withContext
 
 val FULL_OFFICIAL_PRIVACY_POLICY = """
 ميثاق الخصوصية والضوابط الشرعية لتطبيق خادم المسلم (Muslim AI Assistant)
-الإصدار المعتمد: v1.0.0
+الإصدار المعتمد: v${BuildConfig.VERSION_NAME}
 
 بسم الله الرحمن الرحيم
 «إِنَّ السَّمْعَ وَالْبَصَرَ وَالْفُؤَادَ كُلُّ أُولَٰئِكَ كَانَ عَنْهُ مَسْئُولًا» [الإسراء: 36]
@@ -53,11 +51,11 @@ val FULL_OFFICIAL_PRIVACY_POLICY = """
 ١. النزاهة والمحتوى الشرعي النقي:
 يلتزم تطبيق خادم المسلم بضمان خلو كافة التصاميم والتلاوات والأصوات والنصوص من أي مخالفات شرعية أو عقدية، وتخلو المقاطع المنتجة تماماً من المعازف والآلات الموسيقية المحرمة.
 
-٢. التخزين المحلي المشفر وحفظ الأمانات (Offline-First):
-تُخزن جميع المشاريع والتسجيلات الخاصة بك محلياً داخل جهازك في قاعدة بيانات Room مشفرة. لا نقوم برفع أو قراءة ملفاتك الشخصية، والتطبيق يعمل بشكل كامل دون الحاجة لاتصال بالإنترنت أو موقع ويب خارجي.
+٢. التخزين المحلي وحفظ الأمانات (Offline-First):
+تُخزن جميع المشاريع والتسجيلات الخاصة بك محلياً داخل جهازك في قاعدة بيانات التطبيق. لا نقوم برفع أو قراءة ملفاتك الشخصية دون طلبك، والمحتوى الأساسي (القرآن والأذكار ومواقيت الصلاة) يعمل دون اتصال بالإنترنت، بينما تحتاج مزايا الذكاء الاصطناعي والريلز والتحديثات إلى اتصال.
 
 ٣. عدم بيع أو مشاركة البيانات:
-لا نقوم بجمع أو بيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق خادم المسلم خالٍ تماماً من الإعلانات التجارية وأدوات التتبع الربحية.
+لا نبيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق خادم المسلم خالٍ تماماً من الإعلانات التجارية وأدوات التتبع الربحية. تُستخدم بيانات الاستخدام (مثل مشاهدات الشاشات والتقييمات التي ترسلها) لتحسين التطبيق فقط.
 
 ٤. أمان المعالجة والذكاء الاصطناعي المسؤول:
 تتم معالجة نصوص الآيات والأحاديث النبوية والتفاسير وفق منهج أهل السنة والجماعة المعتمد، ولا يتم توليد أي محتوى يمس ثوابت العقيدة الإسلامية.
@@ -67,7 +65,7 @@ val FULL_OFFICIAL_PRIVACY_POLICY = """
 
 ٦. التواصل والدعم الفني المباشر:
 للتواصل المباشر مع فريق التطوير أو الانضمام لمجتمع خادم المسلم الرسمي على واتساب:
-https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&mlu=4&ilr=4
+${QabasWebConfig.DEFAULT_COMMUNITY_GROUP_URL}
 """.trimIndent()
 
 /**
@@ -84,6 +82,7 @@ fun AboutUsAndVersionScreen(
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
@@ -106,8 +105,6 @@ fun AboutUsAndVersionScreen(
     var showEditPrivacyUrlDialog by remember { mutableStateOf(false) }
     var customPrivacyUrlInput by remember { mutableStateOf("") }
     var devTapCount by remember { mutableIntStateOf(0) }
-    var devPassInput by remember { mutableStateOf("") }
-    var devPassError by remember { mutableStateOf(false) }
     val isDevMode = remember(context) { AdminGuard.isDashboardAccessAllowed(context) }
     var customPrivacyUrl by remember { mutableStateOf(prefs.getString("custom_privacy_url", "") ?: "") }
 
@@ -163,7 +160,9 @@ fun AboutUsAndVersionScreen(
             }
     }
 
-    val officialWhatsAppGroupUrl = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&ilr=4&iam=2"
+    // رابط المجموعة الرسمية من مصدر واحد (QabasWebConfig) — كان هنا وفي نص
+    // السياسة وفي نموذج التواصل ثلاث نسخ مختلفة من معاملات التتبع لنفس الدعوة.
+    val officialWhatsAppGroupUrl = QabasWebConfig.getOfficialGroupUrl(context)
 
     Scaffold(
         topBar = {
@@ -174,17 +173,17 @@ fun AboutUsAndVersionScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(GoldPrimary.copy(alpha = 0.15f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                                .background(PresetPrimary.copy(alpha = 0.15f))
+                                .border(1.dp, PresetPrimary.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Info, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 "عن خادم المسلم وسجل التحديثات",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -200,7 +199,7 @@ fun AboutUsAndVersionScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                     }
                 },
                 actions = {
@@ -212,7 +211,7 @@ fun AboutUsAndVersionScreen(
                         }
                         context.startActivity(Intent.createChooser(intent, "مشاركة معلومات التطبيق"))
                     }) {
-                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = GoldPrimary)
+                        Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = PresetPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
@@ -242,7 +241,7 @@ fun AboutUsAndVersionScreen(
                             .fillMaxWidth()
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(Color(0xFF172036), Color(0xFF0F1728), Color(0xFF090E1A))
+                                    listOf(theme.secondarySurface, theme.cardSurface, theme.background)
                                 )
                             )
                             .padding(18.dp)
@@ -256,8 +255,8 @@ fun AboutUsAndVersionScreen(
                                 modifier = Modifier
                                     .size(70.dp)
                                     .clip(CircleShape)
-                                    .background(GoldPrimary.copy(alpha = 0.15f))
-                                    .border(2.dp, Brush.radialGradient(listOf(GoldPrimary, GoldSecondary, Color.Transparent)), CircleShape)
+                                    .background(PresetPrimary.copy(alpha = 0.15f))
+                                    .border(2.dp, Brush.radialGradient(listOf(PresetPrimary, PresetAccent, Color.Transparent)), CircleShape)
                                     .clickable {
                                         devTapCount++
                                         if (devTapCount >= 7 && !isDevMode) {
@@ -272,7 +271,7 @@ fun AboutUsAndVersionScreen(
                                 Icon(
                                     imageVector = Icons.Default.LocalFireDepartment,
                                     contentDescription = "شعار خادم المسلم",
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(38.dp)
                                 )
                             }
@@ -281,7 +280,7 @@ fun AboutUsAndVersionScreen(
 
                             Text(
                                 text = "مَنظُومَة خادم المسلم الإِسْلَامِيَّة",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -299,19 +298,19 @@ fun AboutUsAndVersionScreen(
 
                             // شارة الإصدار الرسمية
                             Surface(
-                                color = GoldPrimary.copy(alpha = 0.15f),
+                                color = PresetPrimary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(20.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.Verified, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(5.dp))
                                     Text(
                                         text = "الإصدار v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = NotoSansFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -323,15 +322,15 @@ fun AboutUsAndVersionScreen(
 
                             // الآية الكريمة
                             Surface(
-                                color = Color(0xFF090E1A).copy(alpha = 0.9f),
+                                color = theme.background.copy(alpha = 0.9f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                                border = BorderStroke(1.dp, theme.secondarySurface),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         text = "﴿ إِذْ رَأَىٰ نَارًا فَقَالَ لِأَهْلِهِ امْكُثُوا إِنِّي آنَسْتُ نَارًا لَّعَلِّي آتِيكُم مِّنْهَا بِقَبَسٍ ﴾",
-                                        color = Color(0xFFF8FAFC),
+                                        color = theme.textPrimary,
                                         fontFamily = AmiriFont,
                                         fontSize = 14.sp,
                                         textAlign = TextAlign.Center,
@@ -340,7 +339,7 @@ fun AboutUsAndVersionScreen(
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "سورة طه • آية 10",
-                                        color = GoldSecondary,
+                                        color = PresetAccent,
                                         fontFamily = CairoFont,
                                         fontSize = 10.sp
                                     )
@@ -382,17 +381,17 @@ fun AboutUsAndVersionScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(GoldPrimary.copy(alpha = 0.15f))
-                                    .border(1.2.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                    .background(PresetPrimary.copy(alpha = 0.15f))
+                                    .border(1.2.dp, PresetPrimary.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.History, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Default.History, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
                                     "سجل التحديثات التفصيلي",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
@@ -405,7 +404,7 @@ fun AboutUsAndVersionScreen(
                                 )
                             }
                         }
-                        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.7f))
+                        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = PresetPrimary.copy(alpha = 0.7f))
                     }
                 }
             }
@@ -430,63 +429,48 @@ fun AboutUsAndVersionScreen(
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(GoldPrimary.copy(alpha = 0.15f))
-                                        .border(1.2.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                        .background(PresetPrimary.copy(alpha = 0.15f))
+                                        .border(1.2.dp, PresetPrimary.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Language, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                                    Icon(Icons.Default.Language, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
                                         "بوابة خادم المسلم والمستودع السحابي",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.5.sp
                                     )
                                     Text(
-                                        "الموقع الرسمي لتنزيل التحديثات ومتابعة الدروس",
+                                        "الموقع الرسمي لخادم المسلم",
                                         color = qabasTextSecondary(),
                                         fontFamily = NotoSansFont,
                                         fontSize = 10.5.sp
                                     )
                                 }
                             }
-
-                            Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.4f))
-                            ) {
-                                Text(
-                                    "متصل سحابياً 🌐",
-                                    color = Color(0xFF10B981),
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = CairoFont,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Surface(
-                            color = Color(0xFF09121E).copy(alpha = 0.85f),
+                            color = theme.background.copy(alpha = 0.85f),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                            border = BorderStroke(1.dp, theme.secondarySurface),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier.padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.CloudQueue, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.CloudQueue, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = QabasWebConfig.OFFICIAL_WEBSITE_URL,
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp,
                                     maxLines = 1,
@@ -498,36 +482,18 @@ fun AboutUsAndVersionScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        // زر واحد فقط: مسار /lectures على الموقع يعيد 404 (الموقع صفحة واحدة
+                        // بلا مسارات فرعية حية)، فحُذف زر «الدروس والدرر» الميت بدل عرضه.
+                        Button(
+                            onClick = { QabasWebConfig.openWebsite(context) },
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(42.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Button(
-                                onClick = { QabasWebConfig.openWebsite(context) },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1.3f).height(42.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("زيارة الموقع 🚀", color = DeepSlate, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = {
-                                    QabasLinkOpener.openUrl(context, QabasWebConfig.URL_LECTURES, "محاضرات خادم المسلم")
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f).height(42.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("الدروس والدرر", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("زيارة الموقع 🚀", color = DeepSlate, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -537,14 +503,14 @@ fun AboutUsAndVersionScreen(
                                 clipboardManager.setText(AnnotatedString(QabasWebConfig.OFFICIAL_WEBSITE_URL))
                                 Toast.makeText(context, "تم نسخ رابط الموقع الرسمي للحافظة 📋", Toast.LENGTH_SHORT).show()
                             },
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(40.dp),
                             contentPadding = PaddingValues(horizontal = 6.dp)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ رابط الموقع", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("نسخ رابط الموقع", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -571,17 +537,17 @@ fun AboutUsAndVersionScreen(
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF10B981).copy(alpha = 0.18f))
-                                        .border(1.2.dp, Color(0xFF10B981).copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                        .background(theme.success.copy(alpha = 0.18f))
+                                        .border(1.2.dp, theme.success.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Groups, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(22.dp))
+                                    Icon(Icons.Default.Groups, contentDescription = null, tint = theme.success, modifier = Modifier.size(22.dp))
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
                                         "مجموعة ومجتمع خادم المسلم الرسمي",
-                                        color = Color(0xFF10B981),
+                                        color = theme.success,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.5.sp
@@ -596,13 +562,13 @@ fun AboutUsAndVersionScreen(
                             }
 
                             Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                color = theme.success.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                border = BorderStroke(0.8.dp, theme.success.copy(alpha = 0.4f))
                             ) {
                                 Text(
                                     "مجتمع تفاعلي 💬",
-                                    color = Color(0xFF10B981),
+                                    color = theme.success,
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont,
@@ -614,20 +580,20 @@ fun AboutUsAndVersionScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Surface(
-                            color = Color(0xFF09121E).copy(alpha = 0.85f),
+                            color = theme.background.copy(alpha = 0.85f),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                            border = BorderStroke(1.dp, theme.secondarySurface),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier.padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Chat, contentDescription = null, tint = theme.success, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = groupUrl,
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp,
                                     maxLines = 1,
@@ -645,7 +611,7 @@ fun AboutUsAndVersionScreen(
                         ) {
                             Button(
                                 onClick = { QabasWebConfig.openCommunityGroup(context) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.success),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1.3f).height(42.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp)
@@ -660,14 +626,14 @@ fun AboutUsAndVersionScreen(
                                     clipboardManager.setText(AnnotatedString(groupUrl))
                                     Toast.makeText(context, "تم نسخ رابط المجموعة للحافظة 📋", Toast.LENGTH_SHORT).show()
                                 },
-                                border = BorderStroke(1.dp, Color(0xFF10B981)),
+                                border = BorderStroke(1.dp, theme.success),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(0.9f).height(42.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = theme.success, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("نسخ الرابط", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("نسخ الرابط", color = theme.success, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -694,17 +660,17 @@ fun AboutUsAndVersionScreen(
                                     modifier = Modifier
                                         .size(38.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                                        .background(theme.success.copy(alpha = 0.15f))
+                                        .border(1.dp, theme.success.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Gavel, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Gavel, contentDescription = null, tint = theme.success, modifier = Modifier.size(20.dp))
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
                                         "الضوابط الشرعية وسياسة الخصوصية",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
@@ -719,12 +685,12 @@ fun AboutUsAndVersionScreen(
                             }
 
                             Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                color = theme.success.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
                                     "مدمجة أوفلاين 🛡️",
-                                    color = Color(0xFF10B981),
+                                    color = theme.success,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont,
@@ -737,19 +703,19 @@ fun AboutUsAndVersionScreen(
 
                         // توضيح للمستخدم بأن السياسة مدمجة ولا تحتاج لموقع
                         Surface(
-                            color = Color(0xFF09121E).copy(alpha = 0.85f),
+                            color = theme.background.copy(alpha = 0.85f),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+                            border = BorderStroke(1.dp, theme.secondarySurface)
                         ) {
                             Row(
                                 modifier = Modifier.padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.success, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "سياسة الخصوصية مدمجة بالكامل داخل التطبيق وتعمل دون الحاجة لأي موقع ويب أو إنترنت. كافة بياناتك ومشاريعك محفوظة بأمان محلياً على جهازك فقط.",
-                                    color = Color(0xFFCBD5E1),
+                                    text = "سياسة الخصوصية مدمجة بالكامل داخل التطبيق وتُقرأ دون الحاجة لأي موقع ويب أو إنترنت. مشاريعك وملفاتك محفوظة محلياً على جهازك، ولا تُرفع إلى السحابة إلا ما تختر مزامنته أو نشره بنفسك.",
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
                                     lineHeight = 16.sp
@@ -766,7 +732,7 @@ fun AboutUsAndVersionScreen(
                             // زر قراءة السياسة كاملة
                             Button(
                                 onClick = { showFullPrivacyDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.success),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1.3f).height(40.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp)
@@ -785,14 +751,14 @@ fun AboutUsAndVersionScreen(
                                     }
                                     context.startActivity(Intent.createChooser(intent, "مشاركة ميثاق وسياسة خصوصية خادم المسلم"))
                                 },
-                                border = BorderStroke(1.dp, Color(0xFF10B981)),
+                                border = BorderStroke(1.dp, theme.success),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f).height(40.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp)
                             ) {
-                                Icon(Icons.Default.Share, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Share, contentDescription = null, tint = theme.success, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("مشاركة النص", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("مشاركة النص", color = theme.success, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
 
                             // زر نسخ النص كاملاً
@@ -803,7 +769,7 @@ fun AboutUsAndVersionScreen(
                                 },
                                 modifier = Modifier.size(40.dp)
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ السياسة", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ السياسة", tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             }
                         }
 
@@ -831,9 +797,9 @@ fun AboutUsAndVersionScreen(
                                     },
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("فتح 🌐", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont)
+                                    Text("فتح 🌐", color = PresetPrimary, fontSize = 11.sp, fontFamily = CairoFont)
                                 }
                             }
                         }
@@ -852,11 +818,11 @@ fun AboutUsAndVersionScreen(
                                     },
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, tint = GoldSecondary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.Edit, contentDescription = null, tint = PresetAccent, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         if (customPrivacyUrl.isBlank()) "إضافة رابط ويب لمتجر Google Play ⚙️" else "تعديل رابط الويب ⚙️",
-                                        color = GoldSecondary,
+                                        color = PresetAccent,
                                         fontFamily = CairoFont,
                                         fontSize = 10.sp
                                     )
@@ -884,15 +850,15 @@ fun AboutUsAndVersionScreen(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.15f)),
+                                .background(PresetPrimary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.History, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.History, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "سجل التحديثات والإصدارات (من قاعدة البيانات)",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
@@ -901,13 +867,13 @@ fun AboutUsAndVersionScreen(
 
                     // عدد الإصدارات المخزنة في قاعدة البيانات
                     Surface(
-                        color = Color(0xFF151C2C),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color(0xFF222B3D))
+                        border = BorderStroke(1.dp, theme.separator)
                     ) {
                         Text(
                             "${changelogsState.size} إصدارات",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = NotoSansFont,
                             fontSize = 10.sp,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -968,13 +934,13 @@ fun AboutUsAndVersionScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1424)),
-                    border = BorderStroke(1.dp, Color(0xFF1E2B45))
+                    colors = CardDefaults.cardColors(containerColor = theme.background),
+                    border = BorderStroke(1.dp, theme.secondarySurface)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
                             "معلومات النظام والعتاد",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -985,7 +951,7 @@ fun AboutUsAndVersionScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("المعمارية البرمجية:", color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp)
-                            Text("Jetpack Compose M3 + Room SQLite", color = Color.White, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Jetpack Compose M3 + Room SQLite", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
@@ -993,7 +959,7 @@ fun AboutUsAndVersionScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("محرك المونتاج والتصدير:", color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp)
-                            Text("FFmpeg Hardware Accel (1080p/4K)", color = Color.White, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("FFmpeg Hardware Accel (1080p/4K)", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
@@ -1001,7 +967,7 @@ fun AboutUsAndVersionScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("الذكاء الاصطناعي والإخراج:", color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp)
-                            Text("Qabas StyleBrain + Gemini 2.5", color = GoldSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Qabas StyleBrain + Gemini 2.5", color = PresetAccent, fontFamily = NotoSansFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(
@@ -1009,7 +975,7 @@ fun AboutUsAndVersionScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("قناة تحديثات GitHub المباشرة:", color = qabasTextSecondary(), fontFamily = NotoSansFont, fontSize = 11.sp)
-                            Text("Ali-awwww/qabasapp (xdelta3) ⚡", color = Color(0xFF00E5FF), fontFamily = RobotoMonoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                            Text("Ali-awwww/qabasapp (xdelta3) ⚡", color = theme.primary, fontFamily = RobotoMonoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -1021,26 +987,37 @@ fun AboutUsAndVersionScreen(
                                 updateResultMsg = null
                                 coroutineScope.launch {
                                     try {
-                                        val info = VersionManager.checkRemoteVersion(context, force = true)
-                                        isCheckingUpdates = false
-                                        if (info != null) {
-                                            val sizeDesc = if (info.deltaUsable) {
-                                                "بحجم تفاضلي ${UpdateManager.formatSize(info.deltaSize)} فقط ⚡"
-                                            } else {
-                                                "بحجم ${UpdateManager.formatSize(info.apkSize)}"
+                                        // فحص مميِّز: كان null من checkRemoteVersion يعني «لا تحديث»
+                                        // و«تعذّر الوصول» معاً، فكانت الشاشة تدّعي «متطابقة ✓» دون اتصال.
+                                        when (val result = VersionManager.checkRemoteVersionDetailed(context, force = true)) {
+                                            is UpdateManager.UpdateCheckResult.Available -> {
+                                                val info = result.info
+                                                isCheckingUpdates = false
+                                                val sizeDesc = if (info.deltaUsable) {
+                                                    "بحجم تفاضلي ${UpdateManager.formatSize(info.deltaSize)} فقط ⚡"
+                                                } else {
+                                                    "بحجم ${UpdateManager.formatSize(info.apkSize)}"
+                                                }
+                                                updateResultMsg = "يوجد تحديث جديد متاح: v${info.versionName} $sizeDesc 🚀"
+                                                UpdateManager.setPendingUpdate(info)
                                             }
-                                            updateResultMsg = "يوجد تحديث جديد متاح: v${info.versionName} $sizeDesc 🚀"
-                                            UpdateManager.setPendingUpdate(info)
-                                        } else {
-                                            updateResultMsg = "نسختك الحالية v${BuildConfig.VERSION_NAME} متطابقة مع أحدث إصدار في المستودع ✓"
+                                            UpdateManager.UpdateCheckResult.UpToDate -> {
+                                                isCheckingUpdates = false
+                                                updateResultMsg = "نسختك الحالية v${BuildConfig.VERSION_NAME} متطابقة مع أحدث إصدار في المستودع ✓"
+                                            }
+                                            UpdateManager.UpdateCheckResult.Failed,
+                                            UpdateManager.UpdateCheckResult.Skipped -> {
+                                                isCheckingUpdates = false
+                                                updateResultMsg = "تعذّر الوصول إلى خادم التحديثات، تحقق من اتصال الإنترنت وحاول لاحقاً."
+                                            }
                                         }
-                                    } catch (e: Exception) {
+                                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                         isCheckingUpdates = false
                                         updateResultMsg = "تعذر الاتصال بالمستودع، يرجى التحقق من اتصال الإنترنت."
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(42.dp),
                             enabled = !isCheckingUpdates
@@ -1060,7 +1037,7 @@ fun AboutUsAndVersionScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = updateResultMsg!!,
-                                color = if (updateResultMsg!!.contains("✓") || updateResultMsg!!.contains("متاح")) Color(0xFF10B981) else Color(0xFFEF4444),
+                                color = if (updateResultMsg!!.contains("✓") || updateResultMsg!!.contains("متاح")) theme.success else theme.destructive,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.Center,
@@ -1081,13 +1058,13 @@ fun AboutUsAndVersionScreen(
         if (showFullPrivacyDialog) {
             AlertDialog(
                 onDismissRequest = { showFullPrivacyDialog = false },
-                containerColor = Color(0xFF141C2B),
+                containerColor = theme.cardSurface,
                 shape = RoundedCornerShape(20.dp),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = theme.success, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("ميثاق الخصوصية والضوابط الشرعية", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("ميثاق الخصوصية والضوابط الشرعية", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 },
                 text = {
@@ -1100,14 +1077,14 @@ fun AboutUsAndVersionScreen(
                     ) {
                         Text(
                             "بسم الله الرحمن الرحيم\n«إِنَّ السَّمْعَ وَالْبَصَرَ وَالْفُؤَادَ كُلُّ أُولَٰئِكَ كَانَ عَنْهُ مَسْئُولًا»",
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = AmiriFont,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        HorizontalDivider(color = Color(0xFF222B3D))
+                        HorizontalDivider(color = theme.separator)
 
                         PrivacySectionItem(
                             number = "١",
@@ -1117,14 +1094,14 @@ fun AboutUsAndVersionScreen(
 
                         PrivacySectionItem(
                             number = "٢",
-                            title = "تشفير وحماية البيانات والمشاريع",
-                            desc = "تُخزن جميع المشاريع والتسجيلات الخاصة بك محلياً في قاعدة بيانات Room المشفرة، ولا يتم إرسال أي نص أو وسائط إلى خوادم خارجية إلا عند طلب التوليد بالذكاء الاصطناعي."
+                            title = "حماية البيانات والمشاريع",
+                            desc = "تُخزن جميع المشاريع والتسجيلات الخاصة بك محلياً في قاعدة بيانات التطبيق على جهازك، ولا يتم إرسال أي نص أو وسائط إلى خوادم خارجية إلا عند طلب التوليد بالذكاء الاصطناعي."
                         )
 
                         PrivacySectionItem(
                             number = "٣",
                             title = "عدم بيع أو مشاركة البيانات",
-                            desc = "لا نقوم بجمع أو بيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق خادم المسلم خالٍ تماماً من الإعلانات التجارية المزعجة."
+                            desc = "لا نبيع بياناتك أو نشاطك لأي طرف ثالث، وتطبيق خادم المسلم خالٍ تماماً من الإعلانات التجارية المزعجة. تُستخدم بيانات الاستخدام لتحسين التطبيق فقط."
                         )
 
                         PrivacySectionItem(
@@ -1156,17 +1133,17 @@ fun AboutUsAndVersionScreen(
                                 clipboardManager.setText(AnnotatedString(FULL_OFFICIAL_PRIVACY_POLICY))
                                 Toast.makeText(context, "تم نسخ الميثاق والسياسة كاملاً للحافظة 📋", Toast.LENGTH_SHORT).show()
                             },
-                            border = BorderStroke(1.dp, GoldPrimary),
+                            border = BorderStroke(1.dp, PresetPrimary),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ النص 📋", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("نسخ النص 📋", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = { showFullPrivacyDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("أوافق وملتزم ✦", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -1180,20 +1157,20 @@ fun AboutUsAndVersionScreen(
         if (showEditPrivacyUrlDialog) {
             AlertDialog(
                 onDismissRequest = { showEditPrivacyUrlDialog = false },
-                containerColor = Color(0xFF141C2B),
+                containerColor = theme.cardSurface,
                 shape = RoundedCornerShape(18.dp),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Link, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.Link, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("تخصيص رابط الويب لسياسة الخصوصية", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("تخصيص رابط الويب لسياسة الخصوصية", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             "التطبيق يعرض السياسة محلياً بدون حاجة لأي موقع. إذا كنت بحاجة لرابط ويب خارجي لمتطلبات متجر Google Play، يمكنك إنشاء صفحة مجانية على Google Sites أو Notion أو مستند Google Doc متاح للعامة ووضع رابطه هنا:",
-                            color = Color(0xFFCBD5E1),
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -1201,7 +1178,7 @@ fun AboutUsAndVersionScreen(
                         OutlinedTextField(
                             value = customPrivacyUrlInput,
                             onValueChange = { customPrivacyUrlInput = it },
-                            placeholder = { Text("https://sites.google.com/view/...", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp) },
+                            placeholder = { Text("https://sites.google.com/view/...", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1215,7 +1192,7 @@ fun AboutUsAndVersionScreen(
                                     Toast.makeText(context, "تم مسح الرابط والعودة للنظام الداخلي 100%", Toast.LENGTH_SHORT).show()
                                 }
                             ) {
-                                Text("مسح الرابط المخصص والاعتماد على العرض المحلي فقط", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("مسح الرابط المخصص والاعتماد على العرض المحلي فقط", color = theme.destructive, fontFamily = CairoFont, fontSize = 10.sp)
                             }
                         }
                     }
@@ -1229,7 +1206,7 @@ fun AboutUsAndVersionScreen(
                             showEditPrivacyUrlDialog = false
                             Toast.makeText(context, "تم حفظ الرابط بنجاح ✓", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("حفظ", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
@@ -1237,41 +1214,30 @@ fun AboutUsAndVersionScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showEditPrivacyUrlDialog = false }) {
-                        Text("إلغاء", color = Color.LightGray, fontFamily = CairoFont)
+                        Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                     }
                 }
             )
         }
 
-        // 🛠️ حوار بوابة وضع المطور
+        // 🛠️ حوار بوابة وضع المطور — بلا حقل كلمة مرور: كان الحقل زخرفياً (لا يُقرأ
+        // أبداً؛ التفعيل برتبة المطور السحابية فقط عبر AdminGuard)، فحُذف.
         if (showDeveloperGateDialog) {
             AlertDialog(
                 onDismissRequest = {
                     showDeveloperGateDialog = false
-                    devPassInput = ""
-                    devPassError = false
                 },
-                containerColor = Color(0xFF0D1117),
+                containerColor = theme.background,
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.DeveloperMode, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.DeveloperMode, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("تفعيل وضع المطور السري 🛠️", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("وضع المطور 🛠️", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("أدخل كلمة المرور لتفعيل أدوات المطور ولوحة التحكم المتقدمة:", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
-                        OutlinedTextField(
-                            value = devPassInput,
-                            onValueChange = { devPassInput = it; devPassError = false },
-                            placeholder = { Text("كلمة المرور", color = Color.Gray, fontFamily = CairoFont) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (devPassError) {
-                            Text("كلمة المرور غير صحيحة", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 11.sp)
-                        }
+                        Text("وضع المطور يُفعَّل من سحابة Supabase فقط (رتبة مطور في حسابك)، ولا توجد كلمة مرور محلية. اضغط «فحص السحابة» للتحقق من رتبتك الحالية:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                     }
                 },
                 confirmButton = {
@@ -1279,7 +1245,6 @@ fun AboutUsAndVersionScreen(
                         onClick = {
                             val allowed = AdminGuard.isDashboardAccessAllowed(context)
                             showDeveloperGateDialog = false
-                            devPassInput = ""
                             if (allowed) {
                                 Toast.makeText(context, "تم التحقق السحابي: حسابك مفعل برتبة مطور! 🚀", Toast.LENGTH_LONG).show()
                             } else {
@@ -1287,14 +1252,14 @@ fun AboutUsAndVersionScreen(
                                 Toast.makeText(context, "الرتبة السحابية الحالية ($currentRole): تفعيل رتبة المطور محصور بسحابة Supabase.", Toast.LENGTH_LONG).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                     ) {
                         Text("فحص السحابة", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeveloperGateDialog = false }) {
-                        Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                        Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                     }
                 }
             )
@@ -1304,6 +1269,7 @@ fun AboutUsAndVersionScreen(
 
 @Composable
 fun FeedbackContactForm() {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     Card(
         modifier = Modifier
@@ -1313,9 +1279,9 @@ fun FeedbackContactForm() {
         colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
     ) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.SupportAgent, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(32.dp))
+            Icon(Icons.Default.SupportAgent, contentDescription = null, tint = theme.primary, modifier = Modifier.size(32.dp))
             Spacer(modifier = Modifier.height(8.dp))
-            Text("مركز التواصل مع المطور", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("مركز التواصل مع المطور", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(modifier = Modifier.height(5.dp))
             Text(
                 "الاقتراحات، البلاغات، الاستفسارات، ومتابعة الردود في مكان واحد.",
@@ -1326,50 +1292,42 @@ fun FeedbackContactForm() {
                 onClick = { AppNavigator.navigateTo(AppState.REQUEST_CHAT) },
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
                 Icon(Icons.Default.Chat, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("فتح مركز التواصل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
-            TextButton(onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=cl&p=a&mlu=4&ilr=4"))
-                runCatching { context.startActivity(intent) }
-                    .onFailure { Toast.makeText(context, "تعذر فتح رابط المجتمع حالياً", Toast.LENGTH_SHORT).show() }
-            }) {
-                Text("أو الانضمام إلى مجتمع خادم المسلم الرسمي", color = Color(0xFF25D366), fontFamily = CairoFont, fontSize = 11.sp)
+            TextButton(onClick = { QabasWebConfig.openCommunityGroup(context) }) {
+                Text("أو الانضمام إلى مجتمع خادم المسلم الرسمي", color = theme.success, fontFamily = CairoFont, fontSize = 11.sp)
             }
         }
     }
 }
 
 @Composable
-fun ChangelogCardItem(item: ChangelogEntity) {
-    EnhancedChangelogCardItem(item = item)
-}
-
-@Composable
 fun PrivacySectionItem(number: String, title: String, desc: String) {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF0F172A),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+        border = BorderStroke(1.dp, theme.secondarySurface),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
             Surface(
-                color = Color(0xFF10B981).copy(alpha = 0.2f),
+                color = theme.success.copy(alpha = 0.2f),
                 shape = CircleShape,
                 modifier = Modifier.size(22.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(number, color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text(number, color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column {
-                Text(title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(desc, color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 11.sp, lineHeight = 16.sp)
             }

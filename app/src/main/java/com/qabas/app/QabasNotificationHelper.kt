@@ -32,7 +32,6 @@ object QabasNotificationHelper {
     const val CHANNEL_MODELS = "qabas_models"
     const val CHANNEL_TRENDS = "qabas_trend_alerts"
     const val CHANNEL_PUBLISH_SCHEDULER = "qabas_publish_scheduler"
-    const val CHANNEL_PRAYER_LEGACY = "qabas_prayer_notifications_channel"
     const val CHANNEL_AZAN_ALARM = "qabas_azan_alarm_channel"
     const val CHANNEL_AZAN_PLAYBACK = "qabas_azan_playback_channel"
     const val CHANNEL_AZAN_COUNTDOWN = "qabas_azan_countdown_channel"
@@ -269,13 +268,6 @@ object QabasNotificationHelper {
             ).apply {
                 description = "تنبيهات التوقيت المثالي لنشر الفيديوهات لزيادة التفاعل والانتشار"
             }
-            CHANNEL_PRAYER_LEGACY -> NotificationChannel(
-                CHANNEL_PRAYER_LEGACY, "مواقيت الصلاة والأذان", NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "تنبيهات حية لمواقيت الصلاة الخمس والأذان الشريف"
-                enableVibration(true)
-                setShowBadge(true)
-            }
             CHANNEL_AZAN_ALARM -> NotificationChannel(
                 CHANNEL_AZAN_ALARM, "منبه الأذان (شاشة كاملة)", NotificationManager.IMPORTANCE_HIGH
             ).apply {
@@ -495,16 +487,23 @@ object QabasNotificationHelper {
     }
 
     /**
-     * إضافة أداة "التأجيل 15 دقيقة" إلى الإشعار
+     * إضافة أداة "التأجيل 15 دقيقة" إلى الإشعار.
+     * (ر22) يُمرَّر عنوان الإشعار ونصه مع نية التأجيل ليُعرضا كما هما عند
+     * انطلاق المؤجل — كان التأجيل يفقد المحتوى فيعرض نصاً عاماً ثابتاً،
+     * ويعيد جدولة نفسه يومياً 7:00 كتذكير وهمي دائم لا يلغي.
      */
     fun addActionSnooze(
         builder: NotificationCompat.Builder,
         context: Context,
-        notifId: Int
+        notifId: Int,
+        title: String = "",
+        message: String = ""
     ) {
         val intent = Intent(context, NotificationActionReceiver::class.java).apply {
             action = NotificationActionReceiver.ACTION_SNOOZE
             putExtra(NotificationActionReceiver.EXTRA_NOTIF_ID, notifId)
+            putExtra(NotificationActionReceiver.EXTRA_SNOOZE_TITLE, title)
+            putExtra(NotificationActionReceiver.EXTRA_SNOOZE_MESSAGE, message)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,

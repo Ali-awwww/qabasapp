@@ -251,7 +251,7 @@ object AiTools {
                         when (val result = ReelPublishManager.publishReelWithUpload(
                             context = context,
                             userId = userId,
-                            userName = email?.substringBefore("@") ?: "مستخدم قبس",
+                            userName = email?.substringBefore("@") ?: "مستخدم خادم المسلم",
                             email = email,
                             title = title,
                             description = fullDescription,

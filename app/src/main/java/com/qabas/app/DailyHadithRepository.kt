@@ -57,7 +57,7 @@ object DailyHadithRepository {
                 benefit = item.wisdomCapsule.ifBlank { item.explanation.take(160) },
                 book = item.bookType.titleAr
             )
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to resolve daily hadith for day $dayId", e)
             null
         }

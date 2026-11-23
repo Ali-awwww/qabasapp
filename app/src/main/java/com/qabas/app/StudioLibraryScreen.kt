@@ -60,6 +60,7 @@ fun StudioLibraryScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var projects by remember { mutableStateOf<List<ProjectService.Project>>(emptyList()) }
+    var vibeCount by remember { mutableStateOf(0) }
     var jobs by remember { mutableStateOf<List<SupabaseServices.StudioJobRow>>(emptyList()) }
     var generations by remember { mutableStateOf<List<SupabaseServices.AiGenerationRow>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -67,7 +68,11 @@ fun StudioLibraryScreen(
     fun reload() {
         scope.launch {
             loading = true
-            projects = runCatching { ProjectService(context).getLocalProjects() }.getOrDefault(emptyList())
+            // (12.15) مكتبة المحتوى تعرض مشاريع المحتوى فقط — مشاريع
+            // فايب كودينج (حالة vibe_coding) تُعرض في قسم فايب كودينج.
+            val all = runCatching { ProjectService(context).getLocalProjects() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
+            projects = all.filterNot { it.status == VibeCodingProjects.STATUS }
+            vibeCount = all.count { it.status == VibeCodingProjects.STATUS }
             jobs = SupabaseServices.Database.getStudioJobs()
             generations = SupabaseServices.Database.getAiGenerations()
             loading = false
@@ -123,7 +128,15 @@ fun StudioLibraryScreen(
                     }
                 }
             } else if (!loading) {
-                item { Text("لا مشاريع بعد — اصنع أول مشروع من وكيل الاستوديو.") }
+                item {
+                    Text(
+                        if (vibeCount > 0) {
+                            "لا مشاريع محتوى بعد — لديك $vibeCount مشروع فايب كودينج في قسم فايب كودينج."
+                        } else {
+                            "لا مشاريع بعد — اصنع أول مشروع من وكيل الاستوديو."
+                        }
+                    )
+                }
             }
 
             item {
@@ -133,6 +146,12 @@ fun StudioLibraryScreen(
                 ) {
                     Text("كل المشاريع (${projects.size})", style = MaterialTheme.typography.titleMedium)
                     OutlinedButton(onClick = { reload() }) { Text("تحديث") }
+                }
+                if (vibeCount > 0) {
+                    Text(
+                        "مشاريع فايب كودينج ($vibeCount) تُعرض في قسم فايب كودينج لا هنا.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
             items(projects, key = { it.id }) { project ->

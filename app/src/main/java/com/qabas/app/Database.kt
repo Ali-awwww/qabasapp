@@ -143,8 +143,6 @@ interface ProjectDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProject(project: ProjectEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertProjects(projects: List<ProjectEntity>)
 
     @Update
     suspend fun updateProject(project: ProjectEntity)
@@ -195,8 +193,6 @@ interface TasteDao {
     @Query("SELECT * FROM taste_profile ORDER BY weight DESC")
     suspend fun getAllTastes(): List<TasteEntity>
 
-    @Query("SELECT * FROM taste_profile ORDER BY weight DESC")
-    fun getAllTastesFlow(): Flow<List<TasteEntity>>
 
     @Query("SELECT * FROM taste_profile WHERE category = :category AND preferredValue = :value LIMIT 1")
     suspend fun getTaste(category: String, value: String): TasteEntity?
@@ -214,25 +210,10 @@ interface TasteDao {
 @Dao
 interface HadithCardDao {
     @Query("SELECT * FROM hadith_cards ORDER BY createdAt DESC")
-    fun getAllHadithCards(): Flow<List<HadithCardEntity>>
-
-    @Query("SELECT * FROM hadith_cards ORDER BY createdAt DESC")
     suspend fun getAllHadithCardsOnce(): List<HadithCardEntity>
-
-    @Query("SELECT * FROM hadith_cards WHERE isFavorite = 1 ORDER BY createdAt DESC")
-    fun getFavoriteCards(): Flow<List<HadithCardEntity>>
-
-    @Query("SELECT * FROM hadith_cards WHERE id = :id")
-    suspend fun getCardById(id: String): HadithCardEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCard(card: HadithCardEntity)
-
-    @Update
-    suspend fun updateCard(card: HadithCardEntity)
-
-    @Query("DELETE FROM hadith_cards WHERE id = :id")
-    suspend fun deleteCardById(id: String)
 
     @Query("SELECT COUNT(*) FROM hadith_cards WHERE createdAt >= :start AND createdAt < :end")
     suspend fun countCardsBetween(start: Long, end: Long): Int
@@ -246,12 +227,6 @@ interface AudioTrackDao {
     @Query("SELECT * FROM audio_tracks ORDER BY createdAt DESC")
     suspend fun getAllAudioTracksOnce(): List<AudioTrackEntity>
 
-    @Query("SELECT * FROM audio_tracks WHERE typeCategory = :category ORDER BY createdAt DESC")
-    fun getTracksByCategory(category: String): Flow<List<AudioTrackEntity>>
-
-    @Query("SELECT * FROM audio_tracks WHERE id = :id")
-    suspend fun getTrackById(id: String): AudioTrackEntity?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrack(track: AudioTrackEntity)
 
@@ -261,18 +236,6 @@ interface AudioTrackDao {
 
 @Dao
 interface ReelScriptDao {
-    @Query("SELECT * FROM reel_scripts ORDER BY createdAt DESC")
-    fun getAllReelScripts(): Flow<List<ReelScriptEntity>>
-
-    @Query("SELECT * FROM reel_scripts WHERE id = :id")
-    suspend fun getScriptById(id: String): ReelScriptEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertScript(script: ReelScriptEntity)
-
-    @Query("DELETE FROM reel_scripts WHERE id = :id")
-    suspend fun deleteScriptById(id: String)
-
     @Query("SELECT COUNT(*) FROM reel_scripts WHERE createdAt >= :start AND createdAt < :end")
     suspend fun countScriptsBetween(start: Long, end: Long): Int
 }
@@ -282,8 +245,6 @@ interface SeriesDao {
     @Query("SELECT * FROM series_records ORDER BY updatedAt DESC")
     fun getAllSeries(): Flow<List<SeriesEntity>>
 
-    @Query("SELECT * FROM series_records WHERE id = :id")
-    suspend fun getSeriesById(id: String): SeriesEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSeries(series: SeriesEntity)
@@ -295,36 +256,6 @@ interface SeriesDao {
     suspend fun deleteSeriesById(id: String)
 }
 
-@Dao
-interface MemorizationDao {
-    @Query("SELECT * FROM memorization_records ORDER BY lastActivityAt DESC")
-    fun getAllRecords(): Flow<List<MemorizationRecord>>
-
-    @Query("SELECT * FROM memorization_records WHERE surahId = :surahId")
-    suspend fun getRecordBySurah(surahId: Int): MemorizationRecord?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertRecord(record: MemorizationRecord)
-
-    @Query("SELECT SUM(progressPercent) / 114.0 FROM memorization_records")
-    fun getTotalProgress(): Flow<Float?>
-}
-
-@Dao
-interface QuranChallengeDao {
-    @Query("SELECT * FROM quran_challenges WHERE isCompleted = 0")
-    fun getActiveChallenges(): Flow<List<QuranChallengeRecord>>
-
-    @Query("SELECT * FROM quran_challenges WHERE isCompleted = 0")
-    suspend fun getActiveChallengesOnce(): List<QuranChallengeRecord>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertChallenge(challenge: QuranChallengeRecord)
-
-    @Update
-    suspend fun updateChallenge(challenge: QuranChallengeRecord)
-}
-
 @Entity(tableName = "tadabbur_records")
 data class TadabburRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -334,21 +265,6 @@ data class TadabburRecord(
     val reflectionText: String,
     val createdAt: Long = System.currentTimeMillis()
 )
-
-@Dao
-interface TadabburDao {
-    @Query("SELECT * FROM tadabbur_records ORDER BY createdAt DESC")
-    fun getAllReflections(): Flow<List<TadabburRecord>>
-
-    @Query("SELECT * FROM tadabbur_records WHERE surahId = :surahId AND verseNumber = :verseNumber")
-    suspend fun getReflectionForVerse(surahId: Int, verseNumber: Int): TadabburRecord?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertReflection(record: TadabburRecord)
-
-    @Query("DELETE FROM tadabbur_records WHERE id = :id")
-    suspend fun deleteReflection(id: Int)
-}
 
 @Entity(tableName = "workspace_drafts")
 data class WorkspaceDraftEntity(
@@ -414,6 +330,10 @@ interface ChangelogDao {
     suspend fun getCount(): Int
 }
 
+// ملاحظة (جولة المراجعة 33): كيانات MemorizationRecord وQuranChallengeRecord
+// وTadabburRecord بلا DAO ولا مستدعين — لكنها تبقى في قائمة الكيانات عمداً:
+// إزالتها تغيّر مخطط Room فيفعّل الهجرة المدمرة (fallbackToDestructiveMigration)
+// فيمسح قاعدة البيانات المحلية للمستخدمين. الحذف الآمن الوحيد هو DAO والوصولات.
 @Database(
     entities = [
         ProjectEntity::class,
@@ -438,9 +358,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun audioTrackDao(): AudioTrackDao
     abstract fun reelScriptDao(): ReelScriptDao
     abstract fun seriesDao(): SeriesDao
-    abstract fun memorizationDao(): MemorizationDao
-    abstract fun quranChallengeDao(): QuranChallengeDao
-    abstract fun tadabburDao(): TadabburDao
     abstract fun workspaceDraftDao(): WorkspaceDraftDao
     abstract fun changelogDao(): ChangelogDao
 
@@ -464,8 +381,6 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 class ProjectRepository(private val projectDao: ProjectDao) {
-    val allProjects: Flow<List<ProjectEntity>> = projectDao.getAllProjects()
-
     fun getRecentProjects(limit: Int = 10): Flow<List<ProjectEntity>> =
         projectDao.getRecentProjects(limit)
 
@@ -481,9 +396,6 @@ class ProjectRepository(private val projectDao: ProjectDao) {
     suspend fun markSyncedIfRevisionMatches(id: String, expectedUpdatedAt: Long) =
         projectDao.markSyncedIfRevisionMatches(id, expectedUpdatedAt)
     suspend fun insert(project: ProjectEntity) = projectDao.insertProject(project)
-    suspend fun insertAll(projects: List<ProjectEntity>) {
-        if (projects.isNotEmpty()) projectDao.insertProjects(projects)
-    }
     suspend fun update(project: ProjectEntity) = projectDao.updateProject(project)
     suspend fun delete(id: String) = projectDao.deleteProjectById(id)
     suspend fun clearAll() = projectDao.clearAllProjects()
@@ -492,15 +404,12 @@ class ProjectRepository(private val projectDao: ProjectDao) {
 class SeriesRepository(private val seriesDao: SeriesDao) {
     val allSeries: Flow<List<SeriesEntity>> = seriesDao.getAllSeries()
 
-    suspend fun getSeries(id: String) = seriesDao.getSeriesById(id)
     suspend fun insert(series: SeriesEntity) = seriesDao.insertSeries(series)
     suspend fun update(series: SeriesEntity) = seriesDao.updateSeries(series)
     suspend fun delete(id: String) = seriesDao.deleteSeriesById(id)
 }
 
 class TasteRepository(private val tasteDao: TasteDao) {
-    val allTastesFlow: Flow<List<TasteEntity>> = tasteDao.getAllTastesFlow()
-
     suspend fun getAllTastes() = tasteDao.getAllTastes()
 
     suspend fun registerPreference(category: String, value: String, amount: Int = 1) {
@@ -521,35 +430,6 @@ class TasteRepository(private val tasteDao: TasteDao) {
     }
 
     suspend fun clearAll() = tasteDao.clearTastes()
-}
-
-class HadithCardRepository(private val hadithCardDao: HadithCardDao) {
-    val allCards: Flow<List<HadithCardEntity>> = hadithCardDao.getAllHadithCards()
-    val favoriteCards: Flow<List<HadithCardEntity>> = hadithCardDao.getFavoriteCards()
-
-    suspend fun getCard(id: String) = hadithCardDao.getCardById(id)
-    suspend fun insert(card: HadithCardEntity) = hadithCardDao.insertCard(card)
-    suspend fun update(card: HadithCardEntity) = hadithCardDao.updateCard(card)
-    suspend fun delete(id: String) = hadithCardDao.deleteCardById(id)
-}
-
-class AudioTrackRepository(private val audioTrackDao: AudioTrackDao) {
-    val allTracks: Flow<List<AudioTrackEntity>> = audioTrackDao.getAllAudioTracks()
-
-    fun getCategoryTracks(category: String): Flow<List<AudioTrackEntity>> =
-        audioTrackDao.getTracksByCategory(category)
-
-    suspend fun getTrack(id: String) = audioTrackDao.getTrackById(id)
-    suspend fun insert(track: AudioTrackEntity) = audioTrackDao.insertTrack(track)
-    suspend fun delete(id: String) = audioTrackDao.deleteTrackById(id)
-}
-
-class ReelScriptRepository(private val reelScriptDao: ReelScriptDao) {
-    val allScripts: Flow<List<ReelScriptEntity>> = reelScriptDao.getAllReelScripts()
-
-    suspend fun getScript(id: String) = reelScriptDao.getScriptById(id)
-    suspend fun insert(script: ReelScriptEntity) = reelScriptDao.insertScript(script)
-    suspend fun delete(id: String) = reelScriptDao.deleteScriptById(id)
 }
 
 class WorkspaceRepository(private val workspaceDraftDao: WorkspaceDraftDao) {

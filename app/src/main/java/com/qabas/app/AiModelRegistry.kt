@@ -1,14 +1,9 @@
 package com.qabas.app
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -43,8 +38,6 @@ data class AiModelConfig(
     val isCustom: Boolean = false,
     val dateAdded: Long = System.currentTimeMillis()
 ) {
-    val effectiveEndpoint: String
-        get() = if (customEndpoint.isNotBlank()) customEndpoint.trim() else provider.defaultEndpoint
 
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -86,17 +79,6 @@ data class AiModelConfig(
         }
     }
 }
-
-/**
- * نتيجة اختبار اتصال النموذج
- */
-data class AiModelTestResult(
-    val isSuccessful: Boolean,
-    val latencyMs: Long,
-    val responseText: String,
-    val errorMessage: String = "",
-    val modelUsed: String = ""
-)
 
 /**
  * سجل وإدارة نماذج الذكاء الاصطناعي المسجلة (OpenRouter, DeepSeek, Groq, OpenAI, Gemini, Custom)
@@ -200,28 +182,6 @@ object AiModelRegistry {
         return allModels
     }
 
-    /** حفظ نموذج جديد أو تعديله */
-    fun saveModel(context: Context, model: AiModelConfig, setAsActive: Boolean = false) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val all = getRegisteredModels(context).toMutableList()
-        val idx = all.indexOfFirst { it.id == model.id }
-        if (idx >= 0) {
-            all[idx] = model
-        } else {
-            all.add(model)
-        }
-
-        // حفظ فقط النماذج المخصصة أو التي تم تعديل مفاتيحها
-        val toPersist = all.filter { it.isCustom || it.apiKey.isNotBlank() || it.customEndpoint.isNotBlank() }
-        val arr = JSONArray()
-        toPersist.forEach { arr.put(it.toJson()) }
-        prefs.edit().putString(KEY_MODELS, arr.toString()).apply()
-
-        if (setAsActive) {
-            setActiveModel(context, model.id)
-        }
-    }
-
     /** حذف نموذج مخصص */
     fun deleteModel(context: Context, modelId: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -254,100 +214,4 @@ object AiModelRegistry {
         _activeModelIdFlow.value = modelId
     }
 
-    /**
-     * اختبار اتصال حي وفحص استجابة النموذج مع قياس زمن التأخير (Latency ms)
-     */
-    suspend fun testModelConnection(config: AiModelConfig): AiModelTestResult = withContext(Dispatchers.IO) {
-        val start = System.currentTimeMillis()
-        try {
-            when (config.provider) {
-                AiProviderType.GEMINI -> {
-                    // تجربة توليد عبر بوابة Gemini
-                    val text = GatewayAiService.geminiText("مرحبا! أجب بكلمة 'OK' للتأكد من الاتصال.")
-                    val latency = System.currentTimeMillis() - start
-                    if (!text.isNullOrBlank()) {
-                        AiModelTestResult(true, latency, text.trim(), modelUsed = config.modelIdentifier)
-                    } else {
-                        AiModelTestResult(false, latency, "", "لم يتم استلام رد من بوابة Gemini", modelUsed = config.modelIdentifier)
-                    }
-                }
-                AiProviderType.POLLINATIONS -> {
-                    val prompt = "ping test reply OK"
-                    val url = "https://text.pollinations.ai/${java.net.URLEncoder.encode(prompt, "UTF-8")}?model=openai"
-                    val req = Request.Builder().url(url).get().build()
-                    val res = httpClient.newCall(req).execute()
-                    val latency = System.currentTimeMillis() - start
-                    if (res.isSuccessful) {
-                        val body = res.body?.string().orEmpty().take(100)
-                        AiModelTestResult(true, latency, body.trim(), modelUsed = "pollinations-edge")
-                    } else {
-                        AiModelTestResult(false, latency, "", "HTTP ${res.code}: فشل الاتصال بخادم Pollinations", modelUsed = "pollinations-edge")
-                    }
-                }
-                else -> {
-                    // OpenRouter, DeepSeek, Groq, OpenAI, Custom OpenAI
-                    val endpoint = config.effectiveEndpoint
-                    if (endpoint.isBlank()) {
-                        return@withContext AiModelTestResult(false, 0, "", "رابط الـ Endpoint فارغ!")
-                    }
-
-                    val messages = JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("role", "system")
-                            put("content", "You are an automated ping diagnostic. Respond only with: STATUS_OK.")
-                        })
-                        put(JSONObject().apply {
-                            put("role", "user")
-                            put("content", "PING_CHECK")
-                        })
-                    }
-
-                    val payload = JSONObject().apply {
-                        put("model", config.modelIdentifier)
-                        put("messages", messages)
-                        put("max_tokens", 30)
-                        put("temperature", 0.1)
-                    }
-
-                    val reqBuilder = Request.Builder()
-                        .url(endpoint)
-                        .header("Content-Type", "application/json")
-                        .post(payload.toString().toRequestBody("application/json".toMediaType()))
-
-                    if (config.apiKey.isNotBlank()) {
-                        reqBuilder.header("Authorization", "Bearer ${config.apiKey.trim()}")
-                    }
-                    if (config.provider == AiProviderType.OPENROUTER) {
-                        reqBuilder.header("HTTP-Referer", "https://qabas.app")
-                        reqBuilder.header("X-Title", "Muslim AI Assistant")
-                    }
-
-                    val response = httpClient.newCall(reqBuilder.build()).execute()
-                    val latency = System.currentTimeMillis() - start
-
-                    if (!response.isSuccessful) {
-                        val err = response.body?.string().orEmpty().take(250)
-                        return@withContext AiModelTestResult(
-                            false,
-                            latency,
-                            "",
-                            "HTTP ${response.code}: $err",
-                            modelUsed = config.modelIdentifier
-                        )
-                    }
-
-                    val raw = response.body?.string().orEmpty()
-                    val json = JSONObject(raw)
-                    val choices = json.optJSONArray("choices")
-                    val reply = choices?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
-                        ?: "STATUS_OK"
-
-                    AiModelTestResult(true, latency, reply.trim(), modelUsed = config.modelIdentifier)
-                }
-            }
-        } catch (e: Exception) {
-            val latency = System.currentTimeMillis() - start
-            AiModelTestResult(false, latency, "", e.message ?: "خطأ مجهول في الاتصال", modelUsed = config.modelIdentifier)
-        }
-    }
 }

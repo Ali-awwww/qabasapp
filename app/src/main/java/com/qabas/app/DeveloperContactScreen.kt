@@ -86,8 +86,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.QabasTheme
+import com.qabas.app.ui.theme.ThemeSecondarySurface
 import com.qabas.app.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -109,12 +110,7 @@ private val contactCategories = listOf(
     ContactCategory("general_question", "استفسار عام", Icons.Default.HelpOutline)
 )
 
-private val DeveloperInboxBackground = Color(0xFF070B14)
-private val DeveloperInboxCard = Color(0xFF14213A)
-private val DeveloperInboxBorder = Color(0xFF263550)
-private val DeveloperInboxAccent = Color(0xFF19CFE0)
-private val DeveloperInboxPrimaryText = Color(0xFFEAF2FF)
-private val DeveloperInboxSecondaryText = Color(0xFF9AA9BE)
+private val DeveloperInboxBackground = DeepSlate
 
 private fun formatContactTime(message: DevChatRepository.DevChatMessage?): String {
     if (message == null) return ""
@@ -307,7 +303,7 @@ fun DeveloperContactScreen(
                         SupabaseServices.Profiles.getPublicCreatorReels(targetUserId).size
                     )
                 }
-            }.onSuccess { (profile, handle, reelCount) ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onSuccess { (profile, handle, reelCount) ->
                 publicProfile = profile
                 publicProfileHandle = handle
                 publicProfileReelCount = reelCount
@@ -364,7 +360,7 @@ fun DeveloperContactScreen(
                     category = category.key,
                     isUrgent = !isDeveloper && category.key == "content_report"
                 )
-            }.onSuccess {
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onSuccess {
                 input = ""
                 messages = DevChatRepository.getLocalMessages(context, conversationEmail)
                 if (isDeveloper) threads = DevChatRepository.getAllThreads(context)
@@ -674,8 +670,8 @@ fun DeveloperContactScreen(
                                                 }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("حذف المحادثة", color = Color(0xFFFF8A8A), fontFamily = CairoFont) },
-                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFFF8A8A)) },
+                                                text = { Text("حذف المحادثة", color = theme.destructive, fontFamily = CairoFont) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = theme.destructive) },
                                                 enabled = !profile?.userId.isNullOrBlank(),
                                                 onClick = {
                                                     profile?.userId?.let { conversationToDelete = email to it }
@@ -696,16 +692,16 @@ fun DeveloperContactScreen(
                     Surface(
                         onClick = { showCategoryPicker = true },
                         modifier = Modifier.fillMaxWidth(),
-                        color = GoldPrimary.copy(alpha = 0.12f),
+                        color = PresetPrimary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(category.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(category.icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(7.dp))
-                            Text("الموضوع المحفوظ: ${category.label}", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("الموضوع المحفوظ: ${category.label}", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, modifier = Modifier.weight(1f))
                             Text("تغيير", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                         }
                     }
@@ -812,7 +808,7 @@ fun DeveloperContactScreen(
                                         if (statusLabel.isNotBlank()) {
                                             Text(
                                                 " • $statusLabel",
-                                                color = if (statusLabel.contains("بانتظار")) Color(0xFFFBBF24) else contactSecondaryText,
+                                                color = if (statusLabel.contains("بانتظار")) theme.warning else contactSecondaryText,
                                                 fontFamily = CairoFont,
                                                 fontSize = 9.sp
                                             )
@@ -843,8 +839,8 @@ fun DeveloperContactScreen(
                                                         }
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("حذف الرسالة", color = Color(0xFFFF8A8A), fontFamily = CairoFont) },
-                                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFFF8A8A)) },
+                                                        text = { Text("حذف الرسالة", color = theme.destructive, fontFamily = CairoFont) },
+                                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = theme.destructive) },
                                                         onClick = {
                                                             messageToDelete = message
                                                             messageMenuId = null
@@ -865,7 +861,7 @@ fun DeveloperContactScreen(
                                             },
                                             contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
                                         ) {
-                                            Text("إعادة الإرسال", color = Color(0xFFFBBF24), fontFamily = CairoFont, fontSize = 10.sp)
+                                            Text("إعادة الإرسال", color = theme.warning, fontFamily = CairoFont, fontSize = 10.sp)
                                         }
                                     }
                                 }
@@ -895,9 +891,9 @@ fun DeveloperContactScreen(
                     placeholder = { Text("اكتب رسالتك...", fontFamily = CairoFont, fontSize = 12.sp) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = contactAccent,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        unfocusedBorderColor = theme.separator.copy(alpha = 0.18f),
+                        focusedTextColor = contactPrimaryText,
+                        unfocusedTextColor = contactPrimaryText,
                         cursorColor = contactAccent
                     ),
                     shape = RoundedCornerShape(14.dp)
@@ -937,9 +933,9 @@ fun DeveloperContactScreen(
                 showCategoryPicker = false
                 pendingMessage = ""
             },
-            containerColor = Color(0xFF132238),
+            containerColor = ThemeSecondarySurface,
             title = {
-                Text("اختر موضوع الرسالة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text("اختر موضوع الرسالة", color = contactPrimaryText, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -949,16 +945,16 @@ fun DeveloperContactScreen(
                             Surface(
                                 onClick = { chooseCategory(category) },
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Color.White.copy(alpha = 0.06f),
+                                color = contactPrimaryText.copy(alpha = 0.06f),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(category.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(19.dp))
+                                    Icon(category.icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(19.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(category.label, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                    Text(category.label, color = contactPrimaryText, fontFamily = CairoFont, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -1036,7 +1032,7 @@ fun DeveloperContactScreen(
                         messageToDelete = null
                     }
                 }) {
-                    Text(if (isChatActionInProgress) "جارٍ الحذف…" else "حذف", color = Color(0xFFFF8A8A), fontFamily = CairoFont)
+                    Text(if (isChatActionInProgress) "جارٍ الحذف…" else "حذف", color = theme.destructive, fontFamily = CairoFont)
                 }
             },
             dismissButton = { TextButton(enabled = !isChatActionInProgress, onClick = { messageToDelete = null }) { Text("إلغاء", color = contactSecondaryText, fontFamily = CairoFont) } }
@@ -1063,7 +1059,7 @@ fun DeveloperContactScreen(
                         conversationToDelete = null
                     }
                 }) {
-                    Text(if (isChatActionInProgress) "جارٍ الحذف…" else "حذف المحادثة", color = Color(0xFFFF8A8A), fontFamily = CairoFont)
+                    Text(if (isChatActionInProgress) "جارٍ الحذف…" else "حذف المحادثة", color = theme.destructive, fontFamily = CairoFont)
                 }
             },
             dismissButton = { TextButton(enabled = !isChatActionInProgress, onClick = { conversationToDelete = null }) { Text("إلغاء", color = contactSecondaryText, fontFamily = CairoFont) } }

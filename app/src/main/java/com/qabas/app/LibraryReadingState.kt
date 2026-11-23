@@ -83,6 +83,42 @@ object LibraryReadingStateStore {
             )
     }
 
+    /** آخر باب فُتح في قارئ الصحيح الكامل (بخاري/مسلم) — مفتاح مستقل عن
+     * مواضع المقتطفات `pos_` فلا يظهر في «أكمل القراءة» ولا يلوثها. */
+    private fun sahihChapterKey(bookId: String) = "sahih_chapter_$bookId"
+
+    fun getSahihChapterId(context: Context, bookId: String): Int? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(sahihChapterKey(bookId), -1).takeIf { it >= 0 }
+    }
+
+    fun saveSahihChapterId(context: Context, bookId: String, chapterId: Int?) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        if (chapterId == null) editor.remove(sahihChapterKey(bookId))
+        else editor.putInt(sahihChapterKey(bookId), chapterId)
+        editor.apply()
+    }
+
+    /** آخر باب فُتح في قارئ الصحيح المنسّق (بخاري/مسلم) — معرّفات الأبواب
+     * هنا سلاسل نصية، بخلاف القارئ الكامل الذي يستخدم أرقاماً، لذا مفتاح
+     * مستقل `sahih_formatted_chapter_` فلا يختلط به ولا يظهر في
+     * «أكمل القراءة» ولا يلوثها. */
+    private fun sahihFormattedChapterKey(bookId: String) = "sahih_formatted_chapter_$bookId"
+
+    fun getSahihFormattedChapterId(context: Context, bookId: String): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(sahihFormattedChapterKey(bookId), null)
+    }
+
+    fun saveSahihFormattedChapterId(context: Context, bookId: String, chapterId: String?) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        if (chapterId == null) editor.remove(sahihFormattedChapterKey(bookId))
+        else editor.putString(sahihFormattedChapterKey(bookId), chapterId)
+        editor.apply()
+    }
+
     /** كل حالات القراءة المحفوظة، الأحدث أولاً (لصف «أكمل القراءة»). */
     fun getAllStates(context: Context): List<LibraryReadingState> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -214,7 +250,7 @@ object LibraryReadingStateStore {
                         bookmarked = state.bookmarked
                     )
                 )
-            }.onFailure { Log.w(TAG, "library reading sync failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "library reading sync failed: ${it.message}") }
         }
     }
 }

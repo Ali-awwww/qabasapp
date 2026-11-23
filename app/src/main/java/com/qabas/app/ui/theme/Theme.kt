@@ -119,7 +119,6 @@ enum class AppThemePreset(
     val isDark: Boolean
         get() = ThemeManager.isDarkState
 
-    val soundEmoji: String get() = soundPreset.iconEmoji
     val soundTitle: String get() = soundPreset.title
 }
 
@@ -136,8 +135,6 @@ object ThemeManager {
     var activeThemeMode by mutableStateOf(AppThemeMode.SYSTEM)
         private set
 
-    private val _isDarkTheme = MutableStateFlow(false)
-    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
 
     var isDarkState by mutableStateOf(false)
         private set
@@ -168,7 +165,6 @@ object ThemeManager {
                 uiMask == android.content.res.Configuration.UI_MODE_NIGHT_YES
             }
         }
-        _isDarkTheme.value = initialDark
         isDarkState = initialDark
         AppSoundManager.setPreset(context, preset.soundPreset)
     }
@@ -197,7 +193,6 @@ object ThemeManager {
 
         if (mode != AppThemeMode.SYSTEM) {
             val resolved = (mode == AppThemeMode.DARK)
-            _isDarkTheme.value = resolved
             isDarkState = resolved
             prefs.edit().putBoolean("app_dark_theme", resolved).apply()
         }
@@ -210,19 +205,8 @@ object ThemeManager {
         if (isDarkState != isDark) {
             isDarkState = isDark
         }
-        if (_isDarkTheme.value != isDark) {
-            _isDarkTheme.value = isDark
-        }
     }
 
-    fun toggleTheme(context: Context) {
-        val nextMode = if (isDarkState) AppThemeMode.LIGHT else AppThemeMode.DARK
-        setThemeMode(context, nextMode)
-    }
-
-    fun setDarkTheme(context: Context, isDark: Boolean) {
-        setThemeMode(context, if (isDark) AppThemeMode.DARK else AppThemeMode.LIGHT)
-    }
 }
 
 @Composable
@@ -277,11 +261,16 @@ data class QabasDesignTheme(
     val secondarySurface: Color = AppleLightSecondarySurface,
     val separator: Color = AppleLightSeparator,
     val cardBorder: Color = AppleLightSeparator,
-    val textTertiary: Color = AppleLightTertiaryLabel,
+    // نص ثالثي فاتح: AppleLightTertiaryLabel (8E8E93) تباينه 3.26:1 على الأبيض
+    // دون حد AA ‏4.5:1‏ للنصوص الصغيرة (11–12sp) التي يستخدمها فعلياً،
+    // فالافتراضي هنا هو الثانوي الفاتح (6C6C70: ‏5.23:1‏ على الأبيض).
+    val textTertiary: Color = AppleLightSecondaryLabel,
     val onPrimary: Color = Color.White,
     val success: Color = AppleLightGreen,
     val warning: Color = AppleLightOrange,
-    val destructive: Color = AppleLightRed
+    val destructive: Color = AppleLightRed,
+    // ذهبي حقيقي مستقل عن السمة (الجولة 69) — للتمييز/البريميوم، لا للون الأساسي.
+    val gold: Color = AppleLightGold
 )
 
 val LocalQabasTheme = staticCompositionLocalOf<QabasDesignTheme> {
@@ -290,6 +279,7 @@ val LocalQabasTheme = staticCompositionLocalOf<QabasDesignTheme> {
         preset = defaultPreset,
         primary = CyberLightPrimary,
         accent = CyberLightAccent,
+        gold = AppleLightGold,
         background = CyberLightBackground,
         cardSurface = CyberLightSurface,
         textPrimary = CyberLightLabel,
@@ -409,13 +399,15 @@ fun MyApplicationTheme(
             textTertiary = if (darkTheme) {
                 if (highContrastMode) Color.White.copy(alpha = 0.68f) else AppleDarkSecondaryLabel.copy(alpha = 0.78f)
             } else {
-                if (highContrastMode) Color.Black.copy(alpha = 0.68f) else AppleLightTertiaryLabel
+                // الفاتح: الثانوي (6C6C70) لا الثالثي (8E8E93: 3.26:1 دون حد AA) — انظر الافتراضي أعلاه.
+                if (highContrastMode) Color.Black.copy(alpha = 0.68f) else AppleLightSecondaryLabel
             },
             onPrimary = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) Color(0xFF001512)
             else if (highContrastMode && darkTheme) Color.Black else Color.White,
             success = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkGreen else if (darkTheme) AppleDarkGreen else AppleLightGreen,
             warning = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkOrange else if (darkTheme) AppleDarkOrange else AppleLightOrange,
-            destructive = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkRed else if (darkTheme) AppleDarkRed else AppleLightRed
+            destructive = if (darkTheme && preset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkRed else if (darkTheme) AppleDarkRed else AppleLightRed,
+            gold = if (darkTheme) AppleDarkGold else AppleLightGold
         )
     }
 
@@ -487,11 +479,6 @@ fun MyApplicationTheme(
 }
 
 @Composable
-fun isDarkAppTheme(): Boolean {
-    return LocalQabasTheme.current.isDark
-}
-
-@Composable
 fun qabasPrimary(): Color {
     return LocalQabasTheme.current.primary
 }
@@ -508,11 +495,6 @@ fun qabasBackground(): Color {
 
 @Composable
 fun qabasCardSurface(): Color {
-    return LocalQabasTheme.current.cardSurface
-}
-
-@Composable
-fun qabasSurface(): Color {
     return LocalQabasTheme.current.cardSurface
 }
 

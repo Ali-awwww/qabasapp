@@ -1,12 +1,10 @@
 package com.qabas.app
 
-import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,13 +18,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +43,7 @@ fun AiModelLatencySwitcherScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val scope = rememberCoroutineScope()
 
     val activeEngine by AiModelLatencyRouter.activeEngine.collectAsState()
@@ -87,17 +84,17 @@ fun AiModelLatencySwitcherScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(GoldPrimary.copy(alpha = 0.15f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+                                .background(PresetPrimary.copy(alpha = 0.15f))
+                                .border(1.dp, PresetPrimary.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Bolt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 "توجيه وتبديل النماذج الذكي",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -113,7 +110,7 @@ fun AiModelLatencySwitcherScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                     }
                 },
                 actions = {
@@ -124,11 +121,11 @@ fun AiModelLatencySwitcherScreen(
                         if (isBenchmarking) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "تحديث الفحص", tint = GoldPrimary)
+                            Icon(Icons.Default.Refresh, contentDescription = "تحديث الفحص", tint = PresetPrimary)
                         }
                     }
                 },
@@ -162,13 +159,13 @@ fun AiModelLatencySwitcherScreen(
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E293B),
-                        contentColor = GoldPrimary
+                        containerColor = theme.secondarySurface,
+                        contentColor = PresetPrimary
                     ),
-                    border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.6f))
+                    border = BorderStroke(1.2.dp, PresetPrimary.copy(alpha = 0.6f))
                 ) {
                     if (isBenchmarking) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GoldPrimary, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = PresetPrimary, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("جاري قياس استجابة النماذج لحظياً...", fontFamily = CairoFont, fontSize = 13.sp)
                     } else {
@@ -188,7 +185,7 @@ fun AiModelLatencySwitcherScreen(
                 ) {
                     Text(
                         "النماذج السحابية وسرعة الاستجابة الحية",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -212,7 +209,7 @@ fun AiModelLatencySwitcherScreen(
                     title = "Groq LPU (Ultra Fast)",
                     spec = "Llama 3.3 70B Versatile",
                     icon = Icons.Default.FlashOn,
-                    accentColor = Color(0xFF10B981),
+                    accentColor = theme.success,
                     description = "معالجة فائقة السرعة على رقاقات LPU المخصصة، الأفضل للمهام الفورية والخطافات."
                 ),
                 ModelUiConfig(
@@ -220,7 +217,7 @@ fun AiModelLatencySwitcherScreen(
                     title = "Google Gemini",
                     spec = "Gemini 2.5 Flash / 2.0 Flash",
                     icon = Icons.Default.AutoAwesome,
-                    accentColor = Color(0xFF38BDF8),
+                    accentColor = theme.primary,
                     description = "سياق فائق الضخامة، فهم لغوي عالي الدقة وتنسيق المشاهد السينمائية المعقدة."
                 ),
                 ModelUiConfig(
@@ -228,7 +225,7 @@ fun AiModelLatencySwitcherScreen(
                     title = "OpenAI Platform",
                     spec = "GPT-4o Mini",
                     icon = Icons.Default.Psychology,
-                    accentColor = Color(0xFF8B5CF6),
+                    accentColor = theme.accent,
                     description = "محرك متزن جداً في التفكير الإبداعي والمنطقي والدعم اللغوي العام."
                 ),
                 ModelUiConfig(
@@ -236,7 +233,7 @@ fun AiModelLatencySwitcherScreen(
                     title = "Pollinations AI (Free)",
                     spec = "Mistral Large / Free Engine",
                     icon = Icons.Default.Public,
-                    accentColor = Color(0xFFF59E0B),
+                    accentColor = theme.warning,
                     description = "يعمل تلقائياً بدون أي مفتاح API أو اشتراك كشبكة أمان مجانية."
                 )
             )
@@ -292,6 +289,7 @@ private fun ActiveEngineHeroCard(
     pulseAlpha: Float,
     onToggleAuto: (Boolean) -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -300,9 +298,9 @@ private fun ActiveEngineHeroCard(
             1.5.dp,
             Brush.horizontalGradient(
                 listOf(
-                    GoldPrimary.copy(alpha = 0.8f),
-                    Color(0xFF10B981).copy(alpha = 0.6f),
-                    GoldSecondary.copy(alpha = 0.4f)
+                    PresetPrimary.copy(alpha = 0.8f),
+                    theme.success.copy(alpha = 0.6f),
+                    PresetAccent.copy(alpha = 0.4f)
                 )
             )
         ),
@@ -314,9 +312,9 @@ private fun ActiveEngineHeroCard(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xFF0F172A),
+                            theme.cardSurface,
                             DeepSlate,
-                            Color(0xFF070B12)
+                            theme.background
                         )
                     )
                 )
@@ -333,7 +331,7 @@ private fun ActiveEngineHeroCard(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF10B981).copy(alpha = pulseAlpha))
+                                .background(theme.success.copy(alpha = pulseAlpha))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -346,13 +344,13 @@ private fun ActiveEngineHeroCard(
 
                     // شارة التوجيه التلقائي
                     Surface(
-                        color = if (isAutoFastest) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF8B5CF6).copy(alpha = 0.15f),
+                        color = if (isAutoFastest) theme.success.copy(alpha = 0.15f) else theme.accent.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isAutoFastest) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFF8B5CF6).copy(alpha = 0.5f))
+                        border = BorderStroke(1.dp, if (isAutoFastest) theme.success.copy(alpha = 0.5f) else theme.accent.copy(alpha = 0.5f))
                     ) {
                         Text(
                             text = if (isAutoFastest) "⚡ توجيه تلقائي للأسرع" else "🔒 مثبت يدوياً",
-                            color = if (isAutoFastest) Color(0xFF10B981) else Color(0xFF8B5CF6),
+                            color = if (isAutoFastest) theme.success else theme.accent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.5.sp,
@@ -371,7 +369,7 @@ private fun ActiveEngineHeroCard(
                     Column {
                         Text(
                             text = activeEngine,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 24.sp
@@ -383,7 +381,7 @@ private fun ActiveEngineHeroCard(
                                 "OpenAI" -> "محرك GPT-4o Mini المتزن"
                                 else -> "المحرك المجاني بلا مفتاح"
                             },
-                            color = Color(0xFFE2E8F0),
+                            color = theme.textPrimary,
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp
                         )
@@ -393,8 +391,8 @@ private fun ActiveEngineHeroCard(
                         modifier = Modifier
                             .size(50.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(GoldPrimary.copy(alpha = 0.18f))
-                            .border(1.2.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(14.dp)),
+                            .background(PresetPrimary.copy(alpha = 0.18f))
+                            .border(1.2.dp, PresetPrimary.copy(alpha = 0.5f), RoundedCornerShape(14.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -405,14 +403,14 @@ private fun ActiveEngineHeroCard(
                                 else -> Icons.Default.Public
                             },
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(28.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                HorizontalDivider(color = theme.secondarySurface, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // تبديل الوضع التلقائي الذكي
@@ -424,7 +422,7 @@ private fun ActiveEngineHeroCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "التوجيه الذكي التلقائي (Auto-Fastest Routing)",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -441,10 +439,10 @@ private fun ActiveEngineHeroCard(
                         checked = isAutoFastest,
                         onCheckedChange = onToggleAuto,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = GoldPrimary,
-                            checkedTrackColor = GoldPrimary.copy(alpha = 0.35f),
-                            uncheckedThumbColor = Color(0xFF94A3B8),
-                            uncheckedTrackColor = Color(0xFF1E293B)
+                            checkedThumbColor = PresetPrimary,
+                            checkedTrackColor = PresetPrimary.copy(alpha = 0.35f),
+                            uncheckedThumbColor = theme.textSecondary,
+                            uncheckedTrackColor = theme.secondarySurface
                         )
                     )
                 }
@@ -460,13 +458,14 @@ private fun ModelBenchmarkCard(
     isActive: Boolean,
     onSelectManual: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         border = BorderStroke(
             if (isActive) 1.5.dp else 1.dp,
-            if (isActive) config.accentColor.copy(alpha = 0.85f) else Color(0xFF1E293B)
+            if (isActive) config.accentColor.copy(alpha = 0.85f) else theme.secondarySurface
         )
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -494,7 +493,7 @@ private fun ModelBenchmarkCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 config.title,
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -526,19 +525,19 @@ private fun ModelBenchmarkCard(
                 val isSuccess = result?.isSuccess == true
                 Surface(
                     color = when {
-                        !isSuccess -> Color(0xFFEF4444).copy(alpha = 0.15f)
-                        latency in 1..400 -> Color(0xFF10B981).copy(alpha = 0.2f)
-                        latency in 401..900 -> Color(0xFF0EA5E9).copy(alpha = 0.2f)
-                        else -> Color(0xFFF59E0B).copy(alpha = 0.2f)
+                        !isSuccess -> theme.destructive.copy(alpha = 0.15f)
+                        latency in 1..400 -> theme.success.copy(alpha = 0.2f)
+                        latency in 401..900 -> theme.primary.copy(alpha = 0.2f)
+                        else -> theme.warning.copy(alpha = 0.2f)
                     },
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(
                         1.dp,
                         when {
-                            !isSuccess -> Color(0xFFEF4444).copy(alpha = 0.5f)
-                            latency in 1..400 -> Color(0xFF10B981).copy(alpha = 0.6f)
-                            latency in 401..900 -> Color(0xFF0EA5E9).copy(alpha = 0.6f)
-                            else -> Color(0xFFF59E0B).copy(alpha = 0.6f)
+                            !isSuccess -> theme.destructive.copy(alpha = 0.5f)
+                            latency in 1..400 -> theme.success.copy(alpha = 0.6f)
+                            latency in 401..900 -> theme.primary.copy(alpha = 0.6f)
+                            else -> theme.warning.copy(alpha = 0.6f)
                         }
                     )
                 ) {
@@ -549,10 +548,10 @@ private fun ModelBenchmarkCard(
                             else -> "${latency}ms ⚡"
                         },
                         color = when {
-                            !isSuccess -> Color(0xFFEF4444)
-                            latency in 1..400 -> Color(0xFF10B981)
-                            latency in 401..900 -> Color(0xFF0EA5E9)
-                            else -> Color(0xFFF59E0B)
+                            !isSuccess -> theme.destructive
+                            latency in 1..400 -> theme.success
+                            latency in 401..900 -> theme.primary
+                            else -> theme.warning
                         },
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -592,7 +591,7 @@ private fun ModelBenchmarkCard(
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(Color(0xFF1E293B))
+                            .background(theme.secondarySurface)
                     ) {
                         Box(
                             modifier = Modifier
@@ -610,7 +609,7 @@ private fun ModelBenchmarkCard(
             } else if (result != null && !result.isSuccess) {
                 Text(
                     text = result.message,
-                    color = Color(0xFFEF4444),
+                    color = theme.destructive,
                     fontSize = 11.sp,
                     fontFamily = CairoFont
                 )
@@ -636,9 +635,9 @@ private fun ModelBenchmarkCard(
                     enabled = !isActive && (result == null || result.isSuccess),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (isActive) Color(0xFF64748B) else config.accentColor
+                        contentColor = if (isActive) theme.textTertiary else config.accentColor
                     ),
-                    border = BorderStroke(1.dp, if (isActive) Color(0xFF334155) else config.accentColor.copy(alpha = 0.6f)),
+                    border = BorderStroke(1.dp, if (isActive) theme.separator else config.accentColor.copy(alpha = 0.6f)),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Icon(
@@ -667,6 +666,7 @@ private fun HeadToHeadRaceSection(
     comparisonResult: AiModelLatencyRouter.HeadToHeadComparison?,
     onStartRace: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -675,9 +675,9 @@ private fun HeadToHeadRaceSection(
             1.2.dp,
             Brush.horizontalGradient(
                 listOf(
-                    Color(0xFF10B981).copy(alpha = 0.5f),
-                    GoldPrimary.copy(alpha = 0.5f),
-                    Color(0xFF38BDF8).copy(alpha = 0.5f)
+                    theme.success.copy(alpha = 0.5f),
+                    PresetPrimary.copy(alpha = 0.5f),
+                    theme.primary.copy(alpha = 0.5f)
                 )
             )
         )
@@ -691,15 +691,15 @@ private fun HeadToHeadRaceSection(
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(GoldPrimary.copy(alpha = 0.15f)),
+                        .background(PresetPrimary.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.SportsScore, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.SportsScore, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 }
                 Column {
                     Text(
                         "ميدان سباق السرعة المباشر (Groq vs Gemini) 🏁",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -721,10 +721,10 @@ private fun HeadToHeadRaceSection(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("فكرة الاختبار", fontFamily = CairoFont, fontSize = 12.sp) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color(0xFF334155),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedBorderColor = PresetPrimary,
+                    unfocusedBorderColor = theme.separator,
+                    focusedTextColor = theme.textPrimary,
+                    unfocusedTextColor = theme.textPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
                 maxLines = 2
@@ -737,10 +737,10 @@ private fun HeadToHeadRaceSection(
                 enabled = !isComparing && testPrompt.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black)
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary, contentColor = theme.background)
             ) {
                 if (isComparing) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = theme.background, strokeWidth = 2.dp)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("جاري تشغيل سباق النماذج بالمللي ثانية...", fontFamily = CairoFont, fontSize = 12.sp)
                 } else {
@@ -753,14 +753,14 @@ private fun HeadToHeadRaceSection(
             // نتائج السباق إن وجدت
             if (comparisonResult != null) {
                 Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                HorizontalDivider(color = theme.secondarySurface, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // إعلان الفائز
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                    color = theme.success.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, theme.success.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -769,14 +769,14 @@ private fun HeadToHeadRaceSection(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🏆 الفائز بالسرعة:", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("🏆 الفائز بالسرعة:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(comparisonResult.winner, color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(comparisonResult.winner, color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         if (comparisonResult.timeSavedMs > 0) {
                             Text(
                                 "فارق: ${comparisonResult.timeSavedMs}ms أسرع!",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp
@@ -796,16 +796,16 @@ private fun HeadToHeadRaceSection(
                     Card(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
+                        border = BorderStroke(1.dp, theme.success.copy(alpha = 0.5f))
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Groq LPU", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("${comparisonResult.groqLatencyMs}ms", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("Groq LPU", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("${comparisonResult.groqLatencyMs}ms", color = theme.success, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -823,16 +823,16 @@ private fun HeadToHeadRaceSection(
                     Card(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
+                        border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f))
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Gemini", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("${comparisonResult.geminiLatencyMs}ms", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("Gemini", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("${comparisonResult.geminiLatencyMs}ms", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(

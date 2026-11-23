@@ -5,11 +5,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,7 +16,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -47,7 +40,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -129,7 +121,7 @@ fun PhotoStudioScreen(
 
     // قوالب المحتوى الدعوي (كلها نصوص منشورة موثوقة — لا عبارات مخترعة)
     val photoTemplates = remember { listOf(
-        PhotoTemplate("قرآن", "آية هادئة", "وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ", "تلاوة هادئة", Icons.Default.Star, GoldPrimary),
+        PhotoTemplate("قرآن", "آية هادئة", "وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ", "تلاوة هادئة", Icons.Default.Star, PresetPrimary),
         PhotoTemplate("أذكار", "راحة وطمأنينة", "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", "مؤثرات طبيعية", Icons.Default.Favorite, Color(0xFF6366F1)),
         PhotoTemplate("حديث", "بصمة نبوية", "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ", "بدون صوت", Icons.Default.HistoryEdu, Color(0xFFF5AC37)),
         PhotoTemplate("حكم", "مواعظ مؤثرة", "مَن عَرَفَ نَفْسَهُ اشْتَغَلَ بِإِصْلَاحِهَا", "بدون صوت", Icons.Default.FormatQuote, ThemeSuccess),
@@ -159,7 +151,7 @@ fun PhotoStudioScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text("استوديو الصور 📸", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -267,7 +259,7 @@ fun PhotoStudioScreen(
                             if (generated == null) {
                                 Toast.makeText(context, "تعذّر توليد الخلفية الآن — جرّب لاحقاً", Toast.LENGTH_SHORT).show()
                             }
-                        } catch (e: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                             Toast.makeText(context, "تعذّر توليد الخلفية: ${e.message}", Toast.LENGTH_SHORT).show()
                         } finally {
                             isGeneratingAi = false
@@ -351,7 +343,7 @@ fun PhotoStudioScreen(
                                     }
                                     assetFile.absolutePath
                                 }
-                            } catch (e: Exception) {
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         } else if (selectedAudioOption == "تلاوة هادئة") {
@@ -369,7 +361,7 @@ fun PhotoStudioScreen(
                                     }
                                     recitationFile.absolutePath
                                 }
-                            } catch (e: Exception) {
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         }
@@ -552,14 +544,14 @@ fun Step1ImageSelection(
                     .weight(1f)
                     .clip(RoundedCornerShape(24.dp))
                     .background(CardSurface)
-                    .border(2.dp, GoldPrimary, RoundedCornerShape(24.dp))
+                    .border(2.dp, PresetPrimary, RoundedCornerShape(24.dp))
                     .clickable { onSelectMore() },
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Upload", tint = GoldPrimary, modifier = Modifier.size(72.dp))
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Upload", tint = PresetPrimary, modifier = Modifier.size(72.dp))
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("انقر لرفع الصور", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    Text("انقر لرفع الصور", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("معرض الصور / الكاميرا", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 13.sp)
                 }
@@ -573,7 +565,7 @@ fun Step1ImageSelection(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(selectedImageUris) { uri ->
-                        Box(modifier = Modifier.size(130.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, GoldPrimary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))) {
+                        Box(modifier = Modifier.size(130.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, PresetPrimary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))) {
                             AsyncImage(
                                 model = uri,
                                 contentDescription = null,
@@ -594,13 +586,13 @@ fun Step1ImageSelection(
                                 .size(130.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(CardSurface)
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                                .border(1.dp, PresetPrimary.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
                                 .clickable { onSelectMore() },
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.Add, contentDescription = "Add More", tint = GoldPrimary, modifier = Modifier.size(32.dp))
-                                Text("إضافة", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                Icon(Icons.Default.Add, contentDescription = "Add More", tint = PresetPrimary, modifier = Modifier.size(32.dp))
+                                Text("إضافة", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             }
                         }
                     }
@@ -614,12 +606,12 @@ fun Step1ImageSelection(
             onClick = onNextNoPhoto,
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, GoldPrimary),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary)
+            border = BorderStroke(1.dp, PresetPrimary),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary)
         ) {
-            Icon(Icons.Default.Palette, contentDescription = null, tint = GoldPrimary)
+            Icon(Icons.Default.Palette, contentDescription = null, tint = PresetPrimary)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("تصميم فوري بخلفية مولّدة — بدون صور 🎨", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("تصميم فوري بخلفية مولّدة — بدون صور 🎨", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -629,7 +621,7 @@ fun Step1ImageSelection(
             enabled = selectedImageUris.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, disabledContainerColor = CardSurface)
+            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary, disabledContainerColor = CardSurface)
         ) {
             Text("متابعة للمحرر", color = if (selectedImageUris.isNotEmpty()) DeepSlate else TextSecondary, fontFamily = CairoFont, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.width(8.dp))
@@ -724,7 +716,7 @@ fun Step2Editor(
                     .fillMaxHeight(0.95f)
                     .aspectRatio(previewAspectRatio)
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, GoldPrimary.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .border(1.dp, PresetPrimary.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
                     .onSizeChanged { onPreviewSize(it.width, it.height) }
             ) {
                 // الخلفية
@@ -791,7 +783,7 @@ fun Step2Editor(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(10.dp)
-                        .border(1.5.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .border(1.5.dp, PresetPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                 )
 
                 // الزخرفة (نفس رسم التصدير)
@@ -826,7 +818,7 @@ fun Step2Editor(
                 if (showWatermark) {
                     Text(
                         "✦ خادم المسلم | QABAS STUDIO ✦",
-                        color = GoldPrimary.copy(alpha = 0.8f),
+                        color = PresetPrimary.copy(alpha = 0.8f),
                         fontFamily = CairoFont,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -838,7 +830,7 @@ fun Step2Editor(
                 FloatingActionButton(
                     onClick = onAddBlock,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).size(40.dp),
-                    containerColor = GoldPrimary,
+                    containerColor = PresetPrimary,
                     contentColor = DeepSlate
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "إضافة نص")
@@ -891,8 +883,8 @@ fun Step2Editor(
                             Surface(
                                 onClick = { onBackgroundModeChange(mode.id) },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                                color = if (isSelected) PresetPrimary else CardSurface,
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     "${mode.icon} ${mode.label}",
@@ -917,7 +909,7 @@ fun Step2Editor(
                                                 .size(46.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .background(designBgColors(preset.hexes).first())
-                                                .border(2.dp, if (isSelected) GoldPrimary else Color.Transparent, RoundedCornerShape(12.dp))
+                                                .border(2.dp, if (isSelected) PresetPrimary else Color.Transparent, RoundedCornerShape(12.dp))
                                                 .clickable { onBgPresetChange(preset.id) }
                                         )
                                         Text("${preset.icon} ${preset.label}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 10.sp)
@@ -936,7 +928,7 @@ fun Step2Editor(
                                                 .size(46.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .background(Brush.verticalGradient(designBgColors(preset.hexes)))
-                                                .border(2.dp, if (isSelected) GoldPrimary else Color.Transparent, RoundedCornerShape(12.dp))
+                                                .border(2.dp, if (isSelected) PresetPrimary else Color.Transparent, RoundedCornerShape(12.dp))
                                                 .clickable { onBgPresetChange(preset.id) }
                                         )
                                         Text("${preset.icon} ${preset.label}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 10.sp)
@@ -956,7 +948,7 @@ fun Step2Editor(
                                     Text("توليد خلفية سينمائية بالذكاء الاصطناعي:", color = TextPrimary, fontFamily = CairoFont, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                                     Text(
                                         if (isLeonardoConfigured) "المحرك النشط: Leonardo.ai Vision XL (مفعّل ✓)" else "المحرك: التوليد المجاني المدمج (يمكنك ربط Leonardo)",
-                                        color = if (isLeonardoConfigured) GoldPrimary else TextSecondary,
+                                        color = if (isLeonardoConfigured) PresetPrimary else TextSecondary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 10.5.sp
                                     )
@@ -965,11 +957,11 @@ fun Step2Editor(
                                     onClick = onOpenApiKeys,
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f))
                                 ) {
-                                    Icon(Icons.Default.VpnKey, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Default.VpnKey, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("المفاتيح 🔑", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                    Text("المفاتيح 🔑", color = PresetPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                                 }
                             }
                             Spacer(modifier = Modifier.height(4.dp))
@@ -979,23 +971,23 @@ fun Step2Editor(
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = ThemeSecondarySurface),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, GoldPrimary)
+                                border = BorderStroke(1.dp, PresetPrimary)
                             ) {
                                 if (isGeneratingAi) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GoldPrimary, strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = PresetPrimary, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = aiProgressMessage.ifBlank { "جاري التوليد..." },
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 12.sp,
                                         maxLines = 1,
                                         softWrap = false
                                     )
                                 } else {
-                                    Icon(Icons.Default.Palette, contentDescription = null, tint = GoldPrimary)
+                                    Icon(Icons.Default.Palette, contentDescription = null, tint = PresetPrimary)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (aiBgPath != null) "توليد خلفية أخرى 🔄" else "توليد خلفية سينمائية 🎨", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(if (aiBgPath != null) "توليد خلفية أخرى 🔄" else "توليد خلفية سينمائية 🎨", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 }
                             }
                         }
@@ -1015,8 +1007,8 @@ fun Step2Editor(
                             Surface(
                                 onClick = { onOrnamentChange(orn.id) },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                                color = if (isSelected) PresetPrimary else CardSurface,
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     "${orn.icon} ${orn.label}",
@@ -1033,7 +1025,7 @@ fun Step2Editor(
                         Checkbox(
                             checked = showWatermark,
                             onCheckedChange = onWatermarkChange,
-                            colors = CheckboxDefaults.colors(checkedColor = GoldPrimary)
+                            colors = CheckboxDefaults.colors(checkedColor = PresetPrimary)
                         )
                         Text("علامة خادم المسلم المائية", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
@@ -1046,9 +1038,9 @@ fun Step2Editor(
                             OutlinedButton(
                                 onClick = { onCropRatioChange(ratio) },
                                 modifier = Modifier.height(38.dp),
-                                border = BorderStroke(1.5.dp, if (isSelected) GoldPrimary else ThemeSeparator),
+                                border = BorderStroke(1.5.dp, if (isSelected) PresetPrimary else ThemeSeparator),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (isSelected) GoldPrimary else CardSurface,
+                                    containerColor = if (isSelected) PresetPrimary else CardSurface,
                                     contentColor = if (isSelected) DeepSlate else TextPrimary
                                 ),
                                 shape = RoundedCornerShape(8.dp),
@@ -1068,8 +1060,8 @@ fun Step2Editor(
                             Surface(
                                 onClick = { onFilterChange(f.id) },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                                color = if (isSelected) PresetPrimary else CardSurface,
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     f.label,
@@ -1084,33 +1076,33 @@ fun Step2Editor(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("الإضاءة", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                        Text("${brightness.toInt()}", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text("${brightness.toInt()}", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                     Slider(
                         value = brightness,
                         onValueChange = onBrightnessChange,
                         valueRange = -50f..50f,
-                        colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                        colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("التباين", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                        Text(String.format("%.1fx", contrast), color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text(String.format("%.1fx", contrast), color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                     Slider(
                         value = contrast,
                         onValueChange = onContrastChange,
                         valueRange = 0.5f..1.5f,
-                        colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                        colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("التشبع اللوني", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                        Text(String.format("%.1fx", saturation), color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text(String.format("%.1fx", saturation), color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                     Slider(
                         value = saturation,
                         onValueChange = onSaturationChange,
                         valueRange = 0f..2f,
-                        colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                        colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                     )
 
                     HorizontalDivider(color = ThemeSeparator)
@@ -1122,8 +1114,8 @@ fun Step2Editor(
                             Surface(
                                 onClick = { onOutputQualityChange(q) },
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                                color = if (isSelected) PresetPrimary else CardSurface,
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     q,
@@ -1143,8 +1135,8 @@ fun Step2Editor(
                             Surface(
                                 onClick = { onOutputFormatChange(fmt) },
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) GoldPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                                color = if (isSelected) PresetPrimary else CardSurface,
+                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
                             ) {
                                 Text(
                                     fmt,
@@ -1194,7 +1186,7 @@ fun Step2Editor(
                             RadioButton(
                                 selected = selectedAudioOption == audio,
                                 onClick = { onAudioChange(audio) },
-                                colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary, unselectedColor = TextSecondary)
+                                colors = RadioButtonDefaults.colors(selectedColor = PresetPrimary, unselectedColor = TextSecondary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(audio, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
@@ -1218,7 +1210,7 @@ fun Step2Editor(
                 Button(
                     onClick = onExportImage,
                     modifier = Modifier.weight(1.2f).height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.Image, contentDescription = null, tint = DeepSlate)
@@ -1228,13 +1220,13 @@ fun Step2Editor(
                 OutlinedButton(
                     onClick = onExportVideo,
                     modifier = Modifier.weight(1f).height(48.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-                    border = BorderStroke(1.dp, GoldPrimary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
+                    border = BorderStroke(1.dp, PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Movie, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.Movie, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("فيديو محلي", color = GoldPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("فيديو محلي", color = PresetPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1245,14 +1237,14 @@ fun Step2Editor(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ThemeSecondarySurface
                 ),
-                border = BorderStroke(1.2.dp, GoldPrimary),
+                border = BorderStroke(1.2.dp, PresetPrimary),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = GoldPrimary)
+                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = PresetPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "تحريك بالذكاء الاصطناعي (Higgsfield Video AI 🛸)",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -1334,13 +1326,13 @@ private fun SelectedBlockTextTab(
         OutlinedButton(
             onClick = onAddBlock,
             modifier = Modifier.fillMaxWidth().height(46.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-            border = BorderStroke(1.dp, GoldPrimary),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
+            border = BorderStroke(1.dp, PresetPrimary),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary)
+            Icon(Icons.Default.Add, contentDescription = null, tint = PresetPrimary)
             Spacer(modifier = Modifier.width(6.dp))
-            Text("أضف أول نص للتصميم", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            Text("أضف أول نص للتصميم", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
         }
         return
     }
@@ -1352,8 +1344,8 @@ private fun SelectedBlockTextTab(
             Surface(
                 onClick = { onSelectBlock(block.id) },
                 shape = RoundedCornerShape(8.dp),
-                color = if (isSelected) GoldPrimary else CardSurface,
-                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                color = if (isSelected) PresetPrimary else CardSurface,
+                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
             ) {
                 Text(
                     "نص ${block.id}",
@@ -1370,12 +1362,12 @@ private fun SelectedBlockTextTab(
                 onClick = onAddBlock,
                 enabled = textBlocks.size < 3,
                 modifier = Modifier.height(34.dp),
-                border = BorderStroke(1.dp, GoldPrimary),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
+                border = BorderStroke(1.dp, PresetPrimary),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
                 contentPadding = PaddingValues(horizontal = 10.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                Text("إضافة (حتى 3)", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                Icon(Icons.Default.Add, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
+                Text("إضافة (حتى 3)", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
             }
         }
     }
@@ -1388,7 +1380,7 @@ private fun SelectedBlockTextTab(
             placeholder = { Text("اكتب الآية أو الحكمة الدعوية...", color = TextSecondary) },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = GoldPrimary,
+                focusedBorderColor = PresetPrimary,
                 unfocusedBorderColor = ThemeSeparator,
                 focusedTextColor = TextPrimary,
                 unfocusedTextColor = TextPrimary
@@ -1404,8 +1396,8 @@ private fun SelectedBlockTextTab(
                 Surface(
                     onClick = { onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(font = font)) } },
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isSelected) GoldPrimary else CardSurface,
-                    border = BorderStroke(1.dp, if (isSelected) GoldPrimary else ThemeSeparator)
+                    color = if (isSelected) PresetPrimary else CardSurface,
+                    border = BorderStroke(1.dp, if (isSelected) PresetPrimary else ThemeSeparator)
                 ) {
                     Text(
                         font.displayName,
@@ -1447,7 +1439,7 @@ private fun SelectedBlockTextTab(
                 onValueChange = { v -> onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(sizeSp = v)) } },
                 valueRange = 14f..56f,
                 modifier = Modifier.width(180.dp),
-                colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
             )
         }
 
@@ -1460,7 +1452,7 @@ private fun SelectedBlockTextTab(
                 Checkbox(
                     checked = activeBlock.style.bold,
                     onCheckedChange = { v -> onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(bold = v)) } },
-                    colors = CheckboxDefaults.colors(checkedColor = GoldPrimary)
+                    colors = CheckboxDefaults.colors(checkedColor = PresetPrimary)
                 )
                 Text("خط عريض", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
             }
@@ -1476,9 +1468,9 @@ private fun SelectedBlockTextTab(
                 OutlinedButton(
                     onClick = { onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(align = align)) } },
                     modifier = Modifier.height(34.dp),
-                    border = BorderStroke(1.5.dp, if (isSelected) GoldPrimary else ThemeSeparator),
+                    border = BorderStroke(1.5.dp, if (isSelected) PresetPrimary else ThemeSeparator),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isSelected) GoldPrimary else CardSurface,
+                        containerColor = if (isSelected) PresetPrimary else CardSurface,
                         contentColor = if (isSelected) DeepSlate else TextPrimary
                     ),
                     shape = RoundedCornerShape(8.dp),
@@ -1496,7 +1488,7 @@ private fun SelectedBlockTextTab(
                 onValueChange = { v -> onUpdateBlock(activeBlock.id) { it.copy(style = it.style.copy(rotation = v)) } },
                 valueRange = -30f..30f,
                 modifier = Modifier.width(180.dp),
-                colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
             )
         }
 
@@ -1524,11 +1516,11 @@ fun Step3Export(
         verticalArrangement = Arrangement.Center
     ) {
         if (processing) {
-            CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(64.dp), strokeWidth = 6.dp)
+            CircularProgressIndicator(color = PresetPrimary, modifier = Modifier.size(64.dp), strokeWidth = 6.dp)
             Spacer(modifier = Modifier.height(24.dp))
             Text("جاري الإنتاج والمعالجة...", color = TextPrimary, fontFamily = CairoFont, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(progressMessage, color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 15.sp)
+            Text(progressMessage, color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 15.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text("يتم تجهيز المخرج وفق أعلى معايير الجودة", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
         } else if (resultPath != null) {
@@ -1549,7 +1541,7 @@ fun Step3Export(
                     modifier = Modifier
                         .size(180.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .border(2.dp, GoldPrimary, RoundedCornerShape(12.dp))
+                        .border(2.dp, PresetPrimary, RoundedCornerShape(12.dp))
                 ) {
                     AsyncImage(
                         model = File(photoPath),
@@ -1565,7 +1557,7 @@ fun Step3Export(
                 onClick = onShare,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
                 Icon(Icons.Default.Share, contentDescription = null, tint = DeepSlate)
                 Spacer(modifier = Modifier.width(10.dp))
@@ -1592,12 +1584,12 @@ fun Step3Export(
                     onClick = { onNavigateToAdvancedEdit(resultPath) },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-                    border = BorderStroke(1.dp, GoldPrimary)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
+                    border = BorderStroke(1.dp, PresetPrimary)
                 ) {
-                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.MovieFilter, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("نقل إلى المونتاج المتقدم", fontFamily = CairoFont, fontSize = 15.sp, color = GoldPrimary)
+                    Text("نقل إلى المونتاج المتقدم", fontFamily = CairoFont, fontSize = 15.sp, color = PresetPrimary)
                 }
             }
         }

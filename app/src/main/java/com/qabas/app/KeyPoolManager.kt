@@ -18,7 +18,6 @@ object KeyPoolManager {
 
     private fun prefsKey(prefsKey: String) = prefsKey
 
-    private fun poolKey(prefsKey: String) = "$prefsKey$POOL_SUFFIX"
     private fun activeKey(prefsKey: String) = "$prefsKey$ACTIVE_SUFFIX"
 
     private fun prefs() =
@@ -184,7 +183,11 @@ object KeyPoolManager {
         block: suspend (String) -> T?
     ): T? {
         for (key in orderedKeys(prefsKey, legacyFallback)) {
-            val result = try { block(key) } catch (_: Exception) { null }
+            // (r122) إعادة رمي الإلغاء أولاً: block لامدا suspend فنقطة
+            // تعليقها الحقيقية داخلها، وهذا الـ catch خارج أي withContext
+            // فلا يغطيه قناع الجولة 119 — بدونه كان الإلغاء أثناء محاولة
+            // مفتاح يُبتلع وتُجرَّب المفاتيح التالية بدل نشر الإلغاء.
+            val result = try { block(key) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             if (result != null) {
                 promoteKey(prefsKey, key)
                 return result

@@ -11,7 +11,12 @@ object KeyLatencyTracker {
     private const val PREFS = "qabas_prefs"
     private const val SUFFIX = "_key_latency"
 
-    data class Entry(val latencyMs: Long, val connected: Boolean, val checkedAt: Long)
+    // (r122) أعيدت بعدما حذفتها الجولة 45 خطأً مع موقع استدعائها:
+    // get() وranked() وشاشة المفاتيح (:1776) تستخدم Entry فكان
+    // حذفها «Unresolved reference» يكسر الترجمة. أُعيدت بالحقلين
+    // المستعملين فقط (latencyMs/connected)؛ checkedAt لا يُقرأ في أي
+    // مكان فلم يُعَد (قيمة at تُكتب في record() ولا تُقرأ أبداً).
+    data class Entry(val latencyMs: Long, val connected: Boolean)
 
     private fun prefs() =
         AppServices.appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -36,7 +41,7 @@ object KeyLatencyTracker {
         return try {
             val obj = JSONObject(prefs().getString(prefsKey + SUFFIX, "{}") ?: "{}")
             val e = obj.optJSONObject(fp(apiKey)) ?: return null
-            Entry(e.optLong("ms", Long.MAX_VALUE), e.optBoolean("ok", false), e.optLong("at", 0))
+            Entry(e.optLong("ms", Long.MAX_VALUE), e.optBoolean("ok", false))
         } catch (_: Exception) { null }
     }
 

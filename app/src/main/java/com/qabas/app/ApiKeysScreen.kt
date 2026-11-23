@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -174,10 +173,14 @@ object ApiKeysBackupManager {
         return root.toString(4)
     }
 
-    fun parseAndApplyImport(
-        rawContent: String,
-        prefs: SharedPreferences
-    ): Pair<Int, Map<String, String>> {
+    /**
+     * (r17) تحليل فقط — بلا كتابة: الاستيراد السابق كان يحفظ كل قيمة
+     * في الملف مباشرة دون فحص حي ودون قائمة سماح. الاستدعاء الآن يمرر
+     * الخريطة إلى importKeysWithLiveCheck فتُفحص كل قيمة حياً قبل حفظها.
+     */
+    fun parseImport(
+        rawContent: String
+    ): Map<String, String> {
         val importedMap = mutableMapOf<String, String>()
 
         try {
@@ -257,18 +260,7 @@ object ApiKeysBackupManager {
             }
         }
 
-        if (importedMap.isNotEmpty()) {
-            val editor = prefs.edit()
-            importedMap.forEach { (k, v) ->
-                editor.putString(k, v.trim())
-            }
-            editor.apply()
-            importedMap.forEach { (k, v) ->
-                runCatching { KeyPoolManager.setSingleKey(k, v.trim()) }
-            }
-        }
-
-        return Pair(importedMap.size, importedMap)
+        return importedMap
     }
 }
 
@@ -459,6 +451,8 @@ fun ApiKeysScreen(onBack: () -> Unit) {
     var showSmartPasteDialog by remember { mutableStateOf(false) }
     var smartPasteText by remember { mutableStateOf("") }
     var lastGlobalClipboard by remember { mutableStateOf("") }
+    // (r17) التقاط الحافظة اختياري ومتوقف افتراضياً — انظر autoDetectAndApply.
+    var autoCaptureEnabled by remember { mutableStateOf(AgentPrefs.getBoolean(context, "auto_capture_clipboard_keys", false)) }
 
     var smartInput by remember { mutableStateOf("") }
     var smartShowKey by remember { mutableStateOf(false) }
@@ -478,46 +472,28 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         refreshTelemetry()
     }
 
+    /**
+     * (r17) الالتقاط التلقائي من الحافظة صار اختيارياً (متوقف افتراضياً)
+     * ولا يحفظ شيئاً أبداً: يعبّئ المفتاح الملتقط في حقل «اللصق الذكي»
+     * فقط، ويحفظه المستخدم بنفسه بزر «تعبئة وفحص» بعد فحصه حياً.
+     * السابق كان يراقب كل نسخة في الجهاز ويحفظ أي نص يشبه مفتاحاً
+     * (حتى سلسلة hex عشوائية من 32 محرفاً كانت تُحفظ كمفتاح Azure)
+     * دون إذن من المستخدم ودون أي فحص حي.
+     */
     fun autoDetectAndApply(text: String) {
         if (text.isBlank() || text == lastGlobalClipboard) return
         lastGlobalClipboard = text
         val detected = detectKeysForAutoFill(text)
         if (detected.isEmpty()) return
-
-        val editor = prefs.edit()
-        val newKeys = keysState.toMutableMap()
-        val appliedNames = mutableListOf<String>()
-
-        detected.forEach { (srv, key) ->
-            val prefKey = when (srv) {
-                "gemini" -> "gemini_key"
-                "groq" -> "groq_key"
-                "openai" -> "openai_key"
-                "openrouter" -> "openrouter_key"
-                "huggingface" -> "huggingface_key"
-                "azure" -> "azure_speech_key"
-                "elevenlabs" -> "elevenlabs_key"
-                "pexels" -> "pexels_key"
-                "pixabay" -> "pixabay_key"
-                else -> null
-            }
-            if (prefKey != null) {
-                val clean = key.trim()
-                newKeys[prefKey] = clean
-                editor.putString(prefKey, clean)
-                runCatching { KeyPoolManager.setSingleKey(prefKey, clean) }
-                appliedNames.add(srv)
-            }
-        }
-        editor.apply()
-        keysState = newKeys
-        if (appliedNames.isNotEmpty()) {
-            autoCaptureMessage = "تم التقاط ${appliedNames.size} مفتاح من الحافظة تلقائياً: ${appliedNames.joinToString("، ")}"
-        }
+        val (srv, key) = detected.entries.first()
+        smartInput = key.trim()
+        val extra = if (detected.size > 1) " (+${detected.size - 1} آخر)" else ""
+        autoCaptureMessage = "التُقط مفتاح $srv من الحافظة$extra — اضغط «تعبئة وفحص» لحفظه بعد فحصه حياً"
     }
 
     val androidClipboard = remember { context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager }
-    DisposableEffect(Unit) {
+    DisposableEffect(autoCaptureEnabled) {
+        if (!autoCaptureEnabled) return@DisposableEffect onDispose {}
         val listener = ClipboardManager.OnPrimaryClipChangedListener {
             val text = androidClipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
             autoDetectAndApply(text)
@@ -533,11 +509,83 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         }
     }
 
-    fun saveKey(prefKey: String, value: String) {
+    /**
+     * (r17) حفظ بعد فحص حي فقط — كما في «مفاتيحي»: الزر السابق كان
+     * يحفظ أي نص (حتى الخاطئ) ويقول «تم الحفظ بنجاح». الآن يُفحص
+     * المفتاح عند مزوده أولاً ولا يُحفظ إلا إن ردّ الخادم بنجاح.
+     */
+    fun saveKey(svc: ServiceUiConfig, value: String) {
         val clean = value.trim()
-        KeyPoolManager.setSingleKey(prefKey, clean)
-        keysState = keysState + (prefKey to clean)
-        Toast.makeText(context, "تم حفظ المفتاح بنجاح", Toast.LENGTH_SHORT).show()
+        if (clean.isBlank()) {
+            Toast.makeText(context, "أدخل المفتاح أولاً", Toast.LENGTH_SHORT).show()
+            return
+        }
+        mainScope.launch {
+            val region = if (svc.hasRegion) azureRegion.trim().ifBlank { null } else null
+            val res = ApiKeyValidator.validateKey(context, svc.serviceType, clean, region)
+            validationResults = validationResults + (svc.id to res)
+            if (res.isValid) {
+                KeyPoolManager.setSingleKey(svc.prefsKey, clean)
+                keysState = keysState + (svc.prefsKey to clean)
+                Toast.makeText(context, "تم حفظ المفتاح بنجاح", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "لم يُحفظ: ${res.summary}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /**
+     * (r17) استيراد بعد فحص حي: كل قيمة تُفحص عند مزودها أولاً،
+     * ويُحفظ الصالح فقط؛ المنطقة (azure_speech_region) ليست سراً
+     * فتُحفظ مباشرة. أي اسم خارج مفاتيح ALL_SERVICES يُتجاهل —
+     * الاستيراد السابق كان يكتب أي مفتاح JSON في التفضيلات دون
+     * قائمة سماح ودون فحص.
+     */
+    fun importKeysWithLiveCheck(parsed: Map<String, String>) {
+        val region = parsed["azure_speech_region"]?.trim().orEmpty()
+        if (region.isNotBlank()) {
+            azureRegion = region
+            prefs.edit().putString("azure_speech_region", region).apply()
+        }
+        val targets = parsed.entries.mapNotNull { (prefKey, value) ->
+            if (prefKey == "azure_speech_region") return@mapNotNull null
+            val svc = ALL_SERVICES.find { it.prefsKey == prefKey } ?: return@mapNotNull null
+            val clean = value.trim()
+            if (clean.isBlank()) null else Triple(
+                svc, clean,
+                if (svc.hasRegion) region.ifBlank { azureRegion.trim() }.ifBlank { null } else null
+            )
+        }
+        if (targets.isEmpty()) {
+            Toast.makeText(context, "لم يتم العثور على مفاتيح صالحة داخل الملف", Toast.LENGTH_SHORT).show()
+            return
+        }
+        mainScope.launch {
+            var saved = 0
+            var skipped = 0
+            coroutineScope {
+                targets.map { (svc, key, reg) ->
+                    async(Dispatchers.IO) {
+                        val res = ApiKeyValidator.validateKey(context, svc.serviceType, key, reg)
+                        withContext(Dispatchers.Main) {
+                            validationResults = validationResults + (svc.id to res)
+                            if (res.isValid) {
+                                KeyPoolManager.setSingleKey(svc.prefsKey, key)
+                                keysState = keysState + (svc.prefsKey to key)
+                                saved++
+                            } else skipped++
+                        }
+                    }
+                }.awaitAll()
+            }
+            refreshTelemetry()
+            Toast.makeText(
+                context,
+                "تم استيراد $saved مفتاحاً بعد فحصها حياً" +
+                    if (skipped > 0) "؛ وتُخطّي $skipped مفتاحاً غير صالح" else "",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     fun runTestSingleKey(svc: ServiceUiConfig) {
@@ -559,7 +607,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 } else {
                     Toast.makeText(context, "${svc.name}: ${res.summary}", Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Toast.makeText(context, "خطأ أثناء الفحص: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
             } finally {
                 testingState = testingState + (svc.id to false)
@@ -611,10 +659,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             return
         }
         val svc = ALL_SERVICES.find { it.id == svcId } ?: return
-        KeyPoolManager.setSingleKey(svc.prefsKey, clean)
-        keysState = keysState + (svc.prefsKey to clean)
         if (svc.hasRegion && azureRegion.isBlank()) {
-            Toast.makeText(context, "تم حفظ مفتاح ${svc.name} — أدخل المنطقة (Region) أدناه ثم افحص", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "مفتاح ${svc.name} يحتاج المنطقة (Region) أولاً — أدخلها في بطاقته أدناه ثم أعد المحاولة", Toast.LENGTH_LONG).show()
+            return
         }
         mainScope.launch {
             smartTesting = true
@@ -627,12 +674,18 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                 smartLatencyMs = ms
                 validationResults = validationResults + (svc.id to res)
                 refreshTelemetry()
+                if (res.isValid) {
+                    // (r17) الحفظ بعد نجاح الفحص فقط — السابق كان يحفظ
+                    // أولاً ويُبقي المفتاح مخزناً حتى عند فشل الفحص.
+                    KeyPoolManager.setSingleKey(svc.prefsKey, clean)
+                    keysState = keysState + (svc.prefsKey to clean)
+                }
                 Toast.makeText(
                     context,
                     if (res.isValid) "${svc.name}: يعمل (${ms}ms)" else "${svc.name}: ${res.summary}",
                     Toast.LENGTH_LONG
                 ).show()
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Toast.makeText(context, "خطأ أثناء الفحص: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
             } finally {
                 smartTesting = false
@@ -660,11 +713,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
         if (uri != null) {
             try {
                 val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
-                val (count, map) = ApiKeysBackupManager.parseAndApplyImport(text, prefs)
-                if (count > 0) {
-                    keysState = keysState + map
-                    map["azure_speech_region"]?.let { azureRegion = it }
-                    Toast.makeText(context, "تم استيراد $count مفتاح بنجاح", Toast.LENGTH_LONG).show()
+                val map = ApiKeysBackupManager.parseImport(text)
+                if (map.isNotEmpty()) {
+                    importKeysWithLiveCheck(map)
                 } else {
                     Toast.makeText(context, "لم يتم العثور على مفاتيح صالحة داخل الملف", Toast.LENGTH_SHORT).show()
                 }
@@ -753,7 +804,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                         KpiStatChip(
                             label = "السرعة",
                             value = if (avgLatency > 0) "$avgLatency ms" else "--",
-                            color = if (theme.isDark) GoldPrimary else GoldPrimary,
+                            color = PresetPrimary,
                             icon = Icons.Default.Speed,
                             modifier = Modifier.weight(1f)
                         )
@@ -833,6 +884,37 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp
+                                        )
+                                    }
+
+                                    // (r17) التقاط الحافظة: اختياري ومتوقف افتراضياً،
+                                    // ويعبّئ فقط — لا يحفظ شيئاً دون فحص حي.
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "التقاط مفاتيح الحافظة تلقائياً",
+                                                color = theme.textPrimary,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.5.sp
+                                            )
+                                            Text(
+                                                text = "عند التفعيل: أي مفتاح تنسخه يُعبَّأ في الحقل أدناه فقط — لا يُحفظ إلا بعد فحصه حياً بزر «تعبئة وفحص».",
+                                                color = theme.textSecondary,
+                                                fontFamily = NotoSansFont,
+                                                fontSize = 11.5.sp
+                                            )
+                                        }
+                                        Switch(
+                                            checked = autoCaptureEnabled,
+                                            onCheckedChange = {
+                                                autoCaptureEnabled = it
+                                                AgentPrefs.putBoolean(context, "auto_capture_clipboard_keys", it)
+                                            }
                                         )
                                     }
 
@@ -958,12 +1040,11 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                 onVisibilityToggle = {
                                     visibilityState = visibilityState + (service.id to !isVisible)
                                 },
-                                onSave = { saveKey(service.prefsKey, currentKey) },
+                                onSave = { saveKey(service, currentKey) },
                                 onPaste = {
                                     val clipText = androidClipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
                                     if (clipText.isNotBlank()) {
-                                        keysState = keysState + (service.prefsKey to clipText.trim())
-                                        saveKey(service.prefsKey, clipText.trim())
+                                        saveKey(service, clipText.trim())
                                     }
                                 },
                                 onClear = {
@@ -1046,7 +1127,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "الصق محتوى ملف .env أو كود JSON أو نصاً يحتوي على مفاتيح متعددة، وسيقوم التطبيق بفرزها وتخزينها تلقائياً:",
+                        "الصق محتوى ملف .env أو كود JSON أو نصاً يحتوي على مفاتيح متعددة، وسيقوم التطبيق بفرزها وفحصها حياً وتخزين الصالح منها فقط:",
                         fontFamily = NotoSansFont,
                         fontSize = 12.5.sp,
                         color = theme.textSecondary,
@@ -1072,11 +1153,9 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             confirmButton = {
                 Button(
                     onClick = {
-                        val (count, map) = ApiKeysBackupManager.parseAndApplyImport(smartPasteText, prefs)
-                        if (count > 0) {
-                            keysState = keysState + map
-                            map["azure_speech_region"]?.let { azureRegion = it }
-                            Toast.makeText(context, "تم استخراج وتوزيع $count مفاتيح بنجاح", Toast.LENGTH_LONG).show()
+                        val map = ApiKeysBackupManager.parseImport(smartPasteText)
+                        if (map.isNotEmpty()) {
+                            importKeysWithLiveCheck(map)
                             showSmartPasteDialog = false
                             smartPasteText = ""
                         } else {
@@ -2011,6 +2090,14 @@ private fun JsonBackupCard(
                 Column {
                     Text("النسخ الاحتياطي السريع (JSON)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text("تصدير واستيراد المفاتيح لنقلها بين أجهزتك.", color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.5.sp)
+                    // (r17) ملف التصدير يحمل المفاتيح بنص صريح غير مشفر —
+                    // كان الزر يصدّره دون أي تنبيه.
+                    Text(
+                        "تحذير: ملف التصدير يحتوي مفاتيحك بنص صريح غير مشفر — احفظه في مكان آمن واحذفه بعد النقل ولا تشاركه مع أحد.",
+                        color = theme.warning,
+                        fontFamily = NotoSansFont,
+                        fontSize = 11.5.sp
+                    )
                 }
             }
 

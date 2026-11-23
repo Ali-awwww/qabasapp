@@ -36,7 +36,6 @@ import android.util.Log
 object GuestUpgradeManager {
     private const val TAG = "GuestUpgrade"
     private const val PREF_GUEST_UPGRADE_PENDING = "guest_upgrade_pending"
-    private const val PREF_GUEST_DATA_MIGRATED_TO = "guest_data_migrated_to"
     const val GUEST_EMAIL = "guest@qabas.studio"
 
     data class GuestMigrationResult(
@@ -59,11 +58,10 @@ object GuestUpgradeManager {
             prefs.getBoolean("is_guest", false)
     }
 
-    private fun clearPending(context: Context, newUserId: String) {
+    private fun clearPending(context: Context) {
         context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
             .edit()
             .putBoolean(PREF_GUEST_UPGRADE_PENDING, false)
-            .putString(PREF_GUEST_DATA_MIGRATED_TO, newUserId)
             .apply()
     }
 
@@ -121,13 +119,13 @@ object GuestUpgradeManager {
                     )
                     if (uploaded) readingStatesUploaded++
                 }
-            }.onFailure { Log.w(TAG, "guest reading-states upload failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "guest reading-states upload failed: ${it.message}") }
             runCatching {
                 preferencesSyncedToCloud = UserPreferencesManager.syncToSupabase(context)
-            }.onFailure { Log.w(TAG, "guest prefs cloud sync failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "guest prefs cloud sync failed: ${it.message}") }
         }
 
-        clearPending(context, newUserId)
+        clearPending(context)
         Log.d(
             TAG,
             "guest migration to $newUserId: prefsCopied=$preferencesCopied " +

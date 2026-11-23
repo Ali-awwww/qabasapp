@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -30,9 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.launch
 
 /**
  * زر تسجيل الدخول الموحد عبر Google بتصميم Cybernetic Glassmorphic HUD
@@ -45,15 +42,16 @@ fun GoogleSignInButton(
     modifier: Modifier = Modifier,
     text: String = "المتابعة بحساب Google // ONE-TAP SSO"
 ) {
+    val theme = QabasTheme.current
     val primaryColor = qabasPrimary()
     val isNeon = ThemeManager.currentPreset.collectAsState().value.isNeon
 
     val borderBrush = Brush.horizontalGradient(
         listOf(
-            Color(0xFF4285F4),
-            Color(0xFF34A853),
-            Color(0xFFFBBC05),
-            Color(0xFFEA4335)
+            theme.primary,
+            theme.success,
+            theme.warning,
+            theme.destructive
         )
     )
 
@@ -67,7 +65,7 @@ fun GoogleSignInButton(
                 .height(52.dp)
                 .bouncingClickable(enabled = !isLoading, onClick = onClick),
             shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp),
-            color = Color(0xFF0F172A).copy(alpha = 0.85f),
+            color = theme.cardSurface.copy(alpha = 0.85f),
             border = BorderStroke(1.2.dp, borderBrush)
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -78,9 +76,9 @@ fun GoogleSignInButton(
                         .background(
                             Brush.linearGradient(
                                 listOf(
-                                    Color(0xFF4285F4).copy(alpha = 0.08f),
+                                    theme.primary.copy(alpha = 0.08f),
                                     Color.Transparent,
-                                    Color(0xFF34A853).copy(alpha = 0.08f)
+                                    theme.success.copy(alpha = 0.08f)
                                 )
                             )
                         )
@@ -92,14 +90,14 @@ fun GoogleSignInButton(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         CircularProgressIndicator(
-                            color = Color(0xFF4285F4),
+                            color = theme.primary,
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "جاري المصادقة عبر Google...",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -117,7 +115,7 @@ fun GoogleSignInButton(
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
-                                .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                                .background(theme.textPrimary.copy(alpha = 0.1f), CircleShape)
                                 .padding(6.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -136,7 +134,7 @@ fun GoogleSignInButton(
                         ) {
                             Text(
                                 text = text,
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
@@ -145,7 +143,7 @@ fun GoogleSignInButton(
                             )
                             Text(
                                 text = "SUPABASE AUTH // CREDENTIAL MANAGER",
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 9.sp,
                                 letterSpacing = 1.sp
@@ -156,7 +154,7 @@ fun GoogleSignInButton(
                         Icon(
                             imageVector = Icons.Default.ChevronLeft,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.4f),
+                            tint = theme.textPrimary.copy(alpha = 0.4f),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -201,6 +199,7 @@ fun GoogleSupabaseSetupDialog(
     onDismiss: () -> Unit,
     onTestSignIn: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
@@ -209,7 +208,6 @@ fun GoogleSupabaseSetupDialog(
 
     var activeTab by remember { mutableStateOf(0) } // 0: Supabase Guide, 1: Google Cloud, 2: App Key Config
     var currentClientId by remember { mutableStateOf(GoogleAuthHelper.getWebClientId(context)) }
-    var isSavingKey by remember { mutableStateOf(false) }
 
     val callbackUrl = GoogleAuthHelper.SUPABASE_GOOGLE_CALLBACK_URL
     val isConfigured = GoogleAuthHelper.isWebClientIdConfigured(context)
@@ -221,7 +219,7 @@ fun GoogleSupabaseSetupDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.85f))
+                .background(theme.background.copy(alpha = 0.85f).copy(alpha = 0.85f))
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -256,7 +254,7 @@ fun GoogleSupabaseSetupDialog(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .background(
-                                                if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                                if (isConfigured) theme.success else theme.warning,
                                                 CircleShape
                                             )
                                     )
@@ -272,7 +270,7 @@ fun GoogleSupabaseSetupDialog(
                                 }
                                 Text(
                                     text = "تفعيل تسجيل الدخول بزر Google الموحد",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Black,
                                     fontSize = 18.sp
@@ -283,12 +281,12 @@ fun GoogleSupabaseSetupDialog(
                                 onClick = onDismiss,
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .background(Color.White.copy(alpha = 0.05f), CutCornerShape(6.dp))
+                                    .background(theme.textPrimary.copy(alpha = 0.05f), CutCornerShape(6.dp))
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "إغلاق",
-                                    tint = Color.White
+                                    tint = theme.textPrimary
                                 )
                             }
                         }
@@ -297,11 +295,11 @@ fun GoogleSupabaseSetupDialog(
 
                         // Status Badge Card
                         Surface(
-                            color = Color(0xFF0F172A),
+                            color = theme.cardSurface,
                             shape = CutCornerShape(8.dp),
                             border = BorderStroke(
                                 1.dp,
-                                if (isConfigured) Color(0xFF10B981).copy(alpha = 0.4f) else Color(0xFFF59E0B).copy(alpha = 0.4f)
+                                if (isConfigured) theme.success.copy(alpha = 0.4f) else theme.warning.copy(alpha = 0.4f)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -314,21 +312,21 @@ fun GoogleSupabaseSetupDialog(
                                     Icon(
                                         imageVector = if (isConfigured) Icons.Default.CheckCircle else Icons.Default.Warning,
                                         contentDescription = null,
-                                        tint = if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                        tint = if (isConfigured) theme.success else theme.warning,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text(
                                             text = if (isConfigured) "معرف العميل (Client ID) مُهيأ وجاهز" else "معرف Google Web Client ID غير مدخل بعد",
-                                            color = Color.White,
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp
                                         )
                                         Text(
                                             text = if (isConfigured) currentClientId.take(28) + "..." else "يحتاج إلى ربط Supabase بـ Google Cloud",
-                                            color = Color(0xFF94A3B8),
+                                            color = theme.textSecondary,
                                             fontFamily = RobotoMonoFont,
                                             fontSize = 10.sp
                                         )
@@ -372,15 +370,15 @@ fun GoogleSupabaseSetupDialog(
                                         .weight(1f)
                                         .clickable { activeTab = index },
                                     shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                                    color = if (isSelected) primaryColor.copy(alpha = 0.15f) else Color(0xFF151B2B),
+                                    color = if (isSelected) primaryColor.copy(alpha = 0.15f) else theme.cardSurface,
                                     border = BorderStroke(
                                         1.dp,
-                                        if (isSelected) primaryColor else Color.White.copy(alpha = 0.08f)
+                                        if (isSelected) primaryColor else theme.textPrimary.copy(alpha = 0.08f)
                                     )
                                 ) {
                                     Text(
                                         text = title,
-                                        color = if (isSelected) primaryColor else Color(0xFF94A3B8),
+                                        color = if (isSelected) primaryColor else theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         fontSize = 11.sp,
@@ -398,8 +396,8 @@ fun GoogleSupabaseSetupDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
-                                .background(Color(0xFF0F172A).copy(alpha = 0.6f), CutCornerShape(10.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.05f), CutCornerShape(10.dp))
+                                .background(theme.cardSurface.copy(alpha = 0.6f), CutCornerShape(10.dp))
+                                .border(1.dp, theme.textPrimary.copy(alpha = 0.05f), CutCornerShape(10.dp))
                                 .padding(14.dp)
                         ) {
                             Column(
@@ -412,7 +410,7 @@ fun GoogleSupabaseSetupDialog(
                                         // Supabase Steps
                                         Text(
                                             text = "خطوات تفعيل موزع Google في Supabase:",
-                                            color = Color.White,
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
@@ -465,7 +463,7 @@ fun GoogleSupabaseSetupDialog(
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Surface(
-                                            color = Color(0xFF1E293B),
+                                            color = theme.secondarySurface,
                                             shape = CutCornerShape(6.dp),
                                             border = BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f)),
                                             modifier = Modifier.fillMaxWidth()
@@ -477,7 +475,7 @@ fun GoogleSupabaseSetupDialog(
                                             ) {
                                                 Text(
                                                     text = callbackUrl,
-                                                    color = Color.White,
+                                                    color = theme.textPrimary,
                                                     fontFamily = RobotoMonoFont,
                                                     fontSize = 10.sp,
                                                     modifier = Modifier.weight(1f)
@@ -504,7 +502,7 @@ fun GoogleSupabaseSetupDialog(
                                         // Google Cloud Steps
                                         Text(
                                             text = "خطوات استخراج المعرف من Google Cloud Console:",
-                                            color = Color.White,
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
@@ -536,7 +534,7 @@ fun GoogleSupabaseSetupDialog(
                                         StepItem(
                                             number = "3",
                                             title = "إنشاء معرّف Android (هام جداً)",
-                                            description = "يجب إنشاء Android Client ID في نفس المشروع. ضع الحزمة: com.qabas.app وضع بصمة SHA-1 الخاصة بمفتاح التوقيع. بدون هذا لن يتعرف Google على طلبات التطبيق."
+                                            description = "يجب إنشاء Android Client ID في نفس المشروع. ضع الحزمة: com.aistudio.qabas.kxmpzq وضع بصمة SHA-1 الخاصة بمفتاح التوقيع. بدون هذا لن يتعرف Google على طلبات التطبيق."
                                         )
 
                                         StepItem(
@@ -562,7 +560,7 @@ fun GoogleSupabaseSetupDialog(
                                         // Key Entry Tab
                                         Text(
                                             text = "إدخال وحفظ Google Web Client ID بالتطبيق:",
-                                            color = Color.White,
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
@@ -570,7 +568,7 @@ fun GoogleSupabaseSetupDialog(
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
                                             text = "المعرف هو المفتاح الذي يسمح لمكتبة Credential Manager بفتح نافذة Google واختيار حسابك بدون إدخال كلمة مرور.",
-                                            color = Color(0xFF94A3B8),
+                                            color = theme.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 11.sp
                                         )
@@ -578,7 +576,7 @@ fun GoogleSupabaseSetupDialog(
                                         Spacer(modifier = Modifier.height(14.dp))
 
                                         Text(
-                                            text = "اسم الحزمة (Package Name): com.qabas.app",
+                                            text = "اسم الحزمة (Package Name): com.aistudio.qabas.kxmpzq",
                                             color = accentColor,
                                             fontFamily = RobotoMonoFont,
                                             fontSize = 10.sp,
@@ -594,14 +592,14 @@ fun GoogleSupabaseSetupDialog(
                                                 Text("Google Web Client ID", fontFamily = RobotoMonoFont, fontSize = 11.sp)
                                             },
                                             placeholder = {
-                                                Text("مثال: 123456789-xyz (Google Web Client ID)", color = Color.Gray, fontSize = 10.sp)
+                                                Text("مثال: 123456789-xyz (Google Web Client ID)", color = theme.textTertiary, fontSize = 10.sp)
                                             },
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = primaryColor,
-                                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                                                focusedTextColor = Color.White,
-                                                unfocusedTextColor = Color.White
+                                                unfocusedBorderColor = theme.textPrimary.copy(alpha = 0.2f),
+                                                focusedTextColor = theme.textPrimary,
+                                                unfocusedTextColor = theme.textPrimary
                                             ),
                                             shape = CutCornerShape(8.dp),
                                             singleLine = true
@@ -645,7 +643,7 @@ fun GoogleSupabaseSetupDialog(
 
                                             OutlinedButton(
                                                 onClick = onTestSignIn,
-                                                border = BorderStroke(1.dp, Color(0xFF4285F4)),
+                                                border = BorderStroke(1.dp, theme.primary),
                                                 shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
                                                 modifier = Modifier.weight(1f)
                                             ) {
@@ -658,7 +656,7 @@ fun GoogleSupabaseSetupDialog(
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = "تجربة تسجيل الدخول",
-                                                    color = Color.White,
+                                                    color = theme.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 11.sp
@@ -689,7 +687,7 @@ fun GoogleSupabaseSetupDialog(
                             TextButton(onClick = onDismiss) {
                                 Text(
                                     text = "إغلاق النافذة",
-                                    color = Color.White.copy(alpha = 0.7f),
+                                    color = theme.textPrimary.copy(alpha = 0.7f),
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp
                                 )
@@ -710,6 +708,7 @@ private fun StepItem(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
 ) {
+    val theme = QabasTheme.current
     val primaryColor = qabasPrimary()
 
     Row(
@@ -739,14 +738,14 @@ private fun StepItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = Color.White,
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp
             )
             Text(
                 text = description,
-                color = Color(0xFF94A3B8),
+                color = theme.textSecondary,
                 fontFamily = CairoFont,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
@@ -762,7 +761,7 @@ private fun StepItem(
                 ) {
                     Text(
                         text = actionLabel,
-                        color = Color(0xFF4285F4),
+                        color = theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
@@ -771,7 +770,7 @@ private fun StepItem(
                     Icon(
                         imageVector = Icons.Default.OpenInNew,
                         contentDescription = null,
-                        tint = Color(0xFF4285F4),
+                        tint = theme.primary,
                         modifier = Modifier.size(12.dp)
                     )
                 }

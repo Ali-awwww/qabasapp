@@ -39,7 +39,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.d(TAG, "تم تجديد الرمز: $token")
+        // لا يُسجَّل الرمز نفسه أبداً (انظر MainActivity): الطول فقط للتشخيص.
+        Log.d(TAG, "تم تجديد رمز FCM (الطول: ${token.length})")
         // هنا يمكن إرسال الرمز الجديد للخادم أو Supabase إذا لزم الأمر
         sendRegistrationToServer(token)
     }
@@ -67,7 +68,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun sendRegistrationToServer(token: String) {
         serviceScope.launch {
-            runCatching { PushTokenManager.onTokenRefreshed(applicationContext, token) }
+            runCatching { PushTokenManager.onTokenRefreshed(applicationContext, token) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { Log.w(TAG, "تعذر ربط رمز FCM بالحساب: ${it.message}") }
         }
     }

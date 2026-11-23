@@ -53,7 +53,7 @@ class AppReviewsTest {
         // تأكيد بريد صاحبها، ولا إصدار افتراضي مختلق.
         val defaultReview = SupabaseServices.AppReviewDto()
         assertEquals(0, defaultReview.rating)
-        assertEquals("مستخدم قبس", defaultReview.authorName)
+        assertEquals("مستخدم خادم المسلم", defaultReview.authorName)
         assertFalse(defaultReview.verifiedUser)
         assertEquals("", defaultReview.appVersion)
         assertNotNull(defaultReview.id)

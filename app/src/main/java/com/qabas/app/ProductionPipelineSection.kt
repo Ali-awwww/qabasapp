@@ -57,6 +57,7 @@ fun ProductionPipelineSection(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val events = remember { mutableStateOf(ProductionPipelineTracker.getEvents(context)) }
@@ -118,13 +119,13 @@ fun ProductionPipelineSection(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "ملتقط مشاكل مسار الإنتاج",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontWeight = FontWeight.Bold,
                         fontFamily = CairoFont
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
-                        color = Color(0xFF10B981).copy(alpha = 0.12f),
+                        color = theme.success.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(20.dp)
                     ) {
                         Row(
@@ -133,12 +134,12 @@ fun ProductionPipelineSection(
                         ) {
                             Box(
                                 modifier = Modifier.size(6.dp).clip(CircleShape)
-                                    .background(Color(0xFF10B981).copy(alpha = pulseAlpha))
+                                    .background(theme.success.copy(alpha = pulseAlpha))
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 "التقاط مباشر",
-                                color = Color(0xFF10B981),
+                                color = theme.success,
                                 fontSize = 9.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold
@@ -149,7 +150,7 @@ fun ProductionPipelineSection(
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                 }
             },
             actions = {
@@ -157,7 +158,7 @@ fun ProductionPipelineSection(
                     ProductionPipelineTracker.clearEvents(context)
                     events.value = emptyList()
                 }) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = "مسح السجل", tint = Color(0xFFEF4444))
+                    Icon(Icons.Default.DeleteSweep, contentDescription = "مسح السجل", tint = theme.destructive)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
@@ -187,10 +188,10 @@ fun ProductionPipelineSection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    SummaryMiniCard("${runs.size}", "تشغيلات", Icons.Default.Movie, GoldPrimary, Modifier.weight(1f))
-                    SummaryMiniCard("$totalSuccess", "نجاح", Icons.Default.CheckCircle, Color(0xFF10B981), Modifier.weight(1f))
-                    SummaryMiniCard("${totalFailure + totalFallback}", "فشل/بديل", Icons.Default.WarningAmber, Color(0xFFF59E0B), Modifier.weight(1f))
-                    SummaryMiniCard("$overallRate%", "معدل النجاح", Icons.Default.TrendingUp, Color(0xFF22D3EE), Modifier.weight(1f))
+                    SummaryMiniCard("${runs.size}", "تشغيلات", Icons.Default.Movie, PresetPrimary, Modifier.weight(1f))
+                    SummaryMiniCard("$totalSuccess", "نجاح", Icons.Default.CheckCircle, theme.success, Modifier.weight(1f))
+                    SummaryMiniCard("${totalFailure + totalFallback}", "فشل/بديل", Icons.Default.WarningAmber, theme.warning, Modifier.weight(1f))
+                    SummaryMiniCard("$overallRate%", "معدل النجاح", Icons.Default.TrendingUp, theme.primary, Modifier.weight(1f))
                 }
             }
 
@@ -203,9 +204,9 @@ fun ProductionPipelineSection(
                             clipboard.setText(AnnotatedString(buildDeveloperReport(context, latestRunEvents, latestRunIssues, healthScore)))
                             copied = true
                         },
-                        color = GoldPrimary.copy(alpha = 0.12f),
+                        color = PresetPrimary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -214,14 +215,14 @@ fun ProductionPipelineSection(
                             Icon(
                                 if (copied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(22.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     if (copied) "تم النسخ ✓ — الصقه لي في المحادثة" else "📤 انسخ تقرير المشكلة وأرسله للمطور",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont
@@ -233,7 +234,7 @@ fun ProductionPipelineSection(
                                     fontFamily = NotoSansFont
                                 )
                             }
-                            Icon(Icons.Default.Share, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Share, contentDescription = null, tint = PresetPrimary.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -243,9 +244,9 @@ fun ProductionPipelineSection(
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF0D1320),
+                    color = theme.cardSurface,
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.25f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary.copy(alpha = 0.25f))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -254,7 +255,7 @@ fun ProductionPipelineSection(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     "2️⃣ إجراءات الإصلاح السريع",
@@ -275,11 +276,11 @@ fun ProductionPipelineSection(
                                     }
                                 },
                                 enabled = !selfTestRunning,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22D3EE), contentColor = Color.Black),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.background),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 if (selfTestRunning) {
-                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.Black)
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = theme.background)
                                 } else {
                                     Text("شغّل الفحص", fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                 }
@@ -288,12 +289,12 @@ fun ProductionPipelineSection(
                         selfTestResult?.let { r ->
                             Spacer(modifier = Modifier.height(8.dp))
                             Surface(
-                                color = (if (r.success) Color(0xFF10B981) else Color(0xFFEF4444)).copy(alpha = 0.10f),
+                                color = (if (r.success) theme.success else theme.destructive).copy(alpha = 0.10f),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
                                     r.message,
-                                    color = if (r.success) Color(0xFF10B981) else Color(0xFFEF4444),
+                                    color = if (r.success) theme.success else theme.destructive,
                                     fontSize = 10.5.sp,
                                     fontFamily = CairoFont,
                                     lineHeight = 15.sp,
@@ -314,7 +315,7 @@ fun ProductionPipelineSection(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MedicalServices, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.MedicalServices, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "1️⃣ المشاكل الملتقطة — آخر تشغيلة",
@@ -327,7 +328,7 @@ fun ProductionPipelineSection(
                         if (latestRunIssues.isNotEmpty()) {
                             Text(
                                 "نسخ تقرير كامل",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 10.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -343,10 +344,10 @@ fun ProductionPipelineSection(
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        SeverityChip("الكل", latestRunIssues.size, severityFilter == null, GoldPrimary) { severityFilter = null }
-                        SeverityChip("حرج", latestRunIssues.count { it.severity == IssueSeverity.CRITICAL }, severityFilter == IssueSeverity.CRITICAL, Color(0xFFEF4444)) { severityFilter = if (severityFilter == IssueSeverity.CRITICAL) null else IssueSeverity.CRITICAL }
-                        SeverityChip("تحذير", latestRunIssues.count { it.severity == IssueSeverity.WARNING }, severityFilter == IssueSeverity.WARNING, Color(0xFFF59E0B)) { severityFilter = if (severityFilter == IssueSeverity.WARNING) null else IssueSeverity.WARNING }
-                        SeverityChip("معلومة", latestRunIssues.count { it.severity == IssueSeverity.INFO }, severityFilter == IssueSeverity.INFO, Color(0xFF60A5FA)) { severityFilter = if (severityFilter == IssueSeverity.INFO) null else IssueSeverity.INFO }
+                        SeverityChip("الكل", latestRunIssues.size, severityFilter == null, PresetPrimary) { severityFilter = null }
+                        SeverityChip("حرج", latestRunIssues.count { it.severity == IssueSeverity.CRITICAL }, severityFilter == IssueSeverity.CRITICAL, theme.destructive) { severityFilter = if (severityFilter == IssueSeverity.CRITICAL) null else IssueSeverity.CRITICAL }
+                        SeverityChip("تحذير", latestRunIssues.count { it.severity == IssueSeverity.WARNING }, severityFilter == IssueSeverity.WARNING, theme.warning) { severityFilter = if (severityFilter == IssueSeverity.WARNING) null else IssueSeverity.WARNING }
+                        SeverityChip("معلومة", latestRunIssues.count { it.severity == IssueSeverity.INFO }, severityFilter == IssueSeverity.INFO, theme.primary) { severityFilter = if (severityFilter == IssueSeverity.INFO) null else IssueSeverity.INFO }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -355,9 +356,9 @@ fun ProductionPipelineSection(
                     item {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            color = Color(0xFF10B981).copy(alpha = 0.08f),
+                            color = theme.success.copy(alpha = 0.08f),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.success.copy(alpha = 0.3f))
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -367,7 +368,7 @@ fun ProductionPipelineSection(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     "لا مشاكل مكتشفة في آخر تشغيلة — كل المراحل التي عملت اكتملت بلا أعطال.",
-                                    color = Color(0xFF10B981),
+                                    color = theme.success,
                                     fontSize = 11.sp,
                                     fontFamily = CairoFont,
                                     lineHeight = 16.sp
@@ -397,7 +398,7 @@ fun ProductionPipelineSection(
                 item {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.History, contentDescription = null, tint = theme.warning, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "3️⃣ أعطال متكررة عبر كل التشغيلات:",
@@ -479,7 +480,7 @@ fun ProductionPipelineSection(
                 ) {
                     Text(
                         stage.label,
-                        color = if (selectedStage == stage) GoldPrimary else TextPrimary,
+                        color = if (selectedStage == stage) PresetPrimary else TextPrimary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont,
                         modifier = Modifier.weight(1f).clickable { selectedStage = if (selectedStage == stage) null else stage }
@@ -487,7 +488,7 @@ fun ProductionPipelineSection(
                     if (avgMs > 0) {
                         Text(
                             "⏱ ${formatDuration(avgMs)}",
-                            color = Color.Gray,
+                            color = theme.textTertiary,
                             fontSize = 9.sp,
                             fontFamily = NotoSansFont
                         )
@@ -497,22 +498,22 @@ fun ProductionPipelineSection(
                         Box(
                             modifier = Modifier.width(80.dp).height(8.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF1E293B))
+                                .background(theme.secondarySurface)
                         ) {
                             Box(
                                 modifier = Modifier.fillMaxHeight().fillMaxWidth(rate / 100f)
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(
                                         when {
-                                            rate >= 80 -> Color(0xFF10B981)
-                                            rate >= 50 -> Color(0xFFF59E0B)
-                                            else -> Color(0xFFEF4444)
+                                            rate >= 80 -> theme.success
+                                            rate >= 50 -> theme.warning
+                                            else -> theme.destructive
                                         }
                                     )
                             )
                         }
                     } else {
-                        Text("—", color = Color.Gray, fontSize = 11.sp, fontFamily = NotoSansFont)
+                        Text("—", color = theme.textTertiary, fontSize = 11.sp, fontFamily = NotoSansFont)
                     }
                 }
             }
@@ -535,7 +536,7 @@ fun ProductionPipelineSection(
                     if (selectedStage != null) {
                         Text(
                             "إلغاء التصفية",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 10.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -550,7 +551,7 @@ fun ProductionPipelineSection(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1320)),
+                        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(
@@ -560,7 +561,7 @@ fun ProductionPipelineSection(
                             Icon(
                                 Icons.Default.Radar,
                                 contentDescription = null,
-                                tint = GoldPrimary.copy(alpha = 0.6f),
+                                tint = PresetPrimary.copy(alpha = 0.6f),
                                 modifier = Modifier.size(36.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -574,7 +575,7 @@ fun ProductionPipelineSection(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "ابدأ إنتاج فيديو وستُلتقط كل خطوة هنا لحظة حدوثها",
-                                color = Color.Gray.copy(alpha = 0.6f),
+                                color = theme.textTertiary.copy(alpha = 0.6f),
                                 fontSize = 10.sp,
                                 fontFamily = NotoSansFont,
                                 textAlign = TextAlign.Center
@@ -602,10 +603,11 @@ fun ProductionPipelineSection(
 /** صف مؤشر الصحة العام لآخر تشغيلة: دائرة نسبة + وصف حالة. */
 @Composable
 private fun HealthScoreRow(score: Int, issueCount: Int) {
+    val theme = QabasTheme.current
     val color = when {
-        score >= 80 -> Color(0xFF10B981)
-        score >= 50 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
+        score >= 80 -> theme.success
+        score >= 50 -> theme.warning
+        else -> theme.destructive
     }
     val label = when {
         score >= 80 -> "سليم"
@@ -654,7 +656,6 @@ private fun HealthScoreRow(score: Int, issueCount: Int) {
     }
 }
 
-/** ترويسة مجموعة مشاكل بحسب الخطورة. */
 /** يبني تقريراً نصياً جاهزاً للصق في المحادثة: جهاز + صحة + مشاكل + آخر السجل. */
 private fun buildDeveloperReport(
     context: android.content.Context,
@@ -686,9 +687,10 @@ private fun buildDeveloperReport(
 
 @Composable
 private fun SeverityChip(label: String, count: Int, selected: Boolean, color: Color, onClick: () -> Unit) {
+    val theme = QabasTheme.current
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
-        color = if (selected) color.copy(alpha = 0.22f) else Color(0xFF0D1320),
+        color = if (selected) color.copy(alpha = 0.22f) else theme.cardSurface,
         shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = if (selected) 0.8f else 0.3f))
     ) {
@@ -703,6 +705,7 @@ private fun SeverityChip(label: String, count: Int, selected: Boolean, color: Co
     }
 }
 
+/** ترويسة مجموعة مشاكل بحسب الخطورة. */
 @Composable
 private fun SeverityGroupHeader(severity: IssueSeverity, count: Int) {
     val color = Color(severity.colorHex)
@@ -741,6 +744,7 @@ private fun DiagnosedIssueCard(
     context: android.content.Context,
     scope: kotlinx.coroutines.CoroutineScope
 ) {
+    val theme = QabasTheme.current
     var expanded by remember(issue.id) { mutableStateOf(true) }
     var actionRunning by remember(issue.id) { mutableStateOf(false) }
     var actionResult by remember(issue.id) { mutableStateOf<PipelineActions.ActionResult?>(null) }
@@ -748,7 +752,7 @@ private fun DiagnosedIssueCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1320)),
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, severityColor.copy(alpha = 0.4f))
     ) {
@@ -781,7 +785,7 @@ private fun DiagnosedIssueCard(
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 "المشاهد المتأثرة: " + issue.affectedScenes.joinToString(", ") { (it + 1).toString() },
-                                color = GoldSecondary,
+                                color = PresetAccent,
                                 fontSize = 9.sp,
                                 fontFamily = NotoSansFont
                             )
@@ -799,7 +803,7 @@ private fun DiagnosedIssueCard(
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Surface(color = Color.White.copy(alpha = 0.03f), shape = RoundedCornerShape(8.dp)) {
+                    Surface(color = theme.textPrimary.copy(alpha = 0.03f), shape = RoundedCornerShape(8.dp)) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text("السبب المحتمل", color = severityColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             Spacer(modifier = Modifier.height(3.dp))
@@ -807,9 +811,9 @@ private fun DiagnosedIssueCard(
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Surface(color = Color(0xFF10B981).copy(alpha = 0.06f), shape = RoundedCornerShape(8.dp)) {
+                    Surface(color = theme.success.copy(alpha = 0.06f), shape = RoundedCornerShape(8.dp)) {
                         Column(modifier = Modifier.padding(10.dp)) {
-                            Text("الحل المقترح", color = Color(0xFF10B981), fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                            Text("الحل المقترح", color = theme.success, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(issue.solution, color = TextPrimary, fontSize = 11.sp, fontFamily = CairoFont, lineHeight = 16.sp)
                         }
@@ -832,11 +836,11 @@ private fun DiagnosedIssueCard(
                                 }
                             },
                             enabled = !actionRunning,
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = Color.Black),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary, contentColor = theme.background),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             if (actionRunning) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.Black)
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = theme.background)
                             } else {
                                 Text(
                                     when (issue.actionId) {
@@ -854,7 +858,7 @@ private fun DiagnosedIssueCard(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 r.message,
-                                color = if (r.success) Color(0xFF10B981) else Color(0xFFEF4444),
+                                color = if (r.success) theme.success else theme.destructive,
                                 fontSize = 10.sp,
                                 fontFamily = CairoFont,
                                 lineHeight = 14.sp
@@ -892,9 +896,9 @@ private fun DiagnosedIssueCard(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { clipboard.setText(AnnotatedString(issue.toShareText())) }
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ", color = GoldPrimary, fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Text("نسخ", color = PresetPrimary, fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -911,11 +915,12 @@ private fun LatestRunCard(
     selectedStage: ProductionPipelineTracker.Stage?,
     onStageSelected: (ProductionPipelineTracker.Stage) -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (runs.isEmpty()) {
@@ -943,9 +948,9 @@ private fun LatestRunCard(
                         else Icons.Default.Pending,
                         contentDescription = null,
                         tint = when {
-                            !latest.completed -> GoldPrimary
-                            latest.hasFailure -> Color(0xFFEF4444)
-                            else -> Color(0xFF10B981)
+                            !latest.completed -> PresetPrimary
+                            latest.hasFailure -> theme.destructive
+                            else -> theme.success
                         },
                         modifier = Modifier.size(18.dp)
                     )
@@ -972,9 +977,9 @@ private fun LatestRunCard(
                         else -> "مكتملة ✓"
                     },
                     color = when {
-                        !latest.completed -> GoldPrimary
-                        latest.hasFailure -> Color(0xFFEF4444)
-                        else -> Color(0xFF10B981)
+                        !latest.completed -> PresetPrimary
+                        latest.hasFailure -> theme.destructive
+                        else -> theme.success
                     },
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -995,7 +1000,7 @@ private fun LatestRunCard(
                 )
                 Text(
                     "المدة: ${formatDuration(runDurationMs)}",
-                    color = GoldSecondary,
+                    color = PresetAccent,
                     fontSize = 9.sp,
                     fontFamily = NotoSansFont,
                     fontWeight = FontWeight.Bold
@@ -1020,12 +1025,12 @@ private fun LatestRunCard(
                 ProductionPipelineTracker.CANONICAL_ORDER.forEachIndexed { i, stage ->
                     val status = stageStatusInRun(latestRunEvents, stage)
                     val stageColor = when (status) {
-                        ProductionPipelineTracker.Result.SUCCESS -> Color(0xFF10B981)
-                        ProductionPipelineTracker.Result.FAILURE -> Color(0xFFEF4444)
-                        ProductionPipelineTracker.Result.TIMEOUT -> Color(0xFF8B5CF6)
-                        ProductionPipelineTracker.Result.FALLBACK -> Color(0xFFF59E0B)
-                        ProductionPipelineTracker.Result.SKIPPED -> Color(0xFF6B7280)
-                        null -> Color(0xFF334155)
+                        ProductionPipelineTracker.Result.SUCCESS -> theme.success
+                        ProductionPipelineTracker.Result.FAILURE -> theme.destructive
+                        ProductionPipelineTracker.Result.TIMEOUT -> theme.accent
+                        ProductionPipelineTracker.Result.FALLBACK -> theme.warning
+                        ProductionPipelineTracker.Result.SKIPPED -> theme.textTertiary
+                        null -> theme.separator
                     }
                     Column(
                         modifier = Modifier
@@ -1039,7 +1044,7 @@ private fun LatestRunCard(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth().height(2.dp)
-                                        .background(Color(0xFF334155))
+                                        .background(theme.separator)
                                         .align(Alignment.CenterStart)
                                 )
                             }
@@ -1052,7 +1057,7 @@ private fun LatestRunCard(
                             ) {
                                 Text(
                                     "${i + 1}",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = NotoSansFont
@@ -1062,7 +1067,7 @@ private fun LatestRunCard(
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
                             stage.label,
-                            color = if (status != null) TextPrimary else Color.Gray.copy(alpha = 0.5f),
+                            color = if (status != null) TextPrimary else theme.textTertiary.copy(alpha = 0.5f),
                             fontSize = 8.sp,
                             fontFamily = CairoFont,
                             maxLines = 2,
@@ -1095,6 +1100,7 @@ private fun stageStatusInRun(
 /** ترويسة مجموعة أحداث تشغيلة واحدة. */
 @Composable
 private fun RunHeaderCard(runId: String, runEvents: List<ProductionPipelineTracker.PipelineEvent>) {
+    val theme = QabasTheme.current
     val sorted = runEvents.sortedBy { it.timestamp }
     val durationMs = sorted.lastOrNull()?.let { it.timestamp - sorted.first().timestamp } ?: 0L
     val success = runEvents.count { it.result == ProductionPipelineTracker.Result.SUCCESS }
@@ -1103,11 +1109,11 @@ private fun RunHeaderCard(runId: String, runEvents: List<ProductionPipelineTrack
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF111827),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(10.dp),
         border = androidx.compose.foundation.BorderStroke(
             0.5.dp,
-            if (failure > 0) Color(0xFFEF4444).copy(alpha = 0.4f) else GoldPrimary.copy(alpha = 0.25f)
+            if (failure > 0) theme.destructive.copy(alpha = 0.4f) else PresetPrimary.copy(alpha = 0.25f)
         )
     ) {
         Row(
@@ -1117,21 +1123,21 @@ private fun RunHeaderCard(runId: String, runEvents: List<ProductionPipelineTrack
         ) {
             Text(
                 label,
-                color = if (failure > 0) Color(0xFFEF4444) else GoldPrimary,
+                color = if (failure > 0) theme.destructive else PresetPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = CairoFont
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("✅ $success", color = Color(0xFF10B981), fontSize = 9.sp, fontFamily = NotoSansFont)
+                Text("✅ $success", color = theme.success, fontSize = 9.sp, fontFamily = NotoSansFont)
                 Spacer(modifier = Modifier.width(6.dp))
                 if (failure > 0) {
-                    Text("❌ $failure", color = Color(0xFFEF4444), fontSize = 9.sp, fontFamily = NotoSansFont)
+                    Text("❌ $failure", color = theme.destructive, fontSize = 9.sp, fontFamily = NotoSansFont)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(
                     ProductionPipelineTracker.formatTimestamp(sorted.firstOrNull()?.timestamp ?: 0),
-                    color = Color.Gray,
+                    color = theme.textTertiary,
                     fontSize = 9.sp,
                     fontFamily = NotoSansFont
                 )
@@ -1143,10 +1149,11 @@ private fun RunHeaderCard(runId: String, runEvents: List<ProductionPipelineTrack
 /** بطاقة حدث واحد في السجل الحي. */
 @Composable
 private fun EventCard(event: ProductionPipelineTracker.PipelineEvent) {
+    val theme = QabasTheme.current
     val resultColor = Color(ProductionPipelineTracker.resultColor(event.result))
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1320)),
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
         shape = RoundedCornerShape(10.dp),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, resultColor.copy(alpha = 0.3f))
     ) {
@@ -1180,12 +1187,12 @@ private fun EventCard(event: ProductionPipelineTracker.PipelineEvent) {
                     if (event.sceneIndex >= 0) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.12f),
+                            color = PresetPrimary.copy(alpha = 0.12f),
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 "مشهد ${event.sceneIndex + 1}",
-                                color = GoldSecondary,
+                                color = PresetAccent,
                                 fontSize = 8.sp,
                                 fontFamily = CairoFont,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
@@ -1197,7 +1204,7 @@ private fun EventCard(event: ProductionPipelineTracker.PipelineEvent) {
                     if (event.durationMs > 0) {
                         Text(
                             formatDuration(event.durationMs),
-                            color = Color(0xFF22D3EE),
+                            color = theme.primary,
                             fontSize = 9.sp,
                             fontFamily = NotoSansFont,
                             fontWeight = FontWeight.Bold
@@ -1206,7 +1213,7 @@ private fun EventCard(event: ProductionPipelineTracker.PipelineEvent) {
                     }
                     Text(
                         ProductionPipelineTracker.formatTimestamp(event.timestamp),
-                        color = Color.Gray,
+                        color = theme.textTertiary,
                         fontSize = 9.sp,
                         fontFamily = NotoSansFont
                     )

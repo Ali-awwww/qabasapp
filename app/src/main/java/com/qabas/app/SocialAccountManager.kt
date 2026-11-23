@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -11,7 +10,6 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
-import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -19,42 +17,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-
-data class EngagementDataPoint(
-    val hour: Int,
-    val label: String,
-    val engagementPercent: Int,
-    val description: String
-)
-
-data class DayEngagementData(
-    val dayName: String,
-    val shortName: String,
-    val score: Int,
-    val isBestDay: Boolean
-)
-
-data class PlatformAnalyticsInsight(
-    val platformId: String,
-    val platformName: String,
-    val hourlyData: List<EngagementDataPoint>,
-    val weeklyData: List<DayEngagementData>,
-    val peakHourLabel: String,
-    val bestDayLabel: String,
-    val averageEngagementRate: Double,
-    val isFromFirestore: Boolean
-)
-
-data class OfficialChannelInfo(
-    val id: String,
-    val platformName: String,
-    val handle: String,
-    val displayName: String,
-    val description: String,
-    val url: String,
-    val followersDisplay: String,
-    val badge: String = "موثق ✦"
-)
 
 data class SocialPlatformAccount(
     val id: String,
@@ -101,19 +63,8 @@ data class ScheduledPublishItem(
 object SocialAccountManager {
 
     private const val PREFS_NAME = "qabas_social_accounts"
-    private const val KEY_CUSTOM_CHANNELS = "official_custom_channels"
 
     /** المنصات الثابتة — تُحذف المخصصة فقط، الثابتة تُعدَّل روابطها. */
-    val FIXED_CHANNEL_IDS = setOf("youtube", "facebook", "instagram", "threads", "tiktok")
-
-    private fun officialKeyPrefix(id: String): String = when (id) {
-        "youtube" -> "yt"
-        "facebook" -> "fb"
-        "instagram" -> "insta"
-        "threads" -> "threads"
-        "tiktok" -> "tiktok"
-        else -> id
-    }
 
     private val secureTokenKeys = mapOf(
         "youtube" to "social_yt_token",
@@ -146,155 +97,6 @@ object SocialAccountManager {
         return legacy
     }
 
-    /** تحديث رابط/معرّف قناة ثابتة (للمطور فقط عبر الواجهة). */
-    fun updateOfficialChannel(context: Context, id: String, handle: String, url: String) {
-        val p = officialKeyPrefix(id)
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString("official_${p}_handle", handle.trim())
-            .putString("official_${p}_url", url.trim())
-            .apply()
-    }
-
-    /** الروابط المخصصة التي أضافها المطور. */
-    fun getCustomChannels(context: Context): List<OfficialChannelInfo> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString(KEY_CUSTOM_CHANNELS, "[]") ?: "[]"
-        val list = mutableListOf<OfficialChannelInfo>()
-        try {
-            val arr = JSONArray(json)
-            for (i in 0 until arr.length()) {
-                val o = arr.getJSONObject(i)
-                list.add(
-                    OfficialChannelInfo(
-                        id = o.getString("id"),
-                        platformName = o.optString("platformName", "رابط"),
-                        handle = o.optString("handle", ""),
-                        displayName = o.optString("displayName", o.optString("platformName", "رابط")),
-                        description = o.optString("description", ""),
-                        url = o.getString("url"),
-                        followersDisplay = "رسمي ✦",
-                        badge = "رسمي ✦"
-                    )
-                )
-            }
-        } catch (_: Exception) { }
-        return list
-    }
-
-    /** إضافة/تعديل رابط مخصص (upsert حسب id). */
-    fun saveCustomChannel(context: Context, info: OfficialChannelInfo) {
-        if (info.id.isBlank() || info.url.isBlank()) return
-        val current = getCustomChannels(context).toMutableList()
-        val idx = current.indexOfFirst { it.id == info.id }
-        if (idx >= 0) current[idx] = info else current.add(info)
-        val arr = JSONArray()
-        for (c in current) {
-            arr.put(JSONObject().apply {
-                put("id", c.id)
-                put("platformName", c.platformName)
-                put("handle", c.handle)
-                put("displayName", c.displayName)
-                put("description", c.description)
-                put("url", c.url)
-            })
-        }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_CUSTOM_CHANNELS, arr.toString()).apply()
-    }
-
-    fun deleteCustomChannel(context: Context, id: String) {
-        if (id in FIXED_CHANNEL_IDS) return
-        val remaining = getCustomChannels(context).filter { it.id != id }
-        val arr = JSONArray()
-        for (c in remaining) {
-            arr.put(JSONObject().apply {
-                put("id", c.id)
-                put("platformName", c.platformName)
-                put("handle", c.handle)
-                put("displayName", c.displayName)
-                put("description", c.description)
-                put("url", c.url)
-            })
-        }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_CUSTOM_CHANNELS, arr.toString()).apply()
-    }
-
-    fun getOfficialChannels(context: Context): List<OfficialChannelInfo> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return listOf(
-            OfficialChannelInfo(
-                id = "website",
-                platformName = "الموقع الرسمي",
-                handle = "qabas.studio",
-                displayName = "بوابة خادم المسلم الرسمية والمستودع السحابي 🌐",
-                description = "الموقع والمستودع السحابي الرسمي: تنزيل الـ APK، سجل التحديثات الحية، والدروس العلمية",
-                url = prefs.getString("official_website_url", QabasWebConfig.OFFICIAL_WEBSITE_URL) ?: QabasWebConfig.OFFICIAL_WEBSITE_URL,
-                followersDisplay = "الموقع المعتمد ✦",
-                badge = "رسمي ✦"
-            ),
-            OfficialChannelInfo(
-                id = "group",
-                platformName = "مجموعة المجتمع",
-                handle = "Muslim AI Assistant Community",
-                displayName = "مجموعة ومجتمع خادم المسلم الرسمي 💬",
-                description = "مجموعة نقاش المبدعين وطلاب العلم والدعم الفني المباشر",
-                url = QabasWebConfig.getOfficialGroupUrl(context),
-                followersDisplay = "مجتمع معتمد ✦",
-                badge = "رسمي ✦"
-            ),
-            OfficialChannelInfo(
-                id = "youtube",
-                platformName = "YouTube",
-                handle = prefs.getString("official_yt_handle", "@Qabas.Official") ?: "@Qabas.Official",
-                displayName = "خادم المسلم",
-                description = "قناة خادم المسلم الرسمية على يوتيوب - مقاطع وتدبرات دعوية مرئية",
-                url = prefs.getString("official_yt_url", "https://www.youtube.com/@Qabas.Official") ?: "https://www.youtube.com/@Qabas.Official",
-                followersDisplay = "قناة معتمدة ✦"
-            ),
-            OfficialChannelInfo(
-                id = "facebook",
-                platformName = "Facebook",
-                handle = prefs.getString("official_fb_handle", "Qabas.Official") ?: "Qabas.Official",
-                displayName = "خادم المسلم | زاد العقل والقلب",
-                description = "الصفحة الرسمية لمجتمع خادم المسلم الدعوي على فيسبوك",
-                url = prefs.getString("official_fb_url", "https://www.facebook.com/Qabas.Official") ?: "https://www.facebook.com/Qabas.Official",
-                followersDisplay = "صفحة موثقة ✦"
-            ),
-            OfficialChannelInfo(
-                id = "instagram",
-                platformName = "Instagram",
-                handle = prefs.getString("official_insta_handle", "qabas_official") ?: "qabas_official",
-                displayName = "خادم المسلم",
-                description = "الحساب الرسمي للريلز والتصاميم اليومية على إنستغرام",
-                url = prefs.getString("official_insta_url", "https://www.instagram.com/qabas_official") ?: "https://www.instagram.com/qabas_official",
-                followersDisplay = "حساب موثق ✦"
-            ),
-            OfficialChannelInfo(
-                id = "threads",
-                platformName = "Threads",
-                handle = prefs.getString("official_threads_handle", "qabas_official") ?: "qabas_official",
-                displayName = "خادم المسلم Threads",
-                description = "تأملات وخواطر إيمانية سريعة على منصة ثريدز",
-                url = prefs.getString("official_threads_url", "https://www.threads.net/@qabas_official") ?: "https://www.threads.net/@qabas_official",
-                followersDisplay = "رسمي ✦"
-            ),
-            OfficialChannelInfo(
-                id = "tiktok",
-                platformName = "TikTok",
-                handle = prefs.getString("official_tiktok_handle", "@qabas_official") ?: "@qabas_official",
-                displayName = "خادم المسلم Shorts",
-                description = "مقاطع قصيرة سريعة وريلز دعوي هادف",
-                url = prefs.getString("official_tiktok_url", "https://www.tiktok.com/@qabas_official") ?: "https://www.tiktok.com/@qabas_official",
-                followersDisplay = "استوديو رسمي ✦"
-            )
-        ) + getCustomChannels(context)
-    }
-
-    fun openOfficialChannel(context: Context, url: String) {
-        QabasLinkOpener.openUrl(context, url, "الصفحة / القناة الرسمية")
-    }
-
     fun openProfileUrl(context: Context, platformId: String, handle: String) {
         val url = publicProfileUrl(platformId, handle)
         if (url != null) {
@@ -315,16 +117,6 @@ object SocialAccountManager {
         android.widget.Toast.makeText(context, "تم نسخ $label بنجاح! 📋", android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    /** نتيجة التحقق الحقيقي من الحساب. */
-    enum class VerifyResult { EXISTS, MISSING, UNKNOWN }
-
-    private val verifyClient by lazy {
-        okhttp3.OkHttpClient.Builder()
-            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .followRedirects(true)
-            .build()
-    }
 
     /** رابط الملف العام للحساب حسب المنصة (يُستخدم للتحقق والعرض). */
     fun publicProfileUrl(platformId: String, handle: String): String? {
@@ -338,61 +130,6 @@ object SocialAccountManager {
             "facebook" -> "https://www.facebook.com/$h"
             else -> null
         }
-    }
-
-    /**
-     * تحقق حقيقي: هل الحساب موجود فعلاً على المنصة؟
-     * GET حقيقي لصفحة الملف العام: 200 = موجود، 404 = غير موجود،
-     * غير ذلك (حماية بوتات) = غير مؤكد.
-     */
-    suspend fun verifyProfileExists(platformId: String, handle: String): VerifyResult =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val url = publicProfileUrl(platformId, handle) ?: return@withContext VerifyResult.UNKNOWN
-            try {
-                val req = okhttp3.Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
-                    .head()
-                    .build()
-                verifyClient.newCall(req).execute().use { resp ->
-                    when (resp.code) {
-                        200 -> VerifyResult.EXISTS
-                        404, 410 -> VerifyResult.MISSING
-                        else -> VerifyResult.UNKNOWN
-                    }
-                }
-            } catch (_: Exception) {
-                VerifyResult.UNKNOWN
-            }
-        }
-
-    /**
-     * تحقق حقيقي من رمز Google OAuth عبر نقطة tokeninfo الرسمية (لا تحتاج مفتاحاً).
-     * 200 = الرمز صالح ويمثل حساباً حقيقياً.
-     */
-    suspend fun verifyGoogleToken(token: String): Boolean =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            if (token.isBlank()) return@withContext false
-            try {
-                val req = okhttp3.Request.Builder()
-                    .url("https://oauth2.googleapis.com/tokeninfo?access_token=${token.trim()}")
-                    .get()
-                    .build()
-                verifyClient.newCall(req).execute().use { it.code == 200 }
-            } catch (_: Exception) {
-                false
-            }
-        }
-
-    /** ربط مع تحقق حقيقي: يحفظ نتيجة التحقق (مؤكد/غير مؤكد) مع الحساب. */
-    fun setConnectionVerified(context: Context, platformId: String, verified: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("${platformId}_verified", verified).apply()
-    }
-
-    fun isConnectionVerified(context: Context, platformId: String): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean("${platformId}_verified", false)
     }
 
     fun getAccounts(context: Context): List<SocialPlatformAccount> {
@@ -489,17 +226,6 @@ object SocialAccountManager {
                 lastSync = prefs.getString("twitter_last_sync", now) ?: now
             )
         )
-    }
-
-    fun resetAllStatsToZero(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putInt("yt_followers", 0).putInt("yt_likes", 0).putInt("yt_views", 0).putInt("yt_published", 0)
-            .putInt("tiktok_followers", 0).putInt("tiktok_likes", 0).putInt("tiktok_views", 0).putInt("tiktok_published", 0)
-            .putInt("insta_followers", 0).putInt("insta_likes", 0).putInt("insta_views", 0).putInt("insta_published", 0)
-            .putInt("twitter_followers", 0).putInt("twitter_likes", 0).putInt("twitter_views", 0).putInt("twitter_published", 0)
-            .putInt("fb_followers", 0).putInt("fb_likes", 0).putInt("fb_views", 0).putInt("fb_published", 0)
-            .apply()
     }
 
     fun toggleConnection(context: Context, platformId: String, isConnected: Boolean, handle: String = "", apiToken: String = "") {
@@ -1016,130 +742,6 @@ object SocialAccountManager {
         }
     }
 
-    /**
-     * Fetches hourly engagement metrics from Firestore database if available,
-     * or uses high-fidelity Islamic audience behavioral patterns as robust fallback.
-     */
-    suspend fun fetchPlatformEngagementAnalytics(context: Context, platformId: String): PlatformAnalyticsInsight {
-        val isFromFirestore = false
-        val rawHourlyList: List<Int>? = null
-
-        val platformName = when (platformId) {
-            "tiktok" -> "TikTok"
-            "youtube" -> "YouTube Shorts"
-            "instagram" -> "Instagram"
-            "twitter" -> "X (Twitter)"
-            else -> "Facebook"
-        }
-
-        // Default baseline behavioral pattern for Islamic/Dawah content creators
-        val hourlyData = (0..23).map { hour ->
-            val rate = rawHourlyList?.getOrNull(hour) ?: when (platformId) {
-                "tiktok" -> when (hour) {
-                    in 0..4 -> 12 + hour * 3
-                    5 -> 91 // Fajr spike
-                    6, 7 -> 75
-                    8, 9, 10 -> 40
-                    11, 12, 13 -> 65
-                    14, 15 -> 58
-                    16, 17 -> 87 // Asr/After school spike
-                    18, 19 -> 80
-                    20, 21 -> 98 // Prime Evening spike
-                    22 -> 85
-                    else -> 45
-                }
-                "youtube" -> when (hour) {
-                    in 0..4 -> 10 + hour * 2
-                    5 -> 70
-                    6, 7 -> 55
-                    8, 9, 10 -> 45
-                    11, 12, 13 -> 88 // Midday/Duhr
-                    14, 15, 16 -> 60
-                    17, 18 -> 78
-                    19, 20 -> 96 // Prime time
-                    21, 22 -> 90
-                    else -> 50
-                }
-                "instagram" -> when (hour) {
-                    in 0..4 -> 15 + hour * 2
-                    5, 6 -> 88 // Morning cards/quotes
-                    7, 8, 9 -> 48
-                    10, 11, 12 -> 62
-                    13, 14, 15 -> 55
-                    16, 17, 18 -> 72
-                    19, 20 -> 89
-                    21 -> 97 // Golden Save hour
-                    22, 23 -> 70
-                    else -> 30
-                }
-                "twitter" -> when (hour) {
-                    in 0..4 -> 8 + hour * 2
-                    5, 6 -> 65
-                    7, 8, 9 -> 50
-                    10, 11, 12 -> 70
-                    13, 14 -> 92 // Lunch break thread pulse
-                    15, 16, 17 -> 64
-                    18, 19, 20 -> 82
-                    21, 22 -> 90 // Evening spaces
-                    else -> 40
-                }
-                else -> when (hour) {
-                    in 0..4 -> 10
-                    5 -> 60
-                    6, 7, 8 -> 45
-                    12, 13 -> 75
-                    19, 20, 21 -> 94
-                    else -> 50
-                }
-            }
-
-            val hourLabel = when {
-                hour == 0 -> "12 ص"
-                hour < 12 -> "$hour ص"
-                hour == 12 -> "12 م"
-                else -> "${hour - 12} م"
-            }
-
-            val desc = when (hour) {
-                5 -> "ساعة الفجر والبكور (تدبر وتلاوات)"
-                13 -> "استراحة الظهيرة وصلاة الظهر"
-                16 -> "فترة ما بعد العصر"
-                20, 21 -> "ذروة المساء بعد صلاة العشاء"
-                else -> "تفاعل طبيعي للمتابعين"
-            }
-
-            EngagementDataPoint(
-                hour = hour,
-                label = hourLabel,
-                engagementPercent = rate.coerceIn(5, 100),
-                description = desc
-            )
-        }
-
-        val weeklyData = listOf(
-            DayEngagementData("الجمعة", "جمعة", 99, isBestDay = true),
-            DayEngagementData("السبت", "سبت", 92, isBestDay = false),
-            DayEngagementData("الأحد", "أحد", 84, isBestDay = false),
-            DayEngagementData("الإثنين", "إثنين", 88, isBestDay = false),
-            DayEngagementData("الثلاثاء", "ثلاثاء", 82, isBestDay = false),
-            DayEngagementData("الأربعاء", "أربعاء", 86, isBestDay = false),
-            DayEngagementData("الخميس", "خميس", 95, isBestDay = false)
-        )
-
-        val peakPoint = hourlyData.maxByOrNull { it.engagementPercent }
-        val avg = hourlyData.map { it.engagementPercent }.average()
-
-        return PlatformAnalyticsInsight(
-            platformId = platformId,
-            platformName = platformName,
-            hourlyData = hourlyData,
-            weeklyData = weeklyData,
-            peakHourLabel = peakPoint?.label ?: "8:30 م",
-            bestDayLabel = "يوم الجمعة المبارك",
-            averageEngagementRate = avg,
-            isFromFirestore = isFromFirestore
-        )
-    }
 }
 
 class SmartPublishReminderReceiver : BroadcastReceiver() {

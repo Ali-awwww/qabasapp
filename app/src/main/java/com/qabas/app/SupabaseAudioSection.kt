@@ -25,7 +25,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -48,6 +47,7 @@ fun SupabaseAudioSection(
     onApply: (url: String, title: String) -> Unit,
     heroBanner: @Composable (() -> Unit)? = null
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
@@ -131,8 +131,8 @@ fun SupabaseAudioSection(
         // Status & Action Bar
         GlassmorphicSurface(
             modifier = Modifier.fillMaxWidth(),
-            backgroundColor = Color(0xFF0F172A).copy(alpha = 0.6f),
-            borderColor = Color(0xFF1E293B).copy(alpha = 0.4f),
+            backgroundColor = theme.cardSurface.copy(alpha = 0.6f),
+            borderColor = theme.secondarySurface.copy(alpha = 0.4f),
             shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -146,21 +146,21 @@ fun SupabaseAudioSection(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(if (SupabaseConfig.isConfigured) EmeraldGreen else Color(0xFFE53E3E))
-                                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                .background(if (SupabaseConfig.isConfigured) EmeraldGreen else theme.destructive)
+                                .border(1.dp, theme.textPrimary.copy(alpha = 0.2f), CircleShape)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = if (SupabaseConfig.isConfigured) "سحابة SUPABASE متصلة" else "SUPABASE غير متصل",
-                                color = if (SupabaseConfig.isConfigured) EmeraldGreen else Color(0xFFFC8181),
+                                color = if (SupabaseConfig.isConfigured) EmeraldGreen else theme.destructive,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 11.sp
                             )
                             Text(
                                 text = "CLOUD_SYNC_NEXUS // SECURE_ACCESS",
-                                color = Color.White.copy(alpha = 0.4f),
+                                color = theme.textPrimary.copy(alpha = 0.4f),
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 7.sp,
                                 fontWeight = FontWeight.Bold,
@@ -175,13 +175,13 @@ fun SupabaseAudioSection(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF1E293B).copy(alpha = 0.6f))
-                                .border(1.dp, Color(0xFF334155), RoundedCornerShape(10.dp))
+                                .background(theme.secondarySurface.copy(alpha = 0.6f))
+                                .border(1.dp, theme.cardBorder, RoundedCornerShape(10.dp))
                         ) {
                             Icon(
                                 Icons.Default.HelpOutline,
                                 contentDescription = "دليل الرفع",
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -191,13 +191,13 @@ fun SupabaseAudioSection(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF1E293B).copy(alpha = 0.6f))
-                                .border(1.dp, Color(0xFF334155), RoundedCornerShape(10.dp))
+                                .background(theme.secondarySurface.copy(alpha = 0.6f))
+                                .border(1.dp, theme.cardBorder, RoundedCornerShape(10.dp))
                         ) {
                             Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = "تحديث",
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -218,21 +218,21 @@ fun SupabaseAudioSection(
                                 showDevOnlyToast = true
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isDeveloper) GoldPrimary else Color(0xFF1E293B).copy(alpha = 0.6f)),
-                        border = BorderStroke(1.dp, if (isDeveloper) GoldPrimary else GoldPrimary.copy(alpha = 0.3f)),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isDeveloper) PresetPrimary else theme.secondarySurface.copy(alpha = 0.6f)),
+                        border = BorderStroke(1.dp, if (isDeveloper) PresetPrimary else PresetPrimary.copy(alpha = 0.3f)),
                         shape = CutCornerShape(8.dp),
                         modifier = Modifier.weight(1f).height(44.dp)
                     ) {
                         Icon(
                             if (isDeveloper) Icons.Default.CloudUpload else Icons.Default.Lock,
                             contentDescription = null,
-                            tint = if (isDeveloper) DeepSlate else GoldPrimary,
+                            tint = if (isDeveloper) DeepSlate else PresetPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             if (isDeveloper) "رفع سحابي (مطور)" else "للمطور فقط",
-                            color = if (isDeveloper) DeepSlate else Color.White,
+                            color = if (isDeveloper) DeepSlate else theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
@@ -241,15 +241,15 @@ fun SupabaseAudioSection(
 
                     OutlinedButton(
                         onClick = { showGuideDialog = true },
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
                         shape = CutCornerShape(8.dp),
                         modifier = Modifier.weight(0.7f).height(44.dp)
                     ) {
-                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "الدليل",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp
                         )
@@ -277,7 +277,7 @@ fun SupabaseAudioSection(
                     )
                 },
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary)
                 },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -287,12 +287,12 @@ fun SupabaseAudioSection(
                     }
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFF1E293B),
-                    focusedBorderColor = GoldPrimary,
+                    unfocusedBorderColor = theme.secondarySurface,
+                    focusedBorderColor = PresetPrimary,
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary,
-                    focusedContainerColor = Color(0xFF151B2B),
-                    unfocusedContainerColor = Color(0xFF151B2B)
+                    focusedContainerColor = theme.cardSurface,
+                    unfocusedContainerColor = theme.cardSurface
                 ),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true
@@ -310,10 +310,10 @@ fun SupabaseAudioSection(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSelected) GoldPrimary else Color(0xFF151B2B))
+                        .background(if (isSelected) PresetPrimary else theme.cardSurface)
                         .border(
                             1.dp,
-                            if (isSelected) GoldPrimary else Color(0xFF2A344A),
+                            if (isSelected) PresetPrimary else theme.cardBorder,
                             RoundedCornerShape(20.dp)
                         )
                         .clickable { selectedCategory = cat }
@@ -341,7 +341,7 @@ fun SupabaseAudioSection(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(36.dp))
+                    CircularProgressIndicator(color = PresetPrimary, modifier = Modifier.size(36.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         "جاري جلب التسجيلات من Supabase...",
@@ -361,8 +361,8 @@ fun SupabaseAudioSection(
             ) {
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF0F172A).copy(alpha = 0.5f),
-                    borderColor = GoldPrimary.copy(alpha = 0.3f),
+                    backgroundColor = theme.cardSurface.copy(alpha = 0.5f),
+                    borderColor = PresetPrimary.copy(alpha = 0.3f),
                     shape = CutCornerShape(16.dp)
                 ) {
                     Column(
@@ -374,25 +374,25 @@ fun SupabaseAudioSection(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.1f))
-                                .border(1.dp, GoldPrimary.copy(alpha = 0.3f), CircleShape),
+                                .background(PresetPrimary.copy(alpha = 0.1f))
+                                .border(1.dp, PresetPrimary.copy(alpha = 0.3f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.CloudQueue,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
 
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = if (searchQuery.isNotEmpty() || selectedCategory != "الكل")
+                                text = if (searchQuery.isNotEmpty() || selectedCategory != "الكل 🌐")
                                     "لا توجد نتائج مطابقة"
                                 else
                                     "السحابة فارغة حالياً",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp,
@@ -400,7 +400,7 @@ fun SupabaseAudioSection(
                             )
                             Text(
                                 text = "CLOUD_STORAGE // SYNC_IDLE",
-                                color = GoldPrimary.copy(alpha = 0.5f),
+                                color = PresetPrimary.copy(alpha = 0.5f),
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold
@@ -409,7 +409,7 @@ fun SupabaseAudioSection(
 
                         Text(
                             text = "يمكنك رفع تسجيلاتك الصوتية بسهولة عبر زر 'رفع تسجيل سحابي' لتظهر فوراً لجميع المستخدمين.",
-                            color = Color.White.copy(alpha = 0.6f),
+                            color = theme.textPrimary.copy(alpha = 0.6f),
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -419,7 +419,7 @@ fun SupabaseAudioSection(
                         if (isDeveloper) {
                             Button(
                                 onClick = { showUploadDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                 shape = CutCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) {
@@ -443,8 +443,8 @@ fun SupabaseAudioSection(
                     val isTrackPlaying = isPlaying && activePlayingUrl == track.audioUrl
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                        border = BorderStroke(1.dp, if (isTrackPlaying) GoldPrimary else Color(0xFF1E293B)),
+                        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
+                        border = BorderStroke(1.dp, if (isTrackPlaying) PresetPrimary else theme.secondarySurface),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
@@ -458,12 +458,12 @@ fun SupabaseAudioSection(
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(CircleShape)
-                                        .background(if (isTrackPlaying) GoldPrimary else Color(0xFF1E293B))
+                                        .background(if (isTrackPlaying) PresetPrimary else theme.secondarySurface)
                                 ) {
                                     Icon(
                                         if (isTrackPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                         contentDescription = if (isTrackPlaying) "إيقاف" else "تشغيل",
-                                        tint = if (isTrackPlaying) DeepSlate else GoldPrimary,
+                                        tint = if (isTrackPlaying) DeepSlate else PresetPrimary,
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
@@ -477,7 +477,7 @@ fun SupabaseAudioSection(
                                     ) {
                                         Text(
                                             track.title,
-                                            color = if (isTrackPlaying) GoldPrimary else TextPrimary,
+                                            color = if (isTrackPlaying) PresetPrimary else TextPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp,
@@ -514,7 +514,7 @@ fun SupabaseAudioSection(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             track.category,
-                                            color = GoldPrimary.copy(alpha = 0.8f),
+                                            color = PresetPrimary.copy(alpha = 0.8f),
                                             fontFamily = NotoSansFont,
                                             fontSize = 11.sp
                                         )
@@ -550,7 +550,7 @@ fun SupabaseAudioSection(
                                         },
                                         modifier = Modifier.size(32.dp)
                                     ) {
-                                        Icon(Icons.Default.DeleteOutline, contentDescription = "حذف المقطع (مطور)", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "حذف المقطع (مطور)", tint = theme.destructive, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
@@ -598,14 +598,14 @@ fun SupabaseAudioSection(
                                             Icon(
                                                 imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                                 contentDescription = "إعجاب",
-                                                tint = if (isLiked) Color(0xFFEF4444) else TextSecondary,
+                                                tint = if (isLiked) theme.destructive else TextSecondary,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             if (track.likesCount > 0) {
                                                 Spacer(modifier = Modifier.width(2.dp))
                                                 Text(
                                                     "${track.likesCount}",
-                                                    color = if (isLiked) Color(0xFFEF4444) else TextSecondary,
+                                                    color = if (isLiked) theme.destructive else TextSecondary,
                                                     fontSize = 10.sp,
                                                     fontFamily = NotoSansFont
                                                 )
@@ -640,7 +640,7 @@ fun SupabaseAudioSection(
                                         Icon(
                                             imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                                             contentDescription = "تفضيل",
-                                            tint = if (isFavorite) GoldPrimary else TextSecondary,
+                                            tint = if (isFavorite) PresetPrimary else TextSecondary,
                                             modifier = Modifier.size(17.dp)
                                         )
                                     }
@@ -660,13 +660,13 @@ fun SupabaseAudioSection(
                                                 }
                                             }
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
+                                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                         modifier = Modifier.height(32.dp)
                                     ) {
-                                        Icon(Icons.Default.FileDownload, contentDescription = "تنزيل", tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.Default.FileDownload, contentDescription = "تنزيل", tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(3.dp))
                                         Text("تنزيل", color = TextPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                                     }
@@ -674,7 +674,7 @@ fun SupabaseAudioSection(
 
                                 Button(
                                     onClick = { onApply(track.audioUrl, track.title) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                     modifier = Modifier.height(34.dp)
@@ -703,7 +703,7 @@ fun SupabaseAudioSection(
             onDismissRequest = { showDevOnlyToast = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("خاصية مخصصة للمطور فقط 🔒", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 15.sp)
                 }
@@ -719,7 +719,7 @@ fun SupabaseAudioSection(
                     Text(
                         "كافة المستخدمين يمكنهم الاستماع المباشر والتنزيل المباشر للهاتف (Downloads) واستخدام التسجيلات في المشاريع بحرية تامة.",
                         fontFamily = NotoSansFont,
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 12.sp
                     )
                 }
@@ -727,13 +727,13 @@ fun SupabaseAudioSection(
             confirmButton = {
                 Button(
                     onClick = { showDevOnlyToast = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("حسناً", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
-            containerColor = Color(0xFF151B2B),
+            containerColor = theme.cardSurface,
             shape = RoundedCornerShape(14.dp)
         )
     }
@@ -758,7 +758,7 @@ fun SupabaseAudioSection(
     // Upload & Add Dialog
     if (showUploadDialog) {
         AddAudioTrackDialog(
-            categories = categories.filter { it != "الكل" },
+            categories = categories.filter { it != "الكل 🌐" },
             onDismiss = { showUploadDialog = false },
             onTrackAdded = {
                 showUploadDialog = false
@@ -774,6 +774,7 @@ fun AddAudioTrackDialog(
     onDismiss: () -> Unit,
     onTrackAdded: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -807,7 +808,7 @@ fun AddAudioTrackDialog(
         onDismissRequest = { if (!isUploading) onDismiss() },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = GoldPrimary)
+                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = PresetPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "إضافة تسجيل إلى Supabase",
@@ -832,8 +833,8 @@ fun AddAudioTrackDialog(
                     label = { Text("عنوان التسجيل (مثال: سورة الكهف، مؤثر رعد)", fontFamily = CairoFont, fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF2A344A),
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = theme.cardBorder,
                         focusedTextColor = TextPrimary,
                         unfocusedTextColor = TextPrimary
                     ),
@@ -848,8 +849,8 @@ fun AddAudioTrackDialog(
                     label = { Text("القارئ / المنشد / المصدر", fontFamily = CairoFont, fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF2A344A),
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = theme.cardBorder,
                         focusedTextColor = TextPrimary,
                         unfocusedTextColor = TextPrimary
                     ),
@@ -868,7 +869,7 @@ fun AddAudioTrackDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                                .background(if (isSelected) PresetPrimary else theme.secondarySurface)
                                 .clickable { selectedCategory = cat }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
@@ -883,16 +884,16 @@ fun AddAudioTrackDialog(
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFF1E293B), modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(color = theme.secondarySurface, modifier = Modifier.padding(vertical = 4.dp))
 
                 // File Upload Section or Direct URL
                 Text("طريقة توفير الصوت:", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
 
                 // Option A: Pick audio file from device
                 Surface(
-                    color = Color(0xFF1E293B),
+                    color = theme.secondarySurface,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (selectedFileUri != null) GoldPrimary else Color(0xFF2A344A)),
+                    border = BorderStroke(1.dp, if (selectedFileUri != null) PresetPrimary else theme.cardBorder),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { filePickerLauncher.launch("audio/*") }
@@ -901,12 +902,12 @@ fun AddAudioTrackDialog(
                         modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.AudioFile, contentDescription = null, tint = GoldPrimary)
+                        Icon(Icons.Default.AudioFile, contentDescription = null, tint = PresetPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 if (selectedFileUri != null) selectedFileName else "اختيار ملف صوتي من الجهاز لرفعه لـ Supabase",
-                                color = if (selectedFileUri != null) GoldPrimary else TextPrimary,
+                                color = if (selectedFileUri != null) PresetPrimary else TextPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 maxLines = 1,
@@ -921,11 +922,11 @@ fun AddAudioTrackDialog(
                         }
                         Button(
                             onClick = { filePickerLauncher.launch("audio/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A344A)),
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             modifier = Modifier.height(28.dp)
                         ) {
-                            Text(if (selectedFileUri != null) "تغيير" else "استعراض", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                            Text(if (selectedFileUri != null) "تغيير" else "استعراض", color = PresetPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                         }
                     }
                 }
@@ -939,8 +940,8 @@ fun AddAudioTrackDialog(
                     label = { Text("رابط الصوت العام (Supabase Storage URL أو HTTPS)", fontFamily = CairoFont, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF2A344A),
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = theme.cardBorder,
                         focusedTextColor = TextPrimary,
                         unfocusedTextColor = TextPrimary
                     ),
@@ -1052,7 +1053,7 @@ fun AddAudioTrackDialog(
                             } else {
                                 Toast.makeText(context, "فشل حفظ التسجيل، تأكد من الاتصال بـ Supabase", Toast.LENGTH_LONG).show()
                             }
-                        } catch (e: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                             Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_LONG).show()
                         } finally {
                             isUploading = false
@@ -1060,7 +1061,7 @@ fun AddAudioTrackDialog(
                     }
                 },
                 enabled = !isUploading,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(if (isUploading) "جاري الرفع..." else "حفظ ونشر في السحابة", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
@@ -1073,13 +1074,14 @@ fun AddAudioTrackDialog(
                 }
             }
         },
-        containerColor = Color(0xFF151B2B),
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(16.dp)
     )
 }
 
 @Composable
 fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
+    val theme = QabasTheme.current
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
@@ -1087,7 +1089,7 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldPrimary)
+                Icon(Icons.Default.MenuBook, contentDescription = null, tint = PresetPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "دليل ربط ورفع الصوتيات على Supabase",
@@ -1114,15 +1116,15 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
 
                 // Method 1: In App
                 Surface(
-                    color = Color(0xFF1E293B),
+                    color = theme.secondarySurface,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.TouchApp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.TouchApp, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("الطريقة الأولى (مباشرة من التطبيق):", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("الطريقة الأولى (مباشرة من التطبيق):", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -1137,9 +1139,9 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
 
                 // Method 2: From Supabase Dashboard
                 Surface(
-                    color = Color(0xFF1E293B),
+                    color = theme.secondarySurface,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFF2A344A))
+                    border = BorderStroke(1.dp, theme.cardBorder)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1190,26 +1192,26 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
                         clipboardManager.setText(AnnotatedString(sql))
                         Toast.makeText(context, "تم نسخ استعلام SQL لإنشاء الجدول في Supabase 📋", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A344A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("نسخ كود SQL لإنشاء الجدول في Supabase", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("نسخ كود SQL لإنشاء الجدول في Supabase", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("فهمت، شكراً", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
         },
-        containerColor = Color(0xFF151B2B),
+        containerColor = theme.cardSurface,
         shape = RoundedCornerShape(16.dp)
     )
 }

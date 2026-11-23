@@ -69,6 +69,10 @@ object DailyHadithAiGenerator {
             }
             result
         } catch (e: Exception) {
+            // الإلغاء الخارجي ليس فشل توليد ولا يُبتلَع (نمط الجولة 87): أما
+            // مهلة withTimeout نفسها (TimeoutCancellationException) فتبقى
+            // فشلاً عادياً يعيد قائمة فارغة كما كان — عقدة هذه الدالة.
+            if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
             Log.e(TAG, "Batch generation failed for days $startDay to ${startDay + count - 1}", e)
             emptyList()
         }

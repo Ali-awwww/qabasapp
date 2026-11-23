@@ -151,10 +151,4 @@ object FullSahihHadithRepository {
         return book.hadiths.firstOrNull { it.id == id }
     }
 
-    /**
-     * الحصول على إجمالي عدد الأحاديث
-     */
-    suspend fun getTotalCount(context: Context, bookType: SahihBookType): Int {
-        return loadBook(context, bookType)?.hadiths?.size ?: 0
-    }
 }

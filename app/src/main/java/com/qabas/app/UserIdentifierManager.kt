@@ -7,7 +7,6 @@ import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
-import java.util.UUID
 
 /**
  * مدير المعرّف الخاص والموحد للمستخدمين (User Identifier Manager).
@@ -18,12 +17,10 @@ object UserIdentifierManager {
 
     private const val PREFS_NAME = "qabas_prefs"
     private const val KEY_CUSTOM_ID = "user_custom_id"
-    private const val KEY_USER_TAG = "user_tag"
     private const val KEY_MAP_PREFIX = "user_id_map_"
     private const val KEY_CUSTOM_ID_MAP_PREFIX = "user_custom_id_map_"
     const val KEY_ACCOUNT_NUMBER = "user_account_number"
     private const val KEY_ACCOUNT_MAP_PREFIX = "user_acc_map_"
-    private const val KEY_NEXT_ACCOUNT_SEQ = "next_account_seq_num"
 
     /**
      * تنسيق رقم الحساب الرسمي للمستخدم (مثل: #QBS-0001)
@@ -173,40 +170,6 @@ object UserIdentifierManager {
         return "يُنشأ بعد التسجيل"
     }
 
-    /**
-     * استعلام ومزامنة الهوية السحابية للمستخدم (اليوزر ورقم الحساب).
-     * يقوم بجلب بيانات الحساب الموثقة من السحابة وتثبيتها محلياً إن وُجدت، أو رفعها إلى السحابة إن كانت جديدة.
-     */
-    suspend fun syncIdentityWithCloud(
-        context: Context,
-        email: String,
-        displayName: String? = null
-    ): Pair<String, String>? = withContext(Dispatchers.IO) {
-        if (email.isBlank() || !SupabaseServices.isSupabaseAvailable) return@withContext null
-
-        val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext null
-        val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
-            ?.trim()?.lowercase(Locale.ROOT)
-            ?: return@withContext null
-        val cleanEmail = email.trim().lowercase(Locale.ROOT)
-        if (cleanEmail != authEmail) return@withContext null
-
-        val cloudUser = SupabaseServices.Database.ensureUser(
-            externalId = authUid,
-            email = authEmail,
-            name = displayName
-        ) ?: return@withContext null
-
-        val resolvedCustomId = cloudUser.customId?.takeIf { it.isNotBlank() }
-            ?: return@withContext null
-        val resolvedAccountNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
-            ?: return@withContext null
-
-        saveCustomId(context, resolvedCustomId, authEmail)
-        saveAccountNumber(context, authEmail, resolvedAccountNumber)
-        Pair(resolvedCustomId, resolvedAccountNumber)
-    }
-
     sealed class CustomIdAvailabilityResult {
         object Available : CustomIdAvailabilityResult()
         object CurrentUserOwnsIt : CustomIdAvailabilityResult()
@@ -324,7 +287,6 @@ object UserIdentifierManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val editor = prefs.edit()
         editor.putString(KEY_CUSTOM_ID, clean)
-        editor.putString(KEY_USER_TAG, formatDisplay(clean))
 
         val resolvedEmail = email ?: prefs.getString("user_email", null)
         if (!resolvedEmail.isNullOrBlank()) {
@@ -335,34 +297,7 @@ object UserIdentifierManager {
         editor.apply()
     }
 
-    /**
-     * إنشاء أو استعادة المعرّف مع ربطه ببريد Gmail المحدد.
-     * المعرّف يُحفظ لكل بريد على حدة حتى لا يتغيّر عند تسجيل الدخول مجدداً.
-     */
-    /**
-     * Returns the last cloud-issued handle cached for this account.
-     * It intentionally does not generate an identifier on the device.
-     */
-    fun getOrCreateCustomId(context: Context, email: String?, displayName: String? = null): String =
-        getCustomId(context, email)
 
-
-
-    /**
-     * فك شفرة المدخل (سواء كان بريداً أو معرّفاً خاصاً) إلى البريد الإلكتروني الفعلي للمصادقة.
-     * يعيد Pair(البريد الإلكتروني, المعرّف الخاص المكتشف).
-     */
-    /**
-     * Email inputs are returned unchanged. A username/account number must never
-     * be resolved to an email on the client before authentication; the server-side
-     * qabas-auth-identifier-login function performs that lookup and issues the Auth session.
-     */
-    suspend fun resolveIdentifierToEmail(input: String, context: Context): Pair<String, String>? =
-        withContext(Dispatchers.IO) {
-            val trimmed = input.trim()
-            if (!isEmail(trimmed)) return@withContext null
-            Pair(trimmed.lowercase(Locale.ROOT), "")
-        }
 
     /**
      * نسخ المعرّف الخاص للحافظة مع إشعار للمستخدم.

@@ -216,6 +216,32 @@ object PrayerCalculationHelper {
         }
     }
 
+    /** مذهب العصر الذي اختاره المستخدم: شافعي (ظلّ = 1) أو حنفي (ظلّ = 2). */
+    fun getSelectedAsrShadowFactor(context: Context): Double {
+        val key = context.getSharedPreferences("qabas_user_preferences", Context.MODE_PRIVATE)
+            .getString("asr_madhab", null)
+            ?.trim()
+            ?.uppercase(Locale.US)
+        return if (key == "HANAFI") 2.0 else 1.0
+    }
+
+    /**
+     * نقطة الدخول الموحّدة لحساب المواقيت من الواجهة والخدمات: تحلّ طريقة
+     * الحساب ومذهب العصر من تفضيلات المستخدم، فلا يعود أي مسار يستخدم
+     * طريقة المدينة الافتراضية متجاهلاً ما اختاره المستخدم في الإعدادات.
+     */
+    fun calculatePrayerTimesForUser(
+        context: Context,
+        calendar: Calendar = Calendar.getInstance(),
+        location: CityLocation
+    ): CalculatedPrayerTimes {
+        val method = getSelectedCalculationMethod(context, location)
+        return calculatePrayerTimes(
+            calendar, location, method,
+            asrShadowFactor = getSelectedAsrShadowFactor(context)
+        )
+    }
+
     /**
      * Saves the selected city in the shared app/prayer preferences.
      * For a GPS-derived city, detailed coordinates remain device-local. The returned flag tells
@@ -444,7 +470,8 @@ object PrayerCalculationHelper {
         calendar: Calendar = Calendar.getInstance(),
         location: CityLocation,
         method: CalculationMethod = location.defaultMethod,
-        includeNextDayFajr: Boolean = true
+        includeNextDayFajr: Boolean = true,
+        asrShadowFactor: Double = 1.0
     ): CalculatedPrayerTimes {
         val cityTimeZone = timeZoneFor(location)
         val cityCalendar = Calendar.getInstance(cityTimeZone).apply {
@@ -498,7 +525,7 @@ object PrayerCalculationHelper {
             return if (isMorning) utcNoonBase - diff else utcNoonBase + diff
         }
 
-        // Asr calculation (Shafi'i: shadow = 1)
+        // Asr calculation (Shafi'i: shadow = 1, Hanafi: shadow = 2)
         fun asrUtcTime(shadowFactor: Double = 1.0): Double {
             val angle = -Math.toDegrees(atan(1.0 / (shadowFactor + tan(Math.toRadians(abs(location.latitude - declination))))))
             val sinVal = (-sin(Math.toRadians(angle)) - sin(Math.toRadians(location.latitude)) * sin(Math.toRadians(declination))) /
@@ -511,7 +538,7 @@ object PrayerCalculationHelper {
         val sunriseUtcHour = sunAngleUtcTime(0.833, true)
         val sunsetUtcHour = sunAngleUtcTime(0.833, false)
         val fajrUtcHour = sunAngleUtcTime(method.fajrAngle, true)
-        val asrUtcHour = asrUtcTime(1.0)
+        val asrUtcHour = asrUtcTime(asrShadowFactor)
         val maghribUtcHour = sunsetUtcHour + (2.0 / 60.0) // 2 min buffer
         val ishaUtcHour = if (method.ishaIntervalMinutes > 0) {
             maghribUtcHour + (method.ishaIntervalMinutes / 60.0)
@@ -520,7 +547,6 @@ object PrayerCalculationHelper {
         }
 
         val sunriseHour = localHourForUtcHour(sunriseUtcHour)
-        val sunsetHour = localHourForUtcHour(sunsetUtcHour)
         val fajrHour = localHourForUtcHour(fajrUtcHour)
         val asrHour = localHourForUtcHour(asrUtcHour)
         val maghribHour = localHourForUtcHour(maghribUtcHour)

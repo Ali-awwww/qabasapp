@@ -1,23 +1,15 @@
 package com.qabas.app
 
 import android.content.Context
-import android.media.MediaPlayer
-import android.net.Uri
-import android.util.Log
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -218,96 +210,6 @@ object VoiceStudioService {
     }
 
     /**
-     * توليد الصوت عبر واجهة OpenAI-Compatible Audio API الخاصة بـ VoiceStudio
-     * POST /v1/audio/speech
-     */
-    suspend fun synthesizeSpeechViaServer(
-        serverUrl: String,
-        text: String,
-        voiceId: String,
-        model: String = "tts-1",
-        speed: Float = 1.0f,
-        outFile: File
-    ): Result<File> = withContext(Dispatchers.IO) {
-        try {
-            val cleanUrl = serverUrl.trim().trimEnd('/')
-            val endpoint = "$cleanUrl/v1/audio/speech"
-
-            val jsonBody = JSONObject().apply {
-                put("model", model)
-                put("input", text)
-                put("voice", voiceId)
-                put("speed", speed.toDouble())
-                put("response_format", "mp3")
-            }
-
-            val request = Request.Builder()
-                .url(endpoint)
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    response.body?.byteStream()?.use { input ->
-                        FileOutputStream(outFile).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    if (outFile.exists() && outFile.length() > 500) {
-                        Result.success(outFile)
-                    } else {
-                        Result.failure(Exception("الملف الصوتي المُستلم فارغ أو تالف"))
-                    }
-                } else {
-                    Result.failure(Exception("خطأ من السيرفر (${response.code})"))
-                }
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * استنساخ صوت حقيقي عبر رفع عينة صوتية إلى خادم VoiceStudio
-     */
-    suspend fun cloneVoiceOnServer(
-        serverUrl: String,
-        audioFile: File,
-        voiceName: String,
-        referenceText: String = ""
-    ): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val cleanUrl = serverUrl.trim().trimEnd('/')
-            val endpoint = "$cleanUrl/api/v1/voice/clone"
-
-            val body = MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("voice_name", voiceName)
-                .addFormDataPart("reference_text", referenceText)
-                .addFormDataPart(
-                    "audio_file",
-                    audioFile.name,
-                    audioFile.asRequestBody("audio/*".toMediaType())
-                )
-                .build()
-
-            val request = Request.Builder().url(endpoint).post(body).build()
-            val response = httpClient.newCall(request).execute()
-            val resStr = response.body?.string().orEmpty()
-
-            if (response.isSuccessful) {
-                val json = JSONObject(resStr)
-                val voiceId = json.optString("voice_id", voiceName)
-                Result.success(voiceId)
-            } else {
-                Result.failure(Exception("فشل الاستنساخ بالسيرفر (${response.code}): $resStr"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
      * التوليد المستقل الهجين عند غياب السيرفر (Edge-TTS + تعديل الترددات و Pitch عبر FFmpeg)
      * يتيح تطبيق خصائص الصوت المستنسخ (النبرة والسرعة والخامة) مباشرة على الهاتف!
      */
@@ -352,7 +254,7 @@ object VoiceStudioService {
                 // إذا تعذر الفلتر الدقيق، نعيد الملف الأصلي عالي الجودة
                 Result.success(generated)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Result.failure(e)
         }
     }

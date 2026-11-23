@@ -24,7 +24,7 @@ import com.qabas.app.SilentReelPrefetcher
 import com.qabas.app.SilentReelStorageManager
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ReelSafetyGuardrails
 
 /**
@@ -49,7 +49,7 @@ fun SilentSyncDevFloatingHud(isDeveloper: Boolean) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = DeepSlate.copy(alpha = 0.92f),
-            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
             shadowElevation = 8.dp,
             modifier = Modifier
                 .widthIn(max = 320.dp)
@@ -75,13 +75,13 @@ fun SilentSyncDevFloatingHud(isDeveloper: Boolean) {
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Black,
                             fontSize = 11.sp,
-                            color = GoldPrimary
+                            color = PresetPrimary
                         )
                     }
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
                         contentDescription = null,
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -97,7 +97,7 @@ fun SilentSyncDevFloatingHud(isDeveloper: Boolean) {
 
                 if (isExpanded) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Divider(color = GoldPrimary.copy(alpha = 0.2f))
+                    Divider(color = PresetPrimary.copy(alpha = 0.2f))
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // Storage Stats
@@ -120,7 +120,7 @@ fun SilentSyncDevFloatingHud(isDeveloper: Boolean) {
                         DevActionButton(
                             text = "Sync Now",
                             icon = Icons.Default.Refresh,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             modifier = Modifier.weight(1f)
                         ) {
                             SilentReelPrefetcher.forceSync(context)
@@ -149,13 +149,13 @@ private fun SyncProgressSection(state: SilentReelPrefetcher.PrefetchState) {
             text = "Downloading: ${state.currentFileName}",
             fontFamily = CairoFont,
             fontSize = 9.sp,
-            color = GoldPrimary
+            color = PresetPrimary
         )
         val progress = if (state.totalBytes > 0) state.downloadedBytes.toFloat() / state.totalBytes else 0f
         LinearProgressIndicator(
             progress = progress,
             modifier = Modifier.fillMaxWidth().height(4.dp).padding(vertical = 4.dp),
-            color = GoldPrimary,
+            color = PresetPrimary,
             trackColor = Color.White.copy(alpha = 0.1f)
         )
         Row(
@@ -172,7 +172,7 @@ private fun SyncProgressSection(state: SilentReelPrefetcher.PrefetchState) {
                 text = "${formatBytes(state.speedBps)}/s",
                 fontFamily = CairoFont,
                 fontSize = 8.sp,
-                color = GoldPrimary
+                color = PresetPrimary
             )
         }
     }
@@ -211,7 +211,7 @@ private fun HudDetailItem(icon: androidx.compose.ui.graphics.vector.ImageVector,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(vertical = 2.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = GoldPrimary.copy(alpha = 0.7f), modifier = Modifier.size(12.dp))
+        Icon(icon, contentDescription = null, tint = PresetPrimary.copy(alpha = 0.7f), modifier = Modifier.size(12.dp))
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = "$label: ",

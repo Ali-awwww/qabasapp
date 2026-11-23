@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -198,87 +199,29 @@ object OpenRouterService {
         }
     }
 
-    /** يولّد هيكل مشروع أندرويد أدنى **قابل للبناء**: gradle + manifest + كود + CI. */
-    suspend fun generateStarterFiles(
-        title: String,
-        description: String = "",
-        goal: String = "",
-        plan: String,
-        apiKey: String
-    ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) return@withContext emptyList()
-        val prompt = """
-            أنت مهندس Android (Kotlin + Jetpack Compose). ابدأ مشروع تطبيق جديد قابل للبناء فعلاً عبر GitHub Actions:
-            الاسم: $title | الوصف: $description | الهدف: $goal
-            الخطة المعتمدة:
-            ${plan.take(2500)}
-            ولّد هذه الملفات العشرة بالضبط (package ثابت: com.client.app) — ملف CI يُحقن تلقائياً فلا تولّده:
-            1) settings.gradle 2) build.gradle (الجذر) 3) app/build.gradle (applicationId com.client.app, minSdk 24, compose)
-            4) app/src/main/AndroidManifest.xml (يصرّح بـ MyApp كـ android:name) 5) app/src/main/java/com/client/app/MainActivity.kt (شاشة ترحيب تحقق الهدف)
-            6) app/src/main/java/com/client/app/data/Models.kt 7) app/src/main/java/com/client/app/ui/MainViewModel.kt
-            8) README.md 9) app/src/main/res/values/strings.xml
-            10) app/src/main/java/com/client/app/MyApp.kt (فئة Application فيها init للمراقبة بمعرف نائب MEASURE_APP_ID — راجع docs/MONITORING.md)
-            الصيغة الصارمة لكل ملف (كررها 10 مرات):
-            FILE: المسار/الكامل/للملف
-            ```
-            المحتوى الكامل هنا
-            ```
-            لا شرح خارج هذه البنية. كل ملف يجب أن يكون صحيحاً وصالحاً للبناء.
-        """.trimIndent()
-        for (model in FREE_MODELS) {
-            val text = tryChat(apiKey, model, "أنت مولد مشاريع أندرويد. تلتزم بصيغة FILE: ثم كتلة كود فقط.", prompt, 8000)
-            val files = parseFiles(text.orEmpty())
-            if (files.size >= 5) return@withContext files
-        }
-        emptyList()
-    }
-
-    /** امتدادات ملفات المشروع المقبولة — أي شيء خارجها يُرفض بأمان. */
-    private val ALLOWED_EXT = setOf(
-        "kt", "kts", "java", "xml", "md", "gradle", "properties",
-        "yml", "yaml", "json", "gitignore", "pro", "txt"
-    )
 
     /** يفكك رد النموذج إلى (مسار ← كود) حسب صيغة FILE:. */
-    fun parseFiles(text: String): List<Pair<String, String>> {
-        val out = mutableListOf<Pair<String, String>>()
-        val fileMark = Regex("""(?m)^FILE:\s*(.+?)\s*$""")
-        val marks = fileMark.findAll(text).toList()
-        for ((i, m) in marks.withIndex()) {
-            val path = m.groupValues[1].trim().removePrefix("/").take(200)
-            val ext = path.substringAfterLast(".", "").lowercase()
-            if (path.isBlank() || ".." in path || ext !in ALLOWED_EXT) continue
-            val segStart = m.range.last + 1
-            val segEnd = marks.getOrNull(i + 1)?.range?.first ?: text.length
-            val seg = text.substring(segStart, segEnd)
-            val code = extractFence(seg) ?: seg.trim().take(30000)
-            if (code.isNotBlank()) out.add(path to code)
-            if (out.size >= 12) break
-        }
-        return out
-    }
 
-    private fun extractFence(seg: String): String? {
-        val first = seg.indexOf("```")
-        if (first == -1) return null
-        val start = seg.indexOf("\n", first)
-        if (start == -1) return null
-        val end = seg.indexOf("```", start)
-        if (end == -1) return null
-        return seg.substring(start + 1, end).trim().takeIf { it.isNotBlank() }
-    }
-
-    /** محادثة بالأدوات: النموذج يستدعي دوال التطبيق الحقيقية حتى 4 جولات. */
+    /** محادثة بالأدوات: النموذج يستدعي دوال التطبيق الحقيقية حتى 4 جولات.
+     * (12.6) عند تمرير [context] تُفرض مفاتيح تفعيل الأدوات: المعطّلة لا
+     * تُرسل إلى النموذج أصلاً، وأي استدعاء يمر عبر [AgentToolGate] —
+     * والأدوات المدمرة ترفض بلا موافقة بشرية مسبقة من تبويب الأدوات.
+     */
     suspend fun chatWithTools(
         apiKey: String,
         system: String,
         history: List<Pair<Boolean, String>>,
         tools: List<AiTools.ToolDef>,
         model: String? = null,
-        maxTurns: Int = 4
+        maxTurns: Int = 4,
+        context: Context? = null
     ): Pair<String, List<String>> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank() || history.isEmpty()) return@withContext Pair("", emptyList())
         val useModel = model?.takeIf { it.isNotBlank() } ?: FREE_MODELS.first()
+        // الأدوات المعطّلة من تبويب الأدوات لا تُعرض على النموذج أصلاً.
+        val enabledTools = if (context != null) {
+            tools.filter { AgentPrefs.isToolEnabled(context, it.name) }
+        } else tools
         val usedTools = mutableListOf<String>()
         val convo = JSONArray().apply {
             put(JSONObject().put("role", "system").put("content", system))
@@ -291,7 +234,7 @@ object OpenRouterService {
             val body = JSONObject().apply {
                 put("model", useModel)
                 put("messages", convo)
-                put("tools", AiTools.toApiJson(tools))
+                put("tools", AiTools.toApiJson(enabledTools))
                 put("temperature", 0.7)
                 put("max_tokens", 2000)
             }.toString().toRequestBody("application/json".toMediaType())
@@ -326,10 +269,19 @@ object OpenRouterService {
                 val fn = call.optJSONObject("function") ?: continue
                 val name = fn.optString("name")
                 val args = runCatching { JSONObject(fn.optString("arguments", "{}")) }.getOrDefault(JSONObject())
-                val def = tools.find { it.name == name }
+                val def = enabledTools.find { it.name == name }
                 val result = def?.let {
-                    usedTools.add(name)
-                    runCatching { it.run(args) }.getOrDefault("تعذر تنفيذ الأداة $name.")
+                    // (12.6/12.16) فحص ما قبل التنفيذ: تفعيل + نطاق + موافقة مدمرة.
+                    val refusal = context?.let { ctx ->
+                        AgentToolGate.checkBeforeRun(
+                            ctx, name,
+                            path = args.optString("path").takeIf { it.isNotBlank() }
+                        )
+                    }
+                    if (refusal != null) refusal else {
+                        usedTools.add(name)
+                        runCatching { it.run(args) }.getOrDefault("تعذر تنفيذ الأداة $name.")
+                    }
                 } ?: "أداة غير معروفة: $name."
                 convo.put(JSONObject().apply {
                     put("role", "tool")
@@ -358,11 +310,6 @@ object OpenRouterService {
 
     // ── متغيرات مُجمّعة: تجاوز تلقائي لمفاتيح المسبح (الفائز يُرقَّى) ──
 
-    suspend fun chatPooled(system: String, prompt: String, maxTokens: Int = 6000): String? =
-        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
-            chat(k, system, prompt, maxTokens)
-        }
-
     suspend fun chatWithHistoryPooled(
         system: String,
         history: List<Pair<Boolean, String>>,
@@ -376,25 +323,16 @@ object OpenRouterService {
             generatePlan(title, description, k)
         }
 
-    suspend fun generateStarterFilesPooled(
-        title: String,
-        description: String = "",
-        goal: String = "",
-        plan: String
-    ): List<Pair<String, String>> =
-        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
-            generateStarterFiles(title, description, goal, plan, k).takeIf { it.isNotEmpty() }
-        } ?: emptyList()
-
     suspend fun chatWithToolsPooled(
         system: String,
         history: List<Pair<Boolean, String>>,
         tools: List<AiTools.ToolDef>,
         model: String? = null,
-        maxTurns: Int = 4
+        maxTurns: Int = 4,
+        context: Context? = null
     ): Pair<String, List<String>> =
         KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
-            chatWithTools(k, system, history, tools, model, maxTurns)
+            chatWithTools(k, system, history, tools, model, maxTurns, context)
                 .takeIf { it.first.isNotBlank() }
         } ?: Pair("", emptyList())
 }

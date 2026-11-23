@@ -1,11 +1,9 @@
 package com.qabas.app
 
 import android.app.Application
-import android.media.MediaPlayer
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -13,7 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.qabas.app.R
 import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -228,13 +224,13 @@ fun ScholarBiographiesScreen(
                                         modifier = Modifier
                                             .size(34.dp)
                                             .clip(CircleShape)
-                                            .background(GoldPrimary.copy(alpha = 0.14f)),
+                                            .background(PresetPrimary.copy(alpha = 0.14f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             Icons.Default.MenuBook,
                                             contentDescription = null,
-                                            tint = GoldPrimary,
+                                            tint = PresetPrimary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -284,7 +280,7 @@ fun ScholarBiographiesScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Timeline, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Timeline, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "الخط الزمني للعصور:",
@@ -335,7 +331,7 @@ fun ScholarBiographiesScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.FilterAlt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.FilterAlt, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "المحن والتصنيفات والمفضلة:",
@@ -371,13 +367,13 @@ fun ScholarBiographiesScreen(
                                         }
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = GoldPrimary,
+                                        selectedContainerColor = PresetPrimary,
                                         selectedLabelColor = Color.White,
                                         containerColor = theme.cardSurface,
                                         labelColor = theme.textPrimary
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = if (onlyFavorites) GoldPrimary else theme.separator,
+                                        borderColor = if (onlyFavorites) PresetPrimary else theme.separator,
                                         enabled = true,
                                         selected = onlyFavorites
                                     ),
@@ -509,18 +505,18 @@ fun DailyFeaturedScholarCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = GoldPrimary.copy(alpha = 0.14f),
+                    color = PresetPrimary.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "سِيرَةُ اليَوْمِ وَمَوْقِفُ الثَّبَات",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.5.sp
@@ -552,7 +548,7 @@ fun DailyFeaturedScholarCard(
                 Surface(
                     modifier = Modifier.size(54.dp),
                     shape = CircleShape,
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldPrimary.copy(alpha = 0.7f))
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, PresetPrimary.copy(alpha = 0.7f))
                 ) {
                     AsyncImage(
                         model = scholar.imageRes,
@@ -614,13 +610,13 @@ fun DailyFeaturedScholarCard(
                             Icon(
                                 Icons.Default.Lightbulb,
                                 contentDescription = null,
-                                tint = if (isChallengeCompleted) theme.success else GoldPrimary,
+                                tint = if (isChallengeCompleted) theme.success else PresetPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "تحدي الاقتداء اليومي المعاصر:",
-                                color = if (isChallengeCompleted) theme.success else GoldPrimary,
+                                color = if (isChallengeCompleted) theme.success else PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -744,7 +740,7 @@ fun ScholarBiographyCard(
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.Black.copy(alpha = 0.65f),
-                            border = androidx.compose.foundation.BorderStroke(0.75.dp, GoldPrimary.copy(alpha = 0.6f))
+                            border = androidx.compose.foundation.BorderStroke(0.75.dp, PresetPrimary.copy(alpha = 0.6f))
                         ) {
                             Text(
                                 text = era,
@@ -784,15 +780,15 @@ fun ScholarBiographyCard(
                         onClick = onBookmarkToggle,
                         modifier = Modifier.size(48.dp),
                         shape = CircleShape,
-                        color = if (isBookmarked) GoldPrimary else theme.cardSurface.copy(alpha = 0.94f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isBookmarked) GoldPrimary else theme.separator),
+                        color = if (isBookmarked) PresetPrimary else theme.cardSurface.copy(alpha = 0.94f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isBookmarked) PresetPrimary else theme.separator),
                         shadowElevation = 2.dp
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                 contentDescription = if (isBookmarked) "إزالة من المفضلة" else "إضافة للمفضلة",
-                                tint = if (isBookmarked) Color.White else GoldPrimary,
+                                tint = if (isBookmarked) Color.White else PresetPrimary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -848,7 +844,7 @@ fun ScholarBiographyCard(
             Column(modifier = Modifier.padding(16.dp)) {
                 scholar.majorHistoricalEvent?.let { event ->
                     Surface(
-                        color = GoldPrimary.copy(alpha = 0.12f),
+                        color = PresetPrimary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
@@ -856,7 +852,7 @@ fun ScholarBiographyCard(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Stars, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Stars, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "الحدث الأبرز: $event",
@@ -917,7 +913,7 @@ fun ScholarBiographyCard(
                             Icon(
                                 Icons.Default.Shield,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier
                                     .size(18.dp)
                                     .padding(top = 2.dp)
@@ -926,7 +922,7 @@ fun ScholarBiographyCard(
                             Column {
                                 Text(
                                     "المحنة والصمود:",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold

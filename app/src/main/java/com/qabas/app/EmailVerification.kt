@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
@@ -22,6 +21,7 @@ import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -43,26 +43,7 @@ import kotlinx.coroutines.launch
  * and this banner/dialog is the only place that talks about verification.
  */
 sealed interface EmailVerificationState {
-    data object Confirmed : EmailVerificationState
-    data class Unconfirmed(val email: String) : EmailVerificationState
     data object Unknown : EmailVerificationState
-}
-
-object EmailVerification {
-    /** Current verification state for the signed-in user, or Unknown when there is no session. */
-    fun currentState(context: Context): EmailVerificationState {
-        val uid = SupabaseServices.Auth.getCurrentUserId() ?: return EmailVerificationState.Unknown
-        if (uid.isBlank()) return EmailVerificationState.Unknown
-        val email = SupabaseServices.Auth.getCurrentUserEmail()
-            ?: context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                .getString("user_email", null)?.takeIf { it.isNotBlank() }
-            ?: return EmailVerificationState.Unknown
-        return when (SupabaseServices.Auth.isEmailConfirmed()) {
-            true -> EmailVerificationState.Confirmed
-            false -> EmailVerificationState.Unconfirmed(email)
-            null -> EmailVerificationState.Unknown
-        }
-    }
 }
 
 /**
@@ -122,6 +103,11 @@ fun EmailVerificationBanner(
                                 lastResendAtMillis = System.currentTimeMillis()
                                 resendSucceeded = true
                                 Toast.makeText(context, "أُرسلت رسالة التحقق إلى بريدك", Toast.LENGTH_LONG).show()
+                                // مهلة الإعادة 60 ثانية: تُعيد تفعيل الزر تلقائياً عند
+                                // انتهائها، لأن الشاشة لا يعاد تركيبها من تلقاء نفسها
+                                // فتبقى «resendCooldownActive» عالقة على «true» إلى الأبد.
+                                delay(60_000)
+                                lastResendAtMillis = 0L
                             } else {
                                 Toast.makeText(context, "تعذرت إعادة الإرسال. انتظر دقيقة ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
                             }
@@ -243,6 +229,11 @@ fun EmailVerificationPromptDialog(
                         if (sent) {
                             lastResendAtMillis = System.currentTimeMillis()
                             Toast.makeText(context, "أُرسلت رسالة التحقق إلى بريدك", Toast.LENGTH_LONG).show()
+                            // مهلة الإعادة 60 ثانية: تُعيد تفعيل الزر تلقائياً عند
+                            // انتهائها، لأن الحوار لا يعاد تركيبه من تلقاء نفسه
+                            // فتبقى «resendCooldownActive» عالقة على «true» إلى الأبد.
+                            delay(60_000)
+                            lastResendAtMillis = 0L
                         } else {
                             Toast.makeText(context, "تعذرت إعادة الإرسال. انتظر دقيقة ثم حاول مجدداً.", Toast.LENGTH_LONG).show()
                         }

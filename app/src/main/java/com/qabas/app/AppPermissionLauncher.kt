@@ -24,12 +24,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -398,7 +396,7 @@ fun BackgroundPermissionsDialog(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text("إعدادات التشغيل التلقائي للهاتف", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                    Text("لهواتف شاومي، هواوي، سامسونج وأوبو", color = theme.textTertiary, fontFamily = NotoSansFont, fontSize = 9.5.sp)
+                                    Text("لهواتف شاومي، هواوي، سامسونج وأوبو", color = theme.textTertiary, fontFamily = NotoSansFont, fontSize = 11.sp)
                                 }
                             }
                             Icon(Icons.Default.OpenInNew, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))

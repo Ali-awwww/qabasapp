@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,9 +96,9 @@ fun SmartPublishScheduleDialog(
         shape = RoundedCornerShape(20.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Alarm, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Alarm, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("جدولة النشر الذكية والمواقيت المثالية ⏰", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("جدولة النشر الذكية والمواقيت المثالية ⏰", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         },
         text = {
@@ -107,8 +106,8 @@ fun SmartPublishScheduleDialog(
                 // Tab Row for New Schedule vs Active Reminders
                 TabRow(
                     selectedTabIndex = activeTab,
-                    containerColor = Color(0xFF0B0F19),
-                    contentColor = GoldPrimary,
+                    containerColor = DeepSlate,
+                    contentColor = PresetPrimary,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Tab(
@@ -139,17 +138,17 @@ fun SmartPublishScheduleDialog(
                         // Title Input
                         item {
                             Column {
-                                Text("عنوان المقطع للتذكير 📝", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("عنوان المقطع للتذكير 📝", color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedTextField(
                                     value = title,
                                     onValueChange = { title = it },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = GoldPrimary,
-                                        unfocusedBorderColor = Color(0xFF1E293B),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = PresetPrimary,
+                                        unfocusedBorderColor = ThemeSecondarySurface,
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
                                         focusedContainerColor = CardSurface,
                                         unfocusedContainerColor = CardSurface
                                     ),
@@ -161,7 +160,7 @@ fun SmartPublishScheduleDialog(
                         // Target Platform Selection Chips
                         item {
                             Column {
-                                Text("المنصة المستهدفة 🌐", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("المنصة المستهدفة 🌐", color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -173,11 +172,11 @@ fun SmartPublishScheduleDialog(
                                             onClick = { selectedPlatformId = id },
                                             shape = RoundedCornerShape(8.dp),
                                             color = if (isSelected) color.copy(alpha = 0.2f) else CardSurface,
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) color else Color(0xFF1E293B)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) color else ThemeSecondarySurface),
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                                Text(name.split(" ").first(), color = if (isSelected) color else Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(name.split(" ").first(), color = if (isSelected) color else TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
@@ -193,11 +192,11 @@ fun SmartPublishScheduleDialog(
                                             onClick = { selectedPlatformId = id },
                                             shape = RoundedCornerShape(8.dp),
                                             color = if (isSelected) color.copy(alpha = 0.2f) else CardSurface,
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) color else Color(0xFF1E293B)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) color else ThemeSecondarySurface),
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Box(modifier = Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                                Text(name, color = if (isSelected) color else Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(name, color = if (isSelected) color else TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
@@ -208,7 +207,7 @@ fun SmartPublishScheduleDialog(
                         // Custom time (موعد مخصص يكتبه المستخدم)
                         item {
                             Column {
-                                Text("موعد مخصص ⏱️ (اختياري)", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("موعد مخصص ⏱️ (اختياري)", color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedTextField(
@@ -218,10 +217,10 @@ fun SmartPublishScheduleDialog(
                                         singleLine = true,
                                         modifier = Modifier.weight(1f),
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color(0xFF1E293B),
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
+                                            focusedBorderColor = PresetPrimary,
+                                            unfocusedBorderColor = ThemeSecondarySurface,
+                                            focusedTextColor = TextPrimary,
+                                            unfocusedTextColor = TextPrimary
                                         ),
                                         shape = RoundedCornerShape(10.dp)
                                     )
@@ -232,10 +231,10 @@ fun SmartPublishScheduleDialog(
                                         singleLine = true,
                                         modifier = Modifier.weight(1f),
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = GoldPrimary,
-                                            unfocusedBorderColor = Color(0xFF1E293B),
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
+                                            focusedBorderColor = PresetPrimary,
+                                            unfocusedBorderColor = ThemeSecondarySurface,
+                                            focusedTextColor = TextPrimary,
+                                            unfocusedTextColor = TextPrimary
                                         ),
                                         shape = RoundedCornerShape(10.dp)
                                     )
@@ -247,9 +246,9 @@ fun SmartPublishScheduleDialog(
                         item {
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AutoGraph, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.AutoGraph, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("مواعيد النشر المثالية بناءً على تفاعل الجمهور 📊", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("مواعيد النشر المثالية بناءً على تفاعل الجمهور 📊", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -259,8 +258,8 @@ fun SmartPublishScheduleDialog(
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .background(if (isSelected) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF151B2B), RoundedCornerShape(12.dp))
-                                                .border(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                                                .background(if (isSelected) PresetPrimary.copy(alpha = 0.15f) else CardSurface, RoundedCornerShape(12.dp))
+                                                .border(1.dp, if (isSelected) PresetPrimary else ThemeSecondarySurface, RoundedCornerShape(12.dp))
                                                 .clickable { selectedSlot = slot }
                                                 .padding(10.dp)
                                         ) {
@@ -274,21 +273,21 @@ fun SmartPublishScheduleDialog(
                                                         RadioButton(
                                                             selected = isSelected,
                                                             onClick = { selectedSlot = slot },
-                                                            colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary)
+                                                            colors = RadioButtonDefaults.colors(selectedColor = PresetPrimary)
                                                         )
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text(slot.timeLabel, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                        Text(slot.timeLabel, color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                                     }
 
                                                     Surface(
                                                         shape = RoundedCornerShape(6.dp),
-                                                        color = if (slot.isRecommended) Color(0xFF4CAF50).copy(alpha = 0.2f) else Color(0xFF3B82F6).copy(alpha = 0.2f),
-                                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (slot.isRecommended) Color(0xFF4CAF50) else Color(0xFF3B82F6))
+                                                        color = if (slot.isRecommended) ThemeSuccess.copy(alpha = 0.2f) else PresetPrimary.copy(alpha = 0.2f),
+                                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (slot.isRecommended) ThemeSuccess else PresetPrimary)
                                                     ) {
                                                         Text(
                                                             if (slot.id == "custom_time") "موعدك ⏱️" else "${slot.engagementScore}% تفاعل 🚀",
                                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                            color = if (slot.isRecommended) Color(0xFF4CAF50) else Color(0xFF60A5FA),
+                                                            color = if (slot.isRecommended) ThemeSuccess else PresetPrimary,
                                                             fontFamily = CairoFont,
                                                             fontSize = 10.sp,
                                                             fontWeight = FontWeight.Bold
@@ -315,9 +314,9 @@ fun SmartPublishScheduleDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(40.dp))
+                                Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(40.dp))
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("لا توجد تذكيرات نشر مجدولة حالياً", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                Text("لا توجد تذكيرات نشر مجدولة حالياً", color = TextTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                             }
                         }
                     } else {
@@ -332,7 +331,7 @@ fun SmartPublishScheduleDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(CardSurface, RoundedCornerShape(10.dp))
-                                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(10.dp))
+                                        .border(1.dp, ThemeSecondarySurface, RoundedCornerShape(10.dp))
                                         .padding(10.dp)
                                 ) {
                                     Row(
@@ -342,19 +341,19 @@ fun SmartPublishScheduleDialog(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.AccessTime, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                                Icon(Icons.Default.AccessTime, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text(item.formattedTime, color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                Text(item.formattedTime, color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Surface(
                                                     shape = RoundedCornerShape(4.dp),
-                                                    color = Color(0xFF0B0F19)
+                                                    color = DeepSlate
                                                 ) {
-                                                    Text(item.platformName, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                                    Text(item.platformName, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                                 }
                                             }
                                             Spacer(modifier = Modifier.height(4.dp))
-                                            Text(item.title, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text(item.title, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
 
                                         IconButton(onClick = {
@@ -362,7 +361,7 @@ fun SmartPublishScheduleDialog(
                                             scheduledList = SocialAccountManager.getActiveScheduledPublishItems(context)
                                             Toast.makeText(context, "تم إلغاء التذكير 🗑️", Toast.LENGTH_SHORT).show()
                                         }) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color.Red.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = ThemeDestructive.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
@@ -395,7 +394,7 @@ fun SmartPublishScheduleDialog(
                         activeTab = 1
                     },
                     modifier = Modifier.fillMaxWidth().height(46.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(Icons.Default.AlarmAdd, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -406,7 +405,7 @@ fun SmartPublishScheduleDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("إغلاق", color = Color.Gray, fontFamily = CairoFont)
+                Text("إغلاق", color = TextTertiary, fontFamily = CairoFont)
             }
         }
     )

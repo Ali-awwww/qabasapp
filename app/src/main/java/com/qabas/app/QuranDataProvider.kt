@@ -27,25 +27,6 @@ data class QuranSurahItem(
     val virtue: String? = null // فضل السورة
 )
 
-data class QuranChallenge(
-    val id: String,
-    val title: String,
-    val goal: String,
-    val progress: Float,
-    val rewardHasanat: Int,
-    val icon: String,
-    val type: ChallengeType
-)
-
-enum class ChallengeType {
-    READING, MEMORIZATION, TAJWEED
-}
-
-data class TajweedRuleItem(
-    val title: String,
-    val category: String,
-    val description: String,
-)
 
 data class QuranVerseDetail(
     val surahNumber: Int,
@@ -184,16 +165,22 @@ object QuranDataProvider {
 
     private val remoteTafsirCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    /** ملاذ شبكي صادق: تفسير الميسر عربي من spa5k/tafsir_api عبر CDN (بلا مفتاح). null عند الفشل */
-    suspend fun fetchRemoteTafsir(surahId: Int, ayah: Int): String? {
+    /**
+     * تفسير السعدي وحده من QuranEnc، مفتاح arabic_saadi (فُحص حياً
+     * 2026-11-22: يعيد 200) — جلب شبكي صرف بلا رجوع إلى التفسير
+     * الميسر المحلي، ليصحّ ملاذاً لكتاب السعدي في fetchTafsirForBook
+     * دون خلط المصدرين. المفتاح السابق arabic_moyassar يعيد 404.
+     * تنبيه: رد QuranEnc يحمل عنصرين — عنصر type="المقطع" وهو نص الآية
+     * نفسها (لا تفسير)، وعنصر type="تفسير آية" وهو التفسير المطلوب؛
+     * المحلل يتخطى "المقطع" صراحةً وإلا عُرض نص الآية على أنه تفسير.
+     * null عند الفشل.
+     */
+    suspend fun fetchQuranEncSaadi(surahId: Int, ayah: Int): String? {
         if (surahId !in 1..114 || ayah !in 1..286) return null
         val key = "$surahId:$ayah"
-        tafsirMap?.get(key)?.takeIf { it.isNotBlank() }?.let { return it }
         remoteTafsirCache[key]?.let { return it }
-
         return try {
-            // المصدر الرسمي لواجهة التفسير الميسر: QuranEnc، مفتاح arabic_moyassar.
-            val url = "https://quranenc.com/api/v1/tafsir/aya/arabic_moyassar/$surahId/$ayah"
+            val url = "https://quranenc.com/api/v1/tafsir/aya/arabic_saadi/$surahId/$ayah"
             val request = okhttp3.Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
@@ -223,6 +210,8 @@ object QuranDataProvider {
             val passages = LinkedHashSet<String>()
             for (index in 0 until blocks.length()) {
                 val block = blocks.optJSONObject(index) ?: continue
+                // عنصر "المقطع" هو نص الآية نفسها لا تفسيرها — يُتخطى.
+                if (block.optString("type") == "المقطع") continue
                 val blockSurah = block.optInt("sura", surahId)
                 val fromAyah = block.optInt("from_aya", ayah)
                 val toAyah = block.optInt("to_aya", ayah)
@@ -234,17 +223,709 @@ object QuranDataProvider {
             val text = passages.joinToString("\n\n")
             if (text.isBlank()) null else {
                 remoteTafsirCache[key] = text
-                val mutable = (tafsirMap ?: emptyMap()).toMutableMap()
-                mutable[key] = text
-                tafsirMap = mutable
                 text
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            Log.w(TAG, "Unable to load Tafsir Muyassar for $key", error)
+            Log.w(TAG, "Unable to load Tafsir Saadi from QuranEnc for $key", error)
             null
         }
+    }
+
+    // ========================================================================
+    // كتب التفسير والإعراب (قسم القرآن — الكتب): spa5k/tafsir_api (MIT)
+    // عبر jsDelivr، وalquran.cloud للجلالين.
+    //
+    // كل ملف آية في spa5k بصيغة {"text","ayah","surah"} (فُحص حياً
+    // 2026-11-22)؛ والنصوص الكلاسيكية الطويلة (ابن كثير، الطبري) تحمل
+    // علامات تحقيق [[...]] تُنظَّف عند العرض فقط — التنظيف يمس نص
+    // التفسير/الإعراب المنقول وحده، ولا يمس نص الآية أبداً.
+    // استثناء: إشعار «اختُصِرَ كلام المؤلف لشدة طوله» يُستخرج قبل
+    // التنظيف ويُعرض كملاحظة مع النص المختصر (تحقق حياً 2026-11-23:
+    // ابن كثير 2:102 ينتهي به) — لا حذف صامت لإشعار يفيد الاختصار.
+    // تنبيه السعدي: المعرّف الصحيح للعرض آيةً آيةً هو
+    // ar-tafseer-al-saddi (id 24)؛ أما ar-tafsir-as-saadi (id 308)
+    // فيعيد السورة كاملة في كل ملف آية فلا يُستعمل أبداً.
+    // ========================================================================
+
+    private val spa5kBookCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * نتيجة تنظيف نص تفسير: النص بعد نزع علامات التحقيق، وإشعار
+     * الاختصار المستخرج قبل التنظيف (إن وجد) ليعرض كملاحظة صادقة
+     * مع النص المختصر بدل حذفه صامتاً.
+     */
+    private data class CleanedTafsirText(val text: String, val abbreviationNotice: String?)
+
+    /**
+     * تنظيف علامات التحقيق [[...]] من نص تفسير/إعراب شبكي، ودمج الأسطر
+     * الفارغة الزائدة. للنص المنقول فقط — لا يُستدعى على نص آية أبداً.
+     * استثناء واحد: إشعار «اختُصِرَ كلام المؤلف لشدة طوله» لا يُحذف
+     * صامتاً — يُستخرج قبل التنظيف (بنصه الحرفي من المصدر، بعد نزع
+     * قوسي التحقيق وتوحيد الفراغات فقط) فيعيده المستدعي كملاحظة
+     * مع النص المختصر، فالقارئ يعلم أن ما يقرؤه مختصر.
+     */
+    private fun cleanTafsirEditorialNotes(text: String): CleanedTafsirText {
+        val editorialRegex = Regex("(?s)\\[\\[.*?\\]\\]")
+        val abbreviationNotice = editorialRegex.findAll(text)
+            .map { it.value.removePrefix("[[").removeSuffix("]]").trim() }
+            .firstOrNull { inner ->
+                val plain = inner.replace(Regex("[\\u064B-\\u0652\\u0640\\u0670]"), "")
+                plain.contains("اختص") && plain.contains("طول")
+            }
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val cleaned = text.replace(editorialRegex, "")
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+        return CleanedTafsirText(cleaned, abbreviationNotice)
+    }
+
+    /**
+     * نص آية واحدة من كتاب في spa5k/tafsir_api (MIT) عبر jsDelivr
+     * (الإصدار المثبّت v1.2.3): GET
+     * cdn.jsdelivr.net/gh/spa5k/tafsir_api@v1.2.3/tafsir/{book}/{surah}/{ayah}.json
+     * وحقل النص هو "text". ذاكرة مؤقتة بمفتاح "كتاب:سورة:آية".
+     * null عند أي فشل (لا اتصال، 404، استجابة فارغة).
+     */
+    suspend fun fetchSpa5kBook(bookSlug: String, surahId: Int, ayah: Int): String? {
+        if (bookSlug.isBlank() || surahId !in 1..114 || ayah !in 1..286) return null
+        val key = "$bookSlug:$surahId:$ayah"
+        spa5kBookCache[key]?.let { return it }
+        return try {
+            val url = "https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@v1.2.3/tafsir/$bookSlug/$surahId/$ayah.json"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val rawText = try {
+                JSONObject(body).optString("text", "")
+            } catch (_: Exception) {
+                ""
+            }
+            val cleaned = cleanTafsirEditorialNotes(rawText)
+            // إشعار الاختصار (إن وجد) يُلحق بنصه الحرفي من المصدر
+            // كملاحظة لا كجزء من التفسير — لا حذف نصاً ولا إضافة نص
+            // من عندنا؛ القارئ يعلم أن المعروض مختصر. تحقق حياً:
+            // ابن كثير 2:102 ينتهي بـ [[اختُصِرَ كلام المؤلف لشدة طوله]].
+            val text = if (cleaned.abbreviationNotice != null) {
+                "${cleaned.text}\n\n— ملاحظة من المصدر: ${cleaned.abbreviationNotice}".trim()
+            } else {
+                cleaned.text
+            }
+            if (text.isBlank()) null else {
+                spa5kBookCache[key] = text
+                text
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load spa5k book $bookSlug for $surahId:$ayah", e)
+            null
+        }
+    }
+
+    /** كتاب تفسير يُعرض في لوحة الدراسة ومكتبة الكتب. */
+    data class MushafTafsirBook(
+        val id: String,
+        val arabicName: String,
+        val author: String,
+        val source: String,
+        val offline: Boolean
+    )
+
+    /**
+     * الكتب الثلاثة المضافة لاحقاً — كلها من spa5k/tafsir_api (MIT)،
+     * وفُحصت عيناتها حياً 2026-11-22 للآية 1:1 (HTTP 200 + نص حقيقي
+     * بصيغة {"text","ayah","surah"}): القرطبي (181,029 بايت)، البغوي
+     * (53,576 بايت)، الوسيط (7,364 بايت). المؤلفون موثقون من فهرس
+     * إصدارات spa5k (author_name) ومكتبة ترتيل القرآنية:
+     * القرطبي — محمد بن أحمد القرطبي (الجامع لأحكام القرآن)؛ البغوي —
+     * الحسين بن مسعود البغوي (معالم التنزيل)؛ الوسيط — محمد سيد طنطاوي.
+     */
+    val MUSHAF_EXTRA_TAFSIR_BOOKS: List<MushafTafsirBook> = listOf(
+        MushafTafsirBook(
+            id = "qurtubi",
+            arabicName = "تفسير القرطبي — الجامع لأحكام القرآن",
+            author = "محمد بن أحمد القرطبي",
+            source = "spa5k/tafsir_api (MIT)",
+            offline = false
+        ),
+        MushafTafsirBook(
+            id = "baghawi",
+            arabicName = "تفسير البغوي — معالم التنزيل",
+            author = "الحسين بن مسعود البغوي",
+            source = "spa5k/tafsir_api (MIT)",
+            offline = false
+        ),
+        MushafTafsirBook(
+            id = "wasit",
+            arabicName = "التفسير الوسيط للقرآن الكريم",
+            author = "محمد سيد طنطاوي",
+            source = "spa5k/tafsir_api (MIT)",
+            offline = false
+        )
+    )
+
+    /**
+     * كتب التفسير الثمانية — كلها فُحصت نصوصها حياً 2026-11-22:
+     * الميسر ملف محلي (6,236 مدخلاً)؛ السعدي وابن كثير والطبري من
+     * spa5k/tafsir_api (MIT)؛ الجلالين من alquran.cloud؛ والثلاثة
+     * الأخيرة من MUSHAF_EXTRA_TAFSIR_BOOKS (فُحصت عينات 1:1 حياً).
+     */
+    val MUSHAF_TAFSIR_BOOKS: List<MushafTafsirBook> = listOf(
+        MushafTafsirBook(
+            id = "muyassar",
+            arabicName = "التفسير الميسر",
+            author = "مجمع الملك فهد لطباعة المصحف الشريف",
+            source = "ملف محلي مضمّن في التطبيق",
+            offline = true
+        ),
+        MushafTafsirBook(
+            id = "saadi",
+            arabicName = "تفسير السعدي — تيسير الكريم الرحمن",
+            author = "عبد الرحمن بن ناصر السعدي",
+            source = "spa5k/tafsir_api (MIT)",
+            offline = false
+        ),
+        MushafTafsirBook(
+            id = "ibn-kathir",
+            arabicName = "تفسير ابن كثير",
+            author = "الحافظ ابن كثير",
+            source = "spa5k/tafsir_api (MIT)",
+            offline = false
+        ),
+        MushafTafsirBook(
+            id = "tabari",
+            arabicName = "تفسير الطبري — جامع البيان",
+            author = "أبو جعفر الطبري",
+            source = "spa5k/tafsir_api (MIT)",
+            offline = false
+        ),
+        MushafTafsirBook(
+            id = "jalalayn",
+            arabicName = "تفسير الجلالين",
+            author = "جلال الدين المحلي وجلال الدين السيوطي",
+            source = "alquran.cloud",
+            offline = false
+        )
+    ) + MUSHAF_EXTRA_TAFSIR_BOOKS
+
+    private val jalalaynCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * تفسير الجلالين لآية واحدة من alquran.cloud (فُحص حياً 2026-11-22):
+     * GET api.alquran.cloud/v1/ayah/{surah}:{ayah}/ar.jalalayn،
+     * والنص في data.text. null عند أي فشل.
+     */
+    suspend fun fetchJalalayn(surahId: Int, ayah: Int): String? {
+        if (surahId !in 1..114 || ayah !in 1..286) return null
+        val key = "$surahId:$ayah"
+        jalalaynCache[key]?.let { return it }
+        return try {
+            val url = "https://api.alquran.cloud/v1/ayah/$surahId:$ayah/ar.jalalayn"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val text = try {
+                JSONObject(body).optJSONObject("data")?.optString("text", "")?.trim().orEmpty()
+            } catch (_: Exception) {
+                ""
+            }
+            if (text.isBlank()) null else {
+                jalalaynCache[key] = text
+                text
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load Jalalayn for $surahId:$ayah", e)
+            null
+        }
+    }
+
+    /**
+     * تفسير آية من كتاب محدد بالمعرّف:
+     * - muyassar: الميسر المحلي وحده (getTafsirForVerse) — null عند
+     *   الغياب، بلا ملاذ صامت لكتاب آخر.
+     * - saadi: spa5k (ar-tafseer-al-saddi) وعند الفشل ملاذ QuranEnc
+     *   (fetchQuranEncSaadi — السعدي وحده، بلا خلط بالميسر).
+     * - ibn-kathir / tabari: spa5k.
+     * - jalalayn: alquran.cloud.
+     * - qurtubi / baghawi / wasit: spa5k (فُحصت عينات 1:1 حياً).
+     * معرّف غير معروف يرجع الميسر المحلي. null عند الفشل أو الغياب.
+     */
+    suspend fun fetchTafsirForBook(bookId: String, surahId: Int, ayah: Int): String? {
+        return when (bookId) {
+            "muyassar" -> getTafsirForVerse(surahId, ayah)
+            "saadi" -> fetchSpa5kBook("ar-tafseer-al-saddi", surahId, ayah)
+                ?: fetchQuranEncSaadi(surahId, ayah)
+            "ibn-kathir" -> fetchSpa5kBook("ar-tafsir-ibn-kathir", surahId, ayah)
+            "tabari" -> fetchSpa5kBook("ar-tafsir-al-tabari", surahId, ayah)
+            "jalalayn" -> fetchJalalayn(surahId, ayah)
+            "qurtubi" -> fetchSpa5kBook("ar-tafseer-al-qurtubi", surahId, ayah)
+            "baghawi" -> fetchSpa5kBook("ar-tafsir-al-baghawi", surahId, ayah)
+            "wasit" -> fetchSpa5kBook("ar-tafsir-al-wasit", surahId, ayah)
+            else -> getTafsirForVerse(surahId, ayah)
+        }
+    }
+
+    /**
+     * إعراب آية واحدة من spa5k/tafsir_api (MIT) — يعيد استعمال
+     * fetchSpa5kBook مع التنظيف نفسه لعلامات التحقيق [[...]]:
+     * - muyassar: الإعراب الميسر (al-i-rab-al-muyassar)
+     * - darwish: إعراب القرآن للدرويش (i-rab-al-quran-li-al-darwish)
+     * null عند الفشل أو الغياب.
+     */
+    suspend fun fetchIrab(bookId: String, surahId: Int, ayah: Int): String? {
+        val slug = when (bookId) {
+            "muyassar" -> "al-i-rab-al-muyassar"
+            "darwish" -> "i-rab-al-quran-li-al-darwish"
+            else -> return null
+        }
+        return fetchSpa5kBook(slug, surahId, ayah)
+    }
+
+    // ========================================================================
+    // كتب كاملة من quranpedia (قسم القرآن — الكتب): تُجلب شبكياً عند
+    // الطلب فقط، ولا يُضمَّن نص أي كتاب في التطبيق — رخص إعادة توزيع
+    // quranpedia لم تُدقَّق لكل كتاب.
+    //
+    // الشكل الفعلي (فُحص حياً 2026-11-22 بجلْب book-1727 وbook-439
+    // وbook-89 كاملة): JSON بمفتاحين — "chapters": مصفوفة {name, id,
+    // parent_id, part, children}، و"contents": مصفوفة {id, chapter_id,
+    // text, ayah_from, ayah_to, related_ayahs}. حقول ayah_from و
+    // ayah_to وrelated_ayahs فارغة في هذه الكتب (بلا ربط بالآيات)،
+    // والربط الوحيد هو chapter_id — وقد يشير إلى فصل فرعي في
+    // children (كتاب 439)، فتُسطَّح الفروع مع اسم أبيها في المحلل،
+    // وقد يكون أدقّ من الفصول المعرَضة أصلاً فيُلحق المقطع بآخر
+    // فصل معروف سبقه في ترتيب الملف (انظر fetchQuranPediaBook).
+    // (<br />, <span>, <strong>, <p>) تُنزع عند العرض فقط — النزع
+    // يمس الوسوم وحدها ولا يغيّر كلمة من النص المنقول.
+    // ========================================================================
+
+    /** فصل في كتاب quranpedia كامل. */
+    data class QuranPediaBookChapter(val id: Int, val name: String)
+
+    /** مقطع نصي في كتاب quranpedia كامل، منسوب إلى فصله عبر chapterId. */
+    data class QuranPediaBookContent(val id: Int, val chapterId: Int, val text: String)
+
+    /** كتاب quranpedia كامل بعد التحليل: فصوله ومقاطعه بنصوص نظيفة. */
+    data class QuranPediaBook(
+        val chapters: List<QuranPediaBookChapter>,
+        val contents: List<QuranPediaBookContent>
+    )
+
+    /** بطاقة كتاب كامل في quranpedia (البيانات الوصفية فقط، بلا نص). */
+    data class QuranPediaBookInfo(
+        val id: Int,
+        val arabicTitle: String,
+        val author: String,
+        val source: String
+    )
+
+    /**
+     * الكتب الكاملة الثلاثة — فُحصت روابط محتوياتها حياً 2026-11-22
+     * (HTTP 200): 1727 (104,965 بايت، 5 فصول، 40 مقطعاً)، 439
+     * (1,313,242 بايت، 6 فصول، 299 مقطعاً)، 89 (209,599 بايت،
+     * 17 فصلاً، 61 مقطعاً).
+     */
+    val MUSHAF_QURANPEDIA_BOOKS: List<QuranPediaBookInfo> = listOf(
+        QuranPediaBookInfo(
+            id = 1727,
+            arabicTitle = "فوائد منتقاة من تفسير ابن كثير",
+            author = "عبد الله زقيل",
+            source = "quranpedia.net"
+        ),
+        QuranPediaBookInfo(
+            id = 439,
+            arabicTitle = "من بلاغة القرآن",
+            author = "أحمد أحمد بدوي",
+            source = "quranpedia.net"
+        ),
+        QuranPediaBookInfo(
+            id = 89,
+            arabicTitle = "الوجيز في علم التجويد",
+            author = "محمود سيبويه البدوي",
+            source = "quranpedia.net"
+        )
+    )
+
+    private val quranPediaBookCache =
+        java.util.concurrent.ConcurrentHashMap<Int, QuranPediaBook>()
+
+    /**
+     * تنظيف وسوم HTML من نص مقطع quranpedia: <br> إلى سطر جديد، ثم
+     * نزع سائر الوسوم، وفك الكيانات الشائعة، ودمج الأسطر الفارغة
+     * الزائدة. للنص المنقول فقط — لا يُستدعى على نص آية أبداً.
+     */
+    private fun cleanQuranPediaHtml(text: String): String =
+        text.replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("<[^>]+>"), "")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&nbsp;", " ")
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+
+    /**
+     * كتاب quranpedia كامل: GET api.quranpedia.net/books-contents/book-{id}.json
+     * (الفهرس الكامل books.json.gz يؤكد المعرّفات). يُحلَّل على الشكل
+     * الفعلي: chapters (name/id) وcontents (id/chapter_id/text).
+     * ذاكرة مؤقتة لكل كتاب. null عند أي فشل أو فراغ.
+     * ملاحظة: أكبر الكتب (439) 1.3 ميغابايت فمهلة القراءة 30 ثانية.
+     */
+    suspend fun fetchQuranPediaBook(bookId: Int): QuranPediaBook? {
+        quranPediaBookCache[bookId]?.let { return it }
+        return try {
+            val url = "https://api.quranpedia.net/books-contents/book-$bookId.json"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val chapters = ArrayList<QuranPediaBookChapter>()
+            val contents = ArrayList<QuranPediaBookContent>()
+            try {
+                val root = JSONObject(body)
+                val chaptersJson = root.optJSONArray("chapters") ?: JSONArray()
+                // الفصول قد تتداخل: فصل أب يحمل children بمعرّفاتها
+                // (كتاب 439: «الكتاب الأول» أب لخمسة فصول فرعية)،
+                // والمقاطع مرتبطة بمعرّفات الفروع لا الأب — فتُسطَّح
+                // الفروع بعد أبيها مباشرةً، باسم «الأب — الفرع»، وإلا
+                // بقيت معظم مقاطع الكتاب بلا فصل يصل إليها.
+                fun addChapter(chapterJson: JSONObject, parentName: String?) {
+                    val name = chapterJson.optString("name", "").trim()
+                    if (name.isBlank()) return
+                    val displayName =
+                        if (parentName.isNullOrBlank()) name else "$parentName — $name"
+                    chapters.add(QuranPediaBookChapter(chapterJson.optInt("id"), displayName))
+                    val childrenJson = chapterJson.optJSONArray("children") ?: JSONArray()
+                    for (childIndex in 0 until childrenJson.length()) {
+                        addChapter(
+                            childrenJson.optJSONObject(childIndex) ?: continue,
+                            displayName
+                        )
+                    }
+                }
+                for (index in 0 until chaptersJson.length()) {
+                    addChapter(chaptersJson.optJSONObject(index) ?: continue, null)
+                }
+                val contentsJson = root.optJSONArray("contents") ?: JSONArray()
+                // المقاطع مرتّبة ترتيب الكتاب، ومعرّف chapter_id فيها
+                // أدقّ من بنية الفصول المعرَضة: فصل معروف يملك كل ما
+                // يليه حتى الفصل المعروف التالي (كتاب 439: فصوله الـ13
+                // المعرَضة تقابل ~60 معرّف مقطع). فيُلحق كل مقطع بآخر
+                // فصل معروف سبقه في ترتيب الملف، وإلا بأول فصل؛ فلا
+                // يبقى مقطع بلا فصل يصل إليه. هذا ربط موضعي لا موثّق:
+                // قيس حياً 2026-11-23 أن 240 من 299 مقطعاً في كتاب 439
+                // تحمل chapter_id غير وارد في قائمة فصوله (48 من 61
+                // معرّفاً)، فتجميع معظم مقاطعه موضعي لا فصلي مؤكد؛
+                // أما كتابا 1727 (0 من 40) و89 (0 من 61) فمطابقان
+                // تماماً. وقارئ الكتب ينبّه لهذا في تسميته.
+                val knownChapterIds = chapters.map { it.id }.toSet()
+                var currentChapterId: Int? = chapters.firstOrNull()?.id
+                for (index in 0 until contentsJson.length()) {
+                    val content = contentsJson.optJSONObject(index) ?: continue
+                    val text = cleanQuranPediaHtml(content.optString("text", ""))
+                    if (text.isBlank()) continue
+                    val contentChapterId = content.optInt("chapter_id")
+                    if (contentChapterId in knownChapterIds) {
+                        currentChapterId = contentChapterId
+                    }
+                    contents.add(
+                        QuranPediaBookContent(
+                            content.optInt("id"),
+                            currentChapterId ?: contentChapterId,
+                            text
+                        )
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
+                return null
+            }
+            if (chapters.isEmpty() || contents.isEmpty()) null else {
+                val book = QuranPediaBook(chapters, contents)
+                quranPediaBookCache[bookId] = book
+                book
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load quranpedia book $bookId", e)
+            null
+        }
+    }
+
+    // ========================================================================
+    // أسباب النزول (قسم القرآن — الكتب): مستودع
+    // mostafaahmed97/asbab-al-nuzul-dataset (MIT، فرع main) — مصدره كتاب
+    // «صحيح أسباب النزول دراسة حديثية» لإبراهيم محمد العلي. ملف JSON
+    // لكل سورة (data/structured/json/NNN.json بصيغة 3 أرقام): مصفوفة
+    // مدخلات {surah:int, ayahs:[int], occasions:[string]} (فُحص حياً
+    // 2026-11-22: 50 سورة فقط، 200 مدخل، 277 آية، 303 أسباب). 64 سورة
+    // بلا ملف أصلاً — الغياب يُميَّز عن الفشل: HTTP 404 يعني السورة
+    // بلا ملف فيُعاد خريطة فارغة، وأي فشل آخر يعيد null.
+    // ========================================================================
+
+    private val asbabSurahCache = java.util.concurrent.ConcurrentHashMap<Int, Map<Int, List<String>>>()
+
+    /**
+     * خريطة أسباب نزول سورة كاملة (آية ← قائمة أسباب)؛ قد تظهر الآية
+     * في أكثر من مدخل فتُجمع أسبابها. ذاكرة مؤقتة لكل سورة، وتُحفظ فيها
+     * الخريطة الفارغة أيضاً للسور بلا ملف. null عند فشل الشبكة فقط.
+     */
+    suspend fun fetchAsbabForSurah(surahId: Int): Map<Int, List<String>>? {
+        if (surahId !in 1..114) return null
+        asbabSurahCache[surahId]?.let { return it }
+        return try {
+            val fileName = surahId.toString().padStart(3, '0')
+            val url = "https://raw.githubusercontent.com/mostafaahmed97/asbab-al-nuzul-dataset/main/data/structured/json/$fileName.json"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val (code, body) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    response.code to
+                        if (response.isSuccessful) response.body?.string().orEmpty() else ""
+                }
+            }
+            // 404 = السورة بلا ملف أسباب نزول في المستودع (64 سورة) —
+            // غياب بيانات لا فشل شبكة.
+            if (code == 404) {
+                val empty = emptyMap<Int, List<String>>()
+                asbabSurahCache[surahId] = empty
+                return empty
+            }
+            if (body.isBlank()) return null
+            val array = try {
+                JSONArray(body)
+            } catch (_: Exception) {
+                return null
+            }
+            val built = LinkedHashMap<Int, MutableList<String>>()
+            for (index in 0 until array.length()) {
+                val entry = array.optJSONObject(index) ?: continue
+                if (entry.optInt("surah", -1) != surahId) continue
+                val ayahs = entry.optJSONArray("ayahs") ?: continue
+                val occasions = entry.optJSONArray("occasions") ?: continue
+                for (a in 0 until ayahs.length()) {
+                    val ayah = ayahs.optInt(a, 0)
+                    if (ayah < 1) continue
+                    val list = built.getOrPut(ayah) { ArrayList() }
+                    for (o in 0 until occasions.length()) {
+                        val occasion = occasions.optString(o, "").trim()
+                        if (occasion.isNotBlank() && !list.contains(occasion)) {
+                            list.add(occasion)
+                        }
+                    }
+                }
+            }
+            val result: Map<Int, List<String>> = built
+            asbabSurahCache[surahId] = result
+            result
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load asbab al-nuzul for surah $surahId", e)
+            null
+        }
+    }
+
+    /**
+     * أسباب نزول آية واحدة: null عند فشل الشبكة، وقائمة فارغة عند
+     * غياب سبب مسجّل لهذه الآية في المصدر.
+     */
+    suspend fun fetchAsbabForVerse(surahId: Int, ayah: Int): List<String>? {
+        val map = fetchAsbabForSurah(surahId) ?: return null
+        return map[ayah] ?: emptyList()
+    }
+
+    // ========================================================================
+    // الآيات المشابهة — المتشابهات (قسم القرآن — الكتب): مستودع
+    // Waqar144/Quran_Mutashabihat_Data (CC0 1.0، فرع master)، ملف واحد
+    // mutashabiha_data.json (فُحص حياً 2026-11-22: 1,348 موضعاً).
+    // الشكل: كائن مفاتيحه الأجزاء "1"–"30"؛ كل مدخل {src:{ayah},
+    // muts:[{ayah}...], ctx?}، و"ayah" رقم آية عالمي (1–6236) أو نطاق
+    // [a,b] يُفكّ إلى a..b. ليست قائمة شاملة — الأكثر إرباكاً للحفّاظ
+    // فقط حسب README — ولا تغطي العالميات 6,201–6,236 إطلاقاً.
+    // التحويل عالمي ← (سورة:آية) يُحسب من surahs (versesCount): بداية
+    // السورة = 1 + مجموع آيات ما قبلها.
+    // ========================================================================
+
+    @Volatile
+    private var mutashabihatMap: Map<Int, List<Int>>? = null
+
+    /** فكّ قيمة آية في ملف المتشابهات: عدد صحيح أو نطاق [a,b]. */
+    private fun expandMutashabihatAyah(value: Any?): List<Int> {
+        return when (value) {
+            is Number -> listOf(value.toInt())
+            is JSONArray -> {
+                if (value.length() == 2) {
+                    val first = value.optInt(0, 0)
+                    val last = value.optInt(1, 0)
+                    if (first > 0 && last >= first) (first..last).toList() else emptyList()
+                } else {
+                    (0 until value.length())
+                        .map { value.optInt(it, 0) }
+                        .filter { it > 0 }
+                }
+            }
+            else -> emptyList()
+        }
+    }
+
+    /**
+     * خريطة المتشابهات كاملة (آية عالمية ← قائمة آيات عالمية مشابهة،
+     * مرتبة بلا تكرار)؛ تُجلب مرة واحدة وتُحفظ. null عند أي فشل.
+     */
+    suspend fun fetchMutashabihat(): Map<Int, List<Int>>? {
+        mutashabihatMap?.let { return it }
+        return try {
+            val url = "https://raw.githubusercontent.com/Waqar144/Quran_Mutashabihat_Data/master/mutashabiha_data.json"
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(18, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val body = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext ""
+                    response.body?.string().orEmpty()
+                }
+            }
+            if (body.isBlank()) return null
+            val root = try {
+                JSONObject(body)
+            } catch (_: Exception) {
+                return null
+            }
+            val built = HashMap<Int, LinkedHashSet<Int>>()
+            val juzKeys = root.keys()
+            while (juzKeys.hasNext()) {
+                val entries = root.optJSONArray(juzKeys.next()) ?: continue
+                for (index in 0 until entries.length()) {
+                    val entry = entries.optJSONObject(index) ?: continue
+                    val srcAyahs = expandMutashabihatAyah(entry.optJSONObject("src")?.opt("ayah"))
+                    val muts = entry.optJSONArray("muts") ?: continue
+                    val mutAyahs = ArrayList<Int>()
+                    for (m in 0 until muts.length()) {
+                        mutAyahs += expandMutashabihatAyah(muts.optJSONObject(m)?.opt("ayah"))
+                    }
+                    for (src in srcAyahs) {
+                        if (src !in 1..6236) continue
+                        val set = built.getOrPut(src) { LinkedHashSet() }
+                        for (mut in mutAyahs) {
+                            if (mut in 1..6236 && mut != src) set.add(mut)
+                        }
+                    }
+                }
+            }
+            val result: Map<Int, List<Int>> = built.mapValues { it.value.sorted() }
+            if (result.isEmpty()) null else {
+                mutashabihatMap = result
+                result
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to load mutashabihat data", e)
+            null
+        }
+    }
+
+    /**
+     * تحويل رقم آية عالمي (1–6236) إلى (سورة، آية داخل السورة).
+     * تحقق: 9 ← (2,2)، 1162 ← (8,2)، 3472 ← (31,3)، 6200 ← (107,3)،
+     * 6236 ← (114,6). null خارج النطاق.
+     */
+    fun globalAyahToSurahAyah(global: Int): Pair<Int, Int>? {
+        if (global < 1) return null
+        var start = 1
+        for (surah in surahs) {
+            val end = start + surah.versesCount - 1
+            if (global in start..end) return surah.id to (global - start + 1)
+            start = end + 1
+        }
+        return null
+    }
+
+    /**
+     * تحويل (سورة، آية) إلى رقم آية عالمي. -1 خارج النطاق.
+     * تحقق: (2,2) ← 9، (8,2) ← 1162، (31,3) ← 3472، (107,3) ← 6200،
+     * (114,6) ← 6236.
+     */
+    fun surahAyahToGlobal(surahId: Int, ayah: Int): Int {
+        if (surahId !in 1..114 || ayah < 1) return -1
+        // آية غير موجودة في سورتها (مثل 2:300) ليست رقماً عالمياً:
+        // كانت تُحسب رقماً وهمياً (7 + 300 = 307) فيُحوَّل عكسياً
+        // إلى آية أخرى تماماً — فتُرفض هنا.
+        val versesCount = surahs.firstOrNull { it.id == surahId }?.versesCount ?: return -1
+        if (ayah > versesCount) return -1
+        var total = ayah
+        for (surah in surahs) {
+            if (surah.id >= surahId) break
+            total += surah.versesCount
+        }
+        return total
+    }
+
+    /**
+     * الآيات المشابهة لآية واحدة كأزواج (سورة، آية)، مرتبة: قائمة
+     * فارغة عند غياب متشابهات مسجّلة أو فشل الجلب.
+     */
+    suspend fun fetchMutashabihatForVerse(surahId: Int, ayah: Int): List<Pair<Int, Int>> {
+        val global = surahAyahToGlobal(surahId, ayah)
+        if (global < 1) return emptyList()
+        val map = fetchMutashabihat() ?: return emptyList()
+        val similar = map[global] ?: return emptyList()
+        return similar.mapNotNull { globalAyahToSurahAyah(it) }
     }
 
     /**
@@ -511,9 +1192,6 @@ object QuranDataProvider {
     fun getVerseText(surahId: Int, ayah: Int): String? =
         versesMap?.get(surahId)?.firstOrNull { it.ayah == ayah }?.text
 
-    /** العدد الفعلي للآيات من ملف المصحف المحمّل، لا رقم ثابت في الواجهة. */
-    fun getTotalAyahCount(): Int = versesMap?.values?.sumOf { it.size } ?: 0
-
     /**
      * إرجاع آية عشوائية من النص القرآني المحمّل مع اسم السورة والتفسير المتاح.
      * تُرجع null عند عدم تحميل ملف المصحف بدلاً من اختلاق نص بديل.
@@ -532,15 +1210,21 @@ object QuranDataProvider {
     }
 
     /**
-     * آية اليوم (الدفعة 3): حتمية برقم يوم السنة — الآية نفسها لكل المستخدمين
-     * في اليوم نفسه، وتتغير كل يوم. تُرجع null عند عدم تحميل ملف المصحف
+     * آية اليوم (الدفعة 3): حتمية برقم اليوم — الآية نفسها لكل المستخدمين
+     * في اليوم نفسه، وتتغير كل يوم، وتدور على المصحف كاملاً (6,236 آية)
+     * خلال ~17 سنة. تُرجع null عند عدم تحميل ملف المصحف
      * بدلاً من اختلاق نص بديل.
      */
     fun getVerseOfDay(): QuranVerseDetail? {
         val loadedAyahs = versesMap?.values?.flatten()?.takeIf { it.isNotEmpty() } ?: return null
         val ordered = loadedAyahs.sortedWith(compareBy({ it.surah }, { it.ayah }))
-        val dayOfYear = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
-        val ayah = ordered[dayOfYear % ordered.size]
+        val cal = java.util.Calendar.getInstance()
+        // رقم اليوم منذ بداية التقويم (سنة × 366 + يوم السنة): يتقدم
+        // 1 كل يوم. أما رقم يوم السنة وحده (1..366) فكان يحصر «آية
+        // اليوم» في أول 366 آية أبداً (الفاتحة والبقرة وبداية آل عمران).
+        val dayIndex = cal.get(java.util.Calendar.YEAR) * 366 +
+            cal.get(java.util.Calendar.DAY_OF_YEAR)
+        val ayah = ordered[dayIndex % ordered.size]
         return QuranVerseDetail(
             surahNumber = ayah.surah,
             surahName = getSurahName(ayah.surah),
@@ -554,38 +1238,6 @@ object QuranDataProvider {
     /** اسم السورة علناً (يُستخدم في قارئ الصفحات). */
     fun surahNameOf(surahId: Int): String = getSurahName(surahId)
 
-    /**
-     * تحديات القرآن اليومية (نظام ربيع القلوب)
-     */
-    val dailyChallenges = listOf(
-        QuranChallenge(
-            id = "daily_reading",
-            title = "هدف قراءة مقترح 📖",
-            goal = "قراءة صفحتين من سورة البقرة",
-            progress = 0.0f,
-            rewardHasanat = 500,
-            icon = "MenuBook",
-            type = ChallengeType.READING
-        ),
-        QuranChallenge(
-            id = "memorization_intro",
-            title = "هدف حفظ مقترح 🧠",
-            goal = "حفظ أول 5 آيات من سورة الملك",
-            progress = 0.0f,
-            rewardHasanat = 1000,
-            icon = "AutoAwesome",
-            type = ChallengeType.MEMORIZATION
-        ),
-        QuranChallenge(
-            id = "virtue_explorer",
-            title = "هدف تدبّر مقترح ✨",
-            goal = "قراءة فضل سورة الكهف والعمل به",
-            progress = 0.0f,
-            rewardHasanat = 300,
-            icon = "Lightbulb",
-            type = ChallengeType.READING
-        )
-    )
 
     /**
      * قائمة الـ 114 سورة كاملة موثقة بالترتيب والتفاصيل
@@ -811,21 +1463,65 @@ object QuranDataProvider {
     // مصدران حقيقيان فقط، كلاهما عام بلا مفاتيح، وكلاهما تحققنا منه
     // بطلبات حية قبل الكتابة:
     // - الترجمة: QuranEnc (العائلة نفسها المستعملة لتفسير الميسر أعلاه)،
-    //   نقطة النهاية translation/sura/english_saheeh/{surah} — مكالمة
-    //   واحدة للسورة كاملة، ونصها ترجمة Saheeh International الإنجليزية.
+    //   نقطة النهاية translation/sura/{translation}/{surah} — مكالمة
+    //   واحدة للسورة كاملة؛ ثلاث ترجمات إنجليزية (Saheeh الافتراضية،
+    //   وHilali-Khan، وRowwad — انظر MUSHAF_TRANSLATIONS) يختار
+    //   المستخدم بينها، وتُحفظ الترجمة المختارة محلياً.
     //   أرقام الحواشي [2] [3] المضمّنة في النص تُحذف عند العرض فقط.
     // - الكلمات: واجهة Quran.com العامة api.quran.com (بلا توكن)، نقطة
     //   النهاية verses/by_key/{surah}:{ayah}?words=true — كل كلمة تحمل
     //   نصها العثماني ونقلها الصوتي (transliteration) وترجمتها الإنجليزية.
     //   وهي متميزة عن مسار apis.quran.foundation المقيّد بالتوكن المستعمل
     //   للتلاوة؛ لا توكن ولا مفاتيح هنا، فتعمل على المصحف كاملاً.
-    // - الإعراب والصرف وأسباب النزول والآيات المشابهة: لا مصدر موثّق
-    //   في التطبيق ولا في هاتين الواجهتين، فلم تُضف لها لوحات إطلاقاً.
+    // - الصرف: لا مصدر موثّق في التطبيق ولا في هذه الواجهات، فلم تُضف
+    //   له لوحة إطلاقاً.
+    // - الإعراب: مصدره الموثّق spa5k/tafsir_api (MIT) — كتابا الإعراب
+    //   الميسر والدرويش (انظر fetchIrab)، ويُعرض في لوحة الدراسة.
+    // - أسباب النزول: مصدرها الموثّق مستودع asbab-al-nuzul-dataset
+    //   (MIT) — 50 سورة فقط (انظر fetchAsbabForSurah)، وتُعرض في
+    //   لوحة الدراسة؛ والسور بلا ملف تعرض «لا يوجد سبب نزول مسجّل».
+    // - الآيات المشابهة: مصدرها الموثّق Quran_Mutashabihat_Data (CC0)
+    //   (انظر fetchMutashabihat)، وتُعرض في لوحة الدراسة — ليست شاملة
+    //   ولا تغطي العالميات 6,201–6,236.
     // الفشل (لا اتصال، خطأ خادم، استجابة فارغة) يعيد null — لا نص ملفّق.
     // ========================================================================
 
     /** اسم الترجمة المعروضة تحت الآيات وفي لوحة الدراسة. */
     const val MUSHAF_TRANSLATION_LABEL = "Saheeh International"
+
+    /** ترجمة إنجليزية تُعرض في القارئ ولوحة الدراسة ومكتبة الكتب. */
+    data class MushafTranslation(
+        val id: String,
+        val arabicName: String,
+        val label: String,
+        val source: String
+    )
+
+    /**
+     * الترجمات الإنجليزية الثلاث في QuranEnc (فُحصت حياً 2026-11-22:
+     * Saheeh وHilali-Khan بعينة سورة كاملة؛ Rowwad موجود في قائمة
+     * الترجمات الـ 76). كلها شبكية — لا ترجمة دون اتصال في التطبيق.
+     */
+    val MUSHAF_TRANSLATIONS: List<MushafTranslation> = listOf(
+        MushafTranslation(
+            id = "english_saheeh",
+            arabicName = "سهيه إنترناشيونال",
+            label = MUSHAF_TRANSLATION_LABEL,
+            source = "QuranEnc"
+        ),
+        MushafTranslation(
+            id = "english_hilali_khan",
+            arabicName = "هلالي وخان",
+            label = "Hilali & Khan",
+            source = "QuranEnc"
+        ),
+        MushafTranslation(
+            id = "english_rwwad",
+            arabicName = "الروّاد",
+            label = "Rowwad Translation Center",
+            source = "QuranEnc"
+        )
+    )
 
     /** كلمة قرآنية مع نقلها الصوتي وترجمتها الإنجليزية (من QF العام). */
     data class QuranWordStudy(
@@ -835,22 +1531,25 @@ object QuranDataProvider {
         val translation: String?
     )
 
-    private val surahTranslationCache = java.util.concurrent.ConcurrentHashMap<Int, Map<Int, String>>()
+    private val surahTranslationCache = java.util.concurrent.ConcurrentHashMap<String, Map<Int, String>>()
     private val verseWordsCache = java.util.concurrent.ConcurrentHashMap<String, List<QuranWordStudy>>()
 
-    /** خريطة ترجمة السورة المخزنة في الذاكرة (آية ← ترجمة)، أو null قبل الجلب. */
-    fun getCachedSurahTranslation(surahId: Int): Map<Int, String>? =
-        surahTranslationCache[surahId]
+    /** خريطة ترجمة السورة المخزنة في الذاكرة (ترجمة:سورة ← آية ← ترجمة)، أو null قبل الجلب. */
+    fun getCachedSurahTranslationFor(translationId: String, surahId: Int): Map<Int, String>? =
+        surahTranslationCache["$translationId:$surahId"]
 
     /**
-     * ترجمة سورة كاملة (Saheeh International، إنجليزية) من QuranEnc.
-     * تُخزَّن في الذاكرة بعد أول جلب ناجح. null عند أي فشل.
+     * ترجمة سورة كاملة من QuranEnc بالمعرّف المطلوب (إنجليزية).
+     * تُخزَّن في الذاكرة بعد أول جلب ناجح بمفتاح "ترجمة:سورة".
+     * null عند أي فشل أو معرّف غير معروف.
      */
-    suspend fun fetchSurahTranslation(surahId: Int): Map<Int, String>? {
+    suspend fun fetchSurahTranslationFor(translationId: String, surahId: Int): Map<Int, String>? {
+        if (translationId !in setOf("english_saheeh", "english_hilali_khan", "english_rwwad")) return null
         if (surahId !in 1..114) return null
-        surahTranslationCache[surahId]?.let { return it }
+        val key = "$translationId:$surahId"
+        surahTranslationCache[key]?.let { return it }
         return try {
-            val url = "https://quranenc.com/api/v1/translation/sura/english_saheeh/$surahId"
+            val url = "https://quranenc.com/api/v1/translation/sura/$translationId/$surahId"
             val request = okhttp3.Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
@@ -875,20 +1574,34 @@ object QuranDataProvider {
             for (index in 0 until array.length()) {
                 val row = array.optJSONObject(index) ?: continue
                 val aya = row.optInt("aya", 0)
-                val text = row.optString("translation", "")
-                    .replace(Regex("\\[\\d+\\]"), "")
+                // أرقام الحواشي [n] تبقى علامات ظاهرة في الترجمة — حذفها
+                // صامتاً كان يخفي وجود حاشية؛ ونص الحاشية نفسه (حقل
+                // footnotes في الرد نفسه، من المصدر حرفياً) يُلحق
+                // كملاحظة بعد الترجمة ليربط الرقم بشرحه. تحقق حياً
+                // 2026-11-23: Saheeh 1:1 تحمل [2][3] مع نصهما، وHilali-Khan
+                // 1:2 تحمل [1][2] و1:7 تحمل [4]–[7] مع نصوصها.
+                val translation = row.optString("translation", "")
                     .replace(Regex("[ \\t]+"), " ")
                     .trim()
+                val footnotes = row.optString("footnotes", "")
+                    .replace(Regex("[ \\t]+"), " ")
+                    .replace(Regex("\n{3,}"), "\n\n")
+                    .trim()
+                val text = if (footnotes.isNotBlank()) {
+                    "$translation\n\n— حواشي الترجمة:\n$footnotes"
+                } else {
+                    translation
+                }
                 if (aya > 0 && text.isNotBlank()) result[aya] = text
             }
             if (result.isEmpty()) null else {
-                surahTranslationCache[surahId] = result
+                surahTranslationCache[key] = result
                 result
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (e: Exception) {
-            Log.w(TAG, "Unable to load surah translation for $surahId", e)
+            Log.w(TAG, "Unable to load surah translation $translationId for $surahId", e)
             null
         }
     }

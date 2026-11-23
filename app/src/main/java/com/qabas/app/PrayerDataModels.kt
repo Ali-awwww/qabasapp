@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 
 data class AzanVoice(
     val id: String,
@@ -10,16 +9,6 @@ data class AzanVoice(
     val description: String,
     val streamUrl: String,
     val isFajrSpecific: Boolean = false
-)
-
-data class PrayerControlConfig(
-    val prayerKey: String,
-    val nameAr: String,
-    val isNotificationEnabled: Boolean = true,
-    val soundMode: String = "FULL_AZAN", // FULL_AZAN, TAKBEER_ONLY, BEEP, SILENT
-    val selectedVoiceId: String = MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID,
-    val preReminderMinutes: Int = 10, // 0, 5, 10, 15
-    val iqamahReminderMinutes: Int = 15 // 10, 15, 20
 )
 
 data class SpiritualTopic(
@@ -39,7 +28,6 @@ data class SpiritualTopic(
 
 object PrayerRepository {
 
-    val availableAzanVoices = MuezzinVoiceManager.OFFICIAL_DEFAULT_MUEZZINS
 
     // --- Warning & Penalty Topics (الترهيب والإنذار وعقوبات التهاون والترك) ---
     val warningTopics = listOf(

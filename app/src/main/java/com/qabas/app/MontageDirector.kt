@@ -63,7 +63,7 @@ object MontageDirector {
                 }
                 preferred ?: StyleBrain.chooseBestStyleForIdea(cleanIdea, safeDuration, tone, audience)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "StyleBrain chooseBestStyle failed: ${e.message}")
             directStyle ?: StyleBrain.getDefaultStyle()
         } ?: directStyle ?: StyleBrain.getDefaultStyle()
@@ -183,7 +183,7 @@ object MontageDirector {
                 contentType = "Reels/Shorts",
                 contentTone = tone
             )
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "Gemini failed in directToScenes, fallback to hardcoded", e)
             emptyList()
         }

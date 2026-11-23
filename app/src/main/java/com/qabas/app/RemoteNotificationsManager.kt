@@ -8,7 +8,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 /**
  * نظام الإشعارات السحابية + المحلية
@@ -32,7 +31,7 @@ object RemoteNotificationsManager {
             result.getOrElse {
                 throw it
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "sendBroadcast failed: ${e.message}", e)
             _lastSendResult.value = "فشل الإرسال السحابي: ${e.message}"
             // fallback محلي

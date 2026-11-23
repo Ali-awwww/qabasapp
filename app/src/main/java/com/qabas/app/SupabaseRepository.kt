@@ -279,7 +279,7 @@ class SupabaseRepository(
                         }
                     }
                 }
-            }.onFailure { e ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
                 Log.w(TAG, "Failed to observe session status: ${e.message}")
                 checkLocalAuthFallback()
             }
@@ -366,12 +366,10 @@ class SupabaseRepository(
                             }
                             appContext.getSharedPreferences("qabas_prefs", android.content.Context.MODE_PRIVATE)
                                 .edit()
-                                .putString("user_id", uid)
                                 .putString("user_email", profileEmail)
                                 .putString("user_name", userRow.name ?: profileEmail.substringBefore("@"))
                                 .putString("user_display_name", userRow.name ?: profileEmail.substringBefore("@"))
                                 .putString("user_custom_id", userRow.customId)
-                                .putString("user_tag", userRow.customId?.let { UserIdentifierManager.formatDisplay(it) })
                                 .putString("user_account_number", userRow.accountNumber)
                                 .apply()
                         }
@@ -447,7 +445,6 @@ class SupabaseRepository(
             prefs.edit().apply {
                 putBoolean("is_logged_in", true)
                 putBoolean("is_guest", false)
-                putString("user_id", uid)
                 if (!email.isNullOrBlank()) {
                     putString("user_email", email)
                 }
@@ -569,7 +566,7 @@ class SupabaseRepository(
                 checkLocalAuthFallback()
                 null
             }
-        }.getOrElse { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrElse { e ->
             Log.e(TAG, "ensureAuthenticatedSession failed: ${e.message}")
             checkLocalAuthFallback()
             null
@@ -614,7 +611,7 @@ class SupabaseRepository(
             }
             syncLocalAuthSuccess(uid, session?.user?.email)
             true
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             publishAuthStateIfRevision(
                 attemptRevision,
                 AuthState.Error(e.message ?: "Registration failed")
@@ -676,7 +673,7 @@ class SupabaseRepository(
             }
             syncLocalAuthSuccess(uid, session?.user?.email)
             true
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             publishAuthStateIfRevision(
                 attemptRevision,
                 AuthState.Error(e.message ?: "Login failed")
@@ -732,7 +729,7 @@ class SupabaseRepository(
                 }
                 syncLocalAuthSuccess(uid, session?.user?.email ?: client.auth.currentUserOrNull()?.email)
                 true
-            }.onFailure { error ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { error ->
                 Log.w(TAG, "Identifier sign-in failed: ${error.message}")
                 publishAuthStateIfRevision(
                     attemptRevision,
@@ -755,7 +752,7 @@ class SupabaseRepository(
             }
             checkAuthState()
             true
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             publishAuthStateIfRevision(
                 attemptRevision,
                 AuthState.Error(e.message ?: "Google Sign-In failed")
@@ -769,7 +766,7 @@ class SupabaseRepository(
         runCatching {
             client.auth.resetPasswordForEmail(email)
             true
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /** Update current user password. */
@@ -780,7 +777,7 @@ class SupabaseRepository(
                 password = newPassword
             }
             true
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /** Sign out and remove cached account/session fields so another UID cannot inherit them. */
@@ -817,7 +814,7 @@ class SupabaseRepository(
                 _authState.value = AuthState.Unauthenticated
             }
             Unit
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             Log.e(TAG, "Logout failed: ${e.message}")
         }
     }
@@ -884,39 +881,9 @@ class SupabaseRepository(
                 return@withContext false
             }
             true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to register API key: ${e.message}")
             false
-        }
-    }
-
-    /**
-     * Fetches the user's API keys from the cloud through the `qabas-key-vault`
-     * Edge Function (action `get`), which decrypts server-side. Returns one
-     * map per key with `service`, `value` and `updated_at`.
-     */
-    suspend fun fetchApiKeys(): List<Map<String, String>> = withContext(Dispatchers.IO) {
-        return@withContext try {
-            getCurrentUserId() ?: return@withContext emptyList()
-            val response = client.functions.invoke(
-                function = "qabas-key-vault",
-                body = buildJsonObject { put("action", "get") }
-            )
-            val result = response.body<KeySyncService.VaultResponse>()
-            if (!result.ok) {
-                Log.e(TAG, "Key vault get failed: ${result.error ?: "unknown error"}")
-                return@withContext emptyList()
-            }
-            result.keys.map { entry ->
-                mapOf(
-                    "service" to entry.service,
-                    "value" to entry.value,
-                    "updated_at" to entry.updated_at
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to fetch API keys: ${e.message}")
-            emptyList()
         }
     }
 
@@ -948,7 +915,7 @@ class SupabaseRepository(
                 return@withContext false
             }
             true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to delete API key: ${e.message}")
             false
         }
@@ -963,7 +930,7 @@ class SupabaseRepository(
                 if (it is JsonPrimitive) it.content else it.toString().removeSurrounding("\"")
             } ?: "free"
             role
-        }.getOrDefault("free")
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault("free")
     }
 
     // ==========================================
@@ -991,7 +958,7 @@ class SupabaseRepository(
                 avatarUrl = avatarUrl,
                 preferencesJson = preferencesJson
             )
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /**
@@ -1002,42 +969,42 @@ class SupabaseRepository(
         val targetUserId = userId ?: getCurrentUserId() ?: return@withContext Result.failure(IllegalArgumentException("User ID is required"))
         runCatching {
             SupabaseServices.Profiles.getUserProfile(targetUserId)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun ensureUser(externalId: String, email: String?, name: String?): Result<SupabaseServices.UserRow?> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.ensureUser(externalId, email, name)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getAllUsers(): Result<List<SupabaseServices.UserRow>> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.success(emptyList())
         runCatching {
             SupabaseServices.Database.getAllUsers()
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun updateUserRole(userId: String, newType: String): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.updateUserRole(userId, newType)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun saveUserSettings(userId: String, jsonPayload: String): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.UserSettings.saveUserSettings(userId, jsonPayload)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getUserSettings(userId: String): Result<SupabaseServices.UserSettingsRow?> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.UserSettings.getUserSettings(userId)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun saveProject(
@@ -1051,97 +1018,77 @@ class SupabaseRepository(
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.saveProject(title, description, status, cost, tags, metadata)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getUserProjects(userId: String? = null): Result<List<SupabaseServices.ProjectRow>> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.success(emptyList())
         runCatching {
             SupabaseServices.Database.getUserProjects(userId)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun deleteProject(id: String): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.deleteProject(id)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getHadithPresets(): Result<List<SupabaseServices.HadithRow>> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.success(emptyList())
         runCatching {
             SupabaseServices.Database.getHadithPresets()
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getAudioTracks(): Result<List<SupabaseServices.AudioTrackRow>> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.success(emptyList())
         runCatching {
             SupabaseServices.Database.getAudioTracks()
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun addAudioTrack(track: SupabaseServices.AudioTrackRow): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.addAudioTrack(track)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun deleteAudioTrack(trackId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.deleteAudioTrack(trackId)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getScholarLectures(scholarId: String): Result<List<SupabaseServices.ScholarLectureRow>> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.success(emptyList())
         runCatching {
             SupabaseServices.Database.getScholarLectures(scholarId)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun saveScholarLecture(row: SupabaseServices.ScholarLectureRow): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.saveScholarLecture(row)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getScholarProposals(scholarId: String): Result<List<SupabaseServices.ScholarProposalRow>> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.success(emptyList())
         runCatching {
             SupabaseServices.Database.getScholarProposals(scholarId)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun upvoteScholarProposal(id: String, newCount: Int): Result<Boolean> = withContext(Dispatchers.IO) {
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Database.upvoteScholarProposal(id, newCount)
-        }
-    }
-
-    suspend fun getLeaderboard(limit: Long = 50L): Result<List<SupabaseServices.LeaderboardRow>> = withContext(Dispatchers.IO) {
-        if (!isAvailable) return@withContext Result.success(emptyList())
-        runCatching {
-            SupabaseServices.Database.getLeaderboard(limit)
-        }
-    }
-
-    suspend fun upsertLeaderboardScore(
-        userId: String,
-        name: String,
-        points: Long,
-        isEligible: Boolean = true,
-        avatarUrl: String? = null
-    ): Result<Boolean> = withContext(Dispatchers.IO) {
-        if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
-        runCatching {
-            SupabaseServices.Database.upsertLeaderboardScore(userId, name, points, isEligible, avatarUrl)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     suspend fun getAppReviews(): Result<List<SupabaseServices.AppReviewDto>> = withContext(Dispatchers.IO) {
@@ -1181,7 +1128,7 @@ class SupabaseRepository(
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Storage.uploadFile(bucketName, path, data, upsert)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     fun getPublicUrl(bucketName: String, path: String): String? {
@@ -1196,7 +1143,7 @@ class SupabaseRepository(
         if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
         runCatching {
             SupabaseServices.Storage.deleteFiles(bucketName, paths)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 }
 

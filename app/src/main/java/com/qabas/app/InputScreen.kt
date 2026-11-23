@@ -72,7 +72,6 @@ fun InputScreen(
 
     val context = LocalContext.current
     var savedUserStyles by remember { mutableStateOf<List<ClonedStylePreset>>(emptyList()) }
-    var customStyleTitleInput by remember { mutableStateOf("") }
     var audioUsageMode by remember { mutableStateOf("voiceover") } // "voiceover" or "primary"
 
     val audioPickerLauncher = rememberLauncherForActivityResult(
@@ -217,9 +216,6 @@ fun InputScreen(
     }
 
     // Direct Style Analysis State
-    var referenceUrlInput by remember { mutableStateOf("") }
-    var isAnalyzingStyle by remember { mutableStateOf(false) }
-    var showStyleModal by remember { mutableStateOf(false) }
 
     // Voice Input State
     var isRecordingVoice by remember { mutableStateOf(false) }
@@ -251,22 +247,19 @@ fun InputScreen(
         try {
             isTrendingLoading = true
             trendingIdeas = AppServices.getTrendingIdeas()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             trendingIdeas = null
         } finally {
             isTrendingLoading = false
         }
     }
 
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
-    val styleButtonGradient = Brush.horizontalGradient(
-        colors = listOf(Color(0xFF4F46E5), Color(0xFF7C3AED), GoldPrimary)
-    )
+    val goldGradient = Brush.horizontalGradient(colors = listOf(PresetAccent, PresetPrimary))
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -299,7 +292,7 @@ fun InputScreen(
                     Column {
                         Text(
                             Translator.tr("صناعة الفكرة والإخراج 🎬"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -317,20 +310,20 @@ fun InputScreen(
                         onClick = onBack,
                         modifier = Modifier
                             .padding(start = 8.dp)
-                            .background(Color(0xFF151B2B), CircleShape)
+                            .background(QabasTheme.current.cardSurface, CircleShape)
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = Translator.tr("العودة"),
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
                 actions = {
                     val streak = remember { try { StreakManager.getStreak(context) } catch (_: Exception) { 0 } }
                     if (streak > 0) {
-                        Surface(shape = CutCornerShape(8.dp), color = Color(0xFFF59E0B).copy(alpha = 0.15f), modifier = Modifier.padding(end = 12.dp)) {
-                            Text("🔥 $streak", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                        Surface(shape = CutCornerShape(8.dp), color = QabasTheme.current.warning.copy(alpha = 0.15f), modifier = Modifier.padding(end = 12.dp)) {
+                            Text("🔥 $streak", color = QabasTheme.current.warning, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                         }
                     }
                 },
@@ -372,18 +365,18 @@ fun InputScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF151B2B), CutCornerShape(8.dp))
-                                .border(1.dp, Color(0xFF34D399).copy(alpha = 0.3f), CutCornerShape(8.dp))
+                                .background(QabasTheme.current.cardSurface, CutCornerShape(8.dp))
+                                .border(1.dp, QabasTheme.current.success.copy(alpha = 0.3f), CutCornerShape(8.dp))
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     Translator.tr("المدخل المختار: فيديو من الجهاز 🎬"),
-                                    color = Color(0xFF34D399),
+                                    color = QabasTheme.current.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -409,28 +402,28 @@ fun InputScreen(
                         GlassmorphicSurface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = CutCornerShape(12.dp),
-                            backgroundColor = Color(0xFF151B2B).copy(alpha = 0.85f),
-                            borderColor = Color(0xFF34D399).copy(alpha = 0.4f)
+                            backgroundColor = QabasTheme.current.cardSurface.copy(alpha = 0.85f),
+                            borderColor = QabasTheme.current.success.copy(alpha = 0.4f)
                         ) {
-                            HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFF34D399).copy(alpha = 0.1f))
+                            HudCornerDecor(modifier = Modifier.matchParentSize(), color = QabasTheme.current.success.copy(alpha = 0.1f))
                             Row(
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = Color(0xFF34D399).copy(alpha = 0.15f),
+                                    color = QabasTheme.current.success.copy(alpha = 0.15f),
                                     modifier = Modifier.size(48.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(26.dp))
+                                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(26.dp))
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(14.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         Translator.tr("استيراد فيديو من الجهاز 🎬"),
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -456,8 +449,8 @@ fun InputScreen(
                                         )
                                     },
                                 shape = CutCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-                                border = BorderStroke(1.5.dp, Color(0xFF34D399).copy(alpha = 0.5f))
+                                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background),
+                                border = BorderStroke(1.5.dp, QabasTheme.current.success.copy(alpha = 0.5f))
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -468,16 +461,16 @@ fun InputScreen(
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0xFF34D399).copy(alpha = 0.18f),
+                                        color = QabasTheme.current.success.copy(alpha = 0.18f),
                                         modifier = Modifier.size(68.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(34.dp))
+                                            Icon(Icons.Default.UploadFile, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(34.dp))
                                         }
                                     }
                                     Text(
                                         Translator.tr("اضغط لاختيار فيديو من المعرض"),
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
@@ -497,7 +490,7 @@ fun InputScreen(
                                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
                                             )
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34D399)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success),
                                         shape = CutCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                                     ) {
@@ -518,8 +511,8 @@ fun InputScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = CutCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface),
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                             ) {
                                 Column(
                                     modifier = Modifier.padding(20.dp),
@@ -531,18 +524,18 @@ fun InputScreen(
                                     ) {
                                         Surface(
                                             shape = CutCornerShape(10.dp),
-                                            color = Color(0xFF34D399).copy(alpha = 0.15f),
+                                            color = QabasTheme.current.success.copy(alpha = 0.15f),
                                             modifier = Modifier.size(52.dp)
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(Icons.Default.Movie, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(28.dp))
+                                                Icon(Icons.Default.Movie, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(28.dp))
                                             }
                                         }
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = state.sourceLabel ?: Translator.tr("فيديو مختار"),
-                                                color = Color.White,
+                                                color = QabasTheme.current.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
@@ -551,11 +544,11 @@ fun InputScreen(
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Surface(
                                                 shape = CutCornerShape(4.dp),
-                                                color = Color(0xFF10B981).copy(alpha = 0.2f)
+                                                color = QabasTheme.current.success.copy(alpha = 0.2f)
                                             ) {
                                                 Text(
                                                     text = Translator.tr("جاهز للمونتاج والتعديل ✓"),
-                                                    color = Color(0xFF34D399),
+                                                    color = QabasTheme.current.success,
                                                     fontFamily = NotoSansFont,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Medium,
@@ -577,7 +570,7 @@ fun InputScreen(
                                                 )
                                             },
                                             shape = CutCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                                            border = BorderStroke(1.dp, QabasTheme.current.separator),
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Icon(Icons.Default.Refresh, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
@@ -595,12 +588,12 @@ fun InputScreen(
                                                 )
                                             },
                                             shape = CutCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                            border = BorderStroke(1.dp, QabasTheme.current.destructive.copy(alpha = 0.5f)),
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(Translator.tr("إزالة 🗑️"), color = Color(0xFFF87171), fontFamily = NotoSansFont, fontSize = 12.sp)
+                                            Text(Translator.tr("إزالة 🗑️"), color = QabasTheme.current.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                                         }
                                     }
 
@@ -618,7 +611,7 @@ fun InputScreen(
                                             )
                                             onProceed()
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                         shape = CutCornerShape(10.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -664,18 +657,18 @@ fun InputScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF151B2B), CutCornerShape(8.dp))
-                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f), CutCornerShape(8.dp))
+                                .background(QabasTheme.current.cardSurface, CutCornerShape(8.dp))
+                                .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.3f), CutCornerShape(8.dp))
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     Translator.tr("المدخل المختار: ملف صوتي 🎙️"),
-                                    color = Color(0xFF38BDF8),
+                                    color = QabasTheme.current.primary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -701,8 +694,8 @@ fun InputScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = CutCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                            colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface),
+                            border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
@@ -710,18 +703,18 @@ fun InputScreen(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = Color(0xFF38BDF8).copy(alpha = 0.15f),
+                                    color = QabasTheme.current.primary.copy(alpha = 0.15f),
                                     modifier = Modifier.size(48.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(26.dp))
+                                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(26.dp))
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(14.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         Translator.tr("استيراد ملف صوتي 🎙️"),
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -745,8 +738,8 @@ fun InputScreen(
                                         audioPickerLauncher.launch("audio/*")
                                     },
                                 shape = CutCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-                                border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background),
+                                border = BorderStroke(1.5.dp, QabasTheme.current.primary.copy(alpha = 0.5f))
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -757,16 +750,16 @@ fun InputScreen(
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0xFF38BDF8).copy(alpha = 0.18f),
+                                        color = QabasTheme.current.primary.copy(alpha = 0.18f),
                                         modifier = Modifier.size(68.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(34.dp))
+                                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(34.dp))
                                         }
                                     }
                                     Text(
                                         Translator.tr("اضغط لاختيار ملف صوتي من الجهاز"),
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
@@ -788,7 +781,7 @@ fun InputScreen(
                                             onClick = {
                                                 audioPickerLauncher.launch("audio/*")
                                             },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF38BDF8)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary),
                                             shape = CutCornerShape(8.dp),
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                                             modifier = Modifier.weight(1f)
@@ -806,16 +799,16 @@ fun InputScreen(
 
                                         OutlinedButton(
                                             onClick = onOpenAudioLibrary,
-                                            border = BorderStroke(1.dp, GoldPrimary),
+                                            border = BorderStroke(1.dp, PresetPrimary),
                                             shape = CutCornerShape(8.dp),
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 Translator.tr("مكتبة خادم المسلم 🎙️"),
-                                                color = GoldPrimary,
+                                                color = PresetPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp
@@ -829,8 +822,8 @@ fun InputScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = CutCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface),
+                                border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
                             ) {
                                 Column(
                                     modifier = Modifier.padding(20.dp),
@@ -843,18 +836,18 @@ fun InputScreen(
                                     ) {
                                         Surface(
                                             shape = CutCornerShape(10.dp),
-                                            color = Color(0xFF38BDF8).copy(alpha = 0.15f),
+                                            color = QabasTheme.current.primary.copy(alpha = 0.15f),
                                             modifier = Modifier.size(52.dp)
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(28.dp))
+                                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(28.dp))
                                             }
                                         }
                                         Spacer(modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = state.sourceLabel ?: Translator.tr("ملف صوتي مختار"),
-                                                color = Color.White,
+                                                color = QabasTheme.current.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
@@ -863,11 +856,11 @@ fun InputScreen(
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Surface(
                                                 shape = CutCornerShape(4.dp),
-                                                color = Color(0xFF38BDF8).copy(alpha = 0.2f)
+                                                color = QabasTheme.current.primary.copy(alpha = 0.2f)
                                             ) {
                                                 Text(
                                                     text = Translator.tr("ملف صوتي مستورد ✓"),
-                                                    color = Color(0xFF38BDF8),
+                                                    color = QabasTheme.current.primary,
                                                     fontFamily = NotoSansFont,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Medium,
@@ -877,12 +870,12 @@ fun InputScreen(
                                         }
                                     }
 
-                                    HorizontalDivider(color = Color(0xFF1E293B))
+                                    HorizontalDivider(color = QabasTheme.current.separator)
 
                                     // Usage Mode Choice
                                     Text(
                                         Translator.tr("اختر كيفية توظيف هذا الصوت:"),
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
@@ -895,11 +888,11 @@ fun InputScreen(
                                             .clickable { audioUsageMode = "voiceover" },
                                         shape = CutCornerShape(10.dp),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (audioUsageMode == "voiceover") Color(0xFF1A2742) else Color(0xFF0F172A)
+                                            containerColor = if (audioUsageMode == "voiceover") QabasTheme.current.secondarySurface else QabasTheme.current.secondarySurface
                                         ),
                                         border = BorderStroke(
                                             1.5.dp,
-                                            if (audioUsageMode == "voiceover") Color(0xFF38BDF8) else Color(0xFF1E293B)
+                                            if (audioUsageMode == "voiceover") QabasTheme.current.primary else QabasTheme.current.separator
                                         )
                                     ) {
                                         Row(
@@ -910,7 +903,7 @@ fun InputScreen(
                                                 selected = audioUsageMode == "voiceover",
                                                 onClick = { audioUsageMode = "voiceover" },
                                                 colors = RadioButtonDefaults.colors(
-                                                    selectedColor = Color(0xFF38BDF8),
+                                                    selectedColor = QabasTheme.current.primary,
                                                     unselectedColor = TextSecondary
                                                 )
                                             )
@@ -918,7 +911,7 @@ fun InputScreen(
                                             Column {
                                                 Text(
                                                     Translator.tr("استخدام كتعليق صوتي (Voiceover) 🎙️"),
-                                                    color = Color.White,
+                                                    color = QabasTheme.current.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 13.sp
@@ -942,11 +935,11 @@ fun InputScreen(
                                             .clickable { audioUsageMode = "primary" },
                                         shape = CutCornerShape(10.dp),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (audioUsageMode == "primary") Color(0xFF1A2742) else Color(0xFF0F172A)
+                                            containerColor = if (audioUsageMode == "primary") QabasTheme.current.secondarySurface else QabasTheme.current.secondarySurface
                                         ),
                                         border = BorderStroke(
                                             1.5.dp,
-                                            if (audioUsageMode == "primary") Color(0xFF38BDF8) else Color(0xFF1E293B)
+                                            if (audioUsageMode == "primary") QabasTheme.current.primary else QabasTheme.current.separator
                                         )
                                     ) {
                                         Row(
@@ -957,7 +950,7 @@ fun InputScreen(
                                                 selected = audioUsageMode == "primary",
                                                 onClick = { audioUsageMode = "primary" },
                                                 colors = RadioButtonDefaults.colors(
-                                                    selectedColor = Color(0xFF38BDF8),
+                                                    selectedColor = QabasTheme.current.primary,
                                                     unselectedColor = TextSecondary
                                                 )
                                             )
@@ -965,7 +958,7 @@ fun InputScreen(
                                             Column {
                                                 Text(
                                                     Translator.tr("استخدامه كمادة أساسية للمشروع 🎵"),
-                                                    color = Color.White,
+                                                    color = QabasTheme.current.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 13.sp
@@ -994,7 +987,7 @@ fun InputScreen(
                                                 audioPickerLauncher.launch("audio/*")
                                             },
                                             shape = CutCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                                            border = BorderStroke(1.dp, QabasTheme.current.separator),
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Icon(Icons.Default.Refresh, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
@@ -1012,12 +1005,12 @@ fun InputScreen(
                                                 )
                                             },
                                             shape = CutCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                            border = BorderStroke(1.dp, QabasTheme.current.destructive.copy(alpha = 0.5f)),
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(Translator.tr("إزالة 🗑️"), color = Color(0xFFF87171), fontFamily = NotoSansFont, fontSize = 12.sp)
+                                            Text(Translator.tr("إزالة 🗑️"), color = QabasTheme.current.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                                         }
                                     }
 
@@ -1041,7 +1034,7 @@ fun InputScreen(
                                             )
                                             onProceed()
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                         shape = CutCornerShape(10.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1087,18 +1080,18 @@ fun InputScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF151B2B), CutCornerShape(8.dp))
-                                .border(1.dp, Color(0xFFFBBF24).copy(alpha = 0.3f), CutCornerShape(8.dp))
+                                .background(QabasTheme.current.cardSurface, CutCornerShape(8.dp))
+                                .border(1.dp, QabasTheme.current.warning.copy(alpha = 0.3f), CutCornerShape(8.dp))
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     Translator.tr("المدخل المختار: ألبوم صور 🖼️"),
-                                    color = Color(0xFFFBBF24),
+                                    color = QabasTheme.current.warning,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -1124,8 +1117,8 @@ fun InputScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = CutCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                            border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.4f))
+                            colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface),
+                            border = BorderStroke(1.dp, QabasTheme.current.warning.copy(alpha = 0.4f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
@@ -1133,18 +1126,18 @@ fun InputScreen(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = Color(0xFFFBBF24).copy(alpha = 0.15f),
+                                    color = QabasTheme.current.warning.copy(alpha = 0.15f),
                                     modifier = Modifier.size(48.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(26.dp))
+                                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(26.dp))
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(14.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         Translator.tr("استيراد ألبوم صور 🖼️"),
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -1170,8 +1163,8 @@ fun InputScreen(
                                         )
                                     },
                                 shape = CutCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F19)),
-                                border = BorderStroke(1.5.dp, Color(0xFFFBBF24).copy(alpha = 0.5f))
+                                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.background),
+                                border = BorderStroke(1.5.dp, QabasTheme.current.warning.copy(alpha = 0.5f))
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -1182,16 +1175,16 @@ fun InputScreen(
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0xFFFBBF24).copy(alpha = 0.18f),
+                                        color = QabasTheme.current.warning.copy(alpha = 0.18f),
                                         modifier = Modifier.size(68.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(34.dp))
+                                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(34.dp))
                                         }
                                     }
                                     Text(
                                         Translator.tr("اضغط لاختيار صور من المعرض"),
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
@@ -1211,7 +1204,7 @@ fun InputScreen(
                                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                             )
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFBBF24)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.warning),
                                         shape = CutCornerShape(8.dp)
                                     ) {
                                         Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -1225,8 +1218,8 @@ fun InputScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = CutCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                                border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.4f))
+                                colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface),
+                                border = BorderStroke(1.dp, QabasTheme.current.warning.copy(alpha = 0.4f))
                             ) {
                                 Column(
                                     modifier = Modifier.padding(18.dp),
@@ -1241,25 +1234,25 @@ fun InputScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Surface(
                                                 shape = CircleShape,
-                                                color = Color(0xFFFBBF24).copy(alpha = 0.2f),
+                                                color = QabasTheme.current.warning.copy(alpha = 0.2f),
                                                 modifier = Modifier.size(36.dp)
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
-                                                    Icon(Icons.Default.Collections, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(20.dp))
+                                                    Icon(Icons.Default.Collections, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(20.dp))
                                                 }
                                             }
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Column {
                                                 Text(
                                                     text = "${state.sourceUris.size} " + Translator.tr("صور مختارة"),
-                                                    color = Color.White,
+                                                    color = QabasTheme.current.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 15.sp
                                                 )
                                                 Text(
                                                     text = Translator.tr("جاهزة للتحويل إلى مشاهد ريلز ✓"),
-                                                    color = Color(0xFF34D399),
+                                                    color = QabasTheme.current.success,
                                                     fontFamily = NotoSansFont,
                                                     fontSize = 11.sp
                                                 )
@@ -1273,10 +1266,10 @@ fun InputScreen(
                                                 )
                                             },
                                             modifier = Modifier
-                                                .background(Color(0xFF1E293B), CircleShape)
+                                                .background(QabasTheme.current.separator, CircleShape)
                                                 .size(36.dp)
                                         ) {
-                                            Icon(Icons.Default.Add, contentDescription = Translator.tr("إضافة صور"), tint = Color(0xFFFBBF24), modifier = Modifier.size(20.dp))
+                                            Icon(Icons.Default.Add, contentDescription = Translator.tr("إضافة صور"), tint = QabasTheme.current.warning, modifier = Modifier.size(20.dp))
                                         }
                                     }
 
@@ -1290,7 +1283,7 @@ fun InputScreen(
                                                 modifier = Modifier
                                                     .size(88.dp)
                                                     .clip(CutCornerShape(8.dp))
-                                                    .border(1.dp, Color(0xFF334155), CutCornerShape(8.dp))
+                                                    .border(1.dp, QabasTheme.current.separator, CutCornerShape(8.dp))
                                             ) {
                                                 AsyncImage(
                                                     model = uriString,
@@ -1307,7 +1300,7 @@ fun InputScreen(
                                                 ) {
                                                     Text(
                                                         text = "${index + 1}",
-                                                        color = Color.White,
+                                                        color = QabasTheme.current.textPrimary,
                                                         fontSize = 10.sp,
                                                         fontFamily = NotoSansFont,
                                                         fontWeight = FontWeight.Bold,
@@ -1332,7 +1325,7 @@ fun InputScreen(
                                                         .padding(2.dp)
                                                         .background(Color.Black.copy(alpha = 0.6f), CircleShape)
                                                 ) {
-                                                    Icon(Icons.Default.Close, contentDescription = Translator.tr("حذف"), tint = Color(0xFFF87171), modifier = Modifier.size(14.dp))
+                                                    Icon(Icons.Default.Close, contentDescription = Translator.tr("حذف"), tint = QabasTheme.current.destructive, modifier = Modifier.size(14.dp))
                                                 }
                                             }
                                         }
@@ -1343,8 +1336,8 @@ fun InputScreen(
                                                 modifier = Modifier
                                                     .size(88.dp)
                                                     .clip(CutCornerShape(8.dp))
-                                                    .border(1.dp, Color(0xFFFBBF24).copy(alpha = 0.4f), CutCornerShape(8.dp))
-                                                    .background(Color(0xFF0B0F19))
+                                                    .border(1.dp, QabasTheme.current.warning.copy(alpha = 0.4f), CutCornerShape(8.dp))
+                                                    .background(QabasTheme.current.background)
                                                     .clickable {
                                                         imagesPickerLauncher.launch(
                                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -1353,7 +1346,7 @@ fun InputScreen(
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(24.dp))
+                                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = QabasTheme.current.warning, modifier = Modifier.size(24.dp))
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     Text(Translator.tr("إضافة"), color = TextSecondary, fontSize = 10.sp, fontFamily = CairoFont)
                                                 }
@@ -1376,10 +1369,10 @@ fun InputScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = CutCornerShape(8.dp),
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = Color(0xFFFBBF24),
-                                            unfocusedBorderColor = Color(0xFF334155),
-                                            focusedContainerColor = Color(0xFF0B0F19),
-                                            unfocusedContainerColor = Color(0xFF0B0F19),
+                                            focusedBorderColor = QabasTheme.current.warning,
+                                            unfocusedBorderColor = QabasTheme.current.separator,
+                                            focusedContainerColor = QabasTheme.current.background,
+                                            unfocusedContainerColor = QabasTheme.current.background,
                                             focusedTextColor = TextPrimary,
                                             unfocusedTextColor = TextPrimary
                                         ),
@@ -1398,7 +1391,7 @@ fun InputScreen(
                                                 )
                                             },
                                             shape = CutCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                                            border = BorderStroke(1.dp, QabasTheme.current.separator),
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
@@ -1416,12 +1409,12 @@ fun InputScreen(
                                                 )
                                             },
                                             shape = CutCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                            border = BorderStroke(1.dp, QabasTheme.current.destructive.copy(alpha = 0.5f)),
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(Translator.tr("مسح الكل 🗑️"), color = Color(0xFFF87171), fontFamily = NotoSansFont, fontSize = 12.sp)
+                                            Text(Translator.tr("مسح الكل 🗑️"), color = QabasTheme.current.destructive, fontFamily = NotoSansFont, fontSize = 12.sp)
                                         }
                                     }
 
@@ -1439,7 +1432,7 @@ fun InputScreen(
                                             )
                                             onProceed()
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                         shape = CutCornerShape(10.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1484,18 +1477,18 @@ fun InputScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF151B2B), CutCornerShape(8.dp))
-                                .border(1.dp, Color(0xFF1E293B), CutCornerShape(8.dp))
+                                .background(QabasTheme.current.cardSurface, CutCornerShape(8.dp))
+                                .border(1.dp, QabasTheme.current.separator, CutCornerShape(8.dp))
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     Translator.tr("المدخل المختار: فكرة نصية ✍️"),
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -1518,12 +1511,12 @@ fun InputScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(12.dp, CutCornerShape(12.dp), spotColor = GoldPrimary.copy(alpha = 0.25f)),
+                                .shadow(12.dp, CutCornerShape(12.dp), spotColor = PresetPrimary.copy(alpha = 0.25f)),
                             shape = CutCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF182232)),
+                            colors = CardDefaults.cardColors(containerColor = QabasTheme.current.secondarySurface),
                             border = BorderStroke(
                                 1.5.dp,
-                                if (state.inputText.isNotEmpty()) GoldPrimary else Color(0xFF1E293B)
+                                if (state.inputText.isNotEmpty()) PresetPrimary else QabasTheme.current.separator
                             )
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -1533,11 +1526,11 @@ fun InputScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             Translator.tr("اكتب فكرة المشهد أو النص ✍️"),
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp
@@ -1545,7 +1538,7 @@ fun InputScreen(
                                     }
                                     if (state.inputText.isNotEmpty()) {
                                         TextButton(onClick = { onStateChange(state.copy(inputText = "")) }) {
-                                            Text(Translator.tr("مسح"), color = Color(0xFFEF4444), fontSize = 12.sp, fontFamily = NotoSansFont)
+                                            Text(Translator.tr("مسح"), color = QabasTheme.current.destructive, fontSize = 12.sp, fontFamily = NotoSansFont)
                                         }
                                     }
                                 }
@@ -1568,13 +1561,13 @@ fun InputScreen(
                                         )
                                     },
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFF0B0F19),
-                                        unfocusedContainerColor = Color(0xFF0B0F19),
-                                        focusedIndicatorColor = GoldPrimary,
-                                        unfocusedIndicatorColor = Color(0xFF1E293B),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        cursorColor = GoldPrimary
+                                        focusedContainerColor = QabasTheme.current.background,
+                                        unfocusedContainerColor = QabasTheme.current.background,
+                                        focusedIndicatorColor = PresetPrimary,
+                                        unfocusedIndicatorColor = QabasTheme.current.separator,
+                                        focusedTextColor = QabasTheme.current.textPrimary,
+                                        unfocusedTextColor = QabasTheme.current.textPrimary,
+                                        cursorColor = PresetPrimary
                                     ),
                                     textStyle = androidx.compose.ui.text.TextStyle(
                                         fontSize = 15.sp,
@@ -1594,7 +1587,7 @@ fun InputScreen(
                                 ) {
                                     Button(
                                         onClick = { isRecordingVoice = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.15f), contentColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary.copy(alpha = 0.15f), contentColor = PresetPrimary),
                                         shape = CutCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                         modifier = Modifier.weight(1f)
@@ -1613,14 +1606,14 @@ fun InputScreen(
                                                 )
                                             )
                                         },
-                                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                                         shape = CutCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text(Translator.tr("نص شرعي 📖"), color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text(Translator.tr("نص شرعي 📖"), color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
@@ -1655,19 +1648,19 @@ fun InputScreen(
                                             scope.launch { snackbarHostState.showSnackbar(Translator.tr("يرجى كتابة الفكرة أولاً!")) }
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary),
                                     shape = CutCornerShape(8.dp),
                                     modifier = Modifier.fillMaxWidth().height(48.dp),
                                     enabled = !isEnhancingIdea
                                 ) {
                                     if (isEnhancingIdea) {
-                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(color = QabasTheme.current.onPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(Translator.tr("جاري هندسة البرومبت ذكياً..."), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                        Text(Translator.tr("جاري هندسة البرومبت ذكياً..."), color = QabasTheme.current.onPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                     } else {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = QabasTheme.current.onPrimary, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(Translator.tr("الصياغة الهندسية الذكية للبرومبت 🪄"), color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text(Translator.tr("الصياغة الهندسية الذكية للبرومبت 🪄"), color = QabasTheme.current.onPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }
                                 }
                             }
@@ -1677,8 +1670,8 @@ fun InputScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = CutCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
-                            border = BorderStroke(1.dp, Color(0xFF1E293B))
+                            colors = CardDefaults.cardColors(containerColor = QabasTheme.current.cardSurface),
+                            border = BorderStroke(1.dp, QabasTheme.current.separator)
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
@@ -1689,11 +1682,11 @@ fun InputScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Tune, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Tune, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         Translator.tr("إعدادات الفيديو الأساسية ⚙️"),
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
@@ -1720,9 +1713,9 @@ fun InputScreen(
                                         ).forEach { (ratio, label) ->
                                             val isSelected = state.selectedRatio == ratio
                                             Surface(
-                                                color = if (isSelected) GoldPrimary else Color(0xFF0B0F19),
+                                                color = if (isSelected) PresetPrimary else QabasTheme.current.background,
                                                 shape = CutCornerShape(8.dp),
-                                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else QabasTheme.current.separator),
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .clickable { onStateChange(state.copy(selectedRatio = ratio)) }
@@ -1733,7 +1726,7 @@ fun InputScreen(
                                                 ) {
                                                     Text(
                                                         ratio,
-                                                        color = if (isSelected) DeepSlate else Color.White,
+                                                        color = if (isSelected) DeepSlate else QabasTheme.current.textPrimary,
                                                         fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         fontFamily = CairoFont
@@ -1772,9 +1765,9 @@ fun InputScreen(
                                         ).forEach { dur ->
                                             val isSelected = state.videoDuration == dur
                                             Surface(
-                                                color = if (isSelected) GoldPrimary else Color(0xFF0B0F19),
+                                                color = if (isSelected) PresetPrimary else QabasTheme.current.background,
                                                 shape = CutCornerShape(8.dp),
-                                                border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                                                border = BorderStroke(1.dp, if (isSelected) PresetPrimary else QabasTheme.current.separator),
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .clickable { onStateChange(state.copy(videoDuration = dur)) }
@@ -1785,7 +1778,7 @@ fun InputScreen(
                                                 ) {
                                                     Text(
                                                         dur,
-                                                        color = if (isSelected) DeepSlate else Color.White,
+                                                        color = if (isSelected) DeepSlate else QabasTheme.current.textPrimary,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         fontFamily = CairoFont
@@ -1822,14 +1815,14 @@ fun InputScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(CutCornerShape(8.dp))
-                                                    .background(if (isSelected) Color(0xFF1E1B4B) else Color(0xFF0B0F19))
-                                                    .border(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B), CutCornerShape(8.dp))
+                                                    .background(if (isSelected) QabasTheme.current.accent.copy(alpha = 0.15f) else QabasTheme.current.background)
+                                                    .border(1.dp, if (isSelected) PresetPrimary else QabasTheme.current.separator, CutCornerShape(8.dp))
                                                     .clickable { onStateChange(state.copy(marketingGoal = audience)) }
                                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                                             ) {
                                                 Text(
                                                     audience,
-                                                    color = if (isSelected) GoldPrimary else TextSecondary,
+                                                    color = if (isSelected) PresetPrimary else TextSecondary,
                                                     fontSize = 11.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                     fontFamily = NotoSansFont
@@ -1865,14 +1858,14 @@ fun InputScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(CutCornerShape(8.dp))
-                                                    .background(if (isSelected) Color(0xFF2C1E12) else Color(0xFF0B0F19))
-                                                    .border(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B), CutCornerShape(8.dp))
+                                                    .background(if (isSelected) QabasTheme.current.warning.copy(alpha = 0.15f) else QabasTheme.current.background)
+                                                    .border(1.dp, if (isSelected) PresetPrimary else QabasTheme.current.separator, CutCornerShape(8.dp))
                                                     .clickable { onStateChange(state.copy(contentTone = cleanToneName)) }
                                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                                             ) {
                                                 Text(
                                                     tone,
-                                                    color = if (isSelected) GoldPrimary else TextSecondary,
+                                                    color = if (isSelected) PresetPrimary else TextSecondary,
                                                     fontSize = 11.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                     fontFamily = NotoSansFont
@@ -1896,7 +1889,7 @@ fun InputScreen(
 
                             if (isTrendingLoading) {
                                 Box(modifier = Modifier.fillMaxWidth().height(50.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    CircularProgressIndicator(color = PresetPrimary, modifier = Modifier.size(20.dp))
                                 }
                             } else {
                                 val displayIdeas = trendingIdeas ?: emptyList()
@@ -1914,14 +1907,14 @@ fun InputScreen(
                                                     onStateChange(state.copy(inputText = idea.title + "\n" + idea.description))
                                                     scope.launch { snackbarHostState.showSnackbar(Translator.tr("تم تمكين الفكرة!")) }
                                                 },
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFF182232)),
-                                            border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                            colors = CardDefaults.cardColors(containerColor = QabasTheme.current.secondarySurface),
+                                            border = BorderStroke(1.dp, QabasTheme.current.separator),
                                             shape = CutCornerShape(10.dp)
                                         ) {
                                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                 Text(
                                                     if (idea.source == "FALLBACK") "${idea.title} (اقتراح افتراضي)" else idea.title,
-                                                    color = GoldPrimary,
+                                                    color = PresetPrimary,
                                                     fontFamily = NotoSansFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 12.sp,
@@ -1985,7 +1978,7 @@ fun InputScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(58.dp)
-                        .shadow(if (state.inputText.isNotBlank()) 16.dp else 0.dp, CutCornerShape(10.dp), spotColor = GoldPrimary),
+                        .shadow(if (state.inputText.isNotBlank()) 16.dp else 0.dp, CutCornerShape(10.dp), spotColor = PresetPrimary),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     contentPadding = PaddingValues(),
                     shape = CutCornerShape(10.dp)
@@ -1994,7 +1987,7 @@ fun InputScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                if (state.inputText.isNotBlank()) goldGradient else androidx.compose.ui.graphics.SolidColor(Color(0xFF1E293B)),
+                                if (state.inputText.isNotBlank()) goldGradient else androidx.compose.ui.graphics.SolidColor(QabasTheme.current.separator),
                                 CutCornerShape(10.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -2031,11 +2024,11 @@ fun InputScreen(
         if (showGuardDialog && guardInspectionResult != null) {
             val guardRes = guardInspectionResult!!
             val isRejected = guardRes.verdict == GuardVerdict.REJECTED
-            val bannerColor = if (isRejected) Color(0xFFEF4444) else Color(0xFFF59E0B)
+            val bannerColor = if (isRejected) QabasTheme.current.destructive else QabasTheme.current.warning
 
             AlertDialog(
                 onDismissRequest = { showGuardDialog = false },
-                containerColor = Color(0xFF151B2B),
+                containerColor = QabasTheme.current.cardSurface,
                 icon = {
                     Box(
                         modifier = Modifier
@@ -2054,7 +2047,7 @@ fun InputScreen(
                 title = {
                     Text(
                         text = if (isRejected) "تنبيه حارس المحتوى: محتوى مخالف ❌" else "ملاحظة حارس المحتوى: يحتاج تدقيق ⚠️",
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -2064,7 +2057,7 @@ fun InputScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = guardRes.reason,
-                            color = Color(0xFFE2E8F0),
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = NotoSansFont,
                             fontSize = 13.sp,
                             lineHeight = 18.sp
@@ -2088,7 +2081,7 @@ fun InputScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 "الصياغة المقترحة البديلة:",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -2097,12 +2090,12 @@ fun InputScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFF0B0F19), CutCornerShape(6.dp))
+                                    .background(QabasTheme.current.background, CutCornerShape(6.dp))
                                     .padding(10.dp)
                             ) {
                                 Text(
                                     guardRes.improvedScript!!,
-                                    color = Color.White,
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp
@@ -2115,10 +2108,10 @@ fun InputScreen(
                     if (isRejected) {
                         Button(
                             onClick = { showGuardDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive),
                             shape = CutCornerShape(8.dp)
                         ) {
-                            Text("تعديل النص ✍️", color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                            Text("تعديل النص ✍️", color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Column(
@@ -2133,7 +2126,7 @@ fun InputScreen(
                                         onProceed()
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                     shape = CutCornerShape(8.dp)
                                 ) {
                                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
@@ -2150,9 +2143,9 @@ fun InputScreen(
                                     onClick = { showGuardDialog = false },
                                     modifier = Modifier.weight(1f),
                                     shape = CutCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, QabasTheme.current.separator)
                                 ) {
-                                    Text("تعديل ✍️", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                    Text("تعديل ✍️", color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                 }
 
                                 TextButton(
@@ -2186,8 +2179,8 @@ fun InputScreen(
                         modifier = Modifier
                             .size(140.dp)
                             .scale(pulseScale)
-                            .background(GoldPrimary.copy(alpha = glowAlpha), CircleShape)
-                            .border(2.dp, GoldPrimary, CircleShape)
+                            .background(PresetPrimary.copy(alpha = glowAlpha), CircleShape)
+                            .border(2.dp, PresetPrimary, CircleShape)
                             .clickable {
                                 scope.launch {
                                     isRecordingVoice = false
@@ -2206,7 +2199,7 @@ fun InputScreen(
 
                     Text(
                         Translator.tr("تحدث بفكــرتك الآن...\nنحن نستمع إليك بالذكاء الاصطناعي 🎙️"),
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         fontSize = 18.sp,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -2215,7 +2208,7 @@ fun InputScreen(
                     )
 
                     TextButton(onClick = { isRecordingVoice = false }) {
-                        Text(Translator.tr("إلغاء"), color = Color.White, fontFamily = CairoFont)
+                        Text(Translator.tr("إلغاء"), color = QabasTheme.current.textPrimary, fontFamily = CairoFont)
                     }
                 }
             }
@@ -2239,7 +2232,7 @@ fun SourceTypeCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = CutCornerShape(12.dp),
-        backgroundColor = Color(0xFF151B2B).copy(alpha = 0.85f),
+        backgroundColor = QabasTheme.current.cardSurface.copy(alpha = 0.85f),
         borderColor = accentColor.copy(alpha = 0.3f)
     ) {
         HudCornerDecor(modifier = Modifier.matchParentSize(), color = accentColor.copy(alpha = 0.1f))
@@ -2267,7 +2260,7 @@ fun SourceTypeCard(
                 ) {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
@@ -2300,52 +2293,9 @@ fun SourceTypeCard(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = Color(0xFF475569),
+                tint = QabasTheme.current.textTertiary,
                 modifier = Modifier.size(18.dp)
             )
-        }
-    }
-}
-
-@Composable
-private fun TrendRadarCard(onPick: (String) -> Unit) {
-    var topics by remember { mutableStateOf<List<String>?>(null) }
-    LaunchedEffect(Unit) {
-        try { topics = TrendRadar.getDailyTopics() } catch (_: Exception) { topics = TrendRadar.EvergreenFallback }
-    }
-    GlassmorphicSurface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = CutCornerShape(12.dp),
-        backgroundColor = Color(0xFF151B2B).copy(alpha = 0.85f),
-        borderColor = Color(0xFFF59E0B).copy(alpha = 0.4f)
-    ) {
-        HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFFF59E0B).copy(alpha = 0.1f))
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Whatshot, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("رادار الترند اليوم 🔥", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            }
-            if (topics == null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color(0xFFF59E0B))
-                    Spacer(Modifier.width(8.dp))
-                    Text("نرصد الرائج الآن...", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                }
-            } else {
-                topics!!.forEach { t ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .background(Color(0xFF0B0F19), CutCornerShape(8.dp))
-                            .clickable { onPick(t) }
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(t, color = Color.White, fontFamily = CairoFont, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
         }
     }
 }

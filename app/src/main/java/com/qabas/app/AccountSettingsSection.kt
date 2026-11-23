@@ -272,7 +272,7 @@ fun AccountSettingsSection(context: Context) {
                         try {
                             CloudServices.syncAdminClaim(syncCtx)
                             Toast.makeText(syncCtx, "تمت مزامنة الصلاحيات السحابية", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                             Toast.makeText(syncCtx, "تعذرت المزامنة: ${e.message}", Toast.LENGTH_SHORT).show()
                         } finally {
                             isSyncingRole = false

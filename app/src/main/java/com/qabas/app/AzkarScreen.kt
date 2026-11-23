@@ -9,7 +9,6 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,28 +16,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.app.Application
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import com.qabas.app.R
 import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleSearchBar
 import com.qabas.app.ui.components.AppleTopBar
@@ -101,7 +93,8 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
     private val _progressMap = MutableStateFlow<Map<String, Int>>(emptyMap())
     val progressMap: StateFlow<Map<String, Int>> = _progressMap.asStateFlow()
 
-    // Selected tab: 0 = Morning, 1 = Evening, 2 = Both (Separated)
+    // Selected tab: 0 = Morning, 1 = Evening, 2 = Sleep, 3 = Waking,
+    // 4 = After Prayer, 5 = Mosque, 6 = All (AzkarTabSelector)
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
@@ -202,6 +195,33 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
     fun resetCount(id: String) {
         _progressMap.value = _progressMap.value + (id to 0)
         prefs.edit().remove("azkar_count_${todayKey}_$id").apply()
+    }
+
+    /**
+     * التراجع عن آخر نقرة (خطأ النقر شائع في العدّاد، وأفضل تطبيقات
+     * الأذكار تقدّم التراجع؛ البديل الوحيد قبله كان تصفير الذكر كاملاً).
+     * ينقص 1 بحد أدنى 0 ويحفظ، ويسحب شارة إكمال الصباح/المساء
+     * إن نزل العدّ دون الهدف بعد اكتماله.
+     */
+    fun decrementCount(id: String) {
+        val current = _progressMap.value[id] ?: 0
+        if (current <= 0) return
+        val next = current - 1
+        _progressMap.value = _progressMap.value + (id to next)
+        val editor = prefs.edit()
+        if (next == 0) editor.remove("azkar_count_${todayKey}_$id")
+        else editor.putInt("azkar_count_${todayKey}_$id", next)
+        val all = _morningAzkar.value + _eveningAzkar.value + _sleepAzkar.value +
+            _wakingAzkar.value + _prayerAzkar.value + _mosqueAzkar.value
+        val item = all.firstOrNull { it.id == id }
+        if (item != null && next < item.targetCount) {
+            when (item.category) {
+                AzkarTimeCategory.MORNING -> editor.remove("daily_morning_azkar_$todayKey")
+                AzkarTimeCategory.EVENING -> editor.remove("daily_evening_azkar_$todayKey")
+                else -> {}
+            }
+        }
+        editor.apply()
     }
 
     fun resetAllCounters(category: AzkarTimeCategory? = null) {
@@ -412,9 +432,9 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
                 text = "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
                 fadl = "كانت له عدل عشر رقاب، وكُتبت له مائة حسنة، ومُحيت عنه مائة سيئة، وكانت له حرزاً من الشيطان يومه ذلك حتى يمسي.",
                 source = "رواه البخاري ومسلم",
-                targetCount = 10,
+                targetCount = 100,
                 category = AzkarTimeCategory.MORNING,
-                timeHint = "تقال 10 مرات أو 100 مرة"
+                timeHint = "تقال 100 مرة"
             ),
             AzkarItem(
                 id = "m16",
@@ -432,7 +452,7 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "e1",
                 title = "آية الكرسي",
-                text = "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَّهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهو الْعَلِيُّ الْعَظِيمُ",
+                text = quranAyah(2, 255),
                 fadl = "من قرأها إذا أمسى أُجير من الشياطين والجن حتى يصبح.",
                 source = "سورة البقرة: 255 (صحيح الترغيب)",
                 targetCount = 1,
@@ -585,9 +605,9 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
                 text = "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهو عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
                 fadl = "حرز من الشيطان وعتق رقاب ومحو مئة سيئة وكتابة مئة حسنة.",
                 source = "رواه البخاري ومسلم",
-                targetCount = 10,
+                targetCount = 100,
                 category = AzkarTimeCategory.EVENING,
-                timeHint = "تقال 10 مرات أو 100 مرة"
+                timeHint = "تقال 100 مرة"
             ),
             AzkarItem(
                 id = "e17",
@@ -625,8 +645,8 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
             AzkarItem(
                 id = "s3",
                 title = "المعوذات (الإخلاص والفلق والناس)",
-                text = "كان النبي ﷺ إذا أوى إلى فراشه كل ليلة جمع كفيه ثم نفث فيهما فقرأ فيهما: {قل هو الله أحد} و {قل أعوذ برب الفلق} و {قل أعوذ برب الناس}، ثم يمسح بهما ما استطاع من جسده.",
-                fadl = "سنة نبوية للحفظ والبركة قبل النوم.",
+                text = quranSurahs(112, 113, 114),
+                fadl = "كان النبي ﷺ إذا أوى إلى فراشه كل ليلة جمع كفيه ثم نفث فيهما فقرأ فيهما: {قل هو الله أحد} و {قل أعوذ برب الفلق} و {قل أعوذ برب الناس}، ثم يمسح بهما ما استطاع من جسده.",
                 source = "رواه البخاري",
                 targetCount = 3,
                 category = AzkarTimeCategory.SLEEP,
@@ -654,9 +674,9 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
                 text = "أَسْتَغْفِرُ اللَّهَ (3 مرات). اللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ، تَبَارَكْتَ يَا ذَا الْجَلَالِ وَالْإِكْرَامِ.",
                 fadl = "كان رسول الله ﷺ إذا انصرف من صلاته استغفر ثلاثاً.",
                 source = "رواه مسلم",
-                targetCount = 3,
+                targetCount = 4,
                 category = AzkarTimeCategory.AFTER_PRAYER,
-                timeHint = "بعد التسليم من الصلاة مباشرة"
+                timeHint = "الاستغفار 3 مرات ثم دعاء السلام مرة"
             ),
             AzkarItem(
                 id = "p2",
@@ -664,9 +684,9 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
                 text = "سُبْحَانَ اللَّهِ (33 مرة)\nالْحَمْدُ لِلَّهِ (33 مرة)\nاللَّهُ أَكْبَرُ (33 مرة)\nلَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهو عَلَى كُلِّ شَيْءٍ قَدِيرٌ.",
                 fadl = "من فعل ذلك غفرت خطاياه وإن كانت مثل زبد البحر.",
                 source = "رواه مسلم",
-                targetCount = 33,
+                targetCount = 100,
                 category = AzkarTimeCategory.AFTER_PRAYER,
-                timeHint = "تقال 33 مرة لكل ذكر ثم التهليل"
+                timeHint = "33 تسبيحة + 33 تحميدة + 33 تكبيرة + تهليلة = 100"
             )
         )
 
@@ -886,6 +906,7 @@ fun AzkarScreen(
                                     viewModel.incrementCount(item.id, item.targetCount)
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
+                                onDecrement = { viewModel.decrementCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
                                 onShare = { copyZikrToClipboard(item) }
                             )
@@ -924,6 +945,7 @@ fun AzkarScreen(
                                     viewModel.incrementCount(item.id, item.targetCount)
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
+                                onDecrement = { viewModel.decrementCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
                                 onShare = { copyZikrToClipboard(item) }
                             )
@@ -956,6 +978,7 @@ fun AzkarScreen(
                                     viewModel.incrementCount(item.id, item.targetCount)
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
+                                onDecrement = { viewModel.decrementCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
                                 onShare = { copyZikrToClipboard(item) }
                             )
@@ -988,6 +1011,7 @@ fun AzkarScreen(
                                     viewModel.incrementCount(item.id, item.targetCount)
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
+                                onDecrement = { viewModel.decrementCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
                                 onShare = { copyZikrToClipboard(item) }
                             )
@@ -1020,6 +1044,7 @@ fun AzkarScreen(
                                     viewModel.incrementCount(item.id, item.targetCount)
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
+                                onDecrement = { viewModel.decrementCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
                                 onShare = { copyZikrToClipboard(item) }
                             )
@@ -1052,6 +1077,7 @@ fun AzkarScreen(
                                     viewModel.incrementCount(item.id, item.targetCount)
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
+                                onDecrement = { viewModel.decrementCount(item.id) },
                                 onSpeak = { viewModel.speakZikr(item, context) },
                                 onShare = { copyZikrToClipboard(item) }
                             )
@@ -1428,6 +1454,7 @@ fun AzkarManuscriptCard(
     isSpeaking: Boolean,
     onIncrement: () -> Unit,
     onReset: () -> Unit,
+    onDecrement: () -> Unit,
     onSpeak: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -1602,6 +1629,21 @@ fun AzkarManuscriptCard(
                     }
 
                     if (currentCount > 0) {
+                        Surface(
+                            onClick = onDecrement,
+                            modifier = Modifier.size(48.dp),
+                            shape = CircleShape,
+                            color = theme.secondarySurface
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Undo,
+                                    contentDescription = "التراجع عن آخر نقرة",
+                                    tint = theme.textSecondary,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
                         Surface(
                             onClick = onReset,
                             modifier = Modifier.size(48.dp),

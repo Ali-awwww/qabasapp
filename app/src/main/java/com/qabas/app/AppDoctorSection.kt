@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,14 +42,14 @@ fun AppDoctorSection(context: Context, onNavigateToKeys: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.MedicalServices, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.MedicalServices, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("طبيب التطبيق (التشخيص الذاتي)", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("طبيب التطبيق (التشخيص الذاتي)", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("يفحص المفاتيح، الأخطاء، وحالة الأنظمة الحيوية لضمان أفضل أداء.", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                 }
@@ -67,7 +65,7 @@ fun AppDoctorSection(context: Context, onNavigateToKeys: () -> Unit) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isDiagnosing) {
@@ -91,11 +89,11 @@ fun AppDoctorSection(context: Context, onNavigateToKeys: () -> Unit) {
         TabRow(
             selectedTabIndex = currentTab,
             containerColor = Color.Transparent,
-            contentColor = GoldPrimary,
+            contentColor = PresetPrimary,
             indicator = { tabPositions ->
                 TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier.tabIndicatorOffset(tabPositions[currentTab]),
-                    color = GoldPrimary
+                    color = PresetPrimary
                 )
             }
         ) {
@@ -184,7 +182,7 @@ fun DoctorReportCard(report: DoctorReport, context: Context) {
                     
                     Spacer(modifier = Modifier.height(10.dp))
                     
-                    Text("الإجراء المقترح:", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("الإجراء المقترح:", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(report.suggestedAction, color = Color(0xFFE2E8F0), fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
 
                     if (report.suggestedFixCode != null) {

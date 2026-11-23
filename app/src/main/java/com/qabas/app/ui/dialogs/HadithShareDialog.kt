@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -20,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -146,7 +144,7 @@ fun HadithShareDialog(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF111726)),
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                Brush.verticalGradient(listOf(GoldPrimary.copy(alpha = 0.6f), Color(0xFF1E293B)))
+                Brush.verticalGradient(listOf(PresetPrimary.copy(alpha = 0.6f), Color(0xFF1E293B)))
             )
         ) {
             Column(
@@ -165,19 +163,19 @@ fun HadithShareDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             shape = CircleShape,
-                            color = GoldPrimary.copy(alpha = 0.15f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
+                            color = PresetPrimary.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary),
                             modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Share, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Share, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 "مشاركة الحديث الشريف",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -209,7 +207,7 @@ fun HadithShareDialog(
                         Surface(
                             onClick = { selectedTab = idx },
                             shape = RoundedCornerShape(9.dp),
-                            color = if (isSelected) GoldPrimary else Color.Transparent,
+                            color = if (isSelected) PresetPrimary else Color.Transparent,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
@@ -230,7 +228,7 @@ fun HadithShareDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0E131F)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.25f))
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -241,14 +239,14 @@ fun HadithShareDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("معاينة التنسيق الجاهز للنشر:", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("معاينة التنسيق الجاهز للنشر:", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = GoldPrimary.copy(alpha = 0.15f)
+                                color = PresetPrimary.copy(alpha = 0.15f)
                             ) {
                                 Text(
                                     if (selectedTab == 0) "مزخرف ✦" else "سريع ⚡",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -332,7 +330,7 @@ fun HadithShareDialog(
                 Button(
                     onClick = { shareImageAndText() },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))

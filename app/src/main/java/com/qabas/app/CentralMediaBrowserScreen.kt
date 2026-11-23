@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,19 +16,15 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +40,6 @@ import coil.request.ImageRequest
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * 🗂️ متصفح ومستودع الوسائط المركزي الموحّد (Central Media Browser)
@@ -63,6 +57,7 @@ fun CentralMediaBrowserScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
@@ -136,7 +131,7 @@ fun CentralMediaBrowserScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF060913),
+        containerColor = theme.background,
         bottomBar = bottomBar,
         floatingActionButton = {
             FloatingActionButton(
@@ -182,7 +177,7 @@ fun CentralMediaBrowserScreen(
                             )
                             Text(
                                 "SUPABASE STORAGE & AI NEXUS ✦",
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 8.5.sp
                             )
@@ -197,7 +192,7 @@ fun CentralMediaBrowserScreen(
                 actions = {
                     // زر استيراد صوت مخصص
                     IconButton(onClick = { audioPickerLauncher.launch("audio/*") }) {
-                        Icon(Icons.Default.AudioFile, contentDescription = "استيراد صوت", tint = Color(0xFFEC4899))
+                        Icon(Icons.Default.AudioFile, contentDescription = "استيراد صوت", tint = theme.accent)
                     }
 
                     // زر التبديل بين Grid و List
@@ -205,7 +200,7 @@ fun CentralMediaBrowserScreen(
                         Icon(
                             if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
                             contentDescription = "طريقة العرض",
-                            tint = Color.White
+                            tint = theme.textPrimary
                         )
                     }
 
@@ -225,7 +220,7 @@ fun CentralMediaBrowserScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF080D1A))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = theme.background)
             )
         }
     ) { paddingValues ->
@@ -248,18 +243,18 @@ fun CentralMediaBrowserScreen(
                     shape = CutCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = primaryColor,
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedContainerColor = Color(0xFF0C1322),
-                        unfocusedContainerColor = Color(0xFF0C1322),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedBorderColor = theme.secondarySurface,
+                        focusedContainerColor = theme.cardSurface,
+                        unfocusedContainerColor = theme.cardSurface,
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary
                     ),
-                    placeholder = { Text("بحث في الوسائط، البوسترات، والتوليد...", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.5.sp) },
+                    placeholder = { Text("بحث في الوسائط، البوسترات، والتوليد...", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.5.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp)) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Close, contentDescription = "مسح", tint = theme.textTertiary, modifier = Modifier.size(16.dp))
                             }
                         }
                     },
@@ -268,9 +263,9 @@ fun CentralMediaBrowserScreen(
 
                 // مؤشر السحابة
                 Surface(
-                    color = if (SupabaseServices.isSupabaseAvailable) Color(0xFF064E3B) else Color(0xFF1E293B),
+                    color = if (SupabaseServices.isSupabaseAvailable) theme.success.copy(alpha = 0.12f) else theme.secondarySurface,
                     shape = CutCornerShape(6.dp),
-                    border = BorderStroke(0.8.dp, if (SupabaseServices.isSupabaseAvailable) Color(0xFF10B981) else Color(0xFF475569)),
+                    border = BorderStroke(0.8.dp, if (SupabaseServices.isSupabaseAvailable) theme.success else theme.separator),
                     modifier = Modifier.height(48.dp)
                 ) {
                     Row(
@@ -281,12 +276,12 @@ fun CentralMediaBrowserScreen(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(if (SupabaseServices.isSupabaseAvailable) Color(0xFF34D399) else Color(0xFF94A3B8))
+                                .background(if (SupabaseServices.isSupabaseAvailable) theme.success else theme.textSecondary)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             if (SupabaseServices.isSupabaseAvailable) "Supabase" else "Local",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp
@@ -307,8 +302,8 @@ fun CentralMediaBrowserScreen(
                     Surface(
                         onClick = { selectedFilter = type },
                         shape = CutCornerShape(6.dp),
-                        color = if (isSelected) primaryColor else Color(0xFF0F172A),
-                        border = BorderStroke(0.8.dp, if (isSelected) primaryColor else Color(0xFF1E293B)),
+                        color = if (isSelected) primaryColor else theme.cardSurface,
+                        border = BorderStroke(0.8.dp, if (isSelected) primaryColor else theme.secondarySurface),
                         modifier = Modifier.height(32.dp)
                     ) {
                         Row(
@@ -339,7 +334,7 @@ fun CentralMediaBrowserScreen(
             ) {
                 Text(
                     text = "إجمالي العناصر: ${filteredAssets.size} عنصر",
-                    color = Color(0xFF94A3B8),
+                    color = theme.textSecondary,
                     fontFamily = CairoFont,
                     fontSize = 11.sp
                 )
@@ -372,21 +367,21 @@ fun CentralMediaBrowserScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF0F172A)),
+                                .background(theme.cardSurface),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.CloudOff, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.CloudOff, contentDescription = null, tint = theme.textTertiary, modifier = Modifier.size(28.dp))
                         }
                         Text(
                             "لا توجد وسائط مطابقة للبحث أو التصفية",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
                             "قم بتوليد صور FLUX 8K في الاستوديو أو ارفع وسائط من جهازك 📥",
-                            color = Color.Gray,
+                            color = theme.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center
@@ -465,21 +460,22 @@ private fun CentralMediaAssetCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val badgeColor = remember(asset.source) {
         when (asset.source) {
-            CentralMediaSource.SUPABASE_CLOUD -> Color(0xFF10B981)
-            CentralMediaSource.AI_FLUX -> Color(0xFFF59E0B)
-            CentralMediaSource.AI_VOICE -> Color(0xFFEC4899)
-            CentralMediaSource.LOCAL_RENDER -> Color(0xFF38BDF8)
-            CentralMediaSource.USER_UPLOAD -> Color(0xFF8B5CF6)
+            CentralMediaSource.SUPABASE_CLOUD -> theme.success
+            CentralMediaSource.AI_FLUX -> theme.warning
+            CentralMediaSource.AI_VOICE -> theme.accent
+            CentralMediaSource.LOCAL_RENDER -> theme.primary
+            CentralMediaSource.USER_UPLOAD -> theme.accent
         }
     }
 
     Surface(
         onClick = onClick,
         shape = CutCornerShape(10.dp),
-        color = Color(0xFF0A101D),
-        border = BorderStroke(0.8.dp, Color(0xFF1E293B)),
+        color = theme.background,
+        border = BorderStroke(0.8.dp, theme.secondarySurface),
         modifier = Modifier.fillMaxWidth()
     ) {
         if (isGridView) {
@@ -489,7 +485,7 @@ private fun CentralMediaAssetCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(130.dp)
-                        .background(Color(0xFF050811)),
+                        .background(theme.background),
                     contentAlignment = Alignment.Center
                 ) {
                     when (asset.type) {
@@ -518,7 +514,7 @@ private fun CentralMediaAssetCard(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.65f)),
+                                    .background(theme.background.copy(alpha = 0.65f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = primaryColor, modifier = Modifier.size(22.dp))
@@ -526,9 +522,9 @@ private fun CentralMediaAssetCard(
                         }
                         CentralMediaType.AUDIO -> {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFFEC4899), modifier = Modifier.size(32.dp))
+                                Icon(Icons.Default.GraphicEq, contentDescription = null, tint = theme.accent, modifier = Modifier.size(32.dp))
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text("ملف صوتي", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
+                                Text("ملف صوتي", color = theme.textTertiary, fontSize = 10.sp, fontFamily = CairoFont)
                             }
                         }
                         else -> {
@@ -538,7 +534,7 @@ private fun CentralMediaAssetCard(
 
                     // Cloud / Local Status Top Badge
                     Surface(
-                        color = if (asset.isUploadedToCloud) Color(0xFF10B981).copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.7f),
+                        color = if (asset.isUploadedToCloud) theme.success.copy(alpha = 0.85f) else theme.background.copy(alpha = 0.7f),
                         shape = CutCornerShape(4.dp),
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -548,13 +544,13 @@ private fun CentralMediaAssetCard(
                             Icon(
                                 if (asset.isUploadedToCloud) Icons.Default.CloudDone else Icons.Default.PhoneAndroid,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = theme.textPrimary,
                                 modifier = Modifier.size(10.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 if (asset.isUploadedToCloud) "Supabase" else "Local",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold
@@ -567,7 +563,7 @@ private fun CentralMediaAssetCard(
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
                         text = asset.title,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.5.sp,
@@ -598,7 +594,7 @@ private fun CentralMediaAssetCard(
 
                         Text(
                             text = asset.formattedSize,
-                            color = Color(0xFF94A3B8),
+                            color = theme.textSecondary,
                             fontFamily = RobotoMonoFont,
                             fontSize = 9.sp
                         )
@@ -617,7 +613,7 @@ private fun CentralMediaAssetCard(
                     modifier = Modifier
                         .size(54.dp)
                         .clip(CutCornerShape(6.dp))
-                        .background(Color(0xFF050811)),
+                        .background(theme.background),
                     contentAlignment = Alignment.Center
                 ) {
                     if (asset.type == CentralMediaType.IMAGE || asset.type == CentralMediaType.VIDEO) {
@@ -628,7 +624,7 @@ private fun CentralMediaAssetCard(
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFFEC4899), modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = theme.accent, modifier = Modifier.size(24.dp))
                     }
                 }
 
@@ -637,7 +633,7 @@ private fun CentralMediaAssetCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = asset.title,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.5.sp,
@@ -647,19 +643,19 @@ private fun CentralMediaAssetCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "${asset.source.label} • ${asset.formattedSize} • ${asset.formattedDate}",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 10.sp
                     )
                 }
 
                 Surface(
-                    color = if (asset.isUploadedToCloud) Color(0xFF064E3B) else Color(0xFF1E293B),
+                    color = if (asset.isUploadedToCloud) theme.success.copy(alpha = 0.12f) else theme.secondarySurface,
                     shape = CutCornerShape(4.dp)
                 ) {
                     Text(
                         if (asset.isUploadedToCloud) "سحابي ✓" else "محلي",
-                        color = if (asset.isUploadedToCloud) Color(0xFF34D399) else Color(0xFF94A3B8),
+                        color = if (asset.isUploadedToCloud) theme.success else theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 9.5.sp,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -686,13 +682,14 @@ private fun MediaAssetDetailDialog(
     accentColor: Color
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
 
     Dialog(onDismissRequest = onDismiss) {
         GlassmorphicSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .wrapContentHeight(),
-            backgroundColor = Color(0xFF080D1A).copy(alpha = 0.96f),
+            backgroundColor = theme.background.copy(alpha = 0.96f),
             borderColor = primaryColor.copy(alpha = 0.6f),
             shape = CutCornerShape(14.dp)
         ) {
@@ -717,7 +714,7 @@ private fun MediaAssetDetailDialog(
                         fontSize = 14.sp
                     )
                     IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.Gray)
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textTertiary)
                     }
                 }
 
@@ -727,7 +724,7 @@ private fun MediaAssetDetailDialog(
                         .fillMaxWidth()
                         .height(200.dp)
                         .clip(CutCornerShape(8.dp))
-                        .background(Color.Black),
+                        .background(theme.background),
                     contentAlignment = Alignment.Center
                 ) {
                     if (asset.type == CentralMediaType.IMAGE || asset.type == CentralMediaType.VIDEO) {
@@ -739,9 +736,9 @@ private fun MediaAssetDetailDialog(
                         )
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Color(0xFFEC4899), modifier = Modifier.size(48.dp))
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = theme.accent, modifier = Modifier.size(48.dp))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("مسار صوتي نقي", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("مسار صوتي نقي", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                         }
                     }
                 }
@@ -750,15 +747,15 @@ private fun MediaAssetDetailDialog(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = CutCornerShape(6.dp),
-                    color = Color(0xFF0F172A),
-                    border = BorderStroke(0.6.dp, Color(0xFF1E293B))
+                    color = theme.cardSurface,
+                    border = BorderStroke(0.6.dp, theme.secondarySurface)
                 ) {
                     Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("الاسم: ${asset.title}", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        Text("المصدر: ${asset.source.label}", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 11.sp)
-                        Text("الحجم: ${asset.formattedSize} • النوع: ${asset.mimeType}", color = Color.Gray, fontFamily = RobotoMonoFont, fontSize = 10.sp)
+                        Text("الاسم: ${asset.title}", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        Text("المصدر: ${asset.source.label}", color = theme.primary, fontFamily = CairoFont, fontSize = 11.sp)
+                        Text("الحجم: ${asset.formattedSize} • النوع: ${asset.mimeType}", color = theme.textTertiary, fontFamily = RobotoMonoFont, fontSize = 10.sp)
                         if (asset.bucketName != null) {
-                            Text("حاوية السحابة (Bucket): ${asset.bucketName}", color = Color(0xFF10B981), fontFamily = RobotoMonoFont, fontSize = 10.sp)
+                            Text("حاوية السحابة (Bucket): ${asset.bucketName}", color = theme.success, fontFamily = RobotoMonoFont, fontSize = 10.sp)
                         }
                     }
                 }
@@ -785,12 +782,12 @@ private fun MediaAssetDetailDialog(
                             onClick = onOpenInPhotoStudio,
                             modifier = Modifier.fillMaxWidth().height(42.dp),
                             shape = CutCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF1E170A))
+                            border = BorderStroke(1.dp, theme.warning),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = theme.warning.copy(alpha = 0.12f))
                         ) {
-                            Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Image, contentDescription = null, tint = theme.warning, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("تعديل في استوديو الصور والبوسترات 🎨", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("تعديل في استوديو الصور والبوسترات 🎨", color = theme.warning, fontFamily = CairoFont, fontSize = 12.sp)
                         }
                     }
 
@@ -800,11 +797,11 @@ private fun MediaAssetDetailDialog(
                             onClick = onUploadToSupabase,
                             modifier = Modifier.fillMaxWidth().height(42.dp),
                             shape = CutCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.success)
                         ) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("رفع ومزامنة في Supabase Storage ☁️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("رفع ومزامنة في Supabase Storage ☁️", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
 
@@ -814,22 +811,22 @@ private fun MediaAssetDetailDialog(
                             onClick = onCopyLink,
                             modifier = Modifier.weight(1f).height(40.dp),
                             shape = CutCornerShape(6.dp),
-                            border = BorderStroke(0.8.dp, Color(0xFF38BDF8))
+                            border = BorderStroke(0.8.dp, theme.primary)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = theme.primary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ الرابط", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("نسخ الرابط", color = theme.primary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
 
                         Button(
                             onClick = onDelete,
                             modifier = Modifier.weight(1f).height(40.dp),
                             shape = CutCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7F1D1D))
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.destructive)
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("حذف الملف", color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("حذف الملف", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
                 }

@@ -70,28 +70,6 @@ object QuranAudioService {
         return availableReciters.find { it.id == id } ?: availableReciters.first()
     }
 
-    /**
-     * يربط الاسم العربي الظاهر في واجهة القراء بمفتاح صوتي موجود فعلاً.
-     * لا نُنشئ رابطاً لقارئ غير مدعوم في قائمة EveryAyah.
-     */
-    fun getReciterIdForArabicName(name: String): String? = when {
-        name.contains("الحصري") -> "husary"
-        name.contains("المنشاوي") -> "minshawy"
-        name.contains("عبد الباسط") -> "abdulbasit"
-        name.contains("الماهر المعيقلي") || name.contains("ماهر المعيقلي") -> "muaiqly"
-        name.contains("مشاري") -> "alafasy"
-        name.contains("سعد الغامدي") -> "ghamadi"
-        name.contains("الشاطري") -> "shatri"
-        name.contains("الشريم") -> "shuraym"
-        name.contains("الحذيفي") -> "hudhaify"
-        name.contains("محمد أيوب") -> "ayyoub"
-        name.contains("الأخضر") -> "akhdar"
-        name.contains("بصفر") -> "basfar"
-        name.contains("جبريل") -> "jibreel"
-        name.contains("برهيزكار") -> "parhizgar"
-        else -> null
-    }
-
     fun isConfigured(): Boolean {
         val id = buildConfigKey("QF_CLIENT_ID")
         val secret = buildConfigKey("QF_CLIENT_SECRET")
@@ -364,6 +342,12 @@ object QuranAudioPlayer {
         onEnded: (() -> Unit)? = null,
         onError: ((String) -> Unit)? = null
     ) {
+        // مؤقت النوم للجلسة لا للتشغيلة الواحدة: إيقاف المشغّل
+        // الداخلي هنا كان يلغي المؤقت بصمت مع بقاء عدّاده التنازلي
+        // ظاهراً في الشاشة؛ نحفظ المتبقي ونعيد تسليحه بعد بناء
+        // المشغّل الجديد، فينجو المؤقت من تبديل الصفحة/السورة
+        // وإعادة بناء القائمة عند تبديل التكرار.
+        val sleepLeftMs = sleepRemainingMs()
         stop()
         if (ayahs.isEmpty()) return
         onEndedCallback = onEnded
@@ -418,6 +402,7 @@ object QuranAudioPlayer {
         p.prepare()
         p.play()
         player = p
+        if (sleepLeftMs != null && sleepLeftMs > 0) armSleepTimerMs(sleepLeftMs)
     }
 
     fun toggle(): Boolean {
@@ -428,20 +413,11 @@ object QuranAudioPlayer {
 
     fun isPlaying(): Boolean = player?.isPlaying == true
 
-    fun hasPlayer(): Boolean = player != null
-
     /** موضع التشغيل الحالي داخل الآية الجارية (مللي ثانية) — لتطابق الكلمة. */
     fun currentPositionMs(): Long = try {
         player?.currentPosition ?: 0L
     } catch (_: Exception) {
         0L
-    }
-
-    /** رقم الآية الجارية في قائمة التشغيل، أو -1 بلا تشغيل. */
-    fun currentAyahIndex(): Int = try {
-        player?.currentMediaItemIndex ?: -1
-    } catch (_: Exception) {
-        -1
     }
 
     fun setSpeed(rate: Float) {
@@ -451,8 +427,6 @@ object QuranAudioPlayer {
         } catch (_: Exception) {
         }
     }
-
-    fun getSpeed(): Float = currentSpeed
 
     fun setRepeatMode(mode: QuranRepeatMode) {
         try {
@@ -472,8 +446,14 @@ object QuranAudioPlayer {
     fun setSleepTimer(minutes: Int?) {
         cancelSleepTimer()
         if (minutes == null || minutes <= 0) return
+        armSleepTimerMs(minutes * 60_000L)
+    }
+
+    /** تسليح مؤقت النوم بمدة دقيقة بالمللي ثانية (للحفاظ عليه عبر إعادة التشغيل). */
+    private fun armSleepTimerMs(ms: Long) {
+        cancelSleepTimer()
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        sleepDeadlineMs = System.currentTimeMillis() + minutes * 60_000L
+        sleepDeadlineMs = System.currentTimeMillis() + ms
         val runnable = Runnable {
             sleepDeadlineMs = 0L
             val ended = onEndedCallback
@@ -482,7 +462,7 @@ object QuranAudioPlayer {
         }
         sleepHandler = handler
         sleepRunnable = runnable
-        handler.postDelayed(runnable, minutes * 60_000L)
+        handler.postDelayed(runnable, ms)
     }
 
     /** المللي ثانية المتبقية على مؤقت النوم، أو null بلا مؤقت. */

@@ -10,10 +10,9 @@ import java.util.Date
 import java.util.Locale
 
 enum class PointAction(val points: Int, val description: String) {
-    EXPORT_VIDEO(50, "تصدير فيديو نهائي"),
+    EXPORT_VIDEO(50, "إنشاء فيديو"),
     USE_AI_HOOK(10, "توليد فكرة/خطاف بالذكاء الاصطناعي"),
     SEARCH_DALEEL(5, "البحث عن دليل شرعي بالمساعد الدعوي"),
-    SHARE_APP(20, "مشاركة الفيديو والتطبيق"),
     DAILY_LOGIN(5, "دخول يومي"),
     WEEKLY_CHALLENGE(100, "تنفيذ مهمة الأسبوع الطارئة"),
     SAHIH_QUIZ_CORRECT(2, "إجابة صحيحة في اختبار الصحيحين"),
@@ -51,7 +50,7 @@ object PointsManager {
                         reason = reason
                     )
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.w(TAG, "Note syncing points with cloud: ${e.message}")
             }
         }
@@ -122,14 +121,8 @@ object PointsManager {
         return prefs.getBoolean("completed_$missionId", false)
     }
 
-    fun markWeeklyMissionCompleted(context: Context, missionId: String) {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("completed_$missionId", true).apply()
-        awardPoints(context, PointAction.WEEKLY_CHALLENGE)
-    }
-
     fun verifyAndAwardChallenge(context: Context, script: String) {
-        // نمنح نقاط التصدير الأساسية أولاً في جميع الأحوال
+        // نمنح نقاط الإنشاء الأساسية أولاً في جميع الأحوال
         awardPoints(context, PointAction.EXPORT_VIDEO)
         
         if (script.isBlank()) return
@@ -153,7 +146,7 @@ object PointsManager {
                 } else {
                     Log.d(TAG, "AI decided the script does not match the weekly challenge: $geminiResponse")
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Error verifying challenge with Gemini: ${e.message}")
             }
         }

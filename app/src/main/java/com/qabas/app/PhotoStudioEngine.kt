@@ -121,7 +121,7 @@ object PhotoStudioEngine {
 
             onProgress?.invoke(1.0f, "اكتمل إنتاج الفيديو بنجاح!")
             return@withContext true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Exception in PhotoStudioEngine", e)
             false
         }

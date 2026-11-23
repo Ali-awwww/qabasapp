@@ -9,7 +9,6 @@ import android.text.TextPaint
 import android.util.Log
 import androidx.compose.ui.graphics.Color
 import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.FFmpegSession
 import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -249,11 +248,6 @@ object VideoProcessor {
             return addTextOverlay(context, videoPath, text, outputPath)
         }
 
-        val animBlob = (
-            styleAnalysis.typographyStyle + " " +
-                styleAnalysis.keywords.joinToString(" ") + " " +
-                styleAnalysis.movementPatterns
-            ).lowercase(Locale.ROOT)
 
         // ثورة خادم المسلم (Kinetic Typography): تفعيل دائماً للكابشن الحركي (كلمة بكلمة)
         val ok = addWordByWordOverlay(context, videoPath, text, styleAnalysis ?: VideoStyleAnalysis(), outputPath)
@@ -364,7 +358,7 @@ object VideoProcessor {
             )
             val success = executeCommand(command, "إضافة كابشن WordByWord (${bitmaps.size} مراحل)")
             return success && isValidVideoFile(outputPath, minSizeBytes = MIN_SCENE_SIZE)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "WordByWord overlay failed", e)
             return false
         } finally {
@@ -372,10 +366,28 @@ object VideoProcessor {
         }
     }
 
-    suspend fun addDeveloperWatermarkOverlay(context: Context, videoPath: String, watermarkText: String, outputPath: String): Boolean {
+    /**
+     * review-r12: أضيف معامل الموضع — كان الموضع مثبّتاً أعلى المنتصف دائماً
+     * رغم أن الإعدادات تعرض 4 مواضع. الافتراضي TOP_CENTER يحفظ سلوك ختم
+     * المطوّر الحالي حرفياً؛ وختم المستخدم يمرّر موضعه من الإعدادات.
+     */
+    suspend fun addDeveloperWatermarkOverlay(
+        context: Context,
+        videoPath: String,
+        watermarkText: String,
+        outputPath: String,
+        position: String = "TOP_CENTER"
+    ): Boolean {
         val overlayImg = createArabicTextBitmap(context, watermarkText, isWatermark = true, styleAnalysis = null)
         if (overlayImg != null && overlayImg.exists()) {
-            val command = "-y -i \"$videoPath\" -i \"${overlayImg.absolutePath}\" -filter_complex \"[0:v][1:v]overlay=(main_w-overlay_w)/2:main_h*0.12\" -c:v libx264 -preset ${currentQualityPreset.preset} -crf ${currentQualityPreset.crf} -c:a copy \"$outputPath\""
+            val overlayExpr = when (position) {
+                "BOTTOM_RIGHT" -> "main_w-overlay_w-16:main_h-overlay_h-16"
+                "BOTTOM_LEFT" -> "16:main_h-overlay_h-16"
+                "TOP_RIGHT" -> "main_w-overlay_w-16:16"
+                "TOP_LEFT" -> "16:16"
+                else -> "(main_w-overlay_w)/2:main_h*0.12" // TOP_CENTER — سلوك ختم المطوّر الحالي
+            }
+            val command = "-y -i \"$videoPath\" -i \"${overlayImg.absolutePath}\" -filter_complex \"[0:v][1:v]overlay=$overlayExpr\" -c:v libx264 -preset ${currentQualityPreset.preset} -crf ${currentQualityPreset.crf} -c:a copy \"$outputPath\""
             val success = executeCommand(command, "طباعة الختم والعلامة المائية في المنطقة الآمنة")
             overlayImg.delete()
             if (success && isValidVideoFile(outputPath, minSizeBytes = MIN_SCENE_SIZE)) return true
@@ -725,7 +737,7 @@ object VideoProcessor {
             val command = "-y $inputsStr -filter_complex \"$fc\" -map \"[v]\" $audioMap -c:v libx264 -preset ${currentQualityPreset.preset} -crf ${currentQualityPreset.crf} -c:a aac -b:a ${currentQualityPreset.audioBitrate} \"$outputPath\""
             val success = executeCommand(command, "دمج المشاهد (${videoPaths.size}) مع انتقالات سنيمائية ($xfadeFilterName)")
             if (success && isValidVideoFile(outputPath, minSizeBytes = MIN_SCENE_SIZE)) return true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "xfade multi-scene failed: ${e.message}")
         }
 

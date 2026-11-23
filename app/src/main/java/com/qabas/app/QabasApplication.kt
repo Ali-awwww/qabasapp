@@ -48,7 +48,7 @@ class QabasApplication : Application() {
                 .onFailure { recordStartupFailure("LocalAccountRegistry.init", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "SupabaseRepository.ensureAuthenticatedSession")
-            runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }
+            runCatching { SupabaseRepository.getInstance().ensureAuthenticatedSession() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { recordStartupFailure("SupabaseRepository.ensureAuthenticatedSession", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "OfflineReels.init")
@@ -58,11 +58,11 @@ class QabasApplication : Application() {
                 .onFailure { recordStartupFailure("SilentReelPrefetcher.startSync", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "AccountIdentityManager.refresh")
-            runCatching { AccountIdentityManager.refresh(this@QabasApplication) }
+            runCatching { AccountIdentityManager.refresh(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { recordStartupFailure("AccountIdentityManager.refresh", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "PushTokenManager.captureAndSync")
-            runCatching { PushTokenManager.captureAndSync(this@QabasApplication) }
+            runCatching { PushTokenManager.captureAndSync(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { recordStartupFailure("PushTokenManager.captureAndSync", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "UpdateManager.reconcilePendingInstall")
@@ -70,7 +70,7 @@ class QabasApplication : Application() {
                 .onFailure { recordStartupFailure("UpdateManager.reconcilePendingInstall", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "AppRemoteConfig.refreshFromCloud")
-            runCatching { AppRemoteConfig.refreshFromCloud(this@QabasApplication) }
+            runCatching { AppRemoteConfig.refreshFromCloud(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { recordStartupFailure("AppRemoteConfig.refreshFromCloud", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "RemoteNotificationsManager.startInbox")

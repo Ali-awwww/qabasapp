@@ -3,7 +3,6 @@ package com.qabas.app
 import android.content.Context
 import android.util.Log
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,12 +77,6 @@ object CreatorFollowManager {
         @SerialName("created_at") val createdAt: String? = null
     )
 
-    @Serializable
-    data class CreatorFollowRelationRow(
-        @SerialName("creator_id") val creatorId: String,
-        @SerialName("created_at") val createdAt: String? = null
-    )
-
     // ───────── منطق نقي قابل للاختبار ─────────
 
     fun normalizedIdentity(value: String?): String? {
@@ -146,26 +139,6 @@ object CreatorFollowManager {
         val ownerUid = userId?.trim().orEmpty()
         if (baseKey.isBlank() || ownerUid.isBlank()) return null
         return "$baseKey:$ownerUid"
-    }
-
-    /**
-     * مطابقة صارمة لسجل المنشئ نفسه عبر المعرّف أو اسم المستخدم، دون دمج
-     * الأسماء المعروضة المتشابهة الخاصة بأشخاص مختلفين.
-     */
-    fun isSameCreatorRecord(
-        firstId: String?,
-        firstName: String?,
-        secondId: String?,
-        secondName: String?
-    ): Boolean {
-        val firstIdToken = normalizedIdentity(firstId)
-        val secondIdToken = normalizedIdentity(secondId)
-        val firstNameToken = normalizedIdentity(firstName)
-        val secondNameToken = normalizedIdentity(secondName)
-        if (firstIdToken != null && firstIdToken == secondIdToken) return true
-        if (firstIdToken != null && (firstIdToken == secondNameToken)) return true
-        if (secondIdToken != null && (secondIdToken == firstNameToken)) return true
-        return false
     }
 
     /**
@@ -288,73 +261,11 @@ object CreatorFollowManager {
             .edit().putString(key, payload).apply()
     }
 
-    private fun cloudState(context: Context, userId: String, creatorId: String): String? {
-        val key = userScopedPreferenceKey(CLOUD_STATE_PREFIX + creatorId, userId) ?: return null
-        return context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
-            .getString(key, null)
-    }
-
     private fun saveCloudState(context: Context, userId: String, creatorId: String, state: String) {
         val key = userScopedPreferenceKey(CLOUD_STATE_PREFIX + creatorId, userId) ?: return
         context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
             .edit().putString(key, state).apply()
     }
-
-    suspend fun refreshFollowedCreatorsFromCloud(context: Context, userId: String): List<FollowedCreator>? =
-        withContext(Dispatchers.IO) {
-            if (!cloudReady() || userId.isBlank()) return@withContext null
-            val authUid = SupabaseServices.Auth.getCurrentUserId() ?: return@withContext null
-            if (!sameCanonicalUserId(authUid, userId)) return@withContext null
-
-            val remoteRows = runFollowQuery {
-                val client = SupabaseServices.client ?: return@runFollowQuery null
-                val allRows = mutableListOf<CreatorFollowRelationRow>()
-                val pageSize = 500
-                val maxPages = 20
-                var complete = false
-                for (pageIndex in 0 until maxPages) {
-                    val offset = pageIndex * pageSize
-                    val page = client.postgrest.from(TABLE).select(
-                        columns = io.github.jan.supabase.postgrest.query.Columns.list("creator_id, created_at")
-                    ) {
-                        filter { eq("follower_id", authUid) }
-                        order("creator_id", Order.ASCENDING)
-                        range(offset.toLong(), (offset + pageSize - 1).toLong())
-                    }.decodeList<CreatorFollowRelationRow>()
-                    allRows.addAll(page)
-                    if (page.size < pageSize) {
-                        complete = true
-                        break
-                    }
-                }
-                allRows.takeIf { complete }
-            } ?: return@withContext null
-
-            if (!sameCanonicalUserId(SupabaseServices.Auth.getCurrentUserId(), authUid)) {
-                return@withContext null
-            }
-
-            val existingById = followedCreatorsForUser(context, authUid.orEmpty())
-                .associateBy { it.id.lowercase(Locale.ROOT) }
-            val synced = remoteRows.mapNotNull { row ->
-                val id = row.creatorId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                val previous = existingById[id.lowercase(Locale.ROOT)]
-                FollowedCreator(
-                    id = id,
-                    displayName = previous?.displayName?.takeIf { it.isNotBlank() } ?: id,
-                    avatarUrl = previous?.avatarUrl,
-                    followedAt = row.createdAt?.let { timestamp ->
-                        runCatching { java.time.Instant.parse(timestamp).toEpochMilli() }.getOrNull()
-                    } ?: previous?.followedAt ?: System.currentTimeMillis()
-                )
-            }
-            saveFollowedCreators(context, authUid.orEmpty(), synced)
-            val followedIdsKey = userScopedPreferenceKey(FOLLOW_IDS_KEY, authUid)
-                ?: return@withContext null
-            context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                .edit().putStringSet(followedIdsKey, synced.map { it.id }.toSet()).apply()
-            synced
-        }
 
     /** Applies the owner-scoped following rows returned by the profile snapshot without another request. */
     fun applyProfileSnapshot(

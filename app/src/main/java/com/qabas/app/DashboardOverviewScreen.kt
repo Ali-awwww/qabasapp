@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.qabas.app.ui.theme.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,16 +63,16 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF050811))
+            .background(DeepSlate)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("رجوع", color = Color(0xFF22D3EE)) }
+            TextButton(onClick = onBack) { Text("رجوع", color = PresetPrimary) }
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = "نظرة عامة — النمو",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -84,7 +85,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF22D3EE))
+                CircularProgressIndicator(color = PresetPrimary)
             }
             return@Column
         }
@@ -106,7 +107,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 value = loaded.dau?.toString(),
                 subtitle = loaded.anonSessionsToday?.let { "جلسات مجهولة اليوم: $it" },
                 icon = Icons.Default.TrendingUp,
-                accent = Color(0xFF22D3EE),
+                accent = PresetPrimary,
                 modifier = Modifier.weight(1f)
             )
             OverviewKpiCard(
@@ -114,7 +115,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 value = loaded.mau?.toString(),
                 subtitle = "مميزون في آخر 30 يوماً",
                 icon = Icons.Default.Group,
-                accent = Color(0xFF10B981),
+                accent = ThemeSuccess,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -125,7 +126,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 value = loaded.newUsers7d?.toString(),
                 subtitle = "من تاريخ إنشاء الملف",
                 icon = Icons.Default.PersonAdd,
-                accent = Color(0xFF8B5CF6),
+                accent = PresetAccent,
                 modifier = Modifier.weight(1f)
             )
             OverviewKpiCard(
@@ -133,7 +134,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 value = loaded.totalUsers?.toString(),
                 subtitle = "صفوف profiles",
                 icon = Icons.Default.Group,
-                accent = Color(0xFFF59E0B),
+                accent = ThemeWarning,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -144,7 +145,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 value = loaded.eventsToday?.toString(),
                 subtitle = "صفوف analytics_events اليوم",
                 icon = Icons.Default.Event,
-                accent = Color(0xFFEF4444),
+                accent = ThemeDestructive,
                 modifier = Modifier.weight(1f)
             )
             OverviewKpiCard(
@@ -152,7 +153,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                 value = loaded.topEvents.firstOrNull()?.let { "${it.eventName} (${it.count})" },
                 subtitle = if (loaded.topEvents.isEmpty()) null else "الأول من ${loaded.topEvents.size}",
                 icon = Icons.Default.BarChart,
-                accent = Color(0xFF22D3EE),
+                accent = PresetPrimary,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -161,7 +162,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
         // ---- عمود DAU لآخر 7 أيام ----
         OverviewSectionCard(title = "المستخدمون النشطون — آخر 7 أيام") {
             if (!loaded.analyticsAvailable || loaded.dailyDau.isEmpty()) {
-                Text(NO_DATA, color = Color(0xFF94A3B8), fontSize = 14.sp)
+                Text(NO_DATA, color = TextSecondary, fontSize = 14.sp)
             } else {
                 val max = loaded.dailyDau.maxOf { it.count }.coerceAtLeast(1)
                 Row(
@@ -173,7 +174,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = day.count.toString(),
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -182,10 +183,10 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
                                 modifier = Modifier
                                     .width(24.dp)
                                     .height((8 + day.count * 72 / max).dp)
-                                    .background(Color(0xFF22D3EE))
+                                    .background(PresetPrimary)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(day.dayLabel, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            Text(day.dayLabel, color = TextSecondary, fontSize = 12.sp)
                         }
                     }
                 }
@@ -196,15 +197,15 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
         // ---- أكثر الأحداث ----
         OverviewSectionCard(title = "أكثر الأحداث — آخر 7 أيام") {
             if (loaded.topEvents.isEmpty()) {
-                Text(NO_DATA, color = Color(0xFF94A3B8), fontSize = 14.sp)
+                Text(NO_DATA, color = TextSecondary, fontSize = 14.sp)
             } else {
                 loaded.topEvents.forEach { event ->
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(event.eventName, color = Color.White, fontSize = 14.sp)
-                        Text(event.count.toString(), color = Color(0xFF22D3EE), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(event.eventName, color = TextPrimary, fontSize = 14.sp)
+                        Text(event.count.toString(), color = PresetPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -212,7 +213,7 @@ fun DashboardOverviewScreen(onBack: () -> Unit = {}) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "ملاحظة: معدل خالٍ من الأعطال غير معروض — لا مصدر لإجمالي الجلسات حتى يُقاس عليه.",
-            color = Color(0xFF64748B),
+            color = TextTertiary,
             fontSize = 12.sp
         )
     }
@@ -229,24 +230,24 @@ private fun OverviewKpiCard(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF090E1A))
+        colors = CardDefaults.cardColors(containerColor = DeepSlate)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(title, color = Color(0xFF94A3B8), fontSize = 13.sp)
+                Text(title, color = TextSecondary, fontSize = 13.sp)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value ?: NO_DATA,
-                color = if (value == null) Color(0xFF94A3B8) else Color.White,
+                color = if (value == null) TextSecondary else TextPrimary,
                 fontSize = if (value == null) 14.sp else 26.sp,
                 fontWeight = FontWeight.Bold
             )
             if (subtitle != null) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(subtitle, color = Color(0xFF64748B), fontSize = 12.sp)
+                Text(subtitle, color = TextTertiary, fontSize = 12.sp)
             }
         }
     }
@@ -256,10 +257,10 @@ private fun OverviewKpiCard(
 private fun OverviewSectionCard(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF090E1A))
+        colors = CardDefaults.cardColors(containerColor = DeepSlate)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             content()
         }
@@ -270,12 +271,12 @@ private fun OverviewSectionCard(title: String, content: @Composable () -> Unit) 
 private fun OverviewNoticeCard(title: String, body: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1206))
+        colors = CardDefaults.cardColors(containerColor = ThemeWarning.copy(alpha = 0.25f))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, color = Color(0xFFF59E0B), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = ThemeWarning, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(6.dp))
-            Text(body, color = Color(0xFFE2E8F0), fontSize = 13.sp)
+            Text(body, color = TextPrimary, fontSize = 13.sp)
         }
     }
 }

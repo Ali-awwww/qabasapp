@@ -136,9 +136,4 @@ object AdhanBackgroundPreferences {
         savePreset(context, DEFAULT_PRESET)
     }
 
-    fun setDim(context: Context, dim: Float) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putFloat(KEY_DIM, dim.coerceIn(0f, 0.8f))
-            .apply()
-    }
 }

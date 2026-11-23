@@ -1,64 +1,19 @@
 package com.qabas.app
 
 import android.content.Context
-import android.content.Intent
-import android.content.SharedPreferences
-import android.net.Uri
-import android.util.Log
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.UUID
 import kotlinx.coroutines.ensureActive
 
 /**
@@ -127,6 +82,14 @@ private suspend fun executeAgentMissionInner(
     onUpdate(mission)
     coroutineContext.ensureActive()
 
+    // (12.12) ذاكرة الوكيل: سياق المشروع المحفوظ للجلسة النشطة (إن وجد)،
+    // يُلحق بموجه التخطيط في المسارين (المحلي والسحابي). التركيب يرثه
+    // عبر الخطة المولدة. لا ذاكرة = لا إلحاق، ولا وهم سياق.
+    val memoryBlock = runCatching {
+        VibeAgentMemoryStore.loadForActiveSession(context)
+            ?.let { VibeAgentMemoryStore.contextBlock(it) }
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
+
     val isOffline = OnDeviceModelManager.isOfflineModeActive(context)
     if (isOffline) {
         val readyModel = OnDeviceModelManager.getActiveReadyModel(context)
@@ -151,16 +114,20 @@ private suspend fun executeAgentMissionInner(
             return
         }
 
-        // بوابة الذاكرة: قارن متطلبات RAM للنموذج بذاكرة الجهاز، ومنع التشغيل عند النقص برسالة صريحة.
+        // بوابة الذاكرة (12.4): قارن متطلبات RAM للنموذج بالذاكرة المتاحة
+        // الآن في الجهاز عبر ActivityManager.MemoryInfo — لا بـ
+        // Runtime.getRuntime().maxMemory() فهي heap التطبيق لا ذاكرة الجهاز.
         val modelRamBytes = OnDeviceModelManager.ramRequirementBytes(readyModel)
-        val deviceMaxRamBytes = Runtime.getRuntime().maxMemory()
-        if (modelRamBytes > deviceMaxRamBytes) {
+        val capability = VibeDeviceCapability.measure(context)
+        val deviceAvailableRamBytes = capability.availableRamBytes
+        if (modelRamBytes > deviceAvailableRamBytes) {
             val modelRamMb = (modelRamBytes / 1024 / 1024)
-            val deviceRamMb = (deviceMaxRamBytes / 1024 / 1024)
-            val errSnippet = "❌ تعذر البدء: النموذج «${readyModel.name}» يحتاج ${modelRamMb}MB من ذاكرة RAM بينما الجهاز يوفر ${deviceRamMb}MB فقط. الذاكرة غير كافية — اختر نموذجاً أخف أو أضف ذاكرة."
+            val deviceRamMb = (deviceAvailableRamBytes / 1024 / 1024)
+            val deviceTotalMb = (capability.totalRamBytes / 1024 / 1024)
+            val errSnippet = "❌ تعذر البدء: النموذج «${readyModel.name}» يحتاج ${modelRamMb}MB من ذاكرة RAM بينما المتاح الآن في الجهاز ${deviceRamMb}MB فقط (من أصل ${deviceTotalMb}MB). الذاكرة غير كافية — اختر نموذجاً أخف أو أغلق تطبيقات لتحرير ذاكرة."
             val stepFailed = AgentExecutionStep(
                 title = "فحص متطلبات ذاكرة النموذج المحلي",
-                description = "مقارنة ذاكرة النموذج المطلوبة بذاكرة الجهاز المتاحة قبل أي تنفيذ...",
+                description = "مقارنة ذاكرة النموذج المطلوبة بالذاكرة المتاحة الآن في الجهاز قبل أي تنفيذ...",
                 isRunning = false,
                 isSuccess = false,
                 outputSnippet = errSnippet
@@ -169,7 +136,7 @@ private suspend fun executeAgentMissionInner(
             mission = mission.copy(
                 steps = initialSteps.toList(),
                 status = AgentTaskStatus.FAILED,
-                finalReport = "توقفت المهمة لعدم كفاية ذاكرة RAM: ${readyModel.name} يحتاج ${modelRamMb}MB والجهاز يوفر ${deviceRamMb}MB."
+                finalReport = "توقفت المهمة لعدم كفاية ذاكرة RAM: ${readyModel.name} يحتاج ${modelRamMb}MB والمتاح الآن في الجهاز ${deviceRamMb}MB (من أصل ${deviceTotalMb}MB)."
             )
             onUpdate(mission)
     coroutineContext.ensureActive()
@@ -215,7 +182,8 @@ private suspend fun executeAgentMissionInner(
         // تخطيط حقيقي من النموذج — لا نص جاهز مسبقاً.
         val planText = LlamaCppService.chatLocal(
             context, readyModel.fileName,
-            "حلل هذا الأمر واكتب خطة عمل معمارية موجزة: $prompt (التخصص: ${spec.title})",
+            "حلل هذا الأمر واكتب خطة عمل معمارية موجزة: $prompt (التخصص: ${spec.title})" +
+                if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else "",
             maxTokens = 400
         )
         val latencyMs1 = System.currentTimeMillis() - startTime1
@@ -377,9 +345,27 @@ private suspend fun executeAgentMissionInner(
         نمط تخصص الوكيل: ${spec.title}
         
         قم بصياغة خطة عمل برمجية تفصيلية، وحدد الملفات المستهدفة بالتعديل أو الإنشاء، واشرح الخطوات الهندسية اللازمة.
-    """.trimIndent()
+    """.trimIndent() + if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else ""
 
     val startTime1 = System.currentTimeMillis()
+    // (12.14) إيقاف عند حد التكلفة قبل أي استدعاء سحابي مدفوع — بعد
+    // المسار المحلي (بلا تكلفة API) وقبل خطوة التخطيط.
+    val limitMessage = VibeCostTracker.checkLimit(context)
+    if (limitMessage != null) {
+        initialSteps[0] = step1.copy(
+            isRunning = false,
+            isSuccess = false,
+            outputSnippet = "⛔ $limitMessage"
+        )
+        mission = mission.copy(
+            steps = initialSteps.toList(),
+            status = AgentTaskStatus.FAILED,
+            finalReport = "توقفت المهمة عند حد التكلفة: $limitMessage"
+        )
+        onUpdate(mission)
+        onFinished(mission)
+        return
+    }
     // بثّ تدريجي حي + تجاوز تلقائي للمفتاح البديل عند الفشل
     val planResult = UniversalKeyBrain.executeRealAgentStepWithFailover(
         provider, prompt, sysInstruction, apiKey, selectedModel,
@@ -390,7 +376,9 @@ private suspend fun executeAgentMissionInner(
             )
             mission = mission.copy(steps = initialSteps.toList())
             onUpdate(mission)
-        }
+        },
+        context = context,
+        missionTitle = prompt
     )
     val latencyMs1 = System.currentTimeMillis() - startTime1
 
@@ -458,7 +446,7 @@ private suspend fun executeAgentMissionInner(
         else -> runCatching {
             GitHubRepoClient(targetRepo.owner, targetRepo.repo, targetRepo.token)
                 .getTree(targetRepo.defaultBranch)
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
     val tree = inspectionResult.getOrNull()
     val relevantFiles = tree
@@ -518,7 +506,9 @@ private suspend fun executeAgentMissionInner(
             )
             mission = mission.copy(steps = initialSteps.toList())
             onUpdate(mission)
-        }
+        },
+        context = context,
+        missionTitle = prompt
     )
     val latencyMs3 = System.currentTimeMillis() - startTime3
 
@@ -597,53 +587,6 @@ private suspend fun executeAgentMissionInner(
         status = AgentTaskStatus.COMPLETED
     )
     onFinished(mission)
-}
-
-/**
- * تشغيل البناء السحابي مباشرة عبر GitHub Actions
- */
-suspend fun triggerBuildDirectly(
-    context: Context,
-    repo: RepoVaultEntry?,
-    onStepResult: (AgentExecutionStep) -> Unit
-) = withContext(Dispatchers.IO) {
-    val targetRepo = repo
-    val step = AgentExecutionStep(
-        title = "تشغيل البناء السحابي على GitHub Actions",
-        description = "إرسال dispatch لملف سير العمل android-ci.yml...",
-        toolName = "trigger_build",
-        isRunning = true
-    )
-    onStepResult(step)
-
-    if (targetRepo == null) {
-        onStepResult(
-            step.copy(
-                isRunning = false,
-                isSuccess = false,
-                outputSnippet = "لا يوجد مستودع مربوط — اربط مستودعك أولاً من إعدادات الوكيل 🔗"
-            )
-        )
-        return@withContext
-    }
-
-    val ctx = CodeTools.Ctx(
-        owner = targetRepo.owner,
-        repo = targetRepo.repo,
-        token = targetRepo.token,
-        branch = targetRepo.defaultBranch
-    )
-
-    val triggerResult = CodeTools.triggerBuildDirect(ctx)
-    val success = "✅" in triggerResult || "أُرسل" in triggerResult
-
-    onStepResult(
-        step.copy(
-            isRunning = false,
-            isSuccess = success,
-            outputSnippet = triggerResult
-        )
-    )
 }
 
 /**
@@ -736,120 +679,141 @@ suspend fun runBuildVerification(
     return completed
 }
 
-@Composable
-fun exportMissionJson(currentMission: AgentMissionSession?): String {
-    return currentMission?.let { mission ->
-        JSONObject().apply {
-            put("missionId", mission.id)
-            put("userPrompt", mission.userPrompt)
-            put("specialization", mission.specialization.name)
-            val stepsArray = org.json.JSONArray()
-            mission.steps.forEach { step -> stepsArray.put(step.id) }
-            put("steps", stepsArray)
-            val modifiedArray = org.json.JSONArray()
-            mission.modifiedFiles.forEach { modifiedArray.put(it) }
-            put("modifiedFiles", modifiedArray)
-            put("buildTriggered", mission.buildTriggered)
-            put("apkUrl", mission.apkUrl)
-            put("timestamp", mission.timestamp)
-        }.toString()
-    } ?: ""
+// ═══════════════════════════════════════════════════════════════
+// ترميز/فك ترميز جلسة المهمة النشطة (12.12 — إصلاح عيب الاستعادة).
+//
+// العيب الموثق: كان يُحفظ معرف الخطوة فقط (`steps` كمصفوفة معرفات)
+// فتُستعاد الخطوات بعناوين وأوصاف فارغة. هنا تُحفظ الخطوة كاملة
+// (المعرف + العنوان + الوصف + الأداة + حالة النجاح + مقتطف المخرجات
+// حتى 2000 محرف) + الحالة + التقرير النهائي + الفروقات المقترحة
+// (حتى 30 ألف محرف لكل فرق) + المسارات المطبقة.
+// فك الترميز يقبل الصيغة القديمة (خطوات كمعرفات نصية) للتوافق الرجعي.
+// ═══════════════════════════════════════════════════════════════
+
+private const val MISSION_STEP_SNIPPET_MAX_CHARS = 2000
+private const val MISSION_DIFF_TEXT_MAX_CHARS = 30_000
+
+fun encodeMissionSession(mission: AgentMissionSession): String {
+    val stepsArray = JSONArray()
+    mission.steps.forEach { step ->
+        stepsArray.put(
+            JSONObject().apply {
+                put("id", step.id)
+                put("title", step.title)
+                put("description", step.description)
+                put("toolName", step.toolName)
+                put("outputSnippet", step.outputSnippet.take(MISSION_STEP_SNIPPET_MAX_CHARS))
+                put("isRunning", step.isRunning)
+                put("isSuccess", step.isSuccess)
+            }
+        )
+    }
+    val diffsArray = JSONArray()
+    mission.proposedDiffs.forEach { diff ->
+        diffsArray.put(
+            JSONObject().apply {
+                put("filePath", diff.filePath)
+                put("additions", diff.additions)
+                put("deletions", diff.deletions)
+                put("diffText", diff.diffText.take(MISSION_DIFF_TEXT_MAX_CHARS))
+            }
+        )
+    }
+    return JSONObject().apply {
+        put("missionId", mission.id)
+        put("userPrompt", mission.userPrompt)
+        put("specialization", mission.specialization.name)
+        put("status", mission.status.name)
+        put("steps", stepsArray)
+        put("finalReport", mission.finalReport)
+        put("modifiedFiles", JSONArray(mission.modifiedFiles))
+        put("proposedDiffs", diffsArray)
+        put("appliedPaths", JSONArray(mission.appliedPaths))
+        put("buildTriggered", mission.buildTriggered)
+        mission.apkUrl?.let { put("apkUrl", it) }
+        put("timestamp", mission.timestamp)
+    }.toString()
 }
 
-fun importMissionFromJson(currentMission: MutableState<AgentMissionSession?>, jsonString: String): Boolean {
-    try {
+fun decodeMissionSession(jsonString: String): AgentMissionSession? {
+    fun strings(obj: JSONObject, key: String): List<String> {
+        val arr = obj.optJSONArray(key) ?: return emptyList()
+        return (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+    }
+    return try {
         val obj = JSONObject(jsonString)
-        val stepsList = obj.getJSONArray("steps")
-        val steps = (0 until stepsList.length()).map { idx ->
-            AgentExecutionStep(
-                id = stepsList.getString(idx),
-                title = "",
-                description = "",
-                toolName = "",
-                outputSnippet = ""
+        val stepsList = obj.optJSONArray("steps") ?: JSONArray()
+        val steps = (0 until stepsList.length()).mapNotNull { idx ->
+            when (val raw = stepsList.opt(idx)) {
+                // الصيغة القديمة: معرف نصي فقط — تُستعاد بلا عنوان/وصف (توافق رجعي).
+                is String -> AgentExecutionStep(
+                    id = raw, title = "", description = "", toolName = "", outputSnippet = ""
+                )
+                is JSONObject -> AgentExecutionStep(
+                    id = raw.optString("id"),
+                    title = raw.optString("title"),
+                    description = raw.optString("description"),
+                    toolName = raw.optString("toolName"),
+                    outputSnippet = raw.optString("outputSnippet"),
+                    isRunning = raw.optBoolean("isRunning", false),
+                    isSuccess = raw.optBoolean("isSuccess", true)
+                )
+                else -> null
+            }
+        }
+        val diffsArr = obj.optJSONArray("proposedDiffs")
+        val diffs = (0 until (diffsArr?.length() ?: 0)).mapNotNull { idx ->
+            val d = diffsArr?.optJSONObject(idx) ?: return@mapNotNull null
+            FileDiff(
+                filePath = d.optString("filePath"),
+                additions = d.optInt("additions"),
+                deletions = d.optInt("deletions"),
+                diffText = d.optString("diffText")
             )
         }
-        currentMission.value = AgentMissionSession(
+        AgentMissionSession(
             id = obj.optString("missionId", obj.optString("id", "")),
-            userPrompt = obj.getString("userPrompt"),
-            specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
-            status = AgentTaskStatus.PLANNING,
+            userPrompt = obj.optString("userPrompt", ""),
+            specialization = runCatching {
+                AgentSpecialization.valueOf(obj.optString("specialization", "TURBO"))
+            }.getOrDefault(AgentSpecialization.TURBO),
+            status = runCatching {
+                AgentTaskStatus.valueOf(obj.optString("status", "PLANNING"))
+            }.getOrDefault(AgentTaskStatus.PLANNING),
             steps = steps,
-            modifiedFiles = if (obj.has("modifiedFiles")) {
-                val arr = obj.getJSONArray("modifiedFiles")
-                (0 until arr.length()).map { arr.getString(it) }
-            } else emptyList(),
-            buildTriggered = obj.getBoolean("buildTriggered"),
-            apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
-            timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
+            finalReport = obj.optString("finalReport", ""),
+            modifiedFiles = strings(obj, "modifiedFiles"),
+            proposedDiffs = diffs,
+            appliedPaths = strings(obj, "appliedPaths"),
+            buildTriggered = obj.optBoolean("buildTriggered", false),
+            apkUrl = obj.optString("apkUrl").takeIf { it.isNotBlank() },
+            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
         )
-        return true
-    } catch (e: Exception) {
-        return false
+    } catch (_: Exception) {
+        null
     }
+}
+
+@Composable
+fun exportMissionJson(currentMission: AgentMissionSession?): String =
+    currentMission?.let { encodeMissionSession(it) } ?: ""
+
+fun importMissionFromJson(currentMission: MutableState<AgentMissionSession?>, jsonString: String): Boolean {
+    val decoded = decodeMissionSession(jsonString) ?: return false
+    currentMission.value = decoded
+    return true
 }
 
 fun saveMissionState(currentMission: MutableState<AgentMissionSession?>, context: Context) {
     currentMission.value?.let { mission ->
-        val json = JSONObject().apply {
-            put("missionId", mission.id)
-            put("userPrompt", mission.userPrompt)
-            put("specialization", mission.specialization.name)
-            val stepsArray = org.json.JSONArray()
-            mission.steps.forEach { step -> stepsArray.put(step.id) }
-            put("steps", stepsArray)
-            val modifiedArray = org.json.JSONArray()
-            mission.modifiedFiles.forEach { modifiedArray.put(it) }
-            put("modifiedFiles", modifiedArray)
-            put("buildTriggered", mission.buildTriggered)
-            put("apkUrl", mission.apkUrl)
-            put("timestamp", mission.timestamp)
-        }
-        AgentPrefs.putString(context, AgentPrefs.ACTIVE_MISSION_JSON, json.toString())
+        AgentPrefs.putString(context, AgentPrefs.ACTIVE_MISSION_JSON, encodeMissionSession(mission))
     }
 }
 
 fun restoreMissionState(currentMission: MutableState<AgentMissionSession?>, context: Context): AgentMissionSession? {
     val json = AgentPrefs.loadActiveMission(context)
-    if (json.isNullOrBlank()) return null
-
-    try {
-        val obj = JSONObject(json)
-        val stepsList = obj.getJSONArray("steps")
-        val steps = (0 until stepsList.length()).map { idx ->
-            AgentExecutionStep(
-                id = stepsList.getString(idx),
-                title = "",
-                description = "",
-                toolName = "",
-                outputSnippet = ""
-            )
-        }
-
-        return AgentMissionSession(
-            id = obj.optString("missionId", obj.optString("id", "")),
-            userPrompt = obj.getString("userPrompt"),
-            specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
-            status = AgentTaskStatus.PLANNING,
-            steps = steps,
-            modifiedFiles = if (obj.has("modifiedFiles")) {
-                val arr = obj.getJSONArray("modifiedFiles")
-                (0 until arr.length()).map { arr.getString(it) }
-            } else emptyList(),
-            buildTriggered = obj.getBoolean("buildTriggered"),
-            apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
-            timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
-        )
-    } catch (e: Exception) {
-        return null
-    }
-}
-
-fun FileImport(currentMission: MutableState<AgentMissionSession?>, context: Context) {
-    val json = AgentPrefs.loadActiveMission(context)
-    if (json.isNotBlank()) {
-        importMissionFromJson(currentMission, json)
-    }
+    if (json.isBlank()) return null
+    return decodeMissionSession(json)
 }
 
 // ═══════════════════════════════════════════════════════════════

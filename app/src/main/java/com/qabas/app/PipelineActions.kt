@@ -29,7 +29,7 @@ object PipelineActions {
             }
             val freedMB = freedBytes / (1024 * 1024)
             ActionResult(true, "تم حذف $deletedCount ملف وتحرير ${freedMB}MB")
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             ActionResult(false, "فشل تنظيف الكاش: ${e.message ?: "خطأ غير معروف"}")
         }
     }
@@ -53,7 +53,7 @@ object PipelineActions {
             } else {
                 ActionResult(false, "فشل تنفيذ أمر FFmpeg بسيط بلا وسائط خارجية 🔴 — هذا يؤكد أن المشكلة بالمحرك نفسه (native library) لا بمحتوى مشهد معيّن. راجع Logcat عن UnsatisfiedLinkError.")
             }
-        } catch (t: Throwable) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (t: Throwable) {
             ActionResult(false, "استثناء أثناء الفحص الذاتي: ${t.message ?: t.javaClass.simpleName}")
         }
     }

@@ -193,14 +193,6 @@ object ProductionPipelineTracker {
         return sdf.format(Date(ts))
     }
 
-    fun resultEmoji(r: Result): String = when (r) {
-        Result.SUCCESS -> "✅"
-        Result.FAILURE -> "❌"
-        Result.FALLBACK -> "⚠️"
-        Result.SKIPPED -> "⏭️"
-        Result.TIMEOUT -> "⏱️"
-    }
-
     fun resultColor(r: Result): Long = when (r) {
         Result.SUCCESS -> 0xFF10B981
         Result.FAILURE -> 0xFFEF4444

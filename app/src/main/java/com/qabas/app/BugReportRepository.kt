@@ -18,8 +18,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -63,15 +61,6 @@ object BugReportRepository {
             get() {
                 val sdf = SimpleDateFormat("yyyy/MM/dd - hh:mm a", Locale("ar"))
                 return runCatching { sdf.format(Date(createdAtMillis)) }.getOrDefault("")
-            }
-
-        val typeLabel: String
-            get() = when (reportType.uppercase()) {
-                "BUG" -> "خلل برمجي 🐞"
-                "UI_OVERFLOW" -> "تداخل عناصر واجهة 📐"
-                "IMPROVEMENT" -> "اقتراح تحسين 💡"
-                "CONTENT" -> "ملاحظة محتوى 📜"
-                else -> "بلاغ عام 📝"
             }
 
         val statusLabel: String
@@ -343,7 +332,7 @@ object BugReportRepository {
                     val updatedList = _reports.value.map { if (it.id == id) reportItem else it }
                     saveLocalReports(context, updatedList)
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.w(TAG, "Cloud sync failed during submit (saved locally): ${e.message}")
             }
         }
@@ -360,158 +349,6 @@ object BugReportRepository {
             message = message,
             report = reportItem
         )
-    }
-
-    /**
-     * تحديث حالة البلاغ (للإدارة والمطور) مع إمكانية إضافة رد نصي للمستخدم.
-     */
-    suspend fun updateReportStatus(
-        context: Context,
-        reportId: String,
-        newStatus: String,
-        developerReply: String? = null
-    ): Boolean = withContext(Dispatchers.IO) {
-        val currentList = _reports.value.toMutableList()
-        val index = currentList.indexOfFirst { it.id == reportId }
-        if (index != -1) {
-            val updated = currentList[index].copy(
-                status = newStatus,
-                developerReply = developerReply ?: currentList[index].developerReply
-            )
-            currentList[index] = updated
-            saveLocalReports(context, currentList)
-
-            // محاولة التحديث في سحابة Supabase
-            if (SupabaseServices.isSupabaseAvailable) {
-                SupabaseServices.Database.updateBugReportStatus(
-                    id = reportId,
-                    status = newStatus,
-                    developerReply = developerReply
-                )
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    /**
-     * استرجاع بلاغ بواسطة معرفه مباشرة من الذاكرة المحلية.
-     */
-    fun getReportById(reportId: String): BugReportItem? {
-        return _reports.value.find { it.id == reportId }
-    }
-
-    /**
-     * البحث عن بلاغ محلياً أو سحابياً من Supabase لضمان ربطه بالمحادثة.
-     */
-    suspend fun findReport(context: Context, reportId: String): BugReportItem? = withContext(Dispatchers.IO) {
-        ensureLoaded(context)
-        _reports.value.find { it.id == reportId } ?: runCatching {
-            if (SupabaseServices.isSupabaseAvailable) {
-                SupabaseServices.Database.getAllBugReports().find { it.id == reportId }?.let { c ->
-                    BugReportItem(
-                        id = c.id,
-                        screenName = c.screenName,
-                        description = c.description,
-                        reportType = c.reportType,
-                        status = c.status,
-                        userEmail = c.userEmail,
-                        userId = c.userId,
-                        localOwnerId = c.userId,
-                        localImagePath = null,
-                        imageUrl = c.imageUrl.takeIf { it.isNotBlank() },
-                        appVersion = c.appVersion,
-                        deviceModel = c.deviceInfo,
-                        developerReply = c.developerReply,
-                        syncedToCloud = true
-                    )
-                }
-            } else null
-        }.getOrNull()
-    }
-
-    /**
-     * جلب أحدث الردود والحالات من السحابة للمستخدم الحالي.
-     */
-    suspend fun refreshUserReports(context: Context) = withContext(Dispatchers.IO) {
-        if (!SupabaseServices.isSupabaseAvailable ||
-            SupabaseServices.Auth.getCurrentUserId().isNullOrBlank()
-        ) return@withContext
-        try {
-            val cloudItems = SupabaseServices.Database.getBugReportsByUser()
-            if (cloudItems.isEmpty()) return@withContext
-
-            ensureLoaded(context)
-            val localList = _reports.value.associateBy { it.id }.toMutableMap()
-            var anyChanged = false
-
-            cloudItems.forEach { cloud ->
-                val existing = localList[cloud.id]
-                if (existing == null ||
-                    existing.status != cloud.status ||
-                    existing.developerReply != cloud.developerReply ||
-                    existing.imageUrl != cloud.imageUrl
-                ) {
-                    val isNewReply = existing != null && existing.developerReply != cloud.developerReply && !cloud.developerReply.isNullOrBlank()
-                    val updated = (existing ?: BugReportItem(
-                        id = cloud.id,
-                        screenName = cloud.screenName,
-                        description = cloud.description,
-                        reportType = cloud.reportType,
-                        status = cloud.status,
-                        userEmail = cloud.userEmail,
-                        userId = cloud.userId,
-                        localOwnerId = cloud.userId,
-                        appVersion = cloud.appVersion,
-                        deviceModel = cloud.deviceInfo,
-                        imageUrl = cloud.imageUrl,
-                        developerReply = cloud.developerReply,
-                        isReadByUser = true // سيتم تحديثه لاحقاً
-                    )).copy(
-                        userId = cloud.userId,
-                        localOwnerId = cloud.userId,
-                        status = cloud.status,
-                        developerReply = cloud.developerReply,
-                        imageUrl = cloud.imageUrl,
-                        syncedToCloud = true,
-                        isReadByUser = if (isNewReply) false else (existing?.isReadByUser ?: true)
-                    )
-                    localList[cloud.id] = updated
-                    anyChanged = true
-                }
-            }
-
-            if (anyChanged) {
-                saveLocalReports(context, localList.values.toList())
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error refreshing user reports: ${e.message}")
-        }
-    }
-
-    /**
-     * حذف بلاغ من السجل المحلي والسحابي.
-     */
-    suspend fun deleteReport(context: Context, reportId: String): Boolean = withContext(Dispatchers.IO) {
-        val currentList = _reports.value.toMutableList()
-        val toDelete = currentList.find { it.id == reportId }
-        if (toDelete != null) {
-            // حذف الصورة المحلية
-            toDelete.localImagePath?.let { path ->
-                runCatching { File(path).delete() }
-            }
-            currentList.removeAll { it.id == reportId }
-            saveLocalReports(context, currentList)
-
-            // حذف من السحابة إذا كان متاحاً
-            if (SupabaseServices.isSupabaseAvailable) {
-                SupabaseServices.Database.deleteBugReport(reportId)
-            }
-            true
-        } else {
-            false
-        }
     }
 
     /**
@@ -592,7 +429,7 @@ object BugReportRepository {
             if (updatedAny) {
                 saveLocalReports(context, currentList)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "Error in background syncPendingReports: ${e.message}")
         }
     }
@@ -624,37 +461,4 @@ object BugReportRepository {
         }
     }
 
-    fun getReportsForCurrentUser(
-        context: Context,
-        source: List<BugReportItem> = _reports.value
-    ): List<BugReportItem> {
-        val supabaseUserId = SupabaseServices.Auth.getCurrentUserId()
-        val authenticatedEmail = SupabaseServices.Auth.getCurrentUserEmail()
-            ?: CloudServices.Auth.currentUser.value?.email
-        return filterReportsForOwner(
-            source = source,
-            localOwnerId = UserPreferencesManager.getEffectiveUserId(context),
-            supabaseUserId = supabaseUserId,
-            authenticatedEmail = authenticatedEmail
-        )
-    }
-
-    /**
-     * تمييز جميع البلاغات الحالية بأنها "قُرئت" من قبل المستخدم لإزالة شارة الإشعار.
-     */
-    suspend fun markReportsAsRead(context: Context) = withContext(Dispatchers.IO) {
-        val current = _reports.value
-        val ownedIds = getReportsForCurrentUser(context).mapTo(mutableSetOf()) { it.id }
-        if (current.any { it.id in ownedIds && !it.isReadByUser }) {
-            val updated = current.map { report ->
-                if (report.id in ownedIds) report.copy(isReadByUser = true) else report
-            }
-            saveLocalReports(context, updated)
-        }
-    }
-
-    /**
-     * جلب جميع البلاغات المسجلة في هذا الجهاز.
-     */
-    fun getLocalReports(): List<BugReportItem> = _reports.value
 }

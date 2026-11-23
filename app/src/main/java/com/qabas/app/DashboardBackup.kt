@@ -92,7 +92,7 @@ fun DashboardBackupSection() {
                     if (counts.giftCount > 0) Text("✅ $counts.giftCount بطاقة هدايا", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 13.sp)
                     if (counts.userCount > 0) Text("✅ $counts.userCount مستخدم (دمج بالسحابة)", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("⚠️ الاسترجاع يدمج البيانات فقط (لا يحذف). الحسابات الحالية لا تتأثر إلا إذا وُجد نفس المعرّف.", color = GoldSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                    Text("⚠️ الاسترجاع يدمج البيانات فقط (لا يحذف). الحسابات الحالية لا تتأثر إلا إذا وُجد نفس المعرّف.", color = PresetAccent, fontFamily = NotoSansFont, fontSize = 11.sp)
                 }
             },
             confirmButton = {
@@ -112,7 +112,7 @@ fun DashboardBackupSection() {
                         }
                     },
                     enabled = !isRestoring,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     Text("تأكيد الاسترجاع ✓", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
@@ -125,7 +125,7 @@ fun DashboardBackupSection() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("نسخ احتياطي ومسح", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("نسخ احتياطي ومسح", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
         // ---- النسخ التلقائي اليومي ----
         AutoBackupCard(context = context)
@@ -134,7 +134,7 @@ fun DashboardBackupSection() {
         Card(
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("تصدير نسخة احتياطية كاملة (JSON)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
@@ -145,7 +145,7 @@ fun DashboardBackupSection() {
                         exportLauncher.launch("qabas_backup_$stamp.json")
                     },
                     enabled = !isExporting && !isRestoring,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth().height(44.dp)
                 ) {
@@ -159,7 +159,7 @@ fun DashboardBackupSection() {
         Card(
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("استرجاع نسخة احتياطية (JSON)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
@@ -334,7 +334,7 @@ object AutoBackup {
                 .putLong(KEY_LAST, System.currentTimeMillis()).apply()
             AuditLogger.log(context, "auto_backup_run", "نسخة تلقائية صامتة")
             true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.e("AutoBackup", "runNow failed: ${e.message}", e)
             false
         }
@@ -399,7 +399,7 @@ private suspend fun restoreFromUri(context: Context, uri: android.net.Uri, count
             )
             AppRemoteConfig.pushToCloud(context, data)
             result = result.copy(configRestored = true)
-        } catch (_: Exception) { }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
     }
 
     // 2) استعادة الأكواد
@@ -423,7 +423,7 @@ private suspend fun restoreFromUri(context: Context, uri: android.net.Uri, count
                     gm.addCustomPromoCode(code, days)
                     promoRestored++
                 }
-            }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         }
     }
     result = result.copy(promoRestored = promoRestored, giftRestored = giftRestored)
@@ -444,7 +444,7 @@ private suspend fun restoreFromUri(context: Context, uri: android.net.Uri, count
                 val isSuspended = u.optBoolean("isSuspended", false)
                 if (isSuspended) CloudServices.Database.updateUserSuspension(id, email, true)
                 usersRestored++
-            }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         }
     }
     result = result.copy(usersRestored = usersRestored)
@@ -490,7 +490,7 @@ private suspend fun buildExportJson(context: Context): String = withContext(Disp
                 })
             }
         }
-    }
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     root.put("users", usersArr)
 
     // Promo codes
@@ -504,7 +504,7 @@ private suspend fun buildExportJson(context: Context): String = withContext(Disp
         gm.getCustomGiftCards().forEach { (code, pts) ->
             codesArr.put(JSONObject().apply { put("code", code); put("points", pts); put("type", "GIFT") })
         }
-    }
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     root.put("promoCodes", codesArr)
 
     root.toString()

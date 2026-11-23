@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -72,7 +71,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.DeepSlate
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -244,7 +243,7 @@ fun SpatialMarkupCanvas(
             title = {
                 Text(
                     text = "📝 ملاحظة للمطور",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold
                 )
@@ -281,7 +280,7 @@ fun SpatialMarkupCanvas(
                     }
                     pendingTextPosition = null
                 }) {
-                    Text("إضافة", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("إضافة", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -468,7 +467,7 @@ fun SpatialMarkupToolbar(
                 Icon(
                     imageVector = Icons.Default.Undo,
                     contentDescription = "تراجع",
-                    tint = if (hasShapes) GoldPrimary else Color.White.copy(alpha = 0.3f)
+                    tint = if (hasShapes) PresetPrimary else Color.White.copy(alpha = 0.3f)
                 )
             }
 
@@ -536,11 +535,11 @@ private fun MarkupToolButton(
                 .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(
-                    if (selected) GoldPrimary.copy(alpha = 0.22f) else Color(0xFF1E293B).copy(alpha = 0.8f)
+                    if (selected) PresetPrimary.copy(alpha = 0.22f) else Color(0xFF1E293B).copy(alpha = 0.8f)
                 )
                 .border(
                     width = 1.dp,
-                    color = if (selected) GoldPrimary else Color.White.copy(alpha = 0.15f),
+                    color = if (selected) PresetPrimary else Color.White.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(12.dp)
                 )
                 .clickable(onClick = onClick),
@@ -549,14 +548,14 @@ private fun MarkupToolButton(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (selected) GoldPrimary else Color.White.copy(alpha = 0.75f),
+                tint = if (selected) PresetPrimary else Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(20.dp)
             )
         }
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            color = if (selected) GoldPrimary else Color.White.copy(alpha = 0.55f),
+            color = if (selected) PresetPrimary else Color.White.copy(alpha = 0.55f),
             fontSize = 8.5.sp,
             fontFamily = CairoFont,
             maxLines = 1,

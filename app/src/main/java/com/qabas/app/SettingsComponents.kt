@@ -5,16 +5,13 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -246,83 +243,6 @@ fun FontSelectionSection() {
 }
 
 @Composable
-fun SoundAndMotionSection(
-    onOpenSoundStudio: () -> Unit = {}
-) {
-    val context = LocalContext.current
-    val theme = QabasTheme.current
-    val masterEnabled by AppSoundManager.masterEnabled.collectAsState()
-    val currentPreset by AppSoundManager.currentPreset.collectAsState()
-    val currentVolume by AppSoundManager.volume.collectAsState()
-    val clickEnabled by AppSoundManager.clickEnabled.collectAsState()
-    val animEnabled by AppSoundManager.animEnabled.collectAsState()
-    val currentAnim by AppAnimationManager.currentAnimation.collectAsState()
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AppleSecondaryButton(
-            text = Translator.tr("فتح استوديو المؤثرات الصوتية"),
-            icon = Icons.Default.GraphicEq,
-            onClick = {
-                AppSoundManager.playClick()
-                onOpenSoundStudio()
-            }
-        )
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Text(Translator.tr("المؤثرات الصوتية العامة"), color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
-                Text(Translator.tr("النمط الحالي: ") + currentPreset.title, color = theme.primary, fontFamily = NotoSansFont, fontSize = 11.sp)
-            }
-            Switch(
-                checked = masterEnabled,
-                onCheckedChange = {
-                    AppSoundManager.setMasterEnabled(context, it)
-                    if (it) AppSoundManager.playClick()
-                },
-                colors = SwitchDefaults.colors(checkedThumbColor = theme.onPrimary, checkedTrackColor = theme.success)
-            )
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Slider(
-                value = currentVolume,
-                onValueChange = { AppSoundManager.setVolume(context, it) },
-                onValueChangeFinished = { AppSoundManager.playClick() },
-                modifier = Modifier.weight(1f),
-                colors = SliderDefaults.colors(thumbColor = theme.primary, activeTrackColor = theme.primary, inactiveTrackColor = theme.secondarySurface)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("${(currentVolume * 100).toInt()}%", color = theme.primary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-
-        HorizontalDivider(color = theme.separator.copy(alpha = 0.45f), thickness = 0.5.dp)
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text(Translator.tr("أصوات النقر واللمس"), color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.5.sp)
-            Switch(checked = clickEnabled, onCheckedChange = { AppSoundManager.setClickEnabled(context, it) })
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text(Translator.tr("أصوات التحولات والانتقال"), color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.5.sp)
-            Switch(checked = animEnabled, onCheckedChange = { AppSoundManager.setAnimEnabled(context, it) })
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
-            color = theme.secondarySurface.copy(alpha = 0.55f)
-        ) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.MotionPhotosAuto, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(Translator.tr("نمط الحركة النشط: ") + Translator.tr(currentAnim.title), color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
 fun AiIdentitySection(onNavigateToTasteProfile: () -> Unit) {
     AppleSecondaryButton(
         text = Translator.tr("تخصيص محرك الذوق (Taste Engine)"),
@@ -442,28 +362,6 @@ private data class CommunityLinkItem(
 )
 
 @Composable
-fun AboutAppSection(onShowPrivacy: () -> Unit) {
-    val theme = QabasTheme.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            Text(Translator.tr("إصدار التطبيق"), color = theme.textSecondary, fontFamily = CairoFont, fontSize = 12.5.sp)
-            Text(
-                "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                color = theme.primary,
-                fontFamily = NotoSansFont,
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        AppleSecondaryButton(
-            text = Translator.tr("الضوابط الشرعية والخصوصية"),
-            icon = Icons.Default.VerifiedUser,
-            onClick = onShowPrivacy
-        )
-    }
-}
-
-@Composable
 fun SettingsNavigationCard(
     title: String,
     subtitle: String,
@@ -566,168 +464,6 @@ fun SettingsGroupHeader(title: String) {
         fontSize = 13.sp,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
     )
-}
-
-@Composable
-fun SocialAccountItem(platform: String, status: String, isLinked: Boolean, icon: ImageVector, iconColor: Color, onClick: () -> Unit = {}) {
-    val theme = QabasTheme.current
-    AppleCard(onClick = onClick) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(if (isLinked) iconColor.copy(alpha = 0.14f) else theme.secondarySurface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = if (isLinked) iconColor else theme.textSecondary, modifier = Modifier.size(20.dp))
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(platform, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(status, color = if (isLinked) theme.success else theme.textSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
-                }
-            }
-            TextButton(onClick = onClick) {
-                Text(
-                    if (isLinked) Translator.tr("إلغاء الربط") else Translator.tr("ربط الحساب"),
-                    color = if (isLinked) theme.destructive else theme.primary,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun OfficialAccountItem(
-    channel: OfficialChannelInfo,
-    onOpen: () -> Unit,
-    onCopy: () -> Unit,
-    showDevActions: Boolean = false,
-    onEdit: () -> Unit = {},
-    onDelete: (() -> Unit)? = null
-) {
-    val theme = QabasTheme.current
-    val (icon, brandColor) = when (channel.id) {
-        "website" -> Icons.Default.Language to theme.primary
-        "group" -> Icons.Default.Groups to theme.success
-        "youtube" -> Icons.Default.OndemandVideo to Color(0xFFFF0000)
-        "facebook" -> Icons.Default.ThumbUp to Color(0xFF1877F2)
-        "instagram" -> Icons.Default.CameraAlt to Color(0xFFE1306C)
-        "threads" -> Icons.Default.AlternateEmail to theme.textPrimary
-        "tiktok" -> Icons.Default.MusicVideo to theme.accent
-        else -> Icons.Default.Public to theme.primary
-    }
-
-    AppleCard {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(brandColor.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(icon, contentDescription = null, tint = brandColor, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                channel.displayName,
-                                color = theme.textPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                color = theme.primary.copy(alpha = 0.14f),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text(
-                                    channel.badge,
-                                    color = theme.primary,
-                                    fontFamily = CairoFont,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        Text(
-                            channel.handle,
-                            color = theme.primary,
-                            fontFamily = NotoSansFont,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    if (showDevActions) {
-                        Row {
-                            IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Default.Edit, contentDescription = "تعديل", tint = theme.primary, modifier = Modifier.size(18.dp))
-                            }
-                            if (onDelete != null) {
-                                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = theme.destructive, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                channel.description,
-                color = theme.textSecondary,
-                fontFamily = NotoSansFont,
-                fontSize = 11.5.sp,
-                maxLines = 2
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onOpen,
-                    modifier = Modifier.weight(1.3f).heightIn(min = 44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("زيارة القناة", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
-
-                AppleSecondaryButton(
-                    text = "نسخ الرابط",
-                    icon = Icons.Default.ContentCopy,
-                    onClick = onCopy,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
 }
 
 @Composable

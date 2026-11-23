@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
@@ -249,7 +248,7 @@ object DevChatRepository {
                     messageId = newMsg.id
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "Supabase send sync fallback: ${e.message}")
         }
 
@@ -284,38 +283,12 @@ object DevChatRepository {
                     accountNumber = accountNumber.takeIf { it.isNotBlank() },
                     messageId = message.id
                 )
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
         val updated = message.copy(status = if (delivered) "sent" else "pending")
         val current = getLocalMessages(context, message.userEmail)
             .map { if (it.id == message.id) updated else it }
         saveLocalMessages(context, message.userEmail, current)
         updated
-    }
-
-    /** إضافة تفاعل إيموجي على رسالة معينة */
-    fun toggleReaction(context: Context, userEmail: String, messageId: String, emoji: String) {
-        val cleanEmail = userEmail.trim().lowercase()
-        val current = getLocalMessages(context, cleanEmail).toMutableList()
-        val idx = current.indexOfFirst { it.id == messageId }
-        if (idx != -1) {
-            val msg = current[idx]
-            val existingCount = msg.reactions[emoji] ?: 0
-            val updatedMap = msg.reactions.toMutableMap()
-            if (existingCount > 0) {
-                updatedMap[emoji] = existingCount + 1
-            } else {
-                updatedMap[emoji] = 1
-            }
-            current[idx] = msg.copy(reactions = updatedMap)
-            saveLocalMessages(context, cleanEmail, current)
-        }
-    }
-
-    /** مسح سجل المحادثة محلياً */
-    fun clearMessages(context: Context, userEmail: String) {
-        val cleanEmail = userEmail.trim().lowercase()
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(KEY_MESSAGES_PREFIX + cleanEmail).apply()
     }
 
     private fun removeLocalConversation(context: Context, userEmail: String) {
@@ -468,46 +441,10 @@ object DevChatRepository {
                 saveLocalMessages(context, cleanEmail, merged)
             }
             return@withContext merged
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "Sync with Supabase failed: ${e.message}")
         }
         local
-    }
-
-    /**
-     * 🛰️ توليد تقرير تشخيصي حقيقي فوري للنظام (Spatial Telemetry HUD Diagnostics)
-     */
-    fun generateSystemDiagnostics(context: Context): String {
-        val runtime = Runtime.getRuntime()
-        val totalMemoryMb = runtime.totalMemory() / (1024 * 1024)
-        val freeMemoryMb = runtime.freeMemory() / (1024 * 1024)
-        val usedMemoryMb = totalMemoryMb - freeMemoryMb
-        val dm = context.resources.displayMetrics
-        val density = dm.densityDpi
-        val res = "${dm.widthPixels}x${dm.heightPixels}"
-
-        val appVersion = try {
-            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            pInfo.versionName ?: "2.3.0"
-        } catch (_: Exception) {
-            "2.3.0-PRO"
-        }
-
-        return """
-            |══════════════════════════════════
-            |🛰️ [QABAS_SPATIAL_HUD // TELEMETRY_REPORT]
-            |══════════════════════════════════
-            |• APP_VERSION   : v$appVersion (Spatial Engine)
-            |• DEVICE_MODEL  : ${Build.MANUFACTURER.uppercase()} ${Build.MODEL}
-            |• ANDROID_SDK   : API ${Build.VERSION.SDK_INT} (${Build.VERSION.RELEASE})
-            |• SCREEN_RES    : $res @ ${density}dpi
-            |• MEMORY_STATS  : $usedMemoryMb MB used / $totalMemoryMb MB heap
-            |• AUDIO_ENGINE  : ExoPlayer + Synth SoundManager [ACTIVE]
-            |• CLOUD_BEACON  : ${if (SupabaseServices.isSupabaseAvailable) "WSS-ONLINE (SUPABASE_LINK)" else "LOCAL_HUD_BUFFER"}
-            |• TIMESTAMP     : ${dateFormat.format(Date())} ${timeFormat.format(Date())}
-            |══════════════════════════════════
-            |الحالة: النظام يعمل بكفاءة كاملة وجاهز للفحص المباشر ⚡
-        """.trimMargin()
     }
 
     /**

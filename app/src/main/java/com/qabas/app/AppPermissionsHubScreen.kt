@@ -1,10 +1,7 @@
 package com.qabas.app
 
 import android.Manifest
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
@@ -23,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -31,16 +27,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -52,7 +42,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleTopBar
-import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -66,20 +55,6 @@ import kotlinx.coroutines.withContext
  * يوفر لوحة قيادة فضائية متطورة لفحص الأذونات، اختبار العتاد (ميكروفون، كاميرا، إشعارات)،
  * وضمان عمل الأذان والتنبيهات بالخلفية بدون قيود مع أعلى معايير الشفافية والخصوصية.
  */
-
-data class HudPermissionItem(
-    val id: String,
-    val title: String,
-    val technicalCode: String,
-    val subsystemCategory: String,
-    val description: String,
-    val impactWhenDisabled: String,
-    val icon: ImageVector,
-    val isGranted: Boolean,
-    val isCritical: Boolean,
-    val accentColor: Color,
-    val onAction: () -> Unit
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,7 +209,7 @@ fun AppPermissionsHubScreen(
                         }
                     } catch (e: SecurityException) {
                         sampleSuccess = false
-                    } catch (e: Exception) {
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                         sampleSuccess = false
                     } finally {
                         try {
@@ -370,14 +345,14 @@ fun AppPermissionsHubScreen(
                 diagnosticMessage?.let { result ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = Color(0xFF0C1322),
+                        color = CardSurface,
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.35f))
+                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
                     ) {
                         Text(
                             text = result,
                             modifier = Modifier.padding(12.dp),
-                            color = Color(0xFFCBD5E1),
+                            color = TextSecondary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             lineHeight = 18.sp
@@ -388,7 +363,7 @@ fun AppPermissionsHubScreen(
                 // ── 2. مصفوفة الصلاحيات التفصيلية (Cybernetic Matrix Cards) ──
                 Text(
                     text = "مصفوفة العتاد والصلاحيات الحيوية ✦",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
@@ -404,7 +379,7 @@ fun AppPermissionsHubScreen(
                     impact = "بدونه لا يمكن تسجيل الصوت مباشرة داخل التطبيق.",
                     icon = Icons.Default.Mic,
                     isGranted = isMicGranted,
-                    accentColor = Color(0xFF38BDF8),
+                    accentColor = PresetPrimary,
                     testWaveformLevel = if (isTestingMic) testWaveformLevel else 0f,
                     actionLabel = if (isMicGranted) "اختبار الميكروفون 🎙️" else "منح الإذن ⚡",
                     onAction = {
@@ -425,7 +400,7 @@ fun AppPermissionsHubScreen(
                     impact = "بدونه يقتصر استيراد المشاهد على مكتبة الوسائط فقط.",
                     icon = Icons.Default.CameraAlt,
                     isGranted = isCameraGranted,
-                    accentColor = Color(0xFFA855F7),
+                    accentColor = PresetAccent,
                     actionLabel = if (isCameraGranted) "مفعل وجاهز ✓" else "منح الإذن ⚡",
                     onAction = {
                         if (!isCameraGranted) {
@@ -445,7 +420,7 @@ fun AppPermissionsHubScreen(
                     impact = "بدونه لن تظهر تنبيهات الأذكار والتحديثات على شاشة القفل.",
                     icon = Icons.Default.NotificationsActive,
                     isGranted = isNotificationGranted,
-                    accentColor = Color(0xFFF59E0B),
+                    accentColor = ThemeWarning,
                     actionLabel = if (isNotificationGranted) "إرسال تجربة 🔔" else "تفعيل التنبيهات ⚡",
                     onAction = {
                         if (isNotificationGranted) {
@@ -474,7 +449,7 @@ fun AppPermissionsHubScreen(
                     impact = "بدونه قد يتأخر رفع الأذان لعدة دقائق بسبب جدولة أندرويد التقريبية.",
                     icon = Icons.Default.AlarmOn,
                     isGranted = canExactAlarm,
-                    accentColor = Color(0xFF10B981),
+                    accentColor = ThemeSuccess,
                     actionLabel = if (canExactAlarm) "دقيق بالثانية ✓" else "ضبط المنبهات الدقيقة ⚡",
                     onAction = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -495,7 +470,7 @@ fun AppPermissionsHubScreen(
                         impact = "بدونه قد يكتفي النظام بإرسال إشعار صامت أو بسيط دون فتح الواجهة.",
                         icon = Icons.Default.Screenshot,
                         isGranted = canFullScreen,
-                        accentColor = Color(0xFFF43F5E),
+                        accentColor = ThemeDestructive,
                         actionLabel = if (canFullScreen) "مفعل وجاهز ✓" else "منح الإذن ⚡",
                         onAction = {
                             BackgroundPermissionManager.requestFullScreenIntentPermission(context)
@@ -512,7 +487,7 @@ fun AppPermissionsHubScreen(
                     impact = "قد يمنع النظام صوت الأذان أثناء نوم الهاتف الممتد إذا لم يتم الاستثناء.",
                     icon = Icons.Default.BatteryChargingFull,
                     isGranted = isBatteryIgnored,
-                    accentColor = Color(0xFF00E5FF),
+                    accentColor = PresetPrimary,
                     actionLabel = if (isBatteryIgnored) "محمي من الخمول ✓" else "استثناء البطارية ⚡",
                     onAction = {
                         BackgroundPermissionManager.requestIgnoreBatteryOptimizations(context)
@@ -521,9 +496,9 @@ fun AppPermissionsHubScreen(
 
                 // 6. التشغيل التلقائي لمصنعي الأجهزة (Xiaomi / Samsung / Huawei / Oppo)
                 Surface(
-                    color = Color(0xFF0C1322).copy(alpha = 0.85f),
+                    color = CardSurface.copy(alpha = 0.85f),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f)),
+                    border = BorderStroke(1.dp, PresetAccent.copy(alpha = 0.35f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -541,46 +516,46 @@ fun AppPermissionsHubScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFA855F7).copy(alpha = 0.15f)),
+                                    .background(PresetAccent.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = PresetAccent, modifier = Modifier.size(20.dp))
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
                                     "إعدادات التشغيل التلقائي للشركة المصنعة",
-                                    color = Color.White,
+                                    color = TextPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     "لهواتف شاومي، سامسونج، هواوي، أوبو وفيفو لمنع إغلاق الأذان بالقوة",
-                                    color = Color(0xFF94A3B8),
+                                    color = TextSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 10.sp
                                 )
                             }
                         }
-                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = PresetAccent, modifier = Modifier.size(18.dp))
                     }
                 }
 
                 // ── 3. ميثاق الشفافية والخصوصية الصادق (Developer Honest Privacy Protocol) ──
                 Surface(
-                    color = Color(0xFF070D18).copy(alpha = 0.9f),
+                    color = DeepSlate.copy(alpha = 0.9f),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "ميثاق الأمان والخصوصية الصادق 100%",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -590,7 +565,7 @@ fun AppPermissionsHubScreen(
                             text = "• الميكروفون والكاميرا لا يعملان في الخلفية مطلقاً، ولا يتم تفعيلهما إلا بضغطك المباشر داخل استوديو الإنتاج.\n" +
                                     "• كافة التلاوات والملفات الصوتية تُعالج محلياً بأعلى درجات التشفير والخصوصية.\n" +
                                     "• لا يتم جمع أي بيانات حساسة أو بيعها لأي طرف ثالث، وتطبيق خادم المسلم خالي 100% من الإعلانات التتبعية.",
-                            color = Color(0xFFCBD5E1),
+                            color = TextSecondary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             lineHeight = 18.sp
@@ -606,9 +581,9 @@ fun AppPermissionsHubScreen(
                                 onClick = { BackgroundPermissionManager.openAppSettings(context) },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
-                                Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Settings, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("إدارة أذونات النظام العامة ⚙️", color = Color(0xFF00E5FF), fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("إدارة أذونات النظام العامة ⚙️", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                             }
                         }
                     }
@@ -728,13 +703,13 @@ private fun HudReadinessTelemetryCard(
                     Icon(
                         if (readinessPercentage >= 100) Icons.Default.CheckCircle else Icons.Default.Bolt,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = DeepSlate,
                         modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (readinessPercentage >= 100) "كافة الأذونات مفعلة ✓" else "تفعيل جميع الصلاحيات 🚀",
-                        color = Color.White,
+                        color = DeepSlate,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -782,14 +757,14 @@ private fun CyberPermissionCard(
     onAction: () -> Unit
 ) {
     val theme = QabasTheme.current
-    val statusColor = if (isGranted) Color(0xFF10B981) else accentColor
+    val statusColor = if (isGranted) ThemeSuccess else accentColor
 
     Surface(
         color = theme.cardSurface,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
             1.dp,
-            if (isGranted) Color(0xFF10B981).copy(alpha = 0.35f) else theme.cardBorder
+            if (isGranted) ThemeSuccess.copy(alpha = 0.35f) else theme.cardBorder
         ),
         shadowElevation = if (theme.isDark) 0.dp else 2.dp,
         modifier = Modifier.fillMaxWidth()
@@ -827,13 +802,13 @@ private fun CyberPermissionCard(
                             Spacer(modifier = Modifier.width(6.dp))
                             if (isGranted) {
                                 Surface(
-                                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                    color = ThemeSuccess.copy(alpha = 0.15f),
                                     shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                    border = BorderStroke(0.6.dp, ThemeSuccess.copy(alpha = 0.4f))
                                 ) {
                                     Text(
                                         "ممنوح ✓",
-                                        color = Color(0xFF10B981),
+                                        color = ThemeSuccess,
                                         fontSize = 10.sp,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
@@ -857,7 +832,7 @@ private fun CyberPermissionCard(
                     onClick = onAction,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isGranted) theme.secondarySurface else accentColor,
-                        contentColor = if (isGranted) Color(0xFF10B981) else Color.White
+                        contentColor = if (isGranted) ThemeSuccess else DeepSlate
                     ),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
@@ -886,16 +861,16 @@ private fun CyberPermissionCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFEF4444).copy(alpha = 0.08f))
-                        .border(BorderStroke(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.2f)), RoundedCornerShape(10.dp))
+                        .background(ThemeDestructive.copy(alpha = 0.08f))
+                        .border(BorderStroke(0.5.dp, ThemeDestructive.copy(alpha = 0.2f)), RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = ThemeDestructive, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = impact,
-                        color = Color(0xFFEF4444),
+                        color = ThemeDestructive,
                         fontFamily = CairoFont,
                         fontSize = 11.sp
                     )

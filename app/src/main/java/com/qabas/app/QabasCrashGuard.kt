@@ -841,32 +841,6 @@ object QabasCrashGuard {
         )
     }
 
-    /**
-     * محاكاة اختبارية آمنة للانهيار
-     */
-    fun simulateCrash(context: Context) {
-        val ctx = context.applicationContext
-        val throwable = IllegalStateException("🧪 [Self-Test] محاكاة انهيار تجريبي لاختبار محرك التشخيص الذكي")
-        record(ctx, "main", throwable, "self_test_crash")
-    }
-
-    /**
-     * محاكاة اختبارية آمنة لـ ANR
-     */
-    fun simulateAnr(context: Context) {
-        val ctx = context.applicationContext
-        val mainThread = Looper.getMainLooper().thread
-        val anr = ANRDiagnosticException(
-            freezeDurationMs = 5200L,
-            mainThreadState = mainThread.state.name,
-            deadlockSummary = "🧪 [Self-Test] محاكاة تجريبية لقفل الخيوط والمراقبة (Lock Contention Verification)",
-            concurrentOpsSummary = "🧪 [Self-Test] محاكاة تشغيل 3 خيوط معالجة متزامنة",
-            mainThreadStack = mainThread.stackTrace,
-            allThreadsDump = formatThreadsDump(Thread.getAllStackTraces())
-        )
-        record(ctx, "main", anr, "self_test_anr")
-    }
-
     private fun notifyDeveloper(context: Context, throwable: Throwable, source: String, occurrences: Int) {
         runCatching {
             val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)

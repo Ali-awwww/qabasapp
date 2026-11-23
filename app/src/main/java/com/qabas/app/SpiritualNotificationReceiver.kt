@@ -1,12 +1,10 @@
 package com.qabas.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.core.app.NotificationCompat
 import java.util.Calendar
 
 class SpiritualNotificationReceiver : BroadcastReceiver() {
@@ -15,6 +13,23 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
         if (!NotificationPreferencesManager.masterEnabled.value) return
 
         val type = intent.getStringExtra("notification_type") ?: "general"
+        // (ر22) التأجيل لمرة واحدة: يُعرض المحتوى المؤجل كما هو ولا يُعاد
+        // جدولته أبداً — كان يمرّ على المسار اليومي فيُنشئ تذكيراً عاماً
+        // كل يوم 7:00 لا يلغي ولا يملك مفتاح إيقاف.
+        if (type == "snooze") {
+            val snoozeTitle = intent.getStringExtra("snooze_title")?.takeIf { it.isNotBlank() }
+                ?: "تذكير إيماني"
+            val snoozeMessage = intent.getStringExtra("snooze_message")?.takeIf { it.isNotBlank() }
+                ?: "«وَذَكِّرْ فَإِنَّ الذِّكْرَىٰ تَنفَعُ الْمُؤْمِنِينَ»\nحان وقت وردك القرآني."
+            showNotification(context, snoozeTitle, snoozeMessage)
+            AppNotificationService.recordNotification(
+                context = context,
+                title = snoozeTitle,
+                message = snoozeMessage,
+                category = AppNotificationService.CATEGORY_SPIRITUAL
+            )
+            return
+        }
         val typeEnabled = when (type) {
             "suhur" -> NotificationPreferencesManager.suhurReminderEnabled.value
             "fajr" -> NotificationPreferencesManager.fajrReminderEnabled.value
@@ -102,11 +117,13 @@ class SpiritualNotificationReceiver : BroadcastReceiver() {
             confirmationMessage = "تقبل الله طاعتكم 🌿 تم تسجيل إتمام الورد الإيماني بنجاح"
         )
 
-        // أداة 4: تأجيل التنبيه
+        // أداة 4: تأجيل التنبيه (يُمرَّر المحتوى ليُعرض كما هو بعد 15 دقيقة — ر22)
         QabasNotificationHelper.addActionSnooze(
             builder = builder,
             context = context,
-            notifId = notifId
+            notifId = notifId,
+            title = title,
+            message = message
         )
 
         // تجميع التنبيهات الإيمانية تحت ملخّص واحد فلا تتكدّس في شريط الإشعارات
@@ -179,6 +196,9 @@ object SpiritualNotificationManager {
     }
 
     fun scheduleNotification(context: Context, type: String) {
+        // (ر22) «snooze» ليس نوع تذكير يومي — التأجيل لمرة واحدة فقط
+        // ويُجدول من scheduleSnooze لا من هنا.
+        if (type == "snooze") return
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
         val intent = Intent(context, SpiritualNotificationReceiver::class.java).apply {
             putExtra("notification_type", type)

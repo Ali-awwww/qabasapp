@@ -22,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -475,7 +474,7 @@ fun ProfileScreen(
                         ?: SupabaseServices.Auth.getCurrentUserMeta("picture")
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
             // Keep cached values
         } finally {
             isLoadingLeague = false
@@ -546,8 +545,8 @@ fun ProfileScreen(
                 tierTitle = "رتبة السفير",
                 emoji = "👑",
                 icon = Icons.Default.Stars,
-                primaryColor = GoldSecondary,
-                accentColor = GoldSecondary,
+                primaryColor = PresetAccent,
+                accentColor = PresetAccent,
                 pointsRequired = 7000,
                 isUnlocked = userLeaguePoints >= 7000,
                 isCurrentTier = userLeaguePoints in 7000..11999,
@@ -918,7 +917,7 @@ fun ProfileScreen(
                     title = "تغيير كلمة المرور",
                     subtitle = "تحديث كلمة المرور عبر Supabase",
                     icon = Icons.Default.LockReset,
-                    iconBackground = GoldSecondary,
+                    iconBackground = PresetAccent,
                     onClick = { showChangePasswordDialog = true },
                     modifier = Modifier.testTag("profile_row_password")
                 )
@@ -1108,7 +1107,7 @@ fun ProfileScreen(
                         MiniMetricCell("المحفوظات", reelSavedCount, theme.primary, Modifier.weight(1f))
                         MiniMetricCell("المشاهدات", reelWatchedCount, theme.accent, Modifier.weight(1f))
                         MiniMetricCell("الإعجابات", reelLikedCount, theme.destructive, Modifier.weight(1f))
-                        MiniMetricCell("المنشورات", reelPublishedCount, GoldSecondary, Modifier.weight(1f))
+                        MiniMetricCell("المنشورات", reelPublishedCount, PresetAccent, Modifier.weight(1f))
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))

@@ -15,9 +15,13 @@ import org.robolectric.annotation.Config
  * اختبارات نظام الإشعارات والتبيهات (Notification & Alert System Tests):
  *
  * 1. تفضيلات الإشعارات تُحفظ وتُقرأ بشكل صحيح.
- * 2. مفتاح التفضيلات لكل صلاة واحد ومتوافق بين الواجهة ومدير الجدولة.
- * 3. أنماط الصوت المدعومة مطابقة تماماً لما يتعامل معه PrayerAzanReceiver.
- * 4. تتبع الورد (سلسلة الأيام) يعمل ويزداد.
+ * 2. مصدر الحقيقة الوحيد لتفضيلات الصلاة هو مخزن «qabas_prayer_prefs»
+ *    الخام (مفاتيح notify_<prayer> وsound_mode_<prayer>)، ويقرأه
+ *    PrayerAlarmManager مباشرةً — غلافا get/setPrayerPreferences وثوابت
+ *    SOUND_* حُذفا في الجولة 33 لعدم وجود قارئ لهما، فلا يختبرهما شيء هنا.
+ * 3. أنماط الصوت سلاسل خام («FULL_AZAN» افتراضياً)؛ وقيمة «TAKBEER_ONLY»
+ *    القديمة تُطبَّع إلى «FULL_AZAN» عند الجدولة (PrayerAlarmManager).
+ * 4. تتبع الورد (سلسلة الأيام) يعمل ويزداد — مرة واحدة في اليوم (الجولة 12).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -72,24 +76,21 @@ class NotificationPreferencesManagerTest {
 
     @Test
     fun `prayer preferences write and read from prayer prefs store`() {
-        NotificationPreferencesManager.setPrayerPreferences(
-            context = context,
-            prayerKey = "fajr",
-            enabled = false,
-            soundMode = NotificationPreferencesManager.SOUND_TAKBEER_ONLY,
-            voiceId = MuezzinVoiceManager.DEFAULT_ADHAN_VOICE_ID
-        )
+        // (R51) غلافا get/setPrayerPreferences وثوابت SOUND_* حُذفا في
+        // الجولة 33 — الكتابة والقراءة هنا على المخزن الخام نفسه الذي
+        // تكتبه شاشة المحراب ويقرأه PrayerAlarmManager.
+        val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
+        prayerPrefs.edit()
+            .putBoolean("notify_fajr", false)
+            .putString("sound_mode_fajr", "NOTIFICATION_ONLY")
+            .apply()
 
-        val (enabled, soundMode) =
-            NotificationPreferencesManager.getPrayerPreferences(context, "fajr")
-        assertFalse(enabled)
-        assertEquals(NotificationPreferencesManager.SOUND_TAKBEER_ONLY, soundMode)
+        assertFalse(PrayerAlarmManager.isPrayerEnabled(context, "fajr"))
 
         // التحقّق من المخزن نفسه الذي يكتب فيه PrayerTimesScreen
-        val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
         assertFalse(prayerPrefs.getBoolean("notify_fajr", true))
         assertEquals(
-            NotificationPreferencesManager.SOUND_TAKBEER_ONLY,
+            "NOTIFICATION_ONLY",
             prayerPrefs.getString("sound_mode_fajr", "FULL_AZAN")
         )
     }
@@ -102,9 +103,6 @@ class NotificationPreferencesManagerTest {
 
         // مدير الجدولة يجب أن يرى نفس القيمة
         assertFalse(PrayerAlarmManager.isPrayerEnabled(context, "dhuhr"))
-        // وواجهة التفضيلات أيضاً
-        val (enabled, _) = NotificationPreferencesManager.getPrayerPreferences(context, "dhuhr")
-        assertFalse(enabled)
     }
 
     @Test
@@ -126,17 +124,13 @@ class NotificationPreferencesManagerTest {
     // ═══════════════════════════════════════════════════════════════════
 
     @Test
-    fun `supported sound modes match receiver contract`() {
-        val supported = setOf(
-            NotificationPreferencesManager.SOUND_FULL_AZAN,
-            NotificationPreferencesManager.SOUND_TAKBEER_ONLY,
-            NotificationPreferencesManager.SOUND_NOTIFICATION_ONLY,
-            NotificationPreferencesManager.SOUND_SILENT
-        )
-
-        // القيم التي يفرّق بينها PrayerAzanReceiver فعلياً
-        val receiverSupported = setOf("FULL_AZAN", "TAKBEER_ONLY", "NOTIFICATION_ONLY", "SILENT")
-        assertEquals(receiverSupported, supported)
+    fun `sound mode defaults to full azan when unset`() {
+        // (R51) اختبار «supported sound modes match receiver contract»
+        // حُذف مع ثوابت SOUND_* في الجولة 33 — لا ثابت واحد يُقاس عليه
+        // بعدها. الباقي القابل للاختبار هنا: الافتراضي الخام عند غياب
+        // المفتاح هو الأذان الكامل، كما يقرأه PrayerAlarmManager.
+        val prayerPrefs = context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE)
+        assertEquals("FULL_AZAN", prayerPrefs.getString("sound_mode_fajr", "FULL_AZAN"))
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -145,10 +139,13 @@ class NotificationPreferencesManagerTest {
 
     @Test
     fun `recording a wird increments the streak`() {
+        // (R51) كان يتوقع +2 من استدعائين في اليوم نفسه — لكن الجولة 12
+        // جعلت التسجيل مرة واحدة في اليوم، فالاستدعاء الثاني في اليوم
+        // نفسه لا يزيد شيئاً. الصحيح: +1 مهما تكرر الاستدعاء في اليوم.
         val before = NotificationPreferencesManager.wiradStreak.value
         NotificationPreferencesManager.recordWirdCompleted(context)
         NotificationPreferencesManager.recordWirdCompleted(context)
-        assertEquals(before + 2, NotificationPreferencesManager.wiradStreak.value)
+        assertEquals(before + 1, NotificationPreferencesManager.wiradStreak.value)
     }
 
     @Test

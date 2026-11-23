@@ -1,6 +1,5 @@
 package com.qabas.app.ui.dialogs
 
-import android.content.Context
 import com.qabas.app.AgentPrefs
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -19,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -250,7 +248,7 @@ END $$;
                 .fillMaxHeight(0.9f),
             shape = CutCornerShape(16.dp),
             color = DeepSlate,
-            border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.5f))
+            border = BorderStroke(1.2.dp, PresetPrimary.copy(alpha = 0.5f))
         ) {
             Column(
                 modifier = Modifier
@@ -266,22 +264,22 @@ END $$;
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             shape = CircleShape,
-                            color = GoldPrimary.copy(alpha = 0.15f),
+                            color = PresetPrimary.copy(alpha = 0.15f),
                             modifier = Modifier.size(36.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.CloudQueue, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.CloudQueue, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("إدارة الربط السحابي (Supabase)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("CLOUD_INTEGRATION // POSTGRESQL & AUTH", color = GoldPrimary.copy(alpha = 0.7f), fontFamily = RobotoMonoFont, fontSize = 9.sp)
+                            Text("إدارة الربط السحابي (Supabase)", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("CLOUD_INTEGRATION // POSTGRESQL & AUTH", color = PresetPrimary.copy(alpha = 0.7f), fontFamily = RobotoMonoFont, fontSize = 9.sp)
                         }
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.7f))
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextPrimary.copy(alpha = 0.7f))
                     }
                 }
 
@@ -297,12 +295,12 @@ END $$;
                         Surface(
                             modifier = Modifier.weight(1f).clickable { selectedTab = idx },
                             shape = CutCornerShape(8.dp),
-                            color = if (isSel) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF151B2B),
-                            border = BorderStroke(1.dp, if (isSel) GoldPrimary else Color.White.copy(alpha = 0.1f))
+                            color = if (isSel) PresetPrimary.copy(alpha = 0.15f) else CardSurface,
+                            border = BorderStroke(1.dp, if (isSel) PresetPrimary else TextPrimary.copy(alpha = 0.1f))
                         ) {
                             Text(
                                 text = label,
-                                color = if (isSel) GoldPrimary else Color.Gray,
+                                color = if (isSel) PresetPrimary else TextTertiary,
                                 fontFamily = CairoFont,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 11.5.sp,
@@ -320,8 +318,8 @@ END $$;
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .background(Color(0xFF0F172A).copy(alpha = 0.7f), CutCornerShape(10.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.05f), CutCornerShape(10.dp))
+                        .background(DeepSlate.copy(alpha = 0.7f), CutCornerShape(10.dp))
+                        .border(1.dp, TextPrimary.copy(alpha = 0.05f), CutCornerShape(10.dp))
                         .padding(14.dp)
                 ) {
                     Column(
@@ -332,18 +330,18 @@ END $$;
                         when (selectedTab) {
                             0 -> {
                                 // Connection Form
-                                Text("رابط مشروع Supabase (Project URL):", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("رابط مشروع Supabase (Project URL):", color = TextPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 OutlinedTextField(
                                     value = inputUrl,
                                     onValueChange = { inputUrl = it.trim() },
-                                    placeholder = { Text("https://your-id.supabase.co", fontSize = 11.sp, color = Color.Gray) },
+                                    placeholder = { Text("https://your-id.supabase.co", fontSize = 11.sp, color = TextTertiary) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = GoldPrimary,
-                                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
+                                        focusedBorderColor = PresetPrimary,
+                                        unfocusedBorderColor = TextPrimary.copy(alpha = 0.15f),
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary
                                     ),
                                     shape = CutCornerShape(8.dp),
                                     singleLine = true
@@ -351,18 +349,18 @@ END $$;
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                Text("مفتاح API العام (anon public key):", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("مفتاح API العام (anon public key):", color = TextPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 OutlinedTextField(
                                     value = inputAnonKey,
                                     onValueChange = { inputAnonKey = it.trim() },
-                                    placeholder = { Text("eyJhbGciOi...", fontSize = 11.sp, color = Color.Gray) },
+                                    placeholder = { Text("eyJhbGciOi...", fontSize = 11.sp, color = TextTertiary) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = GoldPrimary,
-                                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
+                                        focusedBorderColor = PresetPrimary,
+                                        unfocusedBorderColor = TextPrimary.copy(alpha = 0.15f),
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary
                                     ),
                                     shape = CutCornerShape(8.dp),
                                     maxLines = 3
@@ -374,14 +372,14 @@ END $$;
                                 if (testStatus != null) {
                                     val isOk = testStatus?.startsWith("✓") == true
                                     Surface(
-                                        color = if (isOk) Color(0xFF064E3B) else Color(0xFF450A0A),
-                                        border = BorderStroke(1.dp, if (isOk) Color(0xFF10B981) else Color(0xFFEF4444)),
+                                        color = if (isOk) ThemeSuccess.copy(alpha = 0.25f) else ThemeDestructive.copy(alpha = 0.25f),
+                                        border = BorderStroke(1.dp, if (isOk) ThemeSuccess else ThemeDestructive),
                                         shape = CutCornerShape(8.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
                                             text = testStatus ?: "",
-                                            color = Color.White,
+                                            color = TextPrimary,
                                             fontFamily = CairoFont,
                                             fontSize = 11.5.sp,
                                             modifier = Modifier.padding(10.dp)
@@ -407,7 +405,7 @@ END $$;
                                             Toast.makeText(context, "تم حفظ الإعدادات وتحديث عميل السحابة بنجاح ☁️", Toast.LENGTH_SHORT).show()
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                         shape = CutCornerShape(8.dp)
                                     ) {
                                         Text("حفظ الإعدادات 💾", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -430,7 +428,7 @@ END $$;
                                                 val pingSuccess = try {
                                                     val reels = SupabaseServices.Profiles.getActiveReels()
                                                     reels != null
-                                                } catch (_: Exception) {
+                                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                                                     false
                                                 }
                                                 val elapsed = System.currentTimeMillis() - start
@@ -446,25 +444,25 @@ END $$;
                                         },
                                         enabled = !isTesting,
                                         modifier = Modifier.weight(1f),
-                                        border = BorderStroke(1.dp, GoldPrimary),
+                                        border = BorderStroke(1.dp, PresetPrimary),
                                         shape = CutCornerShape(8.dp)
                                     ) {
-                                        Text(if (isTesting) "جاري الفحص..." else "فحص الاتصال ⚡", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                        Text(if (isTesting) "جاري الفحص..." else "فحص الاتصال ⚡", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                                     }
                                 }
                             }
 
                             1 -> {
                                 // SQL Schema Script
-                                Text("أكواد SQL لإنشاء جداول المشروع في Supabase:", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("أكواد SQL لإنشاء جداول المشروع في Supabase:", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Text("افتح Supabase Dashboard > SQL Editor والصق الكود التالي واضغط RUN:", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("افتح Supabase Dashboard > SQL Editor والصق الكود التالي واضغط RUN:", color = TextTertiary, fontFamily = CairoFont, fontSize = 11.sp)
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 Surface(
-                                    color = Color(0xFF020617),
+                                    color = DeepSlate,
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                    border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.1f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(10.dp)) {
@@ -473,13 +471,13 @@ END $$;
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("SCHEMA.SQL", color = GoldPrimary, fontFamily = RobotoMonoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            Text("SCHEMA.SQL", color = PresetPrimary, fontFamily = RobotoMonoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             Button(
                                                 onClick = {
                                                     clipboardManager.setText(AnnotatedString(sqlSchemaScript))
                                                     Toast.makeText(context, "تم نسخ كود SQL كاملاً! الصقه في Supabase SQL Editor 📋", Toast.LENGTH_LONG).show()
                                                 },
-                                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                                 shape = CutCornerShape(4.dp),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
@@ -489,7 +487,7 @@ END $$;
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
                                             text = sqlSchemaScript,
-                                            color = Color(0xFF94A3B8),
+                                            color = TextSecondary,
                                             fontFamily = RobotoMonoFont,
                                             fontSize = 9.sp,
                                             lineHeight = 13.sp
@@ -500,17 +498,17 @@ END $$;
 
                             2 -> {
                                 // Google Auth Guidance
-                                Text("ربط Google Cloud بـ Supabase Auth:", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("ربط Google Cloud بـ Supabase Auth:", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                Text("1. رابط إعادة التوجيه (Callback URL) في Supabase:", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("1. رابط إعادة التوجيه (Callback URL) في Supabase:", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                                 Surface(
-                                    color = Color(0xFF1E293B),
+                                    color = ThemeSecondarySurface,
                                     shape = CutCornerShape(6.dp),
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                                 ) {
                                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text(callbackUrl, color = Color.White, fontFamily = RobotoMonoFont, fontSize = 9.5.sp, modifier = Modifier.weight(1f))
+                                        Text(callbackUrl, color = TextPrimary, fontFamily = RobotoMonoFont, fontSize = 9.5.sp, modifier = Modifier.weight(1f))
                                         IconButton(
                                             onClick = {
                                                 clipboardManager.setText(AnnotatedString(callbackUrl))
@@ -518,21 +516,21 @@ END $$;
                                             },
                                             modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                Text("2. بصمة توقيع التطبيق (SHA-1 Fingerprint):", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("2. بصمة توقيع التطبيق (SHA-1 Fingerprint):", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                                 Surface(
-                                    color = Color(0xFF1E293B),
+                                    color = ThemeSecondarySurface,
                                     shape = CutCornerShape(6.dp),
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                                 ) {
                                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text(sha1Fingerprint, color = Color.White, fontFamily = RobotoMonoFont, fontSize = 9.5.sp, modifier = Modifier.weight(1f))
+                                        Text(sha1Fingerprint, color = TextPrimary, fontFamily = RobotoMonoFont, fontSize = 9.5.sp, modifier = Modifier.weight(1f))
                                         IconButton(
                                             onClick = {
                                                 clipboardManager.setText(AnnotatedString(sha1Fingerprint))
@@ -540,29 +538,29 @@ END $$;
                                             },
                                             modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                Text("3. اسم حزمة التطبيق (Package Name):", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                                Text("3. اسم حزمة التطبيق (Package Name):", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp)
                                 Surface(
-                                    color = Color(0xFF1E293B),
+                                    color = ThemeSecondarySurface,
                                     shape = CutCornerShape(6.dp),
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                                 ) {
                                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text("com.qabas.app", color = Color.White, fontFamily = RobotoMonoFont, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                        Text("com.aistudio.qabas.kxmpzq", color = TextPrimary, fontFamily = RobotoMonoFont, fontSize = 10.sp, modifier = Modifier.weight(1f))
                                         IconButton(
                                             onClick = {
-                                                clipboardManager.setText(AnnotatedString("com.qabas.app"))
+                                                clipboardManager.setText(AnnotatedString("com.aistudio.qabas.kxmpzq"))
                                                 Toast.makeText(context, "تم نسخ اسم الحزمة!", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 }

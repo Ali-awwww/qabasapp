@@ -203,7 +203,7 @@ fun HasanatHubScreen(
                     )
                     HorizontalDivider(color = theme.separator.copy(alpha = 0.5f))
                     Text(
-                        Translator.tr("نسخة التطبيق: 1.3.7 (الإصدار الذهبي)"),
+                        Translator.tr("نسخة التطبيق: ${BuildConfig.VERSION_NAME} (الإصدار الذهبي)"),
                         color = theme.primary,
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
@@ -1101,7 +1101,7 @@ fun HasanatHubScreen(
                                                 is HasanatHubViewModel.MuslimToolItem -> {
                                                     UnifiedHasanatGridItem(
                                                         title = item.title,
-                                                        subtitle = "أداة ذكية مفعّلة",
+                                                        subtitle = item.desc,
                                                         icon = item.icon,
                                                         color = item.color,
                                                         modifier = Modifier.weight(1f)
@@ -1112,7 +1112,7 @@ fun HasanatHubScreen(
                                                                 "qibla" -> onNavigate(AppState.PRAYER_TIMES)
                                                                 "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
                                                                 "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
-                                                                "share" -> onNavigate(AppState.PHOTO_STUDIO)
+                                                                "share" -> onNavigate(AppState.HADITH_STUDIO)
                                                                 "reward" -> onNavigate(AppState.REWARDS)
                                                                 else -> viewModel.showToolDialog(item.id)
                                                             }
@@ -1146,8 +1146,8 @@ fun HasanatHubScreen(
                                 is HasanatHubViewModel.MuslimToolItem -> {
                                     UnifiedHasanatListItem(
                                         title = item.title,
-                                        subtitle = "أداة ذكية ميسرة للعبادات",
-                                        badge = "مفعلة بالكامل",
+                                        subtitle = item.desc,
+                                        badge = "",
                                         icon = item.icon,
                                         color = item.color
                                     ) {
@@ -1157,7 +1157,7 @@ fun HasanatHubScreen(
                                                 "qibla" -> onNavigate(AppState.PRAYER_TIMES)
                                                 "hadith" -> onNavigate(AppState.ISLAMIC_LIBRARY)
                                                 "learn" -> onNavigate(AppState.SCHOLAR_BIOGRAPHIES)
-                                                "share" -> onNavigate(AppState.PHOTO_STUDIO)
+                                                "share" -> onNavigate(AppState.HADITH_STUDIO)
                                                 "reward" -> onNavigate(AppState.REWARDS)
                                                 else -> viewModel.showToolDialog(item.id)
                                             }
@@ -1389,24 +1389,6 @@ fun UnifiedHasanatListItem(
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = theme.textSecondary)
         }
     }
-}
-
-@Composable
-fun MuslimToolCard(
-    title: String,
-    icon: ImageVector,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    UnifiedHasanatGridItem(
-        title = title,
-        subtitle = "",
-        icon = icon,
-        color = color,
-        modifier = modifier,
-        onClick = onClick
-    )
 }
 
 @Composable

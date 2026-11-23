@@ -10,7 +10,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import com.qabas.app.ui.components.GlassmorphicSurface
@@ -39,7 +38,6 @@ import android.util.Log
 import android.widget.Toast
 import android.widget.VideoView
 import java.io.File
-import kotlinx.coroutines.delay
 
 enum class VideoQualityOption(
     val title: String,
@@ -67,6 +65,7 @@ fun SaveShareScreen(
     onBackToEditor: () -> Unit,
     onStartSeries: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val analyticsContext = LocalContext.current
     LaunchedEffect(Unit) { AppServices.getAnalyticsService(analyticsContext).logScreenView("CinematicExport") }
 
@@ -89,6 +88,24 @@ fun SaveShareScreen(
     var exportFailed by remember { mutableStateOf(false) }
     var retryTrigger by remember { mutableIntStateOf(0) }
     var exportedFile by remember { mutableStateOf<File?>(null) }
+    // review-r12: رُفعت حالة الحفظ إلى نطاق الشاشة ليستخدمها الحفظ التلقائي
+    // (كانت محلية داخل زر الإجراءات فلا يراها أي تأثير آخر).
+    var isSavedToGallery by remember { mutableStateOf(false) }
+    val autoSaveToGallery by UserPreferencesManager.autoSaveToGallery.collectAsState()
+
+    // review-r12: الحفظ التلقائي في المعرض — كان مفتاحاً في الإعدادات بلا أي
+    // مستهلِك؛ زر «حفظ في المعرض» اليدوي وحده كان موجوداً. الآن عند اكتمال
+    // الرندر والمفتاح مفعّل يُحفظ الفيديو مرة واحدة تلقائياً، ويعكس الزر
+    // الحالة نفسها فلا يُحفظ مرتين.
+    LaunchedEffect(isRenderComplete, exportedFile) {
+        if (isRenderComplete && exportedFile != null && autoSaveToGallery && !isSavedToGallery) {
+            val saved = SocialAccountManager.saveVideoToGallery(analyticsContext, exportedFile)
+            if (saved) {
+                isSavedToGallery = true
+                Toast.makeText(analyticsContext, "تم حفظ الفيديو تلقائياً في المعرض", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     var customSeoTitle by remember { mutableStateOf(scriptText) }
     var activeHashtags by remember { mutableStateOf(SharePack.HASHTAGS_3) }
     var showDirectPublisher by remember { mutableStateOf(false) }
@@ -97,7 +114,7 @@ fun SaveShareScreen(
     var showAutoSeriesGenerator by remember { mutableStateOf(false) }
     var showViralSeoDialog by remember { mutableStateOf(false) }
 
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
+    val goldGradient = Brush.horizontalGradient(colors = listOf(PresetAccent, PresetPrimary))
 
     // Pulse animation for radar
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -133,6 +150,7 @@ fun SaveShareScreen(
 
         isRenderComplete = false
         exportFailed = false
+        isSavedToGallery = false // رندر جديد = ملف جديد لم يُحفظ بعد (review-r12)
         renderProgress = 0.05f
         val engine = VideoEngineManager(analyticsContext)
         VideoProcessor.currentQualityPreset = selectedQualityOption.preset
@@ -160,7 +178,7 @@ fun SaveShareScreen(
                     }
                 }
             )
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("SaveShareScreen", "Error during engine process", e)
             null
         }
@@ -184,7 +202,7 @@ fun SaveShareScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -216,7 +234,7 @@ fun SaveShareScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             Translator.tr("محرك التصدير السينمائي"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont,
                             fontSize = 18.sp
@@ -224,7 +242,7 @@ fun SaveShareScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = CutCornerShape(6.dp),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
                             Text(
@@ -240,10 +258,10 @@ fun SaveShareScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackToEditor) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = PresetPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B1120))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = theme.cardSurface)
             )
         }
     ) { paddingValues ->
@@ -273,20 +291,20 @@ fun SaveShareScreen(
                         // Quality Preset Selector Pills
                         GlassmorphicSurface(
                             shape = CutCornerShape(12.dp),
-                            backgroundColor = Color(0xFF0B0F19).copy(alpha = 0.85f),
-                            borderColor = GoldPrimary.copy(alpha = 0.4f),
+                            backgroundColor = theme.cardSurface.copy(alpha = 0.85f),
+                            borderColor = PresetPrimary.copy(alpha = 0.4f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.1f))
+                            HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.1f))
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("اختر جودة التصدير المطلوبة:", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                                Text("اختر جودة التصدير المطلوبة:", color = PresetPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     VideoQualityOption.values().forEach { opt ->
                                         val isSelected = selectedQualityOption == opt
                                         Surface(
                                             shape = CutCornerShape(6.dp),
-                                            color = if (isSelected) GoldPrimary else Color(0xFF151B2B),
-                                            border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                                            color = if (isSelected) PresetPrimary else theme.cardSurface,
+                                            border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.secondarySurface),
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clickable { selectedQualityOption = opt }
@@ -294,14 +312,14 @@ fun SaveShareScreen(
                                             Column(modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
                                                     opt.resolution,
-                                                    color = if (isSelected) DeepSlate else Color.White,
+                                                    color = if (isSelected) DeepSlate else theme.textPrimary,
                                                     fontSize = 11.sp,
                                                     fontFamily = RobotoMonoFont,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                                 Text(
                                                     opt.fps,
-                                                    color = if (isSelected) DeepSlate.copy(alpha = 0.8f) else Color.Gray,
+                                                    color = if (isSelected) DeepSlate.copy(alpha = 0.8f) else theme.textTertiary,
                                                     fontSize = 9.sp,
                                                     fontFamily = RobotoMonoFont
                                                 )
@@ -316,7 +334,7 @@ fun SaveShareScreen(
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(150.dp)) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
                                 drawArc(
-                                    color = Color(0xFF151B2B),
+                                    color = theme.cardSurface,
                                     startAngle = 140f,
                                     sweepAngle = 260f,
                                     useCenter = false,
@@ -331,8 +349,8 @@ fun SaveShareScreen(
                                 )
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("${(renderProgress * 100).toInt()}%", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                Text("RENDERING", color = GoldPrimary, fontSize = 12.sp, letterSpacing = 2.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                                Text("${(renderProgress * 100).toInt()}%", color = theme.textPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                Text("RENDERING", color = PresetPrimary, fontSize = 12.sp, letterSpacing = 2.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -341,8 +359,8 @@ fun SaveShareScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(160.dp)
-                                .background(Color(0xFF0B1120), CutCornerShape(10.dp))
-                                .border(1.dp, Color(0xFF151B2B), CutCornerShape(10.dp))
+                                .background(theme.cardSurface, CutCornerShape(10.dp))
+                                .border(1.dp, theme.cardSurface, CutCornerShape(10.dp))
                                 .padding(12.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxSize()) {
@@ -352,11 +370,11 @@ fun SaveShareScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Terminal, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.Default.Terminal, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Muslim AI Assistant FFmpeg Processing Console", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
+                                        Text("Muslim AI Assistant FFmpeg Processing Console", color = PresetPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
                                     }
-                                    Text(selectedQualityOption.bitrate, color = Color.Gray, fontSize = 12.sp, fontFamily = NotoSansFont)
+                                    Text(selectedQualityOption.bitrate, color = theme.textTertiary, fontSize = 12.sp, fontFamily = NotoSansFont)
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 
@@ -364,18 +382,18 @@ fun SaveShareScreen(
                                     items(logs.size) { i ->
                                         val line = logs[i]
                                         val lineColor = when {
-                                            line.startsWith("[SUCCESS]") -> Color(0xFF34D399)
-                                            line.startsWith("[STYLE]") -> GoldPrimary
-                                            else -> Color(0xFF94A3B8)
+                                            line.startsWith("[SUCCESS]") -> theme.success
+                                            line.startsWith("[STYLE]") -> PresetPrimary
+                                            else -> theme.textSecondary
                                         }
                                         Text(line, color = lineColor, fontSize = 12.sp, fontFamily = NotoSansFont)
                                     }
                                 }
                                 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = GoldPrimary, strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = PresetPrimary, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(currentLog, color = Color.White, fontSize = 12.sp, fontFamily = NotoSansFont)
+                                    Text(currentLog, color = theme.textPrimary, fontSize = 12.sp, fontFamily = NotoSansFont)
                                 }
                             }
                         }
@@ -383,12 +401,12 @@ fun SaveShareScreen(
                 } else if (exportFailed) {
                     // Export Failed Alert Card
                     GlassmorphicSurface(
-                        backgroundColor = Color(0xFF1F1216).copy(alpha = 0.85f),
+                        backgroundColor = theme.destructive.copy(alpha = 0.12f),
                         shape = CutCornerShape(12.dp),
-                        borderColor = Color(0xFFEF4444).copy(alpha = 0.8f),
+                        borderColor = theme.destructive.copy(alpha = 0.8f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFFEF4444).copy(alpha = 0.1f))
+                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = theme.destructive.copy(alpha = 0.1f))
                         Column(
                             modifier = Modifier.padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -397,14 +415,14 @@ fun SaveShareScreen(
                                 modifier = Modifier
                                     .size(52.dp)
                                     .clip(CutCornerShape(10.dp))
-                                    .background(Color(0xFFEF4444).copy(alpha = 0.2f))
-                                    .border(1.2.dp, Color(0xFFEF4444), CutCornerShape(10.dp)),
+                                    .background(theme.destructive.copy(alpha = 0.2f))
+                                    .border(1.2.dp, theme.destructive, CutCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(32.dp))
+                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(32.dp))
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("تعذر إكمال التصدير السينمائي", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("تعذر إكمال التصدير السينمائي", color = theme.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text("تأكد من توفر وسائط المشاهد أو جرب جودة 720p السريعة", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center)
                             
                             Spacer(modifier = Modifier.height(12.dp))
@@ -416,7 +434,7 @@ fun SaveShareScreen(
                                     onClick = onBackToEditor,
                                     modifier = Modifier.weight(1f),
                                     shape = CutCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, Color.Gray)
+                                    border = BorderStroke(1.dp, theme.textTertiary)
                                 ) {
                                     Text("تعديل المشاهد", color = Color.LightGray, fontFamily = CairoFont, fontSize = 12.sp)
                                 }
@@ -424,7 +442,7 @@ fun SaveShareScreen(
                                     onClick = { retryTrigger++ },
                                     modifier = Modifier.weight(1f),
                                     shape = CutCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -438,12 +456,12 @@ fun SaveShareScreen(
                     var isPreviewPlaying by remember { mutableStateOf(false) }
 
                     GlassmorphicSurface(
-                        backgroundColor = Color(0xFF0B0F19).copy(alpha = 0.85f),
+                        backgroundColor = theme.cardSurface.copy(alpha = 0.85f),
                         shape = CutCornerShape(12.dp),
-                        borderColor = GoldPrimary.copy(alpha = 0.85f),
+                        borderColor = PresetPrimary.copy(alpha = 0.85f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.1f))
+                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.1f))
                         Column(
                             modifier = Modifier.padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -452,14 +470,14 @@ fun SaveShareScreen(
                                 modifier = Modifier
                                     .size(52.dp)
                                     .clip(CutCornerShape(10.dp))
-                                    .background(GoldPrimary.copy(alpha = 0.2f))
-                                    .border(1.2.dp, GoldPrimary, CutCornerShape(10.dp)),
+                                    .background(PresetPrimary.copy(alpha = 0.2f))
+                                    .border(1.2.dp, PresetPrimary, CutCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(32.dp))
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("تم تصدير الفيديو بنجاح! 🎬✨", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("تم تصدير الفيديو بنجاح! 🎬✨", color = theme.textPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text("مشروعك جاهز بجودة ${selectedQualityOption.resolution} للأثر والنشر المبارك", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                             
                             Spacer(modifier = Modifier.height(10.dp))
@@ -470,8 +488,8 @@ fun SaveShareScreen(
                                     .fillMaxWidth()
                                     .height(200.dp)
                                     .clip(CutCornerShape(8.dp))
-                                    .background(Color(0xFF050B14))
-                                    .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CutCornerShape(8.dp))
+                                    .background(theme.background)
+                                    .border(1.dp, PresetPrimary.copy(alpha = 0.4f), CutCornerShape(8.dp))
                                     .clickable { isPreviewPlaying = !isPreviewPlaying },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -495,7 +513,7 @@ fun SaveShareScreen(
                                 } else {
                                     Canvas(modifier = Modifier.fillMaxSize()) {
                                         drawCircle(
-                                            color = GoldPrimary.copy(alpha = 0.08f),
+                                            color = PresetPrimary.copy(alpha = 0.08f),
                                             radius = size.minDimension / 2.2f,
                                             center = center
                                         )
@@ -508,7 +526,7 @@ fun SaveShareScreen(
                                     ) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             modifier = Modifier.size(48.dp)
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
@@ -523,7 +541,7 @@ fun SaveShareScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
                                             "اضغط لمشاهدة الفيديو النهائي والاستماع للصوت ▶",
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold
@@ -536,10 +554,10 @@ fun SaveShareScreen(
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
                                         .padding(8.dp)
-                                        .background(Color.Black.copy(alpha = 0.75f), CutCornerShape(4.dp))
+                                        .background(theme.background.copy(alpha = 0.75f), CutCornerShape(4.dp))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Text("9:16 ${selectedQualityOption.resolution}", color = GoldPrimary, fontSize = 11.sp, fontFamily = NotoSansFont)
+                                    Text("9:16 ${selectedQualityOption.resolution}", color = PresetPrimary, fontSize = 11.sp, fontFamily = NotoSansFont)
                                 }
                             }
 
@@ -547,7 +565,7 @@ fun SaveShareScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFF151B2B), CutCornerShape(8.dp))
+                                    .background(theme.cardSurface, CutCornerShape(8.dp))
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
@@ -567,7 +585,7 @@ fun SaveShareScreen(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = CutCornerShape(8.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, QabasGold.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -575,11 +593,11 @@ fun SaveShareScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Verified, contentDescription = null, tint = QabasGold, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "يتضمن الختم الذهبي للمطور: ${accountService.devWatermarkText}",
-                            color = GoldPrimary,
+                            color = QabasGold,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
@@ -601,7 +619,6 @@ fun SaveShareScreen(
             ) { complete ->
                 if (complete) {
                     val clipboardManager = LocalClipboardManager.current
-                    var isSavedToGallery by remember { mutableStateOf(false) }
 
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -614,8 +631,8 @@ fun SaveShareScreen(
                         ) {
                             Surface(
                                 shape = CutCornerShape(6.dp),
-                                color = Color(0xFF151B2B),
-                                border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.6f)),
+                                color = theme.cardSurface,
+                                border = BorderStroke(0.8.dp, PresetPrimary.copy(alpha = 0.6f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
@@ -631,13 +648,13 @@ fun SaveShareScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Reels 📸", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                                    Text("Reels 📸", color = PresetPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Surface(
                                 shape = CutCornerShape(6.dp),
-                                color = Color(0xFF151B2B),
-                                border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.6f)),
+                                color = theme.cardSurface,
+                                border = BorderStroke(0.8.dp, PresetPrimary.copy(alpha = 0.6f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
@@ -653,13 +670,13 @@ fun SaveShareScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("TikTok 🎵", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                                    Text("TikTok 🎵", color = PresetPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Surface(
                                 shape = CutCornerShape(6.dp),
-                                color = Color(0xFF151B2B),
-                                border = BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.6f)),
+                                color = theme.cardSurface,
+                                border = BorderStroke(0.8.dp, PresetPrimary.copy(alpha = 0.6f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
@@ -675,7 +692,7 @@ fun SaveShareScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Shorts ▶️", color = GoldPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                                    Text("Shorts ▶️", color = PresetPrimary, fontSize = 12.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -697,21 +714,21 @@ fun SaveShareScreen(
                                     .height(48.dp)
                                     .bouncingClickable { },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSavedToGallery) Color(0xFF065F46) else Color(0xFF151B2B)
+                                    containerColor = if (isSavedToGallery) theme.success else theme.cardSurface
                                 ),
-                                border = BorderStroke(1.dp, if (isSavedToGallery) Color(0xFF10B981) else Color(0xFF1E293B)),
+                                border = BorderStroke(1.dp, if (isSavedToGallery) theme.success else theme.secondarySurface),
                                 shape = CutCornerShape(8.dp)
                             ) {
                                 Icon(
                                     if (isSavedToGallery) Icons.Default.CheckCircle else Icons.Default.Download,
                                     contentDescription = null,
-                                    tint = if (isSavedToGallery) Color(0xFF34D399) else GoldPrimary,
+                                    tint = if (isSavedToGallery) theme.success else PresetPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     if (isSavedToGallery) "محفوظ بالمعرض ✓" else "حفظ في المعرض 📥",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
@@ -730,7 +747,7 @@ fun SaveShareScreen(
                                     .weight(1f)
                                     .height(48.dp)
                                     .bouncingClickable { },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                 shape = CutCornerShape(8.dp)
                             ) {
                                 Icon(Icons.Default.Share, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -748,36 +765,36 @@ fun SaveShareScreen(
                                 },
                                 modifier = Modifier.weight(1f).height(42.dp),
                                 shape = CutCornerShape(8.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19))
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = theme.cardSurface)
                             ) {
-                                Icon(Icons.Default.Tag, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Tag, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("الهاشتاغات 📋", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("الهاشتاغات 📋", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
 
                             OutlinedButton(
                                 onClick = { showThumbnailGenerator = true },
                                 modifier = Modifier.weight(1f).height(42.dp),
                                 shape = CutCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19))
+                                border = BorderStroke(1.dp, theme.secondarySurface),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = theme.cardSurface)
                             ) {
-                                Icon(Icons.Default.Image, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Image, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("صورة مصغرة 🖼️", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                Text("صورة مصغرة 🖼️", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                             }
 
                             OutlinedButton(
                                 onClick = onBackToEditor,
                                 modifier = Modifier.weight(1f).height(42.dp),
                                 shape = CutCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
-                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0B0F19))
+                                border = BorderStroke(1.dp, theme.secondarySurface),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = theme.cardSurface)
                             ) {
-                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("تعديل 🎨", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                Text("تعديل 🎨", color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                             }
                         }
 
@@ -786,8 +803,8 @@ fun SaveShareScreen(
                             Surface(
                                 onClick = { showDirectPublisher = true },
                                 shape = CutCornerShape(6.dp),
-                                color = Color(0xFF151B2B).copy(alpha = 0.8f),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                color = theme.cardSurface.copy(alpha = 0.8f),
+                                border = BorderStroke(1.dp, theme.secondarySurface),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Row(
@@ -795,7 +812,7 @@ fun SaveShareScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Language, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.Language, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text("نشر متعدد 🌐", color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp)
                                 }
@@ -804,8 +821,8 @@ fun SaveShareScreen(
                             Surface(
                                 onClick = { showScheduleDialog = true },
                                 shape = CutCornerShape(6.dp),
-                                color = Color(0xFF151B2B).copy(alpha = 0.8f),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                                color = theme.cardSurface.copy(alpha = 0.8f),
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Row(
@@ -813,17 +830,17 @@ fun SaveShareScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(3.dp))
-                                    Text("جدولة ذكية ⏰", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("جدولة ذكية ⏰", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
                             Surface(
                                 onClick = { showViralSeoDialog = true },
                                 shape = CutCornerShape(6.dp),
-                                color = Color(0xFF151B2B).copy(alpha = 0.8f),
-                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                color = theme.cardSurface.copy(alpha = 0.8f),
+                                border = BorderStroke(1.dp, theme.secondarySurface),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Row(
@@ -831,7 +848,7 @@ fun SaveShareScreen(
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text("الـ SEO 📈", color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp)
                                 }
@@ -842,10 +859,10 @@ fun SaveShareScreen(
                         Button(
                             onClick = onBackToHome,
                             modifier = Modifier.fillMaxWidth().height(44.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF111827)),
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.cardSurface),
                             shape = CutCornerShape(8.dp)
                         ) {
-                            Icon(Icons.Default.Home, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Home, contentDescription = null, tint = theme.textTertiary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(Translator.tr("العودة للرئيسية"), color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
@@ -854,10 +871,10 @@ fun SaveShareScreen(
                     Button(
                         onClick = onBackToEditor,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF151B2B)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.cardSurface),
                         shape = CutCornerShape(8.dp)
                     ) {
-                        Text(Translator.tr("إلغاء والعودة للتعديل"), color = Color.Gray, fontFamily = CairoFont)
+                        Text(Translator.tr("إلغاء والعودة للتعديل"), color = theme.textTertiary, fontFamily = CairoFont)
                     }
                 }
             }
@@ -919,9 +936,10 @@ fun SaveShareScreen(
 @Composable
 fun ExportStat(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = Color.Gray, fontSize = 12.sp, fontFamily = NotoSansFont)
+    val theme = QabasTheme.current
+        Text(label, color = theme.textTertiary, fontSize = 12.sp, fontFamily = NotoSansFont)
         Spacer(modifier = Modifier.height(2.dp))
-        Text(value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = NotoSansFont)
+        Text(value, color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = NotoSansFont)
     }
 }
 

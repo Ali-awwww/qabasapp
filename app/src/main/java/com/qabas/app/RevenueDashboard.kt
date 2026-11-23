@@ -117,12 +117,12 @@ fun RevenueDashboard(context: Context) {
         Card(
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
         ) {
             Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("إجمالي المبيعات (حقيقي)", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 13.sp)
-                    Text("$${"%.2f".format(total)}", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 26.sp)
+                    Text("$${"%.2f".format(total)}", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 26.sp)
                     Text("${purchases.size} معاملة", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
                 }
                 TextButton(
@@ -134,9 +134,9 @@ fun RevenueDashboard(context: Context) {
                         }
                     }
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Download, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("تصدير CSV", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("تصدير CSV", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -156,10 +156,10 @@ fun RevenueDashboard(context: Context) {
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .background(GoldPrimary.copy(alpha = 0.12f), CircleShape),
+                            .background(PresetPrimary.copy(alpha = 0.12f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(32.dp))
                     }
 
                     Text("بوابة المبيعات والإيرادات جاهزة ومربوطة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -193,7 +193,7 @@ fun RevenueDashboard(context: Context) {
                 )
                 RevenueKpi(
                     value = "${"%.0f".format(repeatRate)}٪", label = "إعادة الشراء",
-                    tint = GoldPrimary, modifier = Modifier.weight(1f)
+                    tint = PresetPrimary, modifier = Modifier.weight(1f)
                 )
                 RevenueKpi(
                     value = "${"%.0f".format(churnRate)}٪", label = "التسرب",
@@ -209,7 +209,7 @@ fun RevenueDashboard(context: Context) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("المبيعات الشهرية (آخر 6 أشهر)", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("المبيعات الشهرية (آخر 6 أشهر)", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(10.dp))
                     val maxVal = monthly.maxOfOrNull { it.value } ?: 0.0
                     Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
@@ -220,7 +220,7 @@ fun RevenueDashboard(context: Context) {
                             val h = if (maxVal > 0) (m.value / maxVal * size.height * 0.85f).toFloat() else 0f
                             val left = i * gap + gap * 0.2f
                             drawRoundRect(
-                                color = if (m.value > 0) GoldPrimary else Color(0xFF1E293B),
+                                color = if (m.value > 0) PresetPrimary else Color(0xFF1E293B),
                                 topLeft = Offset(left, size.height - h),
                                 size = Size(barWidth, h),
                                 cornerRadius = CornerRadius(6f, 6f)
@@ -242,7 +242,7 @@ fun RevenueDashboard(context: Context) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("التقسيم حسب المنتج", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("التقسيم حسب المنتج", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     byProduct.forEach { (product, value) ->
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(product, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
@@ -253,7 +253,7 @@ fun RevenueDashboard(context: Context) {
             }
 
             // قائمة المعاملات
-            Text("أحدث المعاملات (${purchases.size})", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+            Text("أحدث المعاملات (${purchases.size})", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
             purchases.take(25).forEach { purchase ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),

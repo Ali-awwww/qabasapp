@@ -1,19 +1,11 @@
 package com.qabas.app
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,15 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 @Composable
 fun DefaultSourceSelectionView(
@@ -50,26 +39,26 @@ fun DefaultSourceSelectionView(
             modifier = Modifier.fillMaxWidth(),
             shape = CutCornerShape(12.dp),
             backgroundColor = Color(0xFF151B2B).copy(alpha = 0.85f),
-            borderColor = GoldPrimary.copy(alpha = 0.3f)
+            borderColor = PresetPrimary.copy(alpha = 0.3f)
         ) {
-            HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.1f))
+            HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.1f))
             Column(
                 modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = GoldPrimary.copy(alpha = 0.15f),
+                    color = PresetPrimary.copy(alpha = 0.15f),
                     modifier = Modifier.size(56.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(28.dp))
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     Translator.tr("اختر طريقة بدء صناعة الفيديو"),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
@@ -101,8 +90,8 @@ fun DefaultSourceSelectionView(
             subtitle = Translator.tr("5 قصص قرآنية مروية + اسأل القاص وحول أي قصة لفيديو"),
             icon = Icons.AutoMirrored.Filled.MenuBook,
             badge = Translator.tr("جديد 📖"),
-            badgeColor = GoldPrimary,
-            accentColor = GoldPrimary,
+            badgeColor = PresetPrimary,
+            accentColor = PresetPrimary,
             onClick = { onOpenQasas() }
         )
 
@@ -121,8 +110,8 @@ fun DefaultSourceSelectionView(
             subtitle = Translator.tr("كتابة سكريبت، قصة، نص دعوي أو توليد أفكار بالذكاء الاصطناعي"),
             icon = Icons.Default.Lightbulb,
             badge = Translator.tr("متاح الآن ✨"),
-            badgeColor = GoldPrimary,
-            accentColor = GoldPrimary,
+            badgeColor = PresetPrimary,
+            accentColor = PresetPrimary,
             onClick = { onSelectType("idea") }
         )
 

@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,36 +16,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
 
-// هوية مسار الإنتاج والتصميم الموحدة: زجاج سيبراني تفاعلي + خطوط HUD نيونية
-private val ProdBg: Color get() = DeepSlate
 private val ProdCard: Color get() = CardSurface
-private val ProdLine: Color get() = GoldPrimary.copy(alpha = 0.35f)
-private val ProdHair: Color get() = GoldPrimary.copy(alpha = 0.15f)
-
-@Composable
-fun ProdSection(title: String, icon: ImageVector, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-            .background(ProdCard, RoundedCornerShape(14.dp))
-            .border(1.dp, ProdLine, RoundedCornerShape(14.dp))
-            .padding(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(title, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = ProdHair)
-        content()
-    }
-}
+private val ProdHair: Color get() = PresetPrimary.copy(alpha = 0.15f)
 
 @Composable
 fun ProdLabel(text: String) {
@@ -63,13 +40,13 @@ fun ProdChipRow(options: List<String>, selected: String, onPick: (String) -> Uni
                     Box(
                         modifier = Modifier.weight(1f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (sel) GoldPrimary.copy(alpha = 0.18f) else ProdCard.copy(alpha = 0.7f))
-                            .border(1.dp, if (sel) GoldPrimary else ProdHair, RoundedCornerShape(10.dp))
+                            .background(if (sel) PresetPrimary.copy(alpha = 0.18f) else ProdCard.copy(alpha = 0.7f))
+                            .border(1.dp, if (sel) PresetPrimary else ProdHair, RoundedCornerShape(10.dp))
                             .clickable { onPick(opt) }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(opt, color = if (sel) GoldPrimary else TextSecondary,
+                        Text(opt, color = if (sel) PresetPrimary else TextSecondary,
                             fontFamily = CairoFont, fontSize = 13.sp,
                             fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium)
                     }
@@ -92,7 +69,7 @@ fun ProdPrimaryButton(text: String, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier.fillMaxSize()
-                .background(Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary))),
+                .background(Brush.horizontalGradient(listOf(PresetAccent, PresetPrimary))),
             contentAlignment = Alignment.Center
         ) {
             Text(text, color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 17.sp)
@@ -106,7 +83,7 @@ fun ProdPrimaryButton(text: String, onClick: () -> Unit) {
 @Composable
 fun SpatialHudCard(
     modifier: Modifier = Modifier,
-    borderColor: Color = GoldPrimary.copy(alpha = 0.4f),
+    borderColor: Color = PresetPrimary.copy(alpha = 0.4f),
     containerColor: Color = CardSurface.copy(alpha = 0.88f),
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -129,32 +106,6 @@ fun SpatialHudCard(
             .padding(16.dp)
     ) {
         content()
-    }
-}
-
-/**
- * شارة تقنية للهوية المكانية (HUD Tech Badge)
- */
-@Composable
-fun HudTechBadge(
-    text: String,
-    modifier: Modifier = Modifier,
-    accentColor: Color = GoldPrimary
-) {
-    Surface(
-        modifier = modifier,
-        color = accentColor.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(6.dp),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f))
-    ) {
-        Text(
-            text = text,
-            color = accentColor,
-            fontFamily = RobotoMonoFont,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-        )
     }
 }
 

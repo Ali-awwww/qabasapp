@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -29,7 +28,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,7 +53,6 @@ fun StyleSelectionScreen(
 
     // Observe local styles and master styles
     val localAbsorbedStyles by StyleBrain.absorbedStyles.collectAsState()
-    val localMasterStyles by StyleManager.masterStyles.collectAsState()
     val activeMasterStyle by StyleManager.activeMasterStyle.collectAsState()
 
     // Cloud Style Objects
@@ -69,7 +66,7 @@ fun StyleSelectionScreen(
             try {
                 cloudStyleObjects = CloudServices.Database.getCloudStyleObjects()
                 StyleManager.syncWithCloud(context)
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 // Ignore sync errors gracefully
             } finally {
                 isSyncingCloud = false
@@ -209,7 +206,7 @@ fun StyleSelectionScreen(
                     Column {
                         Text(
                             text = Translator.tr("مختبر صهر واختيار الأنماط"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -227,7 +224,7 @@ fun StyleSelectionScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = Translator.tr("رجوع"),
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
@@ -245,7 +242,7 @@ fun StyleSelectionScreen(
                                     cloudStyleObjects = CloudServices.Database.getCloudStyleObjects()
                                     StyleManager.syncWithCloud(context)
                                     Toast.makeText(context, Translator.tr("تمت مزامنة الأنماط الفنية من السحابة ✨"), Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
+                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                     Toast.makeText(context, "${Translator.tr("خطأ في المزامنة:")} ${e.message}", Toast.LENGTH_SHORT).show()
                                 } finally {
                                     isSyncingCloud = false
@@ -256,14 +253,14 @@ fun StyleSelectionScreen(
                         if (isSyncingCloud) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.CloudSync,
                                 contentDescription = Translator.tr("مزامنة السحابة"),
-                                tint = if (CloudServices.isFirebaseInitialized) GoldPrimary else Color.Gray
+                                tint = if (CloudServices.isFirebaseInitialized) PresetPrimary else TextTertiary
                             )
                         }
                     }
@@ -273,7 +270,7 @@ fun StyleSelectionScreen(
                         Icon(
                             imageVector = Icons.Default.AddCircle,
                             contentDescription = Translator.tr("إنشاء نمط مخصص"),
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
 
@@ -283,15 +280,15 @@ fun StyleSelectionScreen(
                             Icon(
                                 imageVector = Icons.Default.ClearAll,
                                 contentDescription = Translator.tr("إلغاء التحديد"),
-                                tint = Color(0xFFEF4444)
+                                tint = ThemeDestructive
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0B0F19),
-                    navigationIconContentColor = GoldPrimary,
-                    titleContentColor = GoldPrimary
+                    containerColor = DeepSlate,
+                    navigationIconContentColor = PresetPrimary,
+                    titleContentColor = PresetPrimary
                 )
             )
         },
@@ -316,7 +313,7 @@ fun StyleSelectionScreen(
                     color = CardSurface,
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        Brush.horizontalGradient(listOf(GoldPrimary.copy(alpha = 0.6f), GoldSecondary.copy(alpha = 0.2f)))
+                        Brush.horizontalGradient(listOf(PresetPrimary.copy(alpha = 0.6f), PresetAccent.copy(alpha = 0.2f)))
                     )
                 ) {
                     Row(
@@ -326,13 +323,13 @@ fun StyleSelectionScreen(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .background(GoldPrimary.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+                                .background(PresetPrimary.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Palette,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -349,7 +346,7 @@ fun StyleSelectionScreen(
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -365,7 +362,7 @@ fun StyleSelectionScreen(
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -388,7 +385,7 @@ fun StyleSelectionScreen(
                         )
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary)
+                        Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary)
                     },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -398,8 +395,8 @@ fun StyleSelectionScreen(
                         }
                     },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E293B),
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = ThemeSeparator,
                         focusedContainerColor = CardSurface,
                         unfocusedContainerColor = CardSurface,
                         focusedTextColor = TextPrimary,
@@ -440,13 +437,13 @@ fun StyleSelectionScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldPrimary,
+                                selectedContainerColor = PresetPrimary,
                                 containerColor = CardSurface
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = if (isSelected) GoldPrimary else Color(0xFF1E293B)
+                                borderColor = if (isSelected) PresetPrimary else ThemeSeparator
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -463,9 +460,9 @@ fun StyleSelectionScreen(
                         width = 1.dp,
                         brush = Brush.horizontalGradient(
                             listOf(
-                                GoldPrimary.copy(alpha = 0.6f),
-                                GoldSecondary.copy(alpha = 0.3f),
-                                Color(0xFF1E293B)
+                                PresetPrimary.copy(alpha = 0.6f),
+                                PresetAccent.copy(alpha = 0.3f),
+                                ThemeSeparator
                             )
                         )
                     ),
@@ -484,7 +481,7 @@ fun StyleSelectionScreen(
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(CircleShape)
-                                        .background(if (selectedStylesWeights.isNotEmpty()) Color(0xFF10B981) else GoldPrimary)
+                                        .background(if (selectedStylesWeights.isNotEmpty()) ThemeSuccess else PresetPrimary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -514,7 +511,7 @@ fun StyleSelectionScreen(
                             Icon(
                                 imageVector = if (showRequirementDetails) Icons.Default.Tune else Icons.Default.Tune,
                                 contentDescription = Translator.tr("تخصيص متطلبات المشروع"),
-                                tint = if (showRequirementDetails) GoldPrimary else TextSecondary
+                                tint = if (showRequirementDetails) PresetPrimary else TextSecondary
                             )
                         }
                     }
@@ -531,7 +528,7 @@ fun StyleSelectionScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = CardSurface),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ThemeSeparator),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(
@@ -542,7 +539,7 @@ fun StyleSelectionScreen(
                         ) {
                             Text(
                                 text = Translator.tr("⚙️ متطلبات الإخراج وصهر الماستر:"),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -565,8 +562,8 @@ fun StyleSelectionScreen(
                                         onClick = { selectedTone = tone },
                                         label = { Text(tone, fontSize = 11.sp, fontFamily = CairoFont) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = GoldPrimary,
-                                            containerColor = Color(0xFF0B0F19)
+                                            selectedContainerColor = PresetPrimary,
+                                            containerColor = DeepSlate
                                         ),
                                         shape = RoundedCornerShape(8.dp)
                                     )
@@ -590,8 +587,8 @@ fun StyleSelectionScreen(
                                         onClick = { selectedPacing = pacing },
                                         label = { Text(pacing, fontSize = 11.sp, fontFamily = CairoFont) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = GoldPrimary,
-                                            containerColor = Color(0xFF0B0F19)
+                                            selectedContainerColor = PresetPrimary,
+                                            containerColor = DeepSlate
                                         ),
                                         shape = RoundedCornerShape(8.dp)
                                     )
@@ -637,7 +634,7 @@ fun StyleSelectionScreen(
                 ) {
                     Text(
                         text = Translator.tr("قائمة كائنات الأنماط المتاحة:"),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
@@ -712,13 +709,13 @@ fun StyleSelectionScreen(
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = Translator.tr("المعاينة الحية للملف الماستر المدمج"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -727,12 +724,12 @@ fun StyleSelectionScreen(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981))
+                        color = ThemeSuccess.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ThemeSuccess)
                     ) {
                         Text(
                             text = "${liveMasterPreview.islamicAestheticComplianceScore}% ${Translator.tr("توافق جمالي")}",
-                            color = Color(0xFF10B981),
+                            color = ThemeSuccess,
                             fontFamily = NotoSansFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
@@ -779,7 +776,7 @@ fun StyleSelectionScreen(
                                 .fillMaxSize()
                                 .background(
                                     Brush.horizontalGradient(
-                                        listOf(GoldSecondary, GoldPrimary, Color(0xFFD4AF37))
+                                        listOf(PresetAccent, PresetPrimary, QabasGold)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -827,7 +824,7 @@ fun StyleSelectionScreen(
                                             CloudServices.Database.saveMasterStyleToCloud(liveMasterPreview)
                                         }
                                         Toast.makeText(context, Translator.tr("تم حفظ النمط الماستر في السحابة والذاكرة بنجاح! ☁️✨"), Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) {
+                                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                         Toast.makeText(context, "${Translator.tr("خطأ أثناء الحفظ:")} ${e.message}", Toast.LENGTH_SHORT).show()
                                     } finally {
                                         isSavingMasterToCloud = false
@@ -840,14 +837,14 @@ fun StyleSelectionScreen(
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = CardSurface,
-                                contentColor = GoldPrimary
+                                contentColor = PresetPrimary
                             ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                         ) {
                             if (isSavingMasterToCloud) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(18.dp),
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     strokeWidth = 2.dp
                                 )
                             } else {
@@ -882,13 +879,13 @@ fun StyleSelectionScreen(
                                 containerColor = CardSurface,
                                 contentColor = TextPrimary
                             ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ThemeSeparator)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircleOutline,
                                     contentDescription = null,
-                                    tint = Color(0xFF10B981),
+                                    tint = ThemeSuccess,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -917,8 +914,8 @@ fun StyleObjectSelectionCard(
     onToggleSelect: () -> Unit,
     onWeightChange: (Float) -> Unit
 ) {
-    val borderColor = if (isSelected) GoldPrimary else Color(0xFF1E293B)
-    val containerColor = if (isSelected) Color(0xFF182032) else CardSurface
+    val borderColor = if (isSelected) PresetPrimary else ThemeSeparator
+    val containerColor = if (isSelected) ThemeSecondarySurface else CardSurface
 
     Card(
         modifier = Modifier
@@ -948,7 +945,7 @@ fun StyleObjectSelectionCard(
                         checked = isSelected,
                         onCheckedChange = { onToggleSelect() },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = GoldPrimary,
+                            checkedColor = PresetPrimary,
                             checkmarkColor = DeepSlate,
                             uncheckedColor = TextSecondary
                         )
@@ -957,7 +954,7 @@ fun StyleObjectSelectionCard(
                     Column {
                         Text(
                             text = style.name,
-                            color = if (isSelected) GoldPrimary else TextPrimary,
+                            color = if (isSelected) PresetPrimary else TextPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
@@ -984,12 +981,12 @@ fun StyleObjectSelectionCard(
                     if (style.isCloudSynced) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF3B82F6).copy(alpha = 0.15f),
-                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF3B82F6))
+                            color = PresetPrimary.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, PresetPrimary)
                         ) {
                             Text(
                                 text = "☁️ Firestore",
-                                color = Color(0xFF60A5FA),
+                                color = PresetPrimary,
                                 fontSize = 10.sp,
                                 fontFamily = NotoSansFont,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -999,12 +996,12 @@ fun StyleObjectSelectionCard(
 
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = GoldPrimary.copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, GoldPrimary.copy(alpha = 0.5f))
+                        color = PresetPrimary.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, PresetPrimary.copy(alpha = 0.5f))
                     ) {
                         Text(
                             text = "${style.overallScore}%",
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp,
                             fontFamily = NotoSansFont,
@@ -1029,10 +1026,10 @@ fun StyleObjectSelectionCard(
                             try {
                                 Color(android.graphics.Color.parseColor(style.visualStyle.primaryColorHex))
                             } catch (e: Exception) {
-                                GoldPrimary
+                                PresetPrimary
                             }
                         )
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                        .border(1.dp, TextPrimary.copy(alpha = 0.3f), CircleShape)
                 )
 
                 Text(
@@ -1063,8 +1060,8 @@ fun StyleObjectSelectionCard(
                     traits.forEach { trait ->
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF0B0F19),
-                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1E293B))
+                            color = DeepSlate,
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, ThemeSeparator)
                         ) {
                             Text(
                                 text = trait,
@@ -1087,7 +1084,7 @@ fun StyleObjectSelectionCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0B0F19), RoundedCornerShape(10.dp))
+                        .background(DeepSlate, RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Row(
@@ -1097,13 +1094,13 @@ fun StyleObjectSelectionCard(
                     ) {
                         Text(
                             text = Translator.tr("نسبة تأثير هذا النمط في الصهر:"),
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = CairoFont,
                             fontSize = 11.sp
                         )
                         Text(
                             text = "${(weight * 100).toInt()}%",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontWeight = FontWeight.Bold,
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp
@@ -1116,9 +1113,9 @@ fun StyleObjectSelectionCard(
                         valueRange = 0.1f..1.0f,
                         steps = 8,
                         colors = SliderDefaults.colors(
-                            thumbColor = GoldPrimary,
-                            activeTrackColor = GoldPrimary,
-                            inactiveTrackColor = Color(0xFF1E293B)
+                            thumbColor = PresetPrimary,
+                            activeTrackColor = PresetPrimary,
+                            inactiveTrackColor = ThemeSecondarySurface
                         )
                     )
                 }
@@ -1144,7 +1141,7 @@ fun LiveMasterPreviewCard(
         border = androidx.compose.foundation.BorderStroke(
             1.5.dp,
             Brush.verticalGradient(
-                listOf(GoldPrimary, GoldSecondary.copy(alpha = 0.4f), Color(0xFF1E293B))
+                listOf(PresetPrimary, PresetAccent.copy(alpha = 0.4f), ThemeSeparator)
             )
         )
     ) {
@@ -1153,7 +1150,7 @@ fun LiveMasterPreviewCard(
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xFF172033), DeepSlate)
+                        listOf(ThemeSecondarySurface, DeepSlate)
                     )
                 )
                 .padding(16.dp),
@@ -1167,7 +1164,7 @@ fun LiveMasterPreviewCard(
                 placeholder = {
                     Text(
                         text = masterStyle.name,
-                        color = GoldSecondary.copy(alpha = 0.7f),
+                        color = PresetAccent.copy(alpha = 0.7f),
                         fontSize = 13.sp,
                         fontFamily = CairoFont
                     )
@@ -1175,19 +1172,19 @@ fun LiveMasterPreviewCard(
                 label = {
                     Text(
                         text = Translator.tr("اسم النمط الماستر المركب:"),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont
                     )
                 },
                 trailingIcon = {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color(0xFF1E293B),
-                    focusedContainerColor = Color(0xFF0B0F19),
-                    unfocusedContainerColor = Color(0xFF0B0F19),
+                    focusedBorderColor = PresetPrimary,
+                    unfocusedBorderColor = ThemeSeparator,
+                    focusedContainerColor = DeepSlate,
+                    unfocusedContainerColor = DeepSlate,
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary
                 ),
@@ -1204,7 +1201,7 @@ fun LiveMasterPreviewCard(
                 lineHeight = 18.sp
             )
 
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 0.5.dp)
+            HorizontalDivider(color = ThemeSeparator, thickness = 0.5.dp)
 
             // Core Profile Breakdown Matrix (Visual, Motion, Tone)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1221,16 +1218,16 @@ fun LiveMasterPreviewCard(
                                 try {
                                     Color(android.graphics.Color.parseColor(masterStyle.visualStyle.primaryColorHex))
                                 } catch (e: Exception) {
-                                    GoldPrimary
+                                    PresetPrimary
                                 }
                             )
-                            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                            .border(1.dp, TextPrimary.copy(alpha = 0.4f), CircleShape)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = Translator.tr("الهوية البصرية والألوان:"),
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -1255,13 +1252,13 @@ fun LiveMasterPreviewCard(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF3B82F6).copy(alpha = 0.2f)),
+                            .background(PresetPrimary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Speed,
                             contentDescription = null,
-                            tint = Color(0xFF60A5FA),
+                            tint = PresetPrimary,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -1269,7 +1266,7 @@ fun LiveMasterPreviewCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = Translator.tr("الإيقاع وحركة الكاميرا:"),
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -1294,13 +1291,13 @@ fun LiveMasterPreviewCard(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981).copy(alpha = 0.2f)),
+                            .background(ThemeSuccess.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.TextFields,
                             contentDescription = null,
-                            tint = Color(0xFF34D399),
+                            tint = ThemeSuccess,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -1308,7 +1305,7 @@ fun LiveMasterPreviewCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = Translator.tr("النبرة والتيبوغرافيا:"),
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -1328,8 +1325,8 @@ fun LiveMasterPreviewCard(
             // Real FFmpeg Filter Directive Snippet Box
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF070A10),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                color = DeepSlate,
+                border = androidx.compose.foundation.BorderStroke(1.dp, ThemeSeparator),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1349,7 +1346,7 @@ fun LiveMasterPreviewCard(
                         )
                         Text(
                             text = masterStyle.ffmpegFilterDirective,
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = NotoSansFont,
                             fontSize = 11.sp,
                             maxLines = 1,
@@ -1363,7 +1360,7 @@ fun LiveMasterPreviewCard(
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = Translator.tr("نسخ"),
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1386,12 +1383,12 @@ fun LiveMasterPreviewCard(
                         masterStyle.sourceStyleNames.forEach { name ->
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = GoldPrimary.copy(alpha = 0.1f),
-                                border = androidx.compose.foundation.BorderStroke(0.5.dp, GoldPrimary.copy(alpha = 0.3f))
+                                color = PresetPrimary.copy(alpha = 0.1f),
+                                border = androidx.compose.foundation.BorderStroke(0.5.dp, PresetPrimary.copy(alpha = 0.3f))
                             ) {
                                 Text(
                                     text = "✨ $name",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 10.sp,
                                     fontFamily = CairoFont,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)

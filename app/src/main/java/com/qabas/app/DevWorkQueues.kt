@@ -26,11 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.theme.*
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
@@ -160,13 +160,13 @@ object DevWorkQueuesRepository {
             order("created_at", Order.ASCENDING)
             limit(100)
         }.decodeList<ModerationQueueRow>()
-    }.onFailure { Log.w(TAG, "getPendingModeration failed: ${it.message}") }.getOrDefault(emptyList())
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "getPendingModeration failed: ${it.message}") }.getOrDefault(emptyList())
 
     /** عناوين الريلز للعرض: خريطة reel_id -> عنوان (من الريلز النشطة). */
     suspend fun getReelTitlesById(): Map<String, String> = runCatching {
         SupabaseServices.Profiles.getActiveReels(limit = 100).orEmpty()
             .associate { it.id to it.title }
-    }.getOrDefault(emptyMap())
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyMap())
 
     /**
      * يدرج في قائمة المراجعة كل ريلز نشط ليس له صف في moderation_queue بعد.
@@ -179,7 +179,7 @@ object DevWorkQueuesRepository {
         val existing = runCatching {
             client.postgrest.from("moderation_queue").select { limit(500) }
                 .decodeList<ModerationQueueRow>()
-        }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
         val knownIds = existing.map { it.reelId }.toSet()
         val reels = SupabaseServices.Profiles.getActiveReels(limit = 100).orEmpty()
         var inserted = 0
@@ -188,12 +188,12 @@ object DevWorkQueuesRepository {
                 reelId = reel.id,
                 submittedBy = reel.userId.takeIf { it.isNotBlank() }
             )
-            runCatching { client.postgrest.from("moderation_queue").insert(row) }
+            runCatching { client.postgrest.from("moderation_queue").insert(row) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onSuccess { inserted++ }
                 .onFailure { Log.w(TAG, "enqueue reel ${reel.id} failed: ${it.message}") }
         }
         inserted
-    }.getOrDefault(0)
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0)
 
     /** يدرج ريلز واحداً في قائمة المراجعة (يُستدعى من مسار النشر). */
     suspend fun enqueueReelForModeration(reelId: String, submittedBy: String?): Boolean = runCatching {
@@ -201,7 +201,7 @@ object DevWorkQueuesRepository {
         client.postgrest.from("moderation_queue")
             .insert(ModerationQueueRow(reelId = reelId, submittedBy = submittedBy))
         true
-    }.onFailure { Log.w(TAG, "enqueueReelForModeration failed: ${it.message}") }.getOrDefault(false)
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "enqueueReelForModeration failed: ${it.message}") }.getOrDefault(false)
 
     /**
      * إجراء المراجع. الموافقة تُظهر المقطع، والرفض يخفيه ويتطلب سبباً.
@@ -228,7 +228,7 @@ object DevWorkQueuesRepository {
             ) { filter { eq("id", queueId) } }
             // حالة المقطع نفسها يضبطها إجراء المراجع (لا عمود مراجعة في reels).
             SupabaseServices.Profiles.toggleReelActive(reelId, approve)
-        }.onFailure { Log.w(TAG, "reviewModeration failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "reviewModeration failed: ${it.message}") }.getOrDefault(false)
         if (ok) {
             AuditLogger.log(
                 context, "moderation_review",
@@ -271,7 +271,7 @@ object DevWorkQueuesRepository {
                 )
             }
             .sortedByDescending { it.lastAtMs }
-    }.onFailure { Log.w(TAG, "getSupportThreads failed: ${it.message}") }.getOrDefault(emptyList())
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "getSupportThreads failed: ${it.message}") }.getOrDefault(emptyList())
 
     /** يغيّر حالة خيط كامل (وأولويته/مسؤوله اختيارياً) ويسجّل في التدقيق. */
     suspend fun setSupportThreadStatus(
@@ -301,7 +301,7 @@ object DevWorkQueuesRepository {
                 "qabas_set_dev_chat_message_status"
             }
             client.postgrest.rpc(rpc, params).decodeAs<Boolean>()
-        }.onFailure { Log.w(TAG, "setSupportThreadStatus failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "setSupportThreadStatus failed: ${it.message}") }.getOrDefault(false)
         if (ok) {
             AuditLogger.log(
                 context, "support_status_change",
@@ -323,14 +323,14 @@ object DevWorkQueuesRepository {
     suspend fun getCrashQueue(): List<CrashGroupItem> = runCatching {
         val reports = runCatching {
             SupabaseServices.Database.getCrashTelemetryReports()
-        }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
         if (reports.isEmpty()) return emptyList()
 
         val stored = runCatching {
             val client = SupabaseServices.client ?: return@runCatching emptyMap<String, CrashQueueRow>()
             client.postgrest.from("crash_queue").select { limit(500) }
                 .decodeList<CrashQueueRow>().associateBy { it.crashSignature }
-        }.getOrDefault(emptyMap())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyMap())
 
         reports.groupBy { report ->
             report.description.lineSequence()
@@ -357,7 +357,7 @@ object DevWorkQueuesRepository {
                 fixingRelease = row?.fixingRelease
             )
         }.sortedByDescending { it.affectedUsers }
-    }.onFailure { Log.w(TAG, "getCrashQueue failed: ${it.message}") }.getOrDefault(emptyList())
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "getCrashQueue failed: ${it.message}") }.getOrDefault(emptyList())
 
     /** يغيّر حالة مجموعة عطل ويربطها بإصدار الإصلاح، ويسجّل في التدقيق. */
     suspend fun setCrashStatus(
@@ -380,7 +380,7 @@ object DevWorkQueuesRepository {
                 onConflict = "crash_signature"
             }
             true
-        }.onFailure { Log.w(TAG, "setCrashStatus failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "setCrashStatus failed: ${it.message}") }.getOrDefault(false)
         if (ok) {
             AuditLogger.log(
                 context, "crash_status_change",
@@ -441,8 +441,8 @@ fun DevWorkQueuesScreen(onBack: () -> Unit = {}) {
 
     if (!AdminGuard.isDashboardAccessAllowed(context)) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
-            Text("قوائم العمل مقفلة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-            Text("هذه الصفحة للمطورين المعتمدين فقط (رتبة سحابية).", color = Color(0xFF94A3B8))
+            Text("قوائم العمل مقفلة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
+            Text("هذه الصفحة للمطورين المعتمدين فقط (رتبة سحابية).", color = TextSecondary)
         }
         return
     }
@@ -451,10 +451,10 @@ fun DevWorkQueuesScreen(onBack: () -> Unit = {}) {
         Row {
             TextButton(onClick = onBack) { Text("← رجوع") }
         }
-        Text("قوائم العمل", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Color.White)
+        Text("قوائم العمل", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextPrimary)
         Text(
             "الإشراف ${counts.moderationPending} بانتظار المراجعة • الدعم ${counts.supportNew} جديد • الأعطال ${counts.crashNew} جديدة",
-            color = Color(0xFF94A3B8), fontSize = 12.sp
+            color = TextSecondary, fontSize = 12.sp
         )
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -475,7 +475,7 @@ fun DevWorkQueuesScreen(onBack: () -> Unit = {}) {
                 Text(if (loading) "تحديث…" else "تحديث")
             }
         }
-        notice?.let { Text(it, color = Color(0xFFF59E0B), fontSize = 12.sp) }
+        notice?.let { Text(it, color = ThemeWarning, fontSize = 12.sp) }
         Spacer(Modifier.height(8.dp))
         when (tab) {
             QueueTab.MODERATION -> ModerationQueueContent(
@@ -513,20 +513,20 @@ private fun ModerationQueueContent(
             Text(
                 "الريلز بلا عمود حالة مراجعة في جدول reels؛ الحالة هنا في moderation_queue، " +
                     "وإجراء المراجع يضبط ظهور المقطع نفسه (موافقة ← ظاهر، رفض ← مخفي).",
-                color = Color(0xFF94A3B8), fontSize = 11.sp
+                color = TextSecondary, fontSize = 11.sp
             )
         }
         if (items.isEmpty()) {
-            item { Text("لا ريلز بانتظار المراجعة.", color = Color(0xFF94A3B8)) }
+            item { Text("لا ريلز بانتظار المراجعة.", color = TextSecondary) }
         }
         items(items, key = { it.id }) { item ->
             var reason by remember(item.id) { mutableStateOf("") }
             var busy by remember(item.id) { mutableStateOf(false) }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+            Card(colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface)) {
                 Column(Modifier.padding(12.dp)) {
-                    Text(reelTitles[item.reelId] ?: "ريلز ${item.reelId}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("معرّف المقطع: ${item.reelId}", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                    item.submittedBy?.let { Text("أرسله: ${maskEmail(it)}", color = Color(0xFF94A3B8), fontSize = 11.sp) }
+                    Text(reelTitles[item.reelId] ?: "ريلز ${item.reelId}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("معرّف المقطع: ${item.reelId}", color = TextSecondary, fontSize = 11.sp)
+                    item.submittedBy?.let { Text("أرسله: ${maskEmail(it)}", color = TextSecondary, fontSize = 11.sp) }
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = reason,
@@ -570,17 +570,17 @@ private fun SupportQueueContent(items: List<SupportThread>, onChanged: () -> Uni
     val scope = rememberCoroutineScope()
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (items.isEmpty()) {
-            item { Text("لا محادثات دعم.", color = Color(0xFF94A3B8)) }
+            item { Text("لا محادثات دعم.", color = TextSecondary) }
         }
         items(items, key = { it.key }) { thread ->
             var busy by remember(thread.key) { mutableStateOf(false) }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+            Card(colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface)) {
                 Column(Modifier.padding(12.dp)) {
                     MaskedEmailText(email = thread.userEmail, reason = "عرض خيط دعم في قائمة العمل")
-                    Text(thread.lastMessage, color = Color.White, fontSize = 13.sp, maxLines = 3)
+                    Text(thread.lastMessage, color = TextPrimary, fontSize = 13.sp, maxLines = 3)
                     Text(
                         "الحالة: ${supportStatusLabel(thread.status)} • الأولوية: ${priorityLabel(thread.priority)} • ${thread.messageCount} رسالة",
-                        color = Color(0xFF94A3B8), fontSize = 11.sp
+                        color = TextSecondary, fontSize = 11.sp
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
@@ -638,24 +638,24 @@ private fun CrashQueueContent(items: List<CrashGroupItem>, onChanged: () -> Unit
             Text(
                 "مرتبة حسب عدد المتأثرين. المجموعات من تقارير قياس الأعطال السحابية " +
                     "(dev_bug_reports)؛ مجموعة بلا صف في crash_queue تُعرض «جديدة».",
-                color = Color(0xFF94A3B8), fontSize = 11.sp
+                color = TextSecondary, fontSize = 11.sp
             )
         }
         if (items.isEmpty()) {
-            item { Text("لا مجموعات أعطال مسجلة.", color = Color(0xFF94A3B8)) }
+            item { Text("لا مجموعات أعطال مسجلة.", color = TextSecondary) }
         }
         items(items, key = { it.signature }) { item ->
             var release by remember(item.signature) { mutableStateOf(item.fixingRelease.orEmpty()) }
             var busy by remember(item.signature) { mutableStateOf(false) }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+            Card(colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface)) {
                 Column(Modifier.padding(12.dp)) {
-                    Text(item.signature, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(item.signature, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text(
                         "${item.affectedUsers} مستخدم متأثر • ${item.reportCount} تقرير" +
                             (if (item.sampleAppVersion.isNotBlank()) " • إصدار ${item.sampleAppVersion}" else "") +
                             " • الحالة: ${crashStatusLabel(item.status)}" +
                             (item.fixingRelease?.let { " • الإصلاح في $it" } ?: ""),
-                        color = Color(0xFF94A3B8), fontSize = 12.sp
+                        color = TextSecondary, fontSize = 12.sp
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(

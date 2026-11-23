@@ -31,8 +31,6 @@ data class SavedItem(
     val type: SavedItemType
         get() = SavedItemType.fromRaw(itemType)
 
-    val isQuran: Boolean
-        get() = type == SavedItemType.QURAN_AYAH
 }
 
 /** UI-only projection of a Supabase-authenticated user for the saved-items header. */

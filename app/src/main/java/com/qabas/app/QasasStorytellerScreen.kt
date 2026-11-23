@@ -56,10 +56,27 @@ data class ProphetTreeNode(
     val storySummary: String,
     val wisdomLessons: List<String>,
     val scriptText: String,
-    val accentColor: Color,
+    val accent: ProphetAccent,
     val symbolIcon: ImageVector,
     val isMajorHead: Boolean = false
 )
+
+/**
+ * مفاتيح ألوان الأنبياء (الجولة 70، نمط CaptionStyle من الجولة 62):
+ * قائمة الأنبياء تُبنى خارج التركيب فلا يجوز أن تحمل Color حرفياً ولا أن تقرأ QabasTheme.current؛
+ * المفتاح يوثّق درجة اللون المقصودة لكل نبي، والحلّ إلى رمز السمة يتم داخل التركيب فقط.
+ */
+enum class ProphetAccent { GREEN, SKY, AMBER, VIOLET, INDIGO, ORANGE, YELLOW, TEAL, CYAN, PINK, ROSE, BRAND_PRIMARY, BRAND_ACCENT }
+
+/** لون تمييز النبي من مفتاحه — يُحلّ إلى رمز QabasTheme داخل التركيب. */
+@Composable
+fun ProphetTreeNode.accentColor(): Color = when (accent) {
+    ProphetAccent.GREEN -> QabasTheme.current.success
+    ProphetAccent.SKY, ProphetAccent.TEAL, ProphetAccent.CYAN, ProphetAccent.BRAND_PRIMARY -> QabasTheme.current.primary
+    ProphetAccent.AMBER, ProphetAccent.ORANGE, ProphetAccent.YELLOW -> QabasTheme.current.warning
+    ProphetAccent.VIOLET, ProphetAccent.INDIGO, ProphetAccent.PINK, ProphetAccent.BRAND_ACCENT -> QabasTheme.current.accent
+    ProphetAccent.ROSE -> QabasTheme.current.destructive
+}
 
 /**
  * قائمة الأنبياء والرسل الـ 25 المذكورين بالاسم في القرآن الكريم (معلومات موثقة 100%)
@@ -83,7 +100,7 @@ val RealPropheticTreeList = listOf(
             "اليقظة الدائمة من عداوة إبليس وحيله الخفية"
         ),
         scriptText = "في فجر الوجود، تجلت عظمة الخالق حين خلق آدم عليه السلام بيده ونفخ فيه من روحه، وأسجد له ملائكته تعظيماً لأمر الله، وعلّمه أسرار الأسماء، فكانت بداية المسيرة الإنسانية المباركة نحو التوحيد الخالص.",
-        accentColor = Color(0xFF10B981),
+        accent = ProphetAccent.GREEN,
         symbolIcon = Icons.Default.Nature,
         isMajorHead = true
     ),
@@ -105,7 +122,7 @@ val RealPropheticTreeList = listOf(
             "عمارة الدنيا بالعلم النافع جزء أصيل من هدي الأنبياء"
         ),
         scriptText = "نبي الصدق والعلم، إدريس عليه السلام؛ أول من خط بالقلم وعلّم البشرية صنائع الحياة وأنوار التوحيد، فخلد القرآن ذكره في النبيين ورفعه ربه مكاناً علياً.",
-        accentColor = Color(0xFF0EA5E9),
+        accent = ProphetAccent.SKY,
         symbolIcon = Icons.Default.EditNote
     ),
     ProphetTreeNode(
@@ -126,7 +143,7 @@ val RealPropheticTreeList = listOf(
             "اليقين بنصر الله حين تنقطع كل الأسباب الأرضية"
         ),
         scriptText = "تسعمائة وخمسون عاماً من البلاغ والجهاد. نوح عليه السلام يصنع الفلك وسط رمال الصحراء بيقين لا يتزعزع، حتى جاء أمر الله وفار التنور، واستوت السفينة على الجودي لتبدأ البشرية عهداً جديداً من التوحيد.",
-        accentColor = Color(0xFF38BDF8),
+        accent = ProphetAccent.SKY,
         symbolIcon = Icons.Default.Sailing,
         isMajorHead = true
     ),
@@ -148,7 +165,7 @@ val RealPropheticTreeList = listOf(
             "شجاعة الداعية المخلص في مواجهة استكبار القوى المتسلطة"
         ),
         scriptText = "بين رمال الأحقاف الشاهدة على حضارة إرم ذات العماد، وقف هود عليه السلام يصدع بالتوحيد في وجه أعتى جبابرة التاريخ، محذراً من مكر الله حتى هبت الريح الصرصر العاتية حاسمة لكل طغيان.",
-        accentColor = Color(0xFFF59E0B),
+        accent = ProphetAccent.AMBER,
         symbolIcon = Icons.Default.Air
     ),
     ProphetTreeNode(
@@ -169,7 +186,7 @@ val RealPropheticTreeList = listOf(
             "حفظ الله ورعايته لأوليائه المؤمنين وإنجائهم من المهالك"
         ),
         scriptText = "في صخور الحجر المنحوتة بإتقان فريد، تفجرت المعجزة بناقة الله آية مبصرة لقوم ثمود. صالح عليه السلام يسطر درساً خالداً في حرمة آيات الله وعاقبة نقض العهود الإلهية.",
-        accentColor = Color(0xFFD97706),
+        accent = ProphetAccent.AMBER,
         symbolIcon = Icons.Default.Terrain
     ),
     ProphetTreeNode(
@@ -190,7 +207,7 @@ val RealPropheticTreeList = listOf(
             "التسليم المطلق لأوامر الله تعالى وإن خالفت هوى النفس"
         ),
         scriptText = "إمام الحنفاء وأبو الأنبياء خليل الرحمن. حطم آلهة الباطل، واقتحم لظى النيران بقلب يفيض يقيناً، ثم رفع مع ابنه إسماعيل قواعد الكعبة لتظل مهوى أفئدة المؤمنين إلى يوم القيامة.",
-        accentColor = GoldPrimary,
+        accent = ProphetAccent.BRAND_PRIMARY,
         symbolIcon = Icons.Default.Mosque,
         isMajorHead = true
     ),
@@ -212,7 +229,7 @@ val RealPropheticTreeList = listOf(
             "عاقبة المجاهرة بالفواحش والاستهزاء بالقيم نزول البأس الشديد"
         ),
         scriptText = "لوط عليه السلام، حارس الفطرة النقية. واجه قوم سدوم بالبيان والنصح محذراً من مستنقع الرذيلة، حتى حقت كلمة العذاب على من عاند الفطرة السليمة.",
-        accentColor = Color(0xFFA855F7),
+        accent = ProphetAccent.VIOLET,
         symbolIcon = Icons.Default.Shield
     ),
     ProphetTreeNode(
@@ -233,7 +250,7 @@ val RealPropheticTreeList = listOf(
             "بركة التضحية في سبيل الله تظل تثمر هدى إلى يوم القيامة"
         ),
         scriptText = "صادق الوعد، الفتى الذي استسلم لشفرة السكين طاعةً لله وثقةً بوالده إبراهيم. إسماعيل عليه السلام، مفجر زمزم وباني البيت الحرام مع خليل الرحمن.",
-        accentColor = Color(0xFF10B981),
+        accent = ProphetAccent.GREEN,
         symbolIcon = Icons.Default.WaterDrop,
         isMajorHead = true
     ),
@@ -255,7 +272,7 @@ val RealPropheticTreeList = listOf(
             "حمل أمانة البلاغ والرحمة بالخلق مسؤولية كل مسلم"
         ),
         scriptText = "محمد رسول الله ﷺ، سيد الأولين والآخرين وخاتم الأنبياء والمرسلين. بزغ نوره من مكة المكرمة وطيبة الطيبة ليملأ الكون رحمة وعدلاً وضياءً، ومعه القرآن معجزة المعجزات الخالدة.",
-        accentColor = GoldPrimary,
+        accent = ProphetAccent.BRAND_PRIMARY,
         symbolIcon = Icons.Default.AutoAwesome,
         isMajorHead = true
     ),
@@ -277,7 +294,7 @@ val RealPropheticTreeList = listOf(
             "الاستقامة الدائمة على التوحيد في كل مراحل الحياة"
         ),
         scriptText = "البشارة التي أضاءت بيت الخليل بعد الكبر. إسحاق عليه السلام، سراج الهدى والبركة في أرض الشام المباركة.",
-        accentColor = Color(0xFF6366F1),
+        accent = ProphetAccent.INDIGO,
         symbolIcon = Icons.Default.Stars
     ),
     ProphetTreeNode(
@@ -298,7 +315,7 @@ val RealPropheticTreeList = listOf(
             "الوصية بالتوحيد للأبناء عند الاحتضار أعظم وصية في الوجود"
         ),
         scriptText = "يعقوب عليه السلام، إمام الصابرين. أبيضت عيناه من الحزن وهو كظيم، لم يفتر لسانه عن حسن الظن برب العالمين حتى عاد يوسف واكتحلت عيناه برؤيته.",
-        accentColor = Color(0xFF8B5CF6),
+        accent = ProphetAccent.VIOLET,
         symbolIcon = Icons.Default.Visibility
     ),
     ProphetTreeNode(
@@ -319,7 +336,7 @@ val RealPropheticTreeList = listOf(
             "العفو عند المقدرة من أسمى شيم النفوس الزكية"
         ),
         scriptText = "من قاع الجب المظلم إلى عرش التمكين والعزة. يوسف الصديق عليه السلام يسطر أحسن القصص في العفة والصبر وحسن التدبير والعفو عند المقدرة.",
-        accentColor = GoldSecondary,
+        accent = ProphetAccent.BRAND_ACCENT,
         symbolIcon = Icons.Default.Diamond,
         isMajorHead = true
     ),
@@ -341,7 +358,7 @@ val RealPropheticTreeList = listOf(
             "عوض الله للصابرين يفوق كل ما فقده العبد في دنياه"
         ),
         scriptText = "أيوب عليه السلام، عنوان الصبر الخالد. فقد الصحة والمال والولد، فما ازداد إلا شكراً ورضا، حتى ناداه الرحمن ليركض برجله مغتسلاً بماء الشفاء والرحمة.",
-        accentColor = Color(0xFFF97316),
+        accent = ProphetAccent.ORANGE,
         symbolIcon = Icons.Default.Favorite
     ),
     ProphetTreeNode(
@@ -362,7 +379,7 @@ val RealPropheticTreeList = listOf(
             "الجمع بين خدمة الناس وعمارة الأوقات بذكر الله وصيامه"
         ),
         scriptText = "ذو الكفل عليه السلام، رجل العهد والوفاء. تكفل بالعدل والصيام والقيام، فوفى بكل ما عاهد الله عليه، فخلد القرآن ذكره في الصالحين الصابرين.",
-        accentColor = Color(0xFFEAB308),
+        accent = ProphetAccent.YELLOW,
         symbolIcon = Icons.Default.TaskAlt
     ),
     ProphetTreeNode(
@@ -383,7 +400,7 @@ val RealPropheticTreeList = listOf(
             "أكل أموال الناس بالباطل سبب رئيسي في دمار المجتمعات"
         ),
         scriptText = "خطيب الأنبياء شعيب عليه السلام. ناضل ضد الفساد المالي وجشع الميزان في أرض مدين، مرسخاً أن الأمانة في التجارة والعدل أساس بقاء الأمم.",
-        accentColor = Color(0xFF14B8A6),
+        accent = ProphetAccent.TEAL,
         symbolIcon = Icons.Default.Balance
     ),
     ProphetTreeNode(
@@ -404,7 +421,7 @@ val RealPropheticTreeList = listOf(
             "الصبر على تربية الشعوب وتثبيتها على مبادئ التوحيد"
         ),
         scriptText = "كليم الله موسى عليه السلام. من تابوت النيل إلى جبل الطور حيث كلم ربه، ثم إلى شاطئ البحر الأحمر الذي انشق كأطواد الجبال العظيمة. ملحمة اليقين في مواجهة الطغيان.",
-        accentColor = Color(0xFF0284C7),
+        accent = ProphetAccent.SKY,
         symbolIcon = Icons.Default.Waves,
         isMajorHead = true
     ),
@@ -426,7 +443,7 @@ val RealPropheticTreeList = listOf(
             "الحرص على وحدة الصف وتجنب الفتن والتشرذم"
         ),
         scriptText = "هارون عليه السلام، الوزير الصادق واللسان الفصيح، ساند كليم الله موسى في مواجهة جبروت فرعون، وجسّد أعظم نماذج الأخوة الصادقة في سبيل الله.",
-        accentColor = Color(0xFF0EA5E9),
+        accent = ProphetAccent.SKY,
         symbolIcon = Icons.Default.RecordVoiceOver
     ),
     ProphetTreeNode(
@@ -447,7 +464,7 @@ val RealPropheticTreeList = listOf(
             "إقامة القسط والعدل الصارم بين الرعية دون محاباة"
         ),
         scriptText = "داود عليه السلام، الملك القانت. سبّحت الجبال والطير لحسن ترتيله للزبور، وألان الله له الحديد صانعاً دروع النصر، جامعاً بين مجد الملك وزهد العابد.",
-        accentColor = Color(0xFFF59E0B),
+        accent = ProphetAccent.AMBER,
         symbolIcon = Icons.Default.Hardware,
         isMajorHead = true
     ),
@@ -469,7 +486,7 @@ val RealPropheticTreeList = listOf(
             "توظيف كل مقدرات الملك والنفوذ لنشر التوحيد وإعلاء الحق"
         ),
         scriptText = "ملك لم يؤت مثله أحد، سُخرت له الرياح والجن وعُلم منطق الطير. سليمان عليه السلام يقود جيوش الأرض شاكراً متواضعاً لله رب العالمين.",
-        accentColor = GoldPrimary,
+        accent = ProphetAccent.BRAND_PRIMARY,
         symbolIcon = Icons.Default.Fort,
         isMajorHead = true
     ),
@@ -491,7 +508,7 @@ val RealPropheticTreeList = listOf(
             "الثناء الإلهي الخالد للصابرين على الحق والدعوة"
         ),
         scriptText = "في ربوع بعلبك الشامية، صدح إلياس عليه السلام بالنداء الرباني الخالد: أتدعون بعلاً وتذرون أحسن الخالقين؟ صامد في وجه الشرك وعبادة الأوثان.",
-        accentColor = Color(0xFFEC4899),
+        accent = ProphetAccent.PINK,
         symbolIcon = Icons.Default.Whatshot
     ),
     ProphetTreeNode(
@@ -512,7 +529,7 @@ val RealPropheticTreeList = listOf(
             "الثبات على الشريعة ونبذ التبديل والتحريف"
         ),
         scriptText = "اليسع عليه السلام، وارث راية الهدى بعد إلياس، واصل مسيرة التوحيد والبيان لبني إسرائيل في أرض الشام بكل حزم وإخلاص.",
-        accentColor = Color(0xFFF43F5E),
+        accent = ProphetAccent.ROSE,
         symbolIcon = Icons.Default.AutoStories
     ),
     ProphetTreeNode(
@@ -533,7 +550,7 @@ val RealPropheticTreeList = listOf(
             "التسبيح والاعتراف بالتقصير مفتاح النجاة الأعظم من المهالك"
         ),
         scriptText = "في ظلمات ثلاث؛ ظلمة الليل وظلمة البحر وظلمة بطن الحوت، ارتجت أعماق المحيط بالنداء الأعظم: لا إله إلا أنت سبحانك إني كنت من الظالمين. يونس عليه السلام ومفتاح تفريج الكروب.",
-        accentColor = Color(0xFF06B6D4),
+        accent = ProphetAccent.CYAN,
         symbolIcon = Icons.Default.Water
     ),
     ProphetTreeNode(
@@ -554,7 +571,7 @@ val RealPropheticTreeList = listOf(
             "رعاية الصالحين تورث البركة في العمر والأثر"
         ),
         scriptText = "في محراب القدس الخاشع، نادى زكريا ربه نداءً خفياً: رب إني وهن العظم مني واشتعل الرأس شيباً. فجاءته البشرى الإلهية بيحيى نبياً من الصالحين.",
-        accentColor = Color(0xFF8B5CF6),
+        accent = ProphetAccent.VIOLET,
         symbolIcon = Icons.Default.SelfImprovement
     ),
     ProphetTreeNode(
@@ -575,7 +592,7 @@ val RealPropheticTreeList = listOf(
             "الثبات على الحق وإن كلف الروح والنفس"
         ),
         scriptText = "يحيى عليه السلام، الذي آتاه الله الحكم صبياً وحناناً وزكاة. صدع بالشريعة بقوة وجسد الطهر والزهد في أبهى صوره في أرض الشام.",
-        accentColor = Color(0xFFA78BFA),
+        accent = ProphetAccent.VIOLET,
         symbolIcon = Icons.Default.Spa
     ),
     ProphetTreeNode(
@@ -596,7 +613,7 @@ val RealPropheticTreeList = listOf(
             "البشارة بالنبي الخاتم محمد ﷺ هي قمة رسالات السماء"
         ),
         scriptText = "المسيح عيسى ابن مريم، كلمة الله وروحه. تكلم في المهد صبياً، وأحيا الموتى بإذن الله، ورُفع إلى السماء محفوظاً بعناية ربه، مبشراً بالحبيب المصطفى محمد ﷺ.",
-        accentColor = Color(0xFF38BDF8),
+        accent = ProphetAccent.SKY,
         symbolIcon = Icons.Default.HealthAndSafety,
         isMajorHead = true
     )
@@ -611,6 +628,7 @@ fun QasasStorytellerScreen(
     onBack: () -> Unit,
     onCreateProject: (scriptText: String, topic: String) -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
@@ -685,26 +703,26 @@ fun QasasStorytellerScreen(
     )
 
     Scaffold(
-        containerColor = Color(0xFF070B14),
+        containerColor = theme.background,
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
+                            color = theme.success.copy(alpha = 0.15f),
                             shape = CircleShape,
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                            border = BorderStroke(1.dp, theme.success.copy(alpha = 0.4f)),
                             modifier = Modifier.size(36.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Park, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Park, contentDescription = null, tint = theme.success, modifier = Modifier.size(20.dp))
                             }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "شجرة الأنبياء والرسل المباركة",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -720,10 +738,10 @@ fun QasasStorytellerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "عودة", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "عودة", tint = theme.textPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D1424))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = theme.cardSurface)
             )
         }
     ) { pad ->
@@ -734,8 +752,8 @@ fun QasasStorytellerScreen(
         ) {
             // شريط البحث المباشر النظيف (بدون أي تصنيفات)
             Surface(
-                color = Color(0xFF0C1220),
-                border = BorderStroke(0.8.dp, Color(0xFF182338)),
+                color = theme.cardSurface,
+                border = BorderStroke(0.8.dp, theme.secondarySurface),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -746,7 +764,7 @@ fun QasasStorytellerScreen(
                             Text("ابحث عن أي نبي في الشجرة المباركة...", color = TextSecondary, fontSize = 12.sp, fontFamily = CairoFont)
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                         },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
@@ -758,12 +776,12 @@ fun QasasStorytellerScreen(
                         singleLine = true,
                         shape = CutCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF070B14),
-                            unfocusedContainerColor = Color(0xFF070B14),
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E2D4A),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedContainerColor = theme.background,
+                            unfocusedContainerColor = theme.background,
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = theme.separator,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -785,8 +803,8 @@ fun QasasStorytellerScreen(
                     val w = size.width
                     val h = size.height
 
-                    val trunkColor = Color(0xFF92400E).copy(alpha = 0.75f)
-                    val sapColor = Color(0xFFF59E0B).copy(alpha = treeSapAlpha)
+                    val trunkColor = theme.warning.copy(alpha = 0.25f)
+                    val sapColor = theme.warning.copy(alpha = treeSapAlpha)
 
                     // مسار الجذع الصاعد من آدم إلى إبراهيم
                     val trunkPath = Path().apply {
@@ -834,12 +852,12 @@ fun QasasStorytellerScreen(
                     }
                     drawPath(
                         path = rightBranch,
-                        color = Color(0xFF047857),
+                        color = theme.success,
                         style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                     )
                     drawPath(
                         path = rightBranch,
-                        color = Color(0xFF34D399).copy(alpha = treeSapAlpha),
+                        color = theme.success.copy(alpha = treeSapAlpha),
                         style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f)))
                     )
 
@@ -854,12 +872,12 @@ fun QasasStorytellerScreen(
                     }
                     drawPath(
                         path = leftBranch,
-                        color = Color(0xFF1D4ED8),
+                        color = theme.primary,
                         style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                     )
                     drawPath(
                         path = leftBranch,
-                        color = Color(0xFF60A5FA).copy(alpha = treeSapAlpha),
+                        color = theme.primary.copy(alpha = treeSapAlpha),
                         style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f)))
                     )
                 }
@@ -933,7 +951,7 @@ fun QasasStorytellerScreen(
                         ) {
                             BranchHeader(
                                 title = "🌿 غصن الأسباط والشام",
-                                color = Color(0xFF60A5FA),
+                                color = theme.primary,
                                 isExpanded = isIshaqExpanded,
                                 onToggle = { isIshaqExpanded = !isIshaqExpanded }
                             )
@@ -964,7 +982,7 @@ fun QasasStorytellerScreen(
                         ) {
                             BranchHeader(
                                 title = "🍃 غصن الحجاز ومكة",
-                                color = Color(0xFF34D399),
+                                color = theme.success,
                                 isExpanded = isIsmailExpanded,
                                 onToggle = { isIsmailExpanded = !isIsmailExpanded }
                             )
@@ -985,20 +1003,20 @@ fun QasasStorytellerScreen(
 
                                     // خط النسب النبوي الشريف في الغصن
                                     Surface(
-                                        color = Color(0xFF0F1C18).copy(alpha = 0.85f),
+                                        color = theme.success.copy(alpha = 0.13f),
                                         shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.dp, Color(0xFF059669).copy(alpha = 0.5f)),
+                                        border = BorderStroke(1.dp, theme.success.copy(alpha = 0.5f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(
                                             modifier = Modifier.padding(12.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
-                                            Icon(Icons.Default.Spa, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+                                            Icon(Icons.Default.Spa, contentDescription = null, tint = theme.success, modifier = Modifier.size(20.dp))
                                             Spacer(modifier = Modifier.height(6.dp))
                                             Text(
                                                 text = "مسار السلالة العدنانية الطاهرة",
-                                                color = Color(0xFF6EE7B7),
+                                                color = theme.success,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.5.sp,
@@ -1024,18 +1042,18 @@ fun QasasStorytellerScreen(
 
                     // 3. مفترق الشجرة الأكبر: إبراهيم الخليل عليه السلام ومعه لوط
                     Surface(
-                        color = Color(0xFF241708),
+                        color = theme.warning.copy(alpha = 0.2f),
                         shape = CutCornerShape(14.dp),
-                        border = BorderStroke(1.5.dp, GoldPrimary),
+                        border = BorderStroke(1.5.dp, PresetPrimary),
                         modifier = Modifier
                             .fillMaxWidth(0.92f)
-                            .shadow(10.dp, spotColor = GoldPrimary)
+                            .shadow(10.dp, spotColor = PresetPrimary)
                     ) {
                         Column(
                             modifier = Modifier
                                 .background(
                                     Brush.radialGradient(
-                                        listOf(Color(0xFF38230D), Color(0xFF1C1106))
+                                        listOf(theme.warning.copy(alpha = 0.25f), theme.warning.copy(alpha = 0.15f))
                                     )
                                 )
                                 .padding(12.dp),
@@ -1043,7 +1061,7 @@ fun QasasStorytellerScreen(
                         ) {
                             Text(
                                 text = "⚜️ مفرق الشجرة الأعظم (أبو الأنبياء)",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp
@@ -1073,7 +1091,7 @@ fun QasasStorytellerScreen(
                     // 4. فرع الأنبياء العرب المتشعب من الجذع (هود وصالح)
                     BranchHeader(
                         title = "غصن الأنبياء العرب القدماء",
-                        color = Color(0xFFF59E0B),
+                        color = theme.warning,
                         isExpanded = isArabExpanded,
                         onToggle = { isArabExpanded = !isArabExpanded },
                         modifier = Modifier.fillMaxWidth(0.6f)
@@ -1131,29 +1149,29 @@ fun QasasStorytellerScreen(
 
                     // 6. جذور الشجرة المباركة في الأرض: آدم عليه السلام
                     Surface(
-                        color = Color(0xFF0F1E19),
+                        color = theme.success.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp, topStart = 12.dp, topEnd = 12.dp),
-                        border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                        border = BorderStroke(1.5.dp, theme.success),
                         modifier = Modifier
                             .fillMaxWidth(0.88f)
-                            .shadow(12.dp, spotColor = Color(0xFF10B981))
+                            .shadow(12.dp, spotColor = theme.success)
                     ) {
                         Column(
                             modifier = Modifier
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(Color(0xFF0C1713), Color(0xFF060B09))
+                                        listOf(theme.success.copy(alpha = 0.12f), theme.success.copy(alpha = 0.08f))
                                     )
                                 )
                                 .padding(14.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Nature, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Nature, contentDescription = null, tint = theme.success, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "جذر الشجرة وأصل البشرية والتوحيد",
-                                    color = Color(0xFF34D399),
+                                    color = theme.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
@@ -1173,7 +1191,7 @@ fun QasasStorytellerScreen(
 
                             Text(
                                 text = "« كَانَ النَّاسُ أُمَّةً وَاحِدَةً فَبَعَثَ اللَّهُ النَّبِيِّينَ مُبَشِّرِينَ وَمُنذِرِينَ »",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = AmiriFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp,
@@ -1226,6 +1244,7 @@ private fun TreeLeafFruitNode(
     isFullWidthTrunk: Boolean = false,
     onClick: (ProphetTreeNode) -> Unit
 ) {
+    val theme = QabasTheme.current
     val isMuhammad = prophet.id == "muhammad"
 
     val leafShape = RoundedCornerShape(
@@ -1236,18 +1255,18 @@ private fun TreeLeafFruitNode(
     )
 
     val leafBg = when {
-        isMuhammad -> Brush.linearGradient(listOf(Color(0xFF064E3B), Color(0xFF047857), Color(0xFF1E3A2B)))
-        isTopCrown -> Brush.linearGradient(listOf(Color(0xFF1E3A8A), Color(0xFF1E40AF), Color(0xFF0F172A)))
-        isSearchHighlighted -> Brush.linearGradient(listOf(Color(0xFF78350F), Color(0xFFB45309)))
-        else -> Brush.linearGradient(listOf(Color(0xFF131D2F), Color(0xFF0D1424)))
+        isMuhammad -> Brush.linearGradient(listOf(theme.success.copy(alpha = 0.35f), theme.success.copy(alpha = 0.55f), theme.success.copy(alpha = 0.15f)))
+        isTopCrown -> Brush.linearGradient(listOf(theme.primary.copy(alpha = 0.25f), theme.primary.copy(alpha = 0.35f), theme.background))
+        isSearchHighlighted -> Brush.linearGradient(listOf(theme.warning.copy(alpha = 0.3f), theme.warning.copy(alpha = 0.45f)))
+        else -> Brush.linearGradient(listOf(theme.secondarySurface, theme.cardSurface))
     }
 
     val leafBorderColor = when {
-        isMuhammad -> GoldPrimary
-        isTopCrown -> Color(0xFF60A5FA)
-        isSearchHighlighted -> Color(0xFFFDE68A)
-        prophet.isMajorHead -> prophet.accentColor
-        else -> Color(0xFF22324F)
+        isMuhammad -> QabasGold
+        isTopCrown -> theme.primary
+        isSearchHighlighted -> theme.gold
+        prophet.isMajorHead -> prophet.accentColor()
+        else -> theme.separator
     }
 
     Card(
@@ -1271,13 +1290,13 @@ private fun TreeLeafFruitNode(
             // شارة التاج للقمم العليا
             if (crownTitle.isNotBlank()) {
                 Surface(
-                    color = if (isMuhammad) GoldPrimary.copy(alpha = 0.25f) else Color(0xFF3B82F6).copy(alpha = 0.25f),
+                    color = if (isMuhammad) QabasGold.copy(alpha = 0.25f) else theme.primary.copy(alpha = 0.25f),
                     shape = CutCornerShape(4.dp),
-                    border = BorderStroke(1.dp, if (isMuhammad) GoldPrimary else Color(0xFF60A5FA))
+                    border = BorderStroke(1.dp, if (isMuhammad) QabasGold else theme.primary)
                 ) {
                     Text(
                         text = crownTitle,
-                        color = if (isMuhammad) Color(0xFFFDE68A) else Color(0xFFBFDBFE),
+                        color = if (isMuhammad) theme.gold else theme.primary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 9.5.sp,
@@ -1297,14 +1316,14 @@ private fun TreeLeafFruitNode(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF070B14).copy(alpha = 0.6f))
-                        .border(1.2.dp, prophet.accentColor.copy(alpha = 0.8f), CircleShape),
+                        .background(theme.background.copy(alpha = 0.6f))
+                        .border(1.2.dp, prophet.accentColor().copy(alpha = 0.8f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = prophet.symbolIcon,
                         contentDescription = null,
-                        tint = prophet.accentColor,
+                        tint = prophet.accentColor(),
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -1314,7 +1333,7 @@ private fun TreeLeafFruitNode(
                 // اسم النبي (خط أكبر مع التفاف ذكي لمنع التداخل)
                 Text(
                     text = prophet.name,
-                    color = if (isMuhammad) Color(0xFFFDE68A) else Color.White,
+                    color = if (isMuhammad) theme.gold else theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = if (isMuhammad) 15.5.sp else 13.5.sp,
@@ -1330,7 +1349,7 @@ private fun TreeLeafFruitNode(
             // صلة النسب (تحسين المسافة ومنع القص المبكر)
             Text(
                 text = prophet.lineageRelation,
-                color = if (isMuhammad) Color(0xFF6EE7B7) else GoldSecondary,
+                color = if (isMuhammad) theme.success else PresetAccent,
                 fontFamily = CairoFont,
                 fontSize = 10.5.sp,
                 lineHeight = 14.sp,
@@ -1348,10 +1367,11 @@ private fun TreeLeafFruitNode(
  */
 @Composable
 private fun TreeCrownIntroBanner() {
+    val theme = QabasTheme.current
     Surface(
-        color = Color(0xFF0D1424),
+        color = theme.cardSurface,
         shape = CutCornerShape(12.dp),
-        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1359,11 +1379,11 @@ private fun TreeCrownIntroBanner() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AccountTree, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.AccountTree, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "شجرة النبوات المباركة (25 نبياً ورسولاً)",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -1393,13 +1413,14 @@ private fun ProphetRealTreeDetailSheet(
     onCopy: () -> Unit,
     onCreateVideo: () -> Unit
 ) {
+    val theme = QabasTheme.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F1524),
-        contentColor = Color.White,
+        containerColor = theme.cardSurface,
+        contentColor = theme.textPrimary,
         shape = CutCornerShape(topStart = 20.dp, topEnd = 20.dp),
         dragHandle = {
-            BottomSheetDefaults.DragHandle(color = GoldPrimary.copy(alpha = 0.5f))
+            BottomSheetDefaults.DragHandle(color = PresetPrimary.copy(alpha = 0.5f))
         }
     ) {
         Column(
@@ -1421,14 +1442,14 @@ private fun ProphetRealTreeDetailSheet(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(Brush.radialGradient(listOf(prophet.accentColor.copy(alpha = 0.3f), Color(0xFF090D18))))
-                            .border(1.5.dp, prophet.accentColor, CircleShape),
+                            .background(Brush.radialGradient(listOf(prophet.accentColor().copy(alpha = 0.3f), theme.background)))
+                            .border(1.5.dp, prophet.accentColor(), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = prophet.symbolIcon,
                             contentDescription = null,
-                            tint = prophet.accentColor,
+                            tint = prophet.accentColor(),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1436,14 +1457,14 @@ private fun ProphetRealTreeDetailSheet(
                     Column {
                         Text(
                             text = prophet.name,
-                            color = Color(0xFFFDE68A),
+                            color = theme.gold,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
                             text = prophet.honorificTitle,
-                            color = Color(0xFF38BDF8),
+                            color = theme.primary,
                             fontFamily = CairoFont,
                             fontSize = 11.5.sp
                         )
@@ -1453,7 +1474,7 @@ private fun ProphetRealTreeDetailSheet(
                 // أزرار التحكم: صوت ونسخ
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     IconButton(onClick = onPlayTts, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Default.VolumeUp, contentDescription = "استماع", tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.VolumeUp, contentDescription = "استماع", tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = onCopy, modifier = Modifier.size(34.dp)) {
                         Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = TextSecondary, modifier = Modifier.size(18.dp))
@@ -1463,18 +1484,18 @@ private fun ProphetRealTreeDetailSheet(
 
             // بطاقة موقعه في الشجرة المباركة والموطن
             Surface(
-                color = Color(0xFF151D30),
+                color = theme.cardSurface,
                 shape = CutCornerShape(10.dp),
-                border = BorderStroke(1.dp, Color(0xFF22304E)),
+                border = BorderStroke(1.dp, theme.separator),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Park, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Park, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("موقعه في الشجرة النبوية:", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("موقعه في الشجرة النبوية:", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text(prophet.lineageRelation, color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(prophet.lineageRelation, color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
 
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -1484,7 +1505,7 @@ private fun ProphetRealTreeDetailSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("📍 الموطن: ${prophet.location}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 10.5.sp)
-                        Text("📖 السور: ${prophet.keySurah}", color = Color(0xFF34D399), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("📖 السور: ${prophet.keySurah}", color = theme.success, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1493,13 +1514,13 @@ private fun ProphetRealTreeDetailSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF090D18), CutCornerShape(12.dp))
-                    .border(1.2.dp, GoldPrimary.copy(alpha = 0.35f), CutCornerShape(12.dp))
+                    .background(theme.background, CutCornerShape(12.dp))
+                    .border(1.2.dp, PresetPrimary.copy(alpha = 0.35f), CutCornerShape(12.dp))
                     .padding(14.dp)
             ) {
                 Text(
                     text = prophet.keyVerse,
-                    color = Color(0xFFFDE68A),
+                    color = theme.gold,
                     fontFamily = AmiriFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.5.sp,
@@ -1511,19 +1532,19 @@ private fun ProphetRealTreeDetailSheet(
 
             // المعجزات الإلهية
             Surface(
-                color = Color(0xFF141C2E),
+                color = theme.cardSurface,
                 shape = CutCornerShape(10.dp),
-                border = BorderStroke(1.dp, prophet.accentColor.copy(alpha = 0.35f)),
+                border = BorderStroke(1.dp, prophet.accentColor().copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = prophet.accentColor, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = prophet.accentColor(), modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("المعجزات والآيات الإلهية:", color = prophet.accentColor, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("المعجزات والآيات الإلهية:", color = prophet.accentColor(), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(prophet.miracle, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 19.sp)
+                    Text(prophet.miracle, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 19.sp)
                 }
             }
 
@@ -1531,19 +1552,19 @@ private fun ProphetRealTreeDetailSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF131A2B), CutCornerShape(10.dp))
-                    .border(0.8.dp, Color(0xFF1E2A42), CutCornerShape(10.dp))
+                    .background(theme.cardSurface, CutCornerShape(10.dp))
+                    .border(0.8.dp, theme.separator, CutCornerShape(10.dp))
                     .padding(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.HistoryEdu, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.HistoryEdu, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("السرد القرآني والتاريخي للقصة:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("السرد القرآني والتاريخي للقصة:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = prophet.storySummary,
-                    color = Color(0xFFE2E8F0),
+                    color = theme.textPrimary,
                     fontFamily = NotoSansFont,
                     fontSize = 13.sp,
                     lineHeight = 22.sp
@@ -1554,14 +1575,14 @@ private fun ProphetRealTreeDetailSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF101726), CutCornerShape(10.dp))
-                    .border(0.8.dp, Color(0xFF1D283E), CutCornerShape(10.dp))
+                    .background(theme.cardSurface, CutCornerShape(10.dp))
+                    .border(0.8.dp, theme.separator, CutCornerShape(10.dp))
                     .padding(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = theme.warning, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("العِبر والدروس الإيمانية المستفادة:", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("العِبر والدروس الإيمانية المستفادة:", color = theme.warning, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 prophet.wisdomLessons.forEach { lesson ->
@@ -1569,9 +1590,9 @@ private fun ProphetRealTreeDetailSheet(
                         modifier = Modifier.padding(vertical = 3.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Text("✦", color = GoldPrimary, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("✦", color = PresetPrimary, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(lesson, color = Color(0xFFCBD5E1), fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 20.sp)
+                        Text(lesson, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 12.5.sp, lineHeight = 20.sp)
                     }
                 }
             }
@@ -1582,7 +1603,7 @@ private fun ProphetRealTreeDetailSheet(
                     onDismiss()
                     onCreateVideo()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = CutCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()

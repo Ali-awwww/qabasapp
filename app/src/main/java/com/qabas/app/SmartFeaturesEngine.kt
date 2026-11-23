@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import androidx.compose.ui.graphics.Color
 
 /**
  * SmartFeaturesEngine — deterministic keyframe interpolation & script hook/readability heuristics.
@@ -98,25 +97,6 @@ object SmartFeaturesEngine {
         }
     }
 
-    /**
-     * Generates deterministic, time-synced kinetic captions from text.
-     */
-    fun generateKineticCaptions(text: String, durationMs: Long): List<KineticCaption> {
-        val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (words.isEmpty()) return emptyList()
-        val timePerWord = (durationMs.coerceAtLeast(1000L)) / words.size
-        val styles = KineticCaptionStyle.entries
-
-        return words.mapIndexed { index, word ->
-            KineticCaption(
-                text = word,
-                startTimeMs = index * timePerWord,
-                endTimeMs = (index + 1) * timePerWord,
-                style = styles[index % styles.size],
-                color = if (index % 3 == 0) Color(0xFFFFD60A) else Color.White
-            )
-        }
-    }
 }
 
 data class ViralScore(
@@ -126,15 +106,3 @@ data class ViralScore(
     val trendingTopics: List<String>,
     val improvementTips: List<String>
 )
-
-data class KineticCaption(
-    val text: String,
-    val startTimeMs: Long,
-    val endTimeMs: Long,
-    val style: KineticCaptionStyle,
-    val color: Color
-)
-
-enum class KineticCaptionStyle {
-    BOUNCE, SLIDE, GLOW, SHAKE, POP
-}

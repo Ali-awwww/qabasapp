@@ -5,7 +5,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -71,8 +70,8 @@ fun BrainNeuralStateCard(
             .shadow(
                 elevation = if (isProcessing) 14.dp else 8.dp,
                 shape = RoundedCornerShape(20.dp),
-                ambientColor = GoldPrimary.copy(alpha = if (isProcessing) 0.25f else 0.10f),
-                spotColor = GoldPrimary.copy(alpha = if (isProcessing) 0.35f else 0.15f)
+                ambientColor = PresetPrimary.copy(alpha = if (isProcessing) 0.25f else 0.10f),
+                spotColor = PresetPrimary.copy(alpha = if (isProcessing) 0.35f else 0.15f)
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
@@ -81,17 +80,17 @@ fun BrainNeuralStateCard(
             brush = if (isProcessing) {
                 Brush.horizontalGradient(
                     listOf(
-                        GoldPrimary.copy(alpha = pulseGlow),
-                        Color(0xFF38BDF8),
-                        GoldSecondary.copy(alpha = pulseGlow)
+                        PresetPrimary.copy(alpha = pulseGlow),
+                        AiCyan,
+                        PresetAccent.copy(alpha = pulseGlow)
                     )
                 )
             } else {
                 Brush.horizontalGradient(
                     listOf(
-                        Color(0xFF1E293B),
-                        GoldPrimary.copy(alpha = 0.5f),
-                        Color(0xFF1E293B)
+                        ThemeSecondarySurface,
+                        PresetPrimary.copy(alpha = 0.5f),
+                        ThemeSecondarySurface
                     )
                 )
             }
@@ -103,7 +102,7 @@ fun BrainNeuralStateCard(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xFF111827),
+                            ThemeSecondarySurface,
                             DeepSlate
                         )
                     )
@@ -122,8 +121,8 @@ fun BrainNeuralStateCard(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .background(GoldPrimary.copy(alpha = 0.12f))
-                            .border(1.dp, GoldPrimary.copy(alpha = pulseGlow), CircleShape),
+                            .background(PresetPrimary.copy(alpha = 0.12f))
+                            .border(1.dp, PresetPrimary.copy(alpha = pulseGlow), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         LottieBrainVisualizer(
@@ -142,13 +141,13 @@ fun BrainNeuralStateCard(
                                 fontSize = 15.sp
                             )
                             Surface(
-                                color = GoldPrimary.copy(alpha = 0.15f),
+                                color = PresetPrimary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(0.8.dp, GoldPrimary.copy(alpha = 0.6f))
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, PresetPrimary.copy(alpha = 0.6f))
                             ) {
                                 Text(
                                     text = "${uiState.brainStrengthScore}/100",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -171,12 +170,12 @@ fun BrainNeuralStateCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF1E293B).copy(alpha = 0.6f))
+                        .background(ThemeSecondarySurface.copy(alpha = 0.6f))
                 ) {
                     Icon(
                         imageVector = Icons.Default.Sync,
                         contentDescription = "Sync Memory",
-                        tint = if (isProcessing) GoldPrimary else TextSecondary,
+                        tint = if (isProcessing) PresetPrimary else TextSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -189,7 +188,7 @@ fun BrainNeuralStateCard(
                     .height(64.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF0B1120))
-                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                    .border(1.dp, ThemeSecondarySurface, RoundedCornerShape(12.dp))
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val width = size.width
@@ -211,7 +210,7 @@ fun BrainNeuralStateCard(
 
                     // رسم موجة النشاط العصبي
                     val path = Path()
-                    val waveColor = if (isProcessing) GoldPrimary else Color(0xFF38BDF8)
+                    val waveColor = if (isProcessing) PresetPrimary else AiCyan
                     val frequency = if (isProcessing) 0.035f else 0.018f
                     val amplitude = if (isProcessing) (height * 0.32f) * pulseGlow else height * 0.18f
 
@@ -238,7 +237,7 @@ fun BrainNeuralStateCard(
                         val nodeX = step * i
                         val nodeY = midY + sin((nodeX * frequency) + wavePhase) * amplitude
                         drawCircle(
-                            color = GoldPrimary.copy(alpha = pulseGlow),
+                            color = PresetPrimary.copy(alpha = pulseGlow),
                             radius = if (isProcessing) 5.dp.toPx() else 3.5.dp.toPx(),
                             center = Offset(nodeX, nodeY)
                         )
@@ -255,7 +254,7 @@ fun BrainNeuralStateCard(
                     modifier = Modifier
                         .align(Alignment.Center)
                         .background(Color(0xFF0B1120).copy(alpha = 0.90f), RoundedCornerShape(8.dp))
-                        .border(0.8.dp, if (isProcessing) GoldPrimary.copy(alpha = 0.6f) else Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                        .border(0.8.dp, if (isProcessing) PresetPrimary.copy(alpha = 0.6f) else Color(0xFF1E293B), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -267,7 +266,7 @@ fun BrainNeuralStateCard(
 
                     Text(
                         text = uiState.statusMessage,
-                        color = if (isProcessing) GoldPrimary else TextPrimary,
+                        color = if (isProcessing) PresetPrimary else TextPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp,
@@ -313,7 +312,7 @@ fun BrainNeuralStateCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF151B2B), RoundedCornerShape(10.dp))
+                    .background(ThemeSecondarySurface, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -322,7 +321,7 @@ fun BrainNeuralStateCard(
                     Icon(
                         imageVector = Icons.Default.CloudQueue,
                         contentDescription = "Cloud Styles",
-                        tint = if (SupabaseServices.isSupabaseAvailable) Color(0xFF10B981) else TextSecondary,
+                        tint = if (SupabaseServices.isSupabaseAvailable) ThemeSuccess else TextSecondary,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
@@ -338,7 +337,7 @@ fun BrainNeuralStateCard(
 
                 Text(
                     text = "نقاء الهوية: 98%",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
@@ -355,20 +354,20 @@ private fun NeuralStepBadge(
     isDone: Boolean
 ) {
     val bgColor = when {
-        isActive -> GoldPrimary.copy(alpha = 0.20f)
-        isDone -> Color(0xFF10B981).copy(alpha = 0.15f)
-        else -> Color(0xFF1E293B).copy(alpha = 0.40f)
+        isActive -> PresetPrimary.copy(alpha = 0.20f)
+        isDone -> ThemeSuccess.copy(alpha = 0.15f)
+        else -> ThemeSecondarySurface.copy(alpha = 0.40f)
     }
 
     val textColor = when {
-        isActive -> GoldPrimary
-        isDone -> Color(0xFF34D399)
+        isActive -> PresetPrimary
+        isDone -> ThemeSuccess
         else -> TextSecondary.copy(alpha = 0.6f)
     }
 
     val borderColor = when {
-        isActive -> GoldPrimary
-        isDone -> Color(0xFF10B981)
+        isActive -> PresetPrimary
+        isDone -> ThemeSuccess
         else -> Color.Transparent
     }
 

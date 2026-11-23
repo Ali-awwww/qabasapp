@@ -8,14 +8,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
-import android.os.Environment
 import android.os.StatFs
-import android.os.SystemClock
-import android.util.Log
-import org.json.JSONArray
 import java.io.File
-import java.lang.reflect.Method
-import java.util.concurrent.atomic.AtomicInteger
 
 object AppDiagnostics {
 
@@ -119,7 +113,6 @@ object AppDiagnostics {
     data class ThreadInfo(
         val activeThreads: Int = 0,
         val threadNames: List<String> = emptyList(),
-        val isMainThreadBlocked: Boolean = false
     )
 
     data class PipelineHealth(
@@ -437,14 +430,12 @@ object AppDiagnostics {
         val activeCount = threads.count { it.isAlive }
 
         // Check for common problematic threads
-        val hasFFmpegThread = threadNames.any { it.contains("ffmpeg", ignoreCase = true) }
-        val hasGCThread = threadNames.count { it.contains("GC", ignoreCase = true) }
 
         if (activeCount > 100) {
             issues.add(Issue(Issue.Severity.WARNING, "الخيوط", "عدد خيوط مرتفع", "$activeCount خيط نشط", "قد يسبب بطء الأداء"))
         }
 
-        return ThreadInfo(activeCount, threadNames.take(20), false)
+        return ThreadInfo(activeCount, threadNames.take(20))
     }
 
     private fun collectPipelineHealth(context: Context, issues: MutableList<Issue>): PipelineHealth {

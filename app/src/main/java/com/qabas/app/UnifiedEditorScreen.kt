@@ -22,7 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.TextSecondary
 
 /**
@@ -47,7 +47,7 @@ fun UnifiedEditorScreen(
         ScrollableTabRow(
             selectedTabIndex = tab,
             containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = GoldPrimary
+            contentColor = PresetPrimary
         ) {
             editorTabs.forEachIndexed { i, t ->
                 Tab(
@@ -57,11 +57,11 @@ fun UnifiedEditorScreen(
                         Column {
                             Icon(
                                 t.icon, contentDescription = t.title,
-                                tint = if (tab == i) GoldPrimary else TextSecondary
+                                tint = if (tab == i) PresetPrimary else TextSecondary
                             )
                             Text(
                                 t.title,
-                                color = if (tab == i) GoldPrimary else TextSecondary,
+                                color = if (tab == i) PresetPrimary else TextSecondary,
                                 fontFamily = CairoFont,
                                 fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 11.sp

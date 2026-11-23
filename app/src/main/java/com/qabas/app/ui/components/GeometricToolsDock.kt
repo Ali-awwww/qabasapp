@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,7 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.QabasTheme
 
 /** A single tool exposed inside the screen tools dock. */
@@ -53,7 +52,7 @@ data class DockTool(
     val label: String,
     val onClick: () -> Unit,
     val active: Boolean = false,
-    val accent: Color = GoldPrimary
+    val accent: Color = PresetPrimary
 )
 
 /**
@@ -179,7 +178,7 @@ private fun DockPanel(tools: List<DockTool>) {
 @Composable
 private fun DockTile(tool: DockTool) {
     val theme = QabasTheme.current
-    val activeAccent = if (tool.accent == GoldPrimary) theme.primary else tool.accent
+    val activeAccent = if (tool.accent == PresetPrimary) theme.primary else tool.accent
     val tileColor = if (tool.active) activeAccent else theme.secondarySurface
     val iconTint = if (tool.active) theme.onPrimary else theme.textPrimary
 

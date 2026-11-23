@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -61,7 +60,7 @@ fun UpdateManagementSection() {
             activeUpdate = current
             audit = runCatching {
                 SupabaseServices.Database.getAppUpdateAuditOrThrow()
-            }.getOrDefault(emptyList())
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
 
             try {
                 val fetchedReleases = UpdateManager.getAdminGitHubReleases(context).getOrThrow()
@@ -72,10 +71,10 @@ fun UpdateManagementSection() {
                 selectedTag = nextSelection?.tagName
                 releaseNotes = nextSelection?.releaseNotes.orEmpty()
                 isMandatory = false
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 githubError = e.message ?: "تعذر جلب قائمة إصدارات GitHub"
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             error = e.message ?: "تعذر تحميل بيانات الإصدارات من Supabase"
         } finally {
             isLoading = false
@@ -155,7 +154,7 @@ fun UpdateManagementSection() {
                                         SupabaseServices.Database.setAppUpdateActive(null, false)
                                         refresh()
                                         message = "تم إيقاف توزيع التحديث مؤقتاً."
-                                    } catch (e: Exception) {
+                                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                         error = e.message ?: "تعذر إيقاف التحديث"
                                     } finally {
                                         isPublishing = false
@@ -179,7 +178,7 @@ fun UpdateManagementSection() {
                                             SupabaseServices.Database.setAppUpdateActive(latest.id, true)
                                             refresh()
                                             message = "تمت إعادة تفعيل أحدث إصدار منشور."
-                                        } catch (e: Exception) {
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                             error = e.message ?: "تعذر تفعيل الإصدار"
                                         } finally {
                                             isPublishing = false
@@ -331,7 +330,7 @@ fun UpdateManagementSection() {
                                         message = "تم اعتماد الإصدار بنجاح."
                                         selectedTag = null
                                         refresh()
-                                    } catch (e: Exception) {
+                                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                         error = e.message ?: "رفض الخادم اعتماد الإصدار"
                                     } finally {
                                         isPublishing = false

@@ -100,9 +100,4 @@ object UpdateChannelFacade {
     fun releasesPageUrl(context: Context): String =
         "https://github.com/${effectiveRepo(context)}/releases"
 
-    /**
-     * هل نُخفي التفاصيل التقنية عن هذا المستخدم؟
-     * نعم لكل من ليس مطوراً.
-     */
-    fun hidesTechnicalDetails(context: Context): Boolean = !isVerifiedDeveloper()
 }

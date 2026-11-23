@@ -4,7 +4,6 @@ import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleGroupedSection
-import com.qabas.app.ui.components.ApplePrimaryButton
 import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.components.AppleSegmentedControl
 import com.qabas.app.ui.components.AppleTopBar
@@ -86,7 +84,7 @@ data class SearchableSetting(
     val tags: List<String> = emptyList(),
     val badge: String? = null,
     val badgeColor: Color? = null,
-    val accentColor: Color = GoldPrimary,
+    val accentColor: Color = PresetPrimary,
     val group: String = "عام"
 )
 
@@ -158,7 +156,7 @@ fun SettingsScreen(
         mutableStateOf(
             prefs.getString("user_display_name", null)
                 ?: CloudServices.Auth.currentUser.value?.displayName
-                ?: "مستخدم قبس"
+                ?: "مستخدم خادم المسلم"
         )
     }
     var avatarUriString by remember {
@@ -322,7 +320,7 @@ fun SettingsScreen(
                 } else {
                     updateState = null
                 }
-            }.onFailure {
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
                 updateState = null
             }
         }
@@ -573,7 +571,7 @@ fun SettingsScreen(
                                 },
                                 onSyncCloud = {
                                     coroutineScope.launch {
-                                        val synced = runCatching { UserPreferencesManager.syncToSupabase(context) }.getOrDefault(false)
+                                        val synced = runCatching { UserPreferencesManager.syncToSupabase(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                                         Toast.makeText(
                                             context,
                                             if (synced) "تمت مزامنة إعداداتك عبر Supabase بنجاح" else "تعذرت المزامنة السحابية. تحقق من الاتصال وتسجيل الدخول.",
@@ -585,17 +583,31 @@ fun SettingsScreen(
                                     if (updateState != "checking..." && updateState != "downloading") {
                                         updateState = "checking..."
                                         coroutineScope.launch {
-                                            runCatching { VersionManager.checkRemoteVersion(context, force = true) }
-                                                .onSuccess { info ->
-                                                    if (info != null) {
-                                                        updateInfo = info
-                                                        updateState = "found"
-                                                        showUpdateDialog = true
-                                                        prefs.edit().putString("last_release_notes", info.releaseNotes).apply()
-                                                        Toast.makeText(context, "تم العثور على تحديث جديد", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        updateState = null
-                                                        Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل", Toast.LENGTH_SHORT).show()
+                                            // فحص مميِّز (جولة 39، بنمط الجولة 24 في شاشة «عن التطبيق»):
+                                            // كان null من checkRemoteVersion يعني «لا تحديث» و«تعذّر
+                                            // الوصول» معاً، فكانت الشاشة تدّعي «أحدث نسخة» دون اتصال.
+                                            runCatching { VersionManager.checkRemoteVersionDetailed(context, force = true) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                                                .onSuccess { result ->
+                                                    when (result) {
+                                                        is UpdateManager.UpdateCheckResult.Available -> {
+                                                            val info = result.info
+                                                            updateInfo = info
+                                                            updateState = "found"
+                                                            showUpdateDialog = true
+                                                            prefs.edit().putString("last_release_notes", info.releaseNotes).apply()
+                                                            Toast.makeText(context, "تم العثور على تحديث جديد", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        UpdateManager.UpdateCheckResult.UpToDate -> {
+                                                            updateState = null
+                                                            Toast.makeText(context, "أنت تستخدم أحدث نسخة بالفعل", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        UpdateManager.UpdateCheckResult.Failed,
+                                                        UpdateManager.UpdateCheckResult.Skipped -> {
+                                                            // مع force = true لا يحدث Skipped عملياً (التخطي
+                                                            // فقط عند !force) — يُعامل كفشل دفاعاً.
+                                                            updateState = null
+                                                            Toast.makeText(context, "تعذّر الوصول إلى خادم التحديثات، تحقق من اتصال الإنترنت وحاول لاحقاً.", Toast.LENGTH_LONG).show()
+                                                        }
                                                     }
                                                 }
                                                 .onFailure {

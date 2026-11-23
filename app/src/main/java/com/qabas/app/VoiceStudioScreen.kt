@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.MediaMetadataRetriever
@@ -15,32 +14,23 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -59,6 +49,7 @@ fun VoiceStudioScreen(
     onOpenInProEditor: (String) -> Unit = {},
     onNavigateToMoneyPrinterWithVoice: (String) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -79,7 +70,6 @@ fun VoiceStudioScreen(
 
     // حالة الاستنساخ الجديد
     var newVoiceName by remember { mutableStateOf("") }
-    var newVoiceDesc by remember { mutableStateOf("") }
     var pitchSlider by remember { mutableFloatStateOf(0f) }
     var speedSlider by remember { mutableFloatStateOf(1.0f) }
     var isRecordingSample by remember { mutableStateOf(false) }
@@ -112,8 +102,8 @@ fun VoiceStudioScreen(
     )
 
     // لوحة الاستوديو الصوتي تتبع الهوية المركزية بدل ألوان HUD مستقلة.
-    val hudPurple = GoldSecondary
-    val hudCyan = GoldPrimary
+    val hudPurple = PresetAccent
+    val hudCyan = PresetPrimary
     val hudGold = ThemeWarning
     val hudObsidian = DeepSlate
     val hudGlassBg = CardSurface.copy(alpha = 0.78f)
@@ -203,12 +193,12 @@ fun VoiceStudioScreen(
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
-                                    .background(if (serverStatus?.isOnline == true) Color(0xFF10B981) else hudGold, CircleShape)
+                                    .background(if (serverStatus?.isOnline == true) theme.success else hudGold, CircleShape)
                             )
                         }
                         Text(
                             text = if (serverStatus?.isOnline == true) "متصل بخادم VoiceStudio المحلي (${serverStatus?.latencyMs}ms)" else "النمط الهجين (16 محرك + F5-TTS + Edge)",
-                            color = Color(0xFF94A3B8),
+                            color = theme.textSecondary,
                             fontSize = 11.sp,
                             fontFamily = CairoFont
                         )
@@ -216,7 +206,7 @@ fun VoiceStudioScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = theme.textPrimary)
                     }
                 },
                 actions = {
@@ -242,7 +232,7 @@ fun VoiceStudioScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0F172A), RoundedCornerShape(14.dp))
+                        .background(theme.cardSurface, RoundedCornerShape(14.dp))
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -259,7 +249,7 @@ fun VoiceStudioScreen(
                         ) {
                             Text(
                                 title,
-                                color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                color = if (isSelected) theme.textPrimary else theme.textSecondary,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 fontFamily = CairoFont
@@ -282,14 +272,14 @@ fun VoiceStudioScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Fingerprint, contentDescription = null, tint = hudPurple, modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("بصمة الصوت واستنساخ النبرة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
+                                    Text("بصمة الصوت واستنساخ النبرة", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
                                 }
                                 Text("ZERO-SHOT AI", color = hudCyan, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "سجل مقطعاً صوتياً مدته 5 إلى 10 ثوانٍ بصوتك أو صوت أي متحدث، وسيقوم المحرك باستخلاص الخصائص الصوتية لإنشاء بصمة صوتية دائمة.",
-                                color = Color(0xFFCBD5E1),
+                                color = theme.textSecondary,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
                                 lineHeight = 18.sp
@@ -305,13 +295,13 @@ fun VoiceStudioScreen(
                                 Button(
                                     onClick = { audioPickerLauncher.launch("audio/*") },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF334155))
+                                    border = BorderStroke(1.dp, theme.cardBorder)
                                 ) {
                                     Icon(Icons.Default.UploadFile, contentDescription = null, tint = hudPurple, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("رفع ملف صوتي", fontSize = 11.sp, fontFamily = CairoFont, color = Color.White)
+                                    Text("رفع ملف صوتي", fontSize = 11.sp, fontFamily = CairoFont, color = theme.textPrimary)
                                 }
 
                                 Button(
@@ -369,14 +359,14 @@ fun VoiceStudioScreen(
                                     },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isRecordingSample) Color(0xFFEF4444) else Color(0xFF1E293B)
+                                        containerColor = if (isRecordingSample) theme.destructive else theme.secondarySurface
                                     ),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, if (isRecordingSample) Color(0xFFEF4444) else Color(0xFF334155))
+                                    border = BorderStroke(1.dp, if (isRecordingSample) theme.destructive else theme.cardBorder)
                                 ) {
-                                    Icon(if (isRecordingSample) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Icon(if (isRecordingSample) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null, tint = theme.textPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text(if (isRecordingSample) "إيقاف التسجيل" else "تسجيل الآن", fontSize = 11.sp, fontFamily = CairoFont, color = Color.White)
+                                    Text(if (isRecordingSample) "إيقاف التسجيل" else "تسجيل الآن", fontSize = 11.sp, fontFamily = CairoFont, color = theme.textPrimary)
                                 }
                             }
 
@@ -384,7 +374,7 @@ fun VoiceStudioScreen(
                                 Spacer(Modifier.height(8.dp))
                                 Text(
                                     "✓ تم التقاط العينة: ${recordedSampleFile?.name} (${recordedSampleFile?.length()?.div(1024)} KB)",
-                                    color = Color(0xFF10B981),
+                                    color = theme.success,
                                     fontSize = 11.sp,
                                     fontFamily = RobotoMonoFont
                                 )
@@ -394,19 +384,19 @@ fun VoiceStudioScreen(
                             OutlinedTextField(
                                 value = newVoiceName,
                                 onValueChange = { newVoiceName = it },
-                                label = { Text("اسم الصوت المستنسخ (مثال: صوتي الشخصي، القارئ المفضل)", color = Color.Gray, fontSize = 12.sp) },
+                                label = { Text("اسم الصوت المستنسخ (مثال: صوتي الشخصي، القارئ المفضل)", color = theme.textTertiary, fontSize = 12.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = hudPurple,
-                                    unfocusedBorderColor = Color(0xFF334155),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    unfocusedBorderColor = theme.cardBorder,
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             )
 
                             Spacer(Modifier.height(10.dp))
-                            Text("نبرة الصوت (Pitch Shift):", color = Color(0xFFCBD5E1), fontSize = 11.sp, fontFamily = CairoFont)
+                            Text("نبرة الصوت (Pitch Shift):", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
                             Slider(
                                 value = pitchSlider,
                                 onValueChange = { pitchSlider = it },
@@ -446,9 +436,9 @@ fun VoiceStudioScreen(
                                 colors = ButtonDefaults.buttonColors(containerColor = hudPurple),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
-                                Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
+                                Icon(Icons.Default.Save, contentDescription = null, tint = theme.textPrimary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("⚡ حفظ واستنساخ البصمة الصوتية", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                Text("⚡ حفظ واستنساخ البصمة الصوتية", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             }
                         }
                     }
@@ -456,13 +446,13 @@ fun VoiceStudioScreen(
 
                 // قائمة الأصوات المستنسخة في الخزانة
                 item {
-                    Text("الأصوات المستنسخة المحفوظة:", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                    Text("الأصوات المستنسخة المحفوظة:", color = theme.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                 }
 
                 items(clonedProfiles) { profile ->
                     HudCard(
-                        borderColor = if (selectedProfileId == profile.id) hudPurple else Color(0xFF334155),
-                        backgroundColor = Color(0xFF0F172A).copy(alpha = 0.8f)
+                        borderColor = if (selectedProfileId == profile.id) hudPurple else theme.cardBorder,
+                        backgroundColor = theme.cardSurface.copy(alpha = 0.8f)
                     ) {
                         Row(
                             modifier = Modifier
@@ -476,26 +466,26 @@ fun VoiceStudioScreen(
                                 colors = RadioButtonDefaults.colors(selectedColor = hudPurple)
                             )
                             Column(Modifier.weight(1f)) {
-                                Text(profile.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                Text(profile.description, color = Color(0xFF94A3B8), fontSize = 11.sp, fontFamily = CairoFont)
+                                Text(profile.name, color = theme.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                Text(profile.description, color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
                                 Text("المحرك: ${profile.baseEngine}", color = hudCyan, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                             }
                             Button(
                                 onClick = { onNavigateToMoneyPrinterWithVoice(profile.id) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F2FE)),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                 modifier = Modifier.padding(end = 4.dp)
                             ) {
-                                Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Bolt, contentDescription = null, tint = theme.background, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("إنتاج ريلز", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                Text("إنتاج ريلز", color = theme.background, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                             }
                             IconButton(onClick = {
                                 VoiceStudioService.deleteClonedProfile(context, profile.id)
                                 clonedProfiles = VoiceStudioService.getClonedProfiles(context)
                             }) {
-                                Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444))
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = theme.destructive)
                             }
                         }
                     }
@@ -522,18 +512,18 @@ fun VoiceStudioScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(min = 110.dp),
-                                placeholder = { Text("أدخل النص المراد قراءته بصوت الذكاء الاصطناعي المستنسخ...", color = Color.Gray, fontSize = 12.sp) },
+                                placeholder = { Text("أدخل النص المراد قراءته بصوت الذكاء الاصطناعي المستنسخ...", color = theme.textTertiary, fontSize = 12.sp) },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = hudCyan,
-                                    unfocusedBorderColor = Color(0xFF334155),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    unfocusedBorderColor = theme.cardBorder,
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             )
 
                             Spacer(Modifier.height(10.dp))
-                            Text("الصوت المفعل للتوليد:", color = Color(0xFFCBD5E1), fontSize = 11.sp, fontFamily = CairoFont)
+                            Text("الصوت المفعل للتوليد:", color = theme.textSecondary, fontSize = 11.sp, fontFamily = CairoFont)
                             val currentActiveProfile = clonedProfiles.find { it.id == selectedProfileId } ?: clonedProfiles.firstOrNull()
 
                             Surface(
@@ -541,15 +531,15 @@ fun VoiceStudioScreen(
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp),
                                 shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF1E293B),
+                                color = theme.secondarySurface,
                                 border = BorderStroke(1.dp, hudCyan.copy(alpha = 0.5f))
                             ) {
                                 Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.GraphicEq, contentDescription = null, tint = hudCyan)
                                     Spacer(Modifier.width(8.dp))
                                     Column {
-                                        Text(currentActiveProfile?.name ?: "الصوت القياسي", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                        Text(currentActiveProfile?.baseEngine ?: "F5-TTS Engine", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = RobotoMonoFont)
+                                        Text(currentActiveProfile?.name ?: "الصوت القياسي", color = theme.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                        Text(currentActiveProfile?.baseEngine ?: "F5-TTS Engine", color = theme.textSecondary, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                                     }
                                 }
                             }
@@ -587,13 +577,13 @@ fun VoiceStudioScreen(
                                 enabled = !isSynthesizing && synthesisText.isNotBlank()
                             ) {
                                 if (isSynthesizing) {
-                                    CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(color = theme.background, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("جاري استنساخ ونطق الكلام...", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("جاري استنساخ ونطق الكلام...", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 } else {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = theme.background)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("🎙️ توليد التعليق الصوتي الفوري", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("🎙️ توليد التعليق الصوتي الفوري", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 }
                             }
 
@@ -601,9 +591,9 @@ fun VoiceStudioScreen(
                             if (lastGeneratedAudioPath != null) {
                                 Spacer(Modifier.height(14.dp))
                                 Surface(
-                                    color = Color(0xFF0F172A),
+                                    color = theme.cardSurface,
                                     shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981)),
+                                    border = BorderStroke(1.dp, theme.success),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -633,14 +623,14 @@ fun VoiceStudioScreen(
                                                 Icon(
                                                     if (isAudioPlaying) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
                                                     contentDescription = null,
-                                                    tint = Color(0xFF10B981),
+                                                    tint = theme.success,
                                                     modifier = Modifier.size(32.dp)
                                                 )
                                             }
                                             Spacer(Modifier.width(6.dp))
                                             Column {
-                                                Text("تم التوليد بنجاح ✓", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
-                                                Text("جاهز للاستخدام في مشاريع خادم المسلم", color = Color(0xFF94A3B8), fontSize = 10.sp, fontFamily = CairoFont)
+                                                Text("تم التوليد بنجاح ✓", color = theme.success, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                                Text("جاهز للاستخدام في مشاريع خادم المسلم", color = theme.textSecondary, fontSize = 10.sp, fontFamily = CairoFont)
                                             }
                                         }
 
@@ -648,10 +638,10 @@ fun VoiceStudioScreen(
                                             onClick = {
                                                 lastGeneratedAudioPath?.let { onUseAudioInProject(it) }
                                             },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = theme.success),
                                             shape = RoundedCornerShape(8.dp)
                                         ) {
-                                            Text("استخدام", color = Color.Black, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                            Text("استخدام", color = theme.background, fontSize = 11.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -674,7 +664,7 @@ fun VoiceStudioScreen(
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "حدد مقطع فيديو، واكتب النص الجديد أو الترجمة العربية ليتم توليدها بالصوت المستنسخ واستبدال مسار الصوت الأصلي للفيديو بالكامل.",
-                                color = Color(0xFFCBD5E1),
+                                color = theme.textSecondary,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
                                 lineHeight = 18.sp
@@ -684,9 +674,9 @@ fun VoiceStudioScreen(
                             Button(
                                 onClick = { videoPickerLauncher.launch("video/*") },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Color(0xFF334155))
+                                border = BorderStroke(1.dp, theme.cardBorder)
                             ) {
                                 Icon(Icons.Default.VideoFile, contentDescription = null, tint = hudGold)
                                 Spacer(Modifier.width(6.dp))
@@ -694,7 +684,7 @@ fun VoiceStudioScreen(
                                     if (dubbingVideoUri != null) "✓ تم تحديد مقطع الفيديو" else "اختيار الفيديو المراد دبلجته",
                                     fontSize = 12.sp,
                                     fontFamily = CairoFont,
-                                    color = Color.White
+                                    color = theme.textPrimary
                                 )
                             }
 
@@ -702,13 +692,13 @@ fun VoiceStudioScreen(
                             OutlinedTextField(
                                 value = dubbingScript,
                                 onValueChange = { dubbingScript = it },
-                                label = { Text("النص المدبلج الجديد", color = Color.Gray, fontSize = 12.sp) },
+                                label = { Text("النص المدبلج الجديد", color = theme.textTertiary, fontSize = 12.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = hudGold,
-                                    unfocusedBorderColor = Color(0xFF334155),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    unfocusedBorderColor = theme.cardBorder,
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             )
@@ -755,13 +745,13 @@ fun VoiceStudioScreen(
                                 enabled = !isDubbing && dubbingVideoUri != null
                             ) {
                                 if (isDubbing) {
-                                    CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(color = theme.background, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("جاري معالجة ودبلجة الفيديو بـ FFmpeg...", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("جاري معالجة ودبلجة الفيديو بـ FFmpeg...", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 } else {
-                                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = Color.Black)
+                                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = theme.background)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("🎬 بدء الدبلجة بالصوت المستنسخ", color = Color.Black, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("🎬 بدء الدبلجة بالصوت المستنسخ", color = theme.background, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 }
                             }
 
@@ -772,7 +762,7 @@ fun VoiceStudioScreen(
                                         dubbedVideoPath?.let { onOpenInProEditor(it) }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Icon(Icons.Default.Edit, contentDescription = null)
@@ -795,12 +785,12 @@ fun VoiceStudioScreen(
     if (showServerDialog) {
         AlertDialog(
             onDismissRequest = { showServerDialog = false },
-            title = { Text("ربط خادم VoiceStudio (Local / Remote)", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            title = { Text("ربط خادم VoiceStudio (Local / Remote)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
                         "أدخل رابط خادم VoiceStudio (المحلي عبر 10.0.2.2:8000 أو خادمك الخاص):",
-                        color = Color(0xFFCBD5E1),
+                        color = theme.textSecondary,
                         fontSize = 12.sp,
                         fontFamily = CairoFont
                     )
@@ -811,9 +801,9 @@ fun VoiceStudioScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = hudPurple,
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            unfocusedBorderColor = theme.cardBorder,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary
                         )
                     )
                     Spacer(Modifier.height(8.dp))
@@ -827,7 +817,7 @@ fun VoiceStudioScreen(
                                 Toast.makeText(context, s.message, Toast.LENGTH_SHORT).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (isPingingServer) {
@@ -846,15 +836,15 @@ fun VoiceStudioScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = hudPurple)
                 ) {
-                    Text("حفظ", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("حفظ", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showServerDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             },
-            containerColor = Color(0xFF0B132B)
+            containerColor = theme.background
         )
     }
 }

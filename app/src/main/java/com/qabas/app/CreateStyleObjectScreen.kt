@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -10,12 +9,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -23,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -80,7 +75,6 @@ fun CreateStyleObjectScreen(
     var voiceStyle by remember { mutableStateOf("صوت رخيم هادئ وتأملي") }
     var voiceEngine by remember { mutableStateOf("ElevenLabs Neural HD") }
     var audioMood by remember { mutableStateOf("مؤثرات طبيعية هادئة (خرير ماء ونسيم هواء)") }
-    var voicePitchRate by remember { mutableFloatStateOf(1.0f) }
 
     // 5. Motion Rhythm & Camera
     var transitionSpeed by remember { mutableStateOf("متوازنة وانسيابية (0.6 ثانية)") }
@@ -128,13 +122,13 @@ fun CreateStyleObjectScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
-                                color = GoldPrimary.copy(alpha = 0.15f),
+                                color = PresetPrimary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                             ) {
                                 Text(
                                     text = "Supabase Sync",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -165,7 +159,7 @@ fun CreateStyleObjectScreen(
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = "AI Auto Fill",
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
@@ -228,7 +222,7 @@ fun CreateStyleObjectScreen(
                 SectionCard(
                     title = "1. هوية النمط الأساسية",
                     icon = Icons.Default.Badge,
-                    accentColor = GoldPrimary
+                    accentColor = PresetPrimary
                 ) {
                     OutlinedTextField(
                         value = styleName,
@@ -239,7 +233,7 @@ fun CreateStyleObjectScreen(
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         leadingIcon = {
-                            Icon(Icons.Default.Style, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.Default.Style, contentDescription = null, tint = PresetPrimary)
                         }
                     )
 
@@ -323,10 +317,10 @@ fun CreateStyleObjectScreen(
                                 .padding(vertical = 4.dp)
                                 .clickable { typographyStyle = typo },
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) GoldPrimary.copy(alpha = 0.12f) else CardSurface,
+                            color = if (isSelected) PresetPrimary.copy(alpha = 0.12f) else CardSurface,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.08f)
+                                if (isSelected) PresetPrimary else ThemeSeparator.copy(alpha = 0.08f)
                             )
                         ) {
                             Row(
@@ -336,13 +330,13 @@ fun CreateStyleObjectScreen(
                                 RadioButton(
                                     selected = isSelected,
                                     onClick = { typographyStyle = typo },
-                                    colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary)
+                                    colors = RadioButtonDefaults.colors(selectedColor = PresetPrimary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = typo,
                                     fontSize = 13.sp,
-                                    color = if (isSelected) GoldPrimary else TextPrimary,
+                                    color = if (isSelected) PresetPrimary else TextPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
@@ -377,14 +371,14 @@ fun CreateStyleObjectScreen(
                                 onClick = { captionAnimation = key },
                                 label = { Text(label, fontSize = 12.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = GoldPrimary.copy(alpha = 0.2f),
-                                    selectedLabelColor = GoldPrimary,
+                                    selectedContainerColor = PresetPrimary.copy(alpha = 0.2f),
+                                    selectedLabelColor = PresetPrimary,
                                     containerColor = CardSurface,
                                     labelColor = TextSecondary
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = if (isSel) GoldPrimary else Color.White.copy(alpha = 0.1f),
-                                    selectedBorderColor = GoldPrimary,
+                                    borderColor = if (isSel) PresetPrimary else ThemeSeparator.copy(alpha = 0.1f),
+                                    selectedBorderColor = PresetPrimary,
                                     enabled = true,
                                     selected = isSel
                                 )
@@ -638,7 +632,7 @@ fun CreateStyleObjectScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     color = CardSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ThemeSeparator.copy(alpha = 0.08f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -657,19 +651,19 @@ fun CreateStyleObjectScreen(
                             tagsList.forEach { tag ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = GoldPrimary.copy(alpha = 0.15f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
+                                    color = PresetPrimary.copy(alpha = 0.15f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("#$tag", color = GoldPrimary, fontSize = 11.sp)
+                                        Text("#$tag", color = PresetPrimary, fontSize = 11.sp)
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Remove tag",
-                                            tint = GoldPrimary,
+                                            tint = PresetPrimary,
                                             modifier = Modifier
                                                 .size(14.dp)
                                                 .clickable {
@@ -707,7 +701,7 @@ fun CreateStyleObjectScreen(
                                         customTagInput = ""
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Text("إضافة", color = DeepSlate, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -715,7 +709,7 @@ fun CreateStyleObjectScreen(
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                        HorizontalDivider(color = ThemeSeparator.copy(alpha = 0.08f))
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
@@ -740,8 +734,8 @@ fun CreateStyleObjectScreen(
                                 checked = syncToCloud,
                                 onCheckedChange = { syncToCloud = it },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = GoldPrimary,
-                                    checkedTrackColor = GoldPrimary.copy(alpha = 0.3f)
+                                    checkedThumbColor = PresetPrimary,
+                                    checkedTrackColor = PresetPrimary.copy(alpha = 0.3f)
                                 )
                             )
                         }
@@ -811,7 +805,7 @@ fun CreateStyleObjectScreen(
                             .fillMaxWidth()
                             .height(54.dp),
                         enabled = !isSaving,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         if (isSaving) {
@@ -872,10 +866,10 @@ fun CreateStyleObjectScreen(
                 Box(
                     modifier = Modifier
                         .size(54.dp)
-                        .background(GoldPrimary.copy(alpha = 0.2f), CircleShape),
+                        .background(PresetPrimary.copy(alpha = 0.2f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(32.dp))
                 }
             },
             title = {
@@ -903,7 +897,7 @@ fun CreateStyleObjectScreen(
                         showSuccessDialog = null
                         onApplyDirectlyToProject(savedObj)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("تطبيق فوراً على مشروع جديد", color = DeepSlate, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -938,7 +932,7 @@ private fun SectionCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = CardSurface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, ThemeSeparator.copy(alpha = 0.08f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -959,7 +953,7 @@ private fun SectionCard(
                 )
             }
             Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            HorizontalDivider(color = ThemeSeparator.copy(alpha = 0.06f))
             Spacer(modifier = Modifier.height(14.dp))
             content()
         }
@@ -981,7 +975,7 @@ private fun LiveStyleObjectPreviewCard(
     tags: List<String>
 ) {
     val primaryColor = remember(primaryColorHex) {
-        try { Color(android.graphics.Color.parseColor(primaryColorHex)) } catch (e: Exception) { GoldPrimary }
+        try { Color(android.graphics.Color.parseColor(primaryColorHex)) } catch (e: Exception) { PresetPrimary }
     }
     val bgColor = remember(backgroundColorHex) {
         try { Color(android.graphics.Color.parseColor(backgroundColorHex)) } catch (e: Exception) { DeepSlate }
@@ -994,7 +988,7 @@ private fun LiveStyleObjectPreviewCard(
         border = androidx.compose.foundation.BorderStroke(
             1.5.dp,
             Brush.horizontalGradient(
-                listOf(primaryColor.copy(alpha = 0.8f), primaryColor.copy(alpha = 0.2f), Color.White.copy(alpha = 0.1f))
+                listOf(primaryColor.copy(alpha = 0.8f), primaryColor.copy(alpha = 0.2f), ThemeSeparator.copy(alpha = 0.1f))
             )
         )
     ) {
@@ -1127,7 +1121,7 @@ private fun ColorPaletteSelector(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         colors.forEach { (hex, name) ->
-            val colorObj = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { GoldPrimary }
+            val colorObj = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { PresetPrimary }
             val isSelected = selectedHex.equals(hex, ignoreCase = true)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1141,7 +1135,7 @@ private fun ColorPaletteSelector(
                         .background(colorObj, CircleShape)
                         .border(
                             width = if (isSelected) 3.dp else 1.dp,
-                            color = if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.2f),
+                            color = if (isSelected) PresetPrimary else ThemeSeparator.copy(alpha = 0.2f),
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -1159,7 +1153,7 @@ private fun ColorPaletteSelector(
                 Text(
                     text = name,
                     fontSize = 10.sp,
-                    color = if (isSelected) GoldPrimary else TextSecondary,
+                    color = if (isSelected) PresetPrimary else TextSecondary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -1184,17 +1178,17 @@ private fun ChipSelector(
             Surface(
                 modifier = Modifier.clickable { onSelect(option) },
                 shape = RoundedCornerShape(10.dp),
-                color = if (isSelected) GoldPrimary.copy(alpha = 0.18f) else CardSurface,
+                color = if (isSelected) PresetPrimary.copy(alpha = 0.18f) else CardSurface,
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.1f)
+                    if (isSelected) PresetPrimary else ThemeSeparator.copy(alpha = 0.1f)
                 )
             ) {
                 Text(
                     text = option,
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isSelected) GoldPrimary else TextSecondary,
+                    color = if (isSelected) PresetPrimary else TextSecondary,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }
@@ -1218,10 +1212,10 @@ private fun MultiChipSelector(
                             .weight(1f)
                             .clickable { onToggle(option) },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) GoldPrimary.copy(alpha = 0.16f) else CardSurface,
+                        color = if (isSelected) PresetPrimary.copy(alpha = 0.16f) else CardSurface,
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isSelected) GoldPrimary else Color.White.copy(alpha = 0.08f)
+                            if (isSelected) PresetPrimary else ThemeSeparator.copy(alpha = 0.08f)
                         )
                     ) {
                         Row(
@@ -1231,14 +1225,14 @@ private fun MultiChipSelector(
                             Icon(
                                 imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                 contentDescription = null,
-                                tint = if (isSelected) GoldPrimary else TextSecondary,
+                                tint = if (isSelected) PresetPrimary else TextSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = option,
                                 fontSize = 11.sp,
-                                color = if (isSelected) GoldPrimary else TextPrimary,
+                                color = if (isSelected) PresetPrimary else TextPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1330,13 +1324,13 @@ private fun QuickPresetsSection(onSelectPreset: (StylePresetData) -> Unit) {
                     modifier = Modifier.clickable { onSelectPreset(preset) },
                     shape = RoundedCornerShape(12.dp),
                     color = CardSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.25f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(preset.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     }
@@ -1366,13 +1360,13 @@ private data class StylePresetData(
 
 @Composable
 private fun outlinedTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = GoldPrimary,
-    unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
+    focusedBorderColor = PresetPrimary,
+    unfocusedBorderColor = ThemeSeparator.copy(alpha = 0.12f),
     focusedTextColor = TextPrimary,
     unfocusedTextColor = TextPrimary,
-    focusedLabelColor = GoldPrimary,
+    focusedLabelColor = PresetPrimary,
     unfocusedLabelColor = TextSecondary,
-    cursorColor = GoldPrimary
+    cursorColor = PresetPrimary
 )
 
 @Composable
@@ -1387,7 +1381,7 @@ private fun AiStyleAssistantDialog(
         onDismissRequest = onDismiss,
         containerColor = CardSurface,
         icon = {
-            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(28.dp))
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(28.dp))
         },
         title = {
             Text("المولد الذكي لكائنات الأنماط", fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -1472,7 +1466,7 @@ private fun AiStyleAssistantDialog(
                     }
                     onApplyGeneratedStyle(generated)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text("توليد وتطبيق", color = DeepSlate, fontWeight = FontWeight.Bold)

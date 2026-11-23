@@ -26,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +51,7 @@ fun BugCameraSettingsScreen(
     BackHandler { onBack() }
 
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val allReports by BugReportRepository.reports.collectAsState()
     val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
     val cloudAuthUser by CloudServices.Auth.currentUser.collectAsState()
@@ -83,15 +83,6 @@ fun BugCameraSettingsScreen(
     // عداد البلاغات المخزنة
     // حركة أنميشن المعاينة الحية
     val infiniteTransition = rememberInfiniteTransition(label = "PreviewTransition")
-    val previewRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "radarRotation"
-    )
     val previewPulse by infiniteTransition.animateFloat(
         initialValue = 0.95f,
         targetValue = 1.05f,
@@ -116,14 +107,14 @@ fun BugCameraSettingsScreen(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF00E5FF).copy(alpha = 0.15f))
-                                .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                                .background(theme.primary.copy(alpha = 0.15f))
+                                .border(1.dp, theme.primary.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
                                 contentDescription = null,
-                                tint = Color(0xFF00E5FF),
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -131,7 +122,7 @@ fun BugCameraSettingsScreen(
                         Column(modifier = Modifier.weight(1f, fill = false)) {
                             Text(
                                 text = "زر الكاميرا الفضائي للبلاغات",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
@@ -140,7 +131,7 @@ fun BugCameraSettingsScreen(
                             )
                             Text(
                                 text = "أداة التقاط الشاشة وفحص مقاييس الأخطاء",
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.5.sp,
                                 maxLines = 1,
@@ -157,7 +148,7 @@ fun BugCameraSettingsScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "رجوع",
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
@@ -172,7 +163,7 @@ fun BugCameraSettingsScreen(
                         Icon(
                             imageVector = Icons.Default.RestartAlt,
                             contentDescription = "إعادة ضبط",
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
@@ -195,7 +186,7 @@ fun BugCameraSettingsScreen(
                     .fillMaxWidth()
                     .luxuryCardStyle(shapeRadius = 20.dp, borderAlpha = if (cameraEnabled) 0.55f else 0.25f, glowElevation = 6.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = if (cameraEnabled) Color(0xFF0D1726) else Color(0xFF0A0F1A))
+                colors = CardDefaults.cardColors(containerColor = if (cameraEnabled) theme.cardSurface else theme.background)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -211,14 +202,14 @@ fun BugCameraSettingsScreen(
                                 modifier = Modifier
                                     .size(46.dp)
                                     .clip(CircleShape)
-                                    .background(if (cameraEnabled) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF334155).copy(alpha = 0.3f))
-                                    .border(1.2.dp, if (cameraEnabled) Color(0xFF10B981) else Color(0xFF475569), CircleShape),
+                                    .background(if (cameraEnabled) theme.success.copy(alpha = 0.2f) else theme.separator.copy(alpha = 0.3f))
+                                    .border(1.2.dp, if (cameraEnabled) theme.success else theme.separator, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = if (cameraEnabled) Icons.Default.CameraAlt else Icons.Default.NoPhotography,
                                     contentDescription = null,
-                                    tint = if (cameraEnabled) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                    tint = if (cameraEnabled) theme.success else theme.textSecondary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -227,7 +218,7 @@ fun BugCameraSettingsScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = "تفعيل زر الكاميرا الفضائي",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.5.sp,
@@ -237,7 +228,7 @@ fun BugCameraSettingsScreen(
                                 }
                                 Text(
                                     text = if (cameraEnabled) "نشط وعائم في كافة شاشات التطبيق 🟢" else "معطل ومخفي تماماً ⚪",
-                                    color = if (cameraEnabled) Color(0xFF10B981) else Color(0xFF94A3B8),
+                                    color = if (cameraEnabled) theme.success else theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
                                     maxLines = 1,
@@ -253,10 +244,10 @@ fun BugCameraSettingsScreen(
                                 AppSoundManager.playClick()
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF10B981),
-                                checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.45f),
-                                uncheckedThumbColor = Color.Gray,
-                                uncheckedTrackColor = Color(0xFF1E293B)
+                                checkedThumbColor = theme.success,
+                                checkedTrackColor = theme.success.copy(alpha = 0.45f),
+                                uncheckedThumbColor = theme.textTertiary,
+                                uncheckedTrackColor = theme.secondarySurface
                             ),
                             modifier = Modifier.testTag("bug_cam_master_switch")
                         )
@@ -266,7 +257,7 @@ fun BugCameraSettingsScreen(
 
                     Text(
                         text = "ميزة حصرية للحسابات المسجلة: تمكّنك من التقاط لقطات الشاشة بنقاء، وتحديد مواضع الخلل بقلم التأشير، وقياس أبعاد الـ DP، وإرسال البلاغات التقنية مباشرة للمطور.",
-                        color = Color(0xFFCBD5E1),
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontSize = 11.5.sp,
                         lineHeight = 17.sp
@@ -281,7 +272,7 @@ fun BugCameraSettingsScreen(
                         .fillMaxWidth()
                         .luxuryCardStyle(shapeRadius = 18.dp, borderAlpha = 0.4f),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF090E1A))
+                    colors = CardDefaults.cardColors(containerColor = theme.background)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -291,19 +282,19 @@ fun BugCameraSettingsScreen(
                         ) {
                             Text(
                                 text = "المعاينة الحية التفاعلية للمظهر:",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp
                             )
                             Surface(
-                                color = Color(0xFF00E5FF).copy(alpha = 0.15f),
+                                color = theme.primary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(0.8.dp, Color(0xFF00E5FF).copy(alpha = 0.4f))
+                                border = BorderStroke(0.8.dp, theme.primary.copy(alpha = 0.4f))
                             ) {
                                 Text(
                                     text = if (compactMode) "الوضع المصغر (46dp)" else "الوضع الكامل (54dp)",
-                                    color = Color(0xFF00E5FF),
+                                    color = theme.primary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -324,10 +315,10 @@ fun BugCameraSettingsScreen(
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(Color(0xFF080D18), Color(0xFF0F1826))
+                                        listOf(theme.background, theme.cardSurface)
                                     )
                                 )
-                                .border(1.dp, Color(0xFF1E2D44), RoundedCornerShape(14.dp)),
+                                .border(1.dp, theme.separator, RoundedCornerShape(14.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             // خطوط شبكة HUD الدقيقة
@@ -341,15 +332,15 @@ fun BugCameraSettingsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("HUD :: SPATIAL_LENS_v2", color = Color(0xFF334155), fontFamily = RobotoMonoFont, fontSize = 9.sp)
-                                    Text("DP_ACCURACY: 100%", color = Color(0xFF334155), fontFamily = RobotoMonoFont, fontSize = 9.sp)
+                                    Text("HUD :: SPATIAL_LENS_v2", color = theme.separator, fontFamily = RobotoMonoFont, fontSize = 9.sp)
+                                    Text("DP_ACCURACY: 100%", color = theme.separator, fontFamily = RobotoMonoFont, fontSize = 9.sp)
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("OPACITY: ${(idleAlpha * 100).toInt()}%", color = Color(0xFF334155), fontFamily = RobotoMonoFont, fontSize = 9.sp)
-                                    Text("MODE: ${if (dockedMode) "DOCKED" else "FLOATING"}", color = Color(0xFF334155), fontFamily = RobotoMonoFont, fontSize = 9.sp)
+                                    Text("OPACITY: ${(idleAlpha * 100).toInt()}%", color = theme.separator, fontFamily = RobotoMonoFont, fontSize = 9.sp)
+                                    Text("MODE: ${if (dockedMode) "DOCKED" else "FLOATING"}", color = theme.separator, fontFamily = RobotoMonoFont, fontSize = 9.sp)
                                 }
                             }
 
@@ -363,13 +354,13 @@ fun BugCameraSettingsScreen(
                                     .clip(CircleShape)
                                     .background(
                                         Brush.radialGradient(
-                                            listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                                            listOf(theme.secondarySurface, theme.cardSurface)
                                         )
                                     )
                                     .border(
                                         2.dp,
                                         Brush.sweepGradient(
-                                            listOf(GoldPrimary, Color(0xFF00E5FF), GoldSecondary, GoldPrimary)
+                                            listOf(PresetPrimary, theme.primary, PresetAccent, PresetPrimary)
                                         ),
                                         CircleShape
                                     )
@@ -383,7 +374,7 @@ fun BugCameraSettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
                                     contentDescription = "معاينة الزر",
-                                    tint = if (previewTapped) Color(0xFF00E5FF) else GoldPrimary,
+                                    tint = if (previewTapped) theme.primary else PresetPrimary,
                                     modifier = Modifier
                                         .size(if (compactMode) 22.dp else 26.dp)
                                         .rotate(if (previewTapped) 15f else 0f)
@@ -394,7 +385,7 @@ fun BugCameraSettingsScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "انقر على الزر أعلاه لتجربة الاستجابة البصرية والصوتية.",
-                            color = Color(0xFF64748B),
+                            color = theme.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 10.sp,
                             textAlign = TextAlign.Center,
@@ -409,7 +400,7 @@ fun BugCameraSettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         text = "خيارات وتخصيصات الكاميرا الفضائية ⚙️",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp
@@ -490,11 +481,11 @@ fun BugCameraSettingsScreen(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Opacity, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Opacity, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
-                                    Text("درجة الشفافية عند عدم الاستخدام", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text("تخفيف حدة الزر لكي لا يشتت القراءة والإنتاج", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                    Text("درجة الشفافية عند عدم الاستخدام", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("تخفيف حدة الزر لكي لا يشتت القراءة والإنتاج", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
                                 }
                             }
 
@@ -519,13 +510,13 @@ fun BugCameraSettingsScreen(
                                             .weight(1f)
                                             .height(38.dp),
                                         shape = RoundedCornerShape(10.dp),
-                                        color = if (isSelected) GoldPrimary.copy(alpha = 0.2f) else Color(0xFF131D2E),
-                                        border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF223048))
+                                        color = if (isSelected) PresetPrimary.copy(alpha = 0.2f) else theme.cardSurface,
+                                        border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.separator)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
                                                 text = label,
-                                                color = if (isSelected) GoldPrimary else Color(0xFFCBD5E1),
+                                                color = if (isSelected) PresetPrimary else theme.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 11.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -547,11 +538,11 @@ fun BugCameraSettingsScreen(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PinDrop, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.PinDrop, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
-                                    Text("تثبيت موضع الزر فورياً في الزوايا", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text("نقل الزر بلمسة واحدة لأي زاوية من الشاشة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                    Text("تثبيت موضع الزر فورياً في الزوايا", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("نقل الزر بلمسة واحدة لأي زاوية من الشاشة", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
                                 }
                             }
 
@@ -570,12 +561,12 @@ fun BugCameraSettingsScreen(
                                         .weight(1f)
                                         .height(38.dp),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f)),
+                                    border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.6f)),
                                     contentPadding = PaddingValues(horizontal = 4.dp)
                                 ) {
-                                    Icon(Icons.Default.VerticalAlignBottom, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.VerticalAlignBottom, contentDescription = null, tint = theme.primary, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("الموضع الافتراضي", color = Color(0xFF00E5FF), fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("الموضع الافتراضي", color = theme.primary, fontFamily = CairoFont, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 OutlinedButton(
@@ -591,12 +582,12 @@ fun BugCameraSettingsScreen(
                                         .weight(1f)
                                         .height(38.dp),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    border = BorderStroke(1.dp, theme.separator),
                                     contentPadding = PaddingValues(horizontal = 4.dp)
                                 ) {
-                                    Icon(Icons.Default.VerticalAlignTop, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.VerticalAlignTop, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("أعلى الشاشة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                    Text("أعلى الشاشة", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
                                 }
                             }
                         }
@@ -625,21 +616,21 @@ fun BugCameraSettingsScreen(
                                     modifier = Modifier
                                         .size(38.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(GoldPrimary.copy(alpha = 0.15f)),
+                                        .background(PresetPrimary.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.BugReport, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.BugReport, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
-                                    Text("سجل بلاغاتي ومشاكلي المسجلة", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text("${myReports.size} بلاغاً مسجلاً في السحابة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                    Text("سجل بلاغاتي ومشاكلي المسجلة", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${myReports.size} بلاغاً مسجلاً في السحابة", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
                                 }
                             }
 
                             Button(
                                 onClick = onOpenMyReports,
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
@@ -668,6 +659,7 @@ private fun SettingSwitchCard(
     testTag: String,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -690,13 +682,13 @@ private fun SettingSwitchCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isChecked) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF1E293B)),
+                        .background(if (isChecked) PresetPrimary.copy(alpha = 0.15f) else theme.secondarySurface),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isChecked) GoldPrimary else Color(0xFF64748B),
+                        tint = if (isChecked) PresetPrimary else theme.textTertiary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -704,7 +696,7 @@ private fun SettingSwitchCard(
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
@@ -713,7 +705,7 @@ private fun SettingSwitchCard(
                     )
                     Text(
                         text = subtitle,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 10.5.sp,
                         lineHeight = 15.sp
@@ -725,10 +717,10 @@ private fun SettingSwitchCard(
                 checked = isChecked,
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = GoldPrimary,
-                    checkedTrackColor = GoldPrimary.copy(alpha = 0.5f),
-                    uncheckedThumbColor = Color.Gray,
-                    uncheckedTrackColor = Color(0xFF1E293B)
+                    checkedThumbColor = PresetPrimary,
+                    checkedTrackColor = PresetPrimary.copy(alpha = 0.5f),
+                    uncheckedThumbColor = theme.textTertiary,
+                    uncheckedTrackColor = theme.secondarySurface
                 ),
                 modifier = Modifier.testTag(testTag)
             )

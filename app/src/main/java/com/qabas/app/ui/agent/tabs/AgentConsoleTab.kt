@@ -8,12 +8,9 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,35 +18,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.UUID
-import java.util.Date
-import java.util.Locale
-import java.text.SimpleDateFormat
 
 
 @Composable
@@ -326,7 +307,7 @@ internal fun AgentLiveConsoleTab(
 
             val startTime = System.currentTimeMillis()
             // تجاوز تلقائي عبر المسبح مرتباً حسب الأسرع المتصل
-            val apiResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, cmd.prompt, sysPrompt, key)
+            val apiResult = UniversalKeyBrain.executeRealAgentStepWithFailover(provider, cmd.prompt, sysPrompt, key, context = context, missionTitle = cmd.prompt)
             val latency = System.currentTimeMillis() - startTime
 
             apiResult.fold(
@@ -481,7 +462,7 @@ internal fun AgentLiveConsoleTab(
                 val sysPrompt = "أنت الوكيل البرمجي المستقل لتطبيق خادم المسلم (نمط ${selectedSpecialization.title}). أجِب بوضوح ودقة عالية واعرض حلول وتعديلات الكود بأسلوب مهني ومباشر باللغة العربية."
                 val chatResult = runCatching {
                     AppServices.chatWithAssistant(listOf(Pair(true, clean)), sysPrompt)
-                }
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 withContext(Dispatchers.Main) {
                     val agentMsg = if (chatResult.isSuccess) {
                         AgentChatMessage(sender = AgentChatSender.AGENT, text = chatResult.getOrThrow())
@@ -539,15 +520,15 @@ internal fun AgentLiveConsoleTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF08101E))
+                    .background(QabasTheme.current.background)
                     .border(
                         BorderStroke(
                             1.2.dp,
                             Brush.horizontalGradient(
                                 listOf(
-                                    Color(0xFF10B981).copy(alpha = 0.85f),
-                                    Color(0xFF00F0FF).copy(alpha = 0.5f),
-                                    Color(0xFF1E2D4A)
+                                    QabasTheme.current.success.copy(alpha = 0.85f),
+                                    QabasTheme.current.primary.copy(alpha = 0.5f),
+                                    QabasTheme.current.separator
                                 )
                             )
                         ),
@@ -566,12 +547,12 @@ internal fun AgentLiveConsoleTab(
                                 modifier = Modifier
                                     .size(9.dp)
                                     .clip(CircleShape)
-                                    .background(if (ghState == GitHubConnectionState.CONNECTED) Color(0xFF10B981) else Color(0xFFF59E0B))
+                                    .background(if (ghState == GitHubConnectionState.CONNECTED) QabasTheme.current.success else QabasTheme.current.warning)
                             )
                             Spacer(modifier = Modifier.width(7.dp))
                             Text(
                                 "SPATIAL HUD // EXECUTION TARGET",
-                                color = Color(0xFF00F0FF),
+                                color = QabasTheme.current.primary,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -581,15 +562,15 @@ internal fun AgentLiveConsoleTab(
 
                         Button(
                             onClick = onJumpBuildCenter,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF122238)),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.secondarySurface),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.6f)),
+                            border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.6f)),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             modifier = Modifier.height(28.dp)
                         ) {
-                            Icon(Icons.Default.SyncAlt, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(12.dp))
+                            Icon(Icons.Default.SyncAlt, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("خزانة المستودعات 🔄", color = Color(0xFF00F0FF), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("خزانة المستودعات 🔄", color = QabasTheme.current.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -598,13 +579,13 @@ internal fun AgentLiveConsoleTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
+                            color = QabasTheme.current.success.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(
                                 Icons.Default.Terminal,
                                 contentDescription = null,
-                                tint = Color(0xFF10B981),
+                                tint = QabasTheme.current.success,
                                 modifier = Modifier.padding(8.dp).size(20.dp)
                             )
                         }
@@ -612,7 +593,7 @@ internal fun AgentLiveConsoleTab(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "لم يتم تحديد مستودع",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
@@ -621,7 +602,7 @@ internal fun AgentLiveConsoleTab(
                             )
                             Text(
                                 "غرفة التنفيذ: الأوامر والأدوات وطابور العمل تطبق على هذا المستودع ⚡",
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = NotoSansFont,
                                 fontSize = 12.sp,
                                 maxLines = 1,
@@ -636,9 +617,9 @@ internal fun AgentLiveConsoleTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = (if (ghState == GitHubConnectionState.CONNECTED) Color(0xFF10B981) else Color(0xFFF59E0B)).copy(alpha = 0.15f),
+                            color = (if (ghState == GitHubConnectionState.CONNECTED) QabasTheme.current.success else QabasTheme.current.warning).copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, (if (ghState == GitHubConnectionState.CONNECTED) Color(0xFF10B981) else Color(0xFFF59E0B)).copy(alpha = 0.4f))
+                            border = BorderStroke(1.dp, (if (ghState == GitHubConnectionState.CONNECTED) QabasTheme.current.success else QabasTheme.current.warning).copy(alpha = 0.4f))
                         ) {
                             Text(
                                 when (ghState) {
@@ -647,7 +628,7 @@ internal fun AgentLiveConsoleTab(
                                     GitHubConnectionState.NOT_CONFIGURED -> "⚠️ بانتظار الرمز"
                                     GitHubConnectionState.PERMISSION_ERROR -> "❌ خطأ صلاحية"
                                 },
-                                color = if (ghState == GitHubConnectionState.CONNECTED) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                color = if (ghState == GitHubConnectionState.CONNECTED) QabasTheme.current.success else QabasTheme.current.warning,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -656,13 +637,13 @@ internal fun AgentLiveConsoleTab(
                         }
 
                         Surface(
-                            color = Color(0xFF38BDF8).copy(alpha = 0.12f),
+                            color = QabasTheme.current.primary.copy(alpha = 0.12f),
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.3f))
                         ) {
                             Text(
                                 "الفرع: $ghBranch",
-                                color = Color(0xFF38BDF8),
+                                color = QabasTheme.current.primary,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
@@ -672,13 +653,13 @@ internal fun AgentLiveConsoleTab(
 
                         if (ghLatencyMs > 0) {
                             Surface(
-                                color = Color(0xFF8B5CF6).copy(alpha = 0.12f),
+                                color = QabasTheme.current.accent.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.3f))
+                                border = BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.3f))
                             ) {
                                 Text(
                                     "${ghLatencyMs}ms",
-                                    color = Color(0xFF8B5CF6),
+                                    color = QabasTheme.current.accent,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -698,15 +679,15 @@ internal fun AgentLiveConsoleTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF0A0F1E))
+                    .background(QabasTheme.current.background)
                     .border(
                         BorderStroke(
                             1.2.dp,
                             Brush.horizontalGradient(
                                 listOf(
                                     activeEngineInfo.first.color.copy(alpha = 0.7f),
-                                    Color(0xFF38BDF8).copy(alpha = 0.3f),
-                                    Color.Transparent
+                                    QabasTheme.current.primary.copy(alpha = 0.3f),
+                                    activeEngineInfo.first.color.copy(alpha = 0f)
                                 )
                             )
                         ),
@@ -744,7 +725,7 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Text(
                                 if (isKeyBoxExpanded) "إغلاق ▲" else "تغيير المفتاح ▼",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -776,7 +757,7 @@ internal fun AgentLiveConsoleTab(
                         if (activeEngineInfo.second.isNotBlank()) {
                             Text(
                                 "${activeEngineInfo.second.take(8)}•••${activeEngineInfo.second.takeLast(4)}",
-                                color = Color(0xFF64748B),
+                                color = QabasTheme.current.textTertiary,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp
                             )
@@ -785,12 +766,12 @@ internal fun AgentLiveConsoleTab(
 
                     if (isKeyBoxExpanded) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        HorizontalDivider(color = Color(0xFF1E2D4A))
+                        HorizontalDivider(color = QabasTheme.current.separator)
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             "الصق أي مفتاح ذكاء اصطناعي (Gemini, Groq, OpenRouter, OpenAI, Claude) — سيكتشفه النظام تلقائياً:",
-                            color = Color(0xFFCBD5E1),
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp
                         )
@@ -803,18 +784,18 @@ internal fun AgentLiveConsoleTab(
                                 customKeyInput = it
                                 detectedNewProvider = UniversalKeyBrain.detect(it)
                             },
-                            placeholder = { Text("الصق المفتاح هنا...", color = Color(0xFF64748B), fontSize = 12.sp) },
+                            placeholder = { Text("الصق المفتاح هنا...", color = QabasTheme.current.textTertiary, fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
-                                color = Color.White
+                                color = QabasTheme.current.textPrimary
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF030712),
-                                unfocusedContainerColor = Color(0xFF030712),
-                                focusedBorderColor = if (detectedNewProvider != DetectedProvider.NONE) detectedNewProvider.color else GoldPrimary,
-                                unfocusedBorderColor = Color(0xFF1E2D4A)
+                                focusedContainerColor = QabasTheme.current.background,
+                                unfocusedContainerColor = QabasTheme.current.background,
+                                focusedBorderColor = if (detectedNewProvider != DetectedProvider.NONE) detectedNewProvider.color else PresetPrimary,
+                                unfocusedBorderColor = QabasTheme.current.separator
                             ),
                             shape = RoundedCornerShape(8.dp),
                             singleLine = true
@@ -828,7 +809,7 @@ internal fun AgentLiveConsoleTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("المزود المكتشف: ", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
+                                    Text("المزود المكتشف: ", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                                     Text(
                                         detectedNewProvider.displayName,
                                         color = detectedNewProvider.color,
@@ -860,9 +841,9 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.height(10.dp))
                         Surface(
                             onClick = { showFreeProvidersDialog = true },
-                            color = Color(0xFF0C221F),
+                            color = QabasTheme.current.success.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
+                            border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.6f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -874,24 +855,24 @@ internal fun AgentLiveConsoleTab(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(20.dp))
                                     Column {
                                         Text(
                                             text = "🎁 دليل المزودات المجانية ونماذج الكود القوية",
-                                            color = Color.White,
+                                            color = QabasTheme.current.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp
                                         )
                                         Text(
                                             text = "احصل على مفتاح مجاني لـ Gemini 2.0 و Qwen Coder و Llama 3.3 مجاناً 100%",
-                                            color = Color(0xFFA7F3D0),
+                                            color = QabasTheme.current.success,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp
                                         )
                                     }
                                 }
-                                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -907,7 +888,7 @@ internal fun AgentLiveConsoleTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF070C18))
+                    .background(QabasTheme.current.background)
                     .border(
                         BorderStroke(
                             1.2.dp,
@@ -915,7 +896,7 @@ internal fun AgentLiveConsoleTab(
                                 listOf(
                                     ghState.color.copy(alpha = 0.7f),
                                     ghState.color.copy(alpha = 0.2f),
-                                    Color.Transparent
+                                    ghState.color.copy(alpha = 0f)
                                 )
                             )
                         ),
@@ -979,14 +960,14 @@ internal fun AgentLiveConsoleTab(
                                 GitHubConnectionState.CONNECTED -> {
                                     Text(
                                         if (owner.isNotBlank() && repo.isNotBlank()) "$owner/$repo" else "لم يتم تحديد مستودع",
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         "المستخدم المصرح: @${ghUser ?: "auth"} • الفرع: $ghBranch • سرعة الاستجابة: ${ghLatencyMs}ms ✓",
-                                        color = Color(0xFF94A3B8),
+                                        color = QabasTheme.current.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp
                                     )
@@ -994,14 +975,14 @@ internal fun AgentLiveConsoleTab(
                                 GitHubConnectionState.SYNCING -> {
                                     Text(
                                         "جاري التحقق والمزامنة مع GitHub...",
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         "اختبار صلاحيات الرمز وجلب بيانات الفروع...",
-                                        color = Color(0xFF94A3B8),
+                                        color = QabasTheme.current.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp
                                     )
@@ -1009,14 +990,14 @@ internal fun AgentLiveConsoleTab(
                                 GitHubConnectionState.PERMISSION_ERROR -> {
                                     Text(
                                         "خطأ في الصلاحيات أو الرمز",
-                                        color = Color(0xFFFCA5A5),
+                                        color = QabasTheme.current.destructive,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         ghErrorMessage.ifBlank { "الرمز منتهي الصلاحية أو يفتقد لصلاحية repo. اضغط لتحديث الرمز." },
-                                        color = Color(0xFFEF4444),
+                                        color = QabasTheme.current.destructive,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp,
                                         lineHeight = 15.sp
@@ -1025,14 +1006,14 @@ internal fun AgentLiveConsoleTab(
                                 GitHubConnectionState.NOT_CONFIGURED -> {
                                     Text(
                                         "الوكيل يعمل في وضع الساندبوكس المحلي (Sandbox)",
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         "لم يتم ربط مستودع GitHub بعد. اربط مستودعك لتمكين الدفع والـ PR المباشر.",
-                                        color = Color(0xFF94A3B8),
+                                        color = QabasTheme.current.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp
                                     )
@@ -1050,7 +1031,7 @@ internal fun AgentLiveConsoleTab(
                                 Icon(
                                     Icons.Default.Refresh,
                                     contentDescription = "فحص الاتصال",
-                                    tint = if (ghState == GitHubConnectionState.SYNCING) Color(0xFF38BDF8) else GoldPrimary,
+                                    tint = if (ghState == GitHubConnectionState.SYNCING) QabasTheme.current.primary else PresetPrimary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -1058,7 +1039,7 @@ internal fun AgentLiveConsoleTab(
                             if (ghState == GitHubConnectionState.PERMISSION_ERROR || ghState == GitHubConnectionState.NOT_CONFIGURED) {
                                 Button(
                                     onClick = onJumpBuildCenter,
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                     modifier = Modifier.height(28.dp)
@@ -1095,15 +1076,15 @@ internal fun AgentLiveConsoleTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF090E1D))
+                    .background(QabasTheme.current.background)
                     .border(
                         BorderStroke(
                             1.2.dp,
                             Brush.horizontalGradient(
                                 listOf(
-                                    Color(0xFF38BDF8).copy(alpha = 0.6f),
-                                    Color(0xFFA855F7).copy(alpha = 0.4f),
-                                    Color(0xFF10B981).copy(alpha = 0.3f)
+                                    QabasTheme.current.primary.copy(alpha = 0.6f),
+                                    QabasTheme.current.accent.copy(alpha = 0.4f),
+                                    QabasTheme.current.success.copy(alpha = 0.3f)
                                 )
                             )
                         ),
@@ -1122,11 +1103,11 @@ internal fun AgentLiveConsoleTab(
                             modifier = Modifier.weight(1f, fill = false),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.FormatListNumbered, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(17.dp))
+                            Icon(Icons.Default.FormatListNumbered, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(17.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "طابور الأوامر (Queue Dashboard)",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.5.sp,
@@ -1138,13 +1119,13 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.width(8.dp))
 
                         Surface(
-                            color = if (totalQueue > 0) Color(0xFF38BDF8).copy(alpha = 0.15f) else Color(0xFF1E293B),
+                            color = if (totalQueue > 0) QabasTheme.current.primary.copy(alpha = 0.15f) else QabasTheme.current.separator,
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, if (totalQueue > 0) Color(0xFF38BDF8).copy(alpha = 0.4f) else Color(0xFF334155))
+                            border = BorderStroke(1.dp, if (totalQueue > 0) QabasTheme.current.primary.copy(alpha = 0.4f) else QabasTheme.current.separator)
                         ) {
                             Text(
                                 "$totalQueue مهام",
-                                color = if (totalQueue > 0) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                                color = if (totalQueue > 0) QabasTheme.current.primary else QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1167,35 +1148,35 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF0C1929),
+                                color = QabasTheme.current.cardSurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(QabasTheme.current.primary))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("نشطة: $runningCount", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("نشطة: $runningCount", color = QabasTheme.current.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF1F122B),
+                                color = QabasTheme.current.accent.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFA855F7)))
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(QabasTheme.current.accent))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("موقوفة: $pausedCount", color = Color(0xFFA855F7), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("موقوفة: $pausedCount", color = QabasTheme.current.accent, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1206,35 +1187,35 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF1F180A),
+                                color = QabasTheme.current.warning.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, QabasTheme.current.warning.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFF59E0B)))
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(QabasTheme.current.warning))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("بالانتظار: $pendingCount", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("بالانتظار: $pendingCount", color = QabasTheme.current.warning, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF0B1C14),
+                                color = QabasTheme.current.success.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(QabasTheme.current.success))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("مكتملة: $completedCount", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("مكتملة: $completedCount", color = QabasTheme.current.success, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1245,14 +1226,14 @@ internal fun AgentLiveConsoleTab(
                     // قائمة المهام في الطابور مع تقدم كل منها وأزرار التحكم
                     if (commandQueue.isEmpty()) {
                         Surface(
-                            color = Color(0xFF050811),
+                            color = QabasTheme.current.background,
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                            border = BorderStroke(1.dp, QabasTheme.current.separator),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 "لا توجد مهام في الطابور حالياً. اكتب مهمة أدناه واضغط «➕ إضافة للطابور» ليتم إدراجها وجدولتها تلقائياً.",
-                                color = Color(0xFF64748B),
+                                color = QabasTheme.current.textTertiary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(12.dp),
@@ -1268,7 +1249,7 @@ internal fun AgentLiveConsoleTab(
                                 val isCmdPending = cmd.status == CommandStatus.PENDING
 
                                 Surface(
-                                    color = if (isActive) Color(0xFF070F20) else Color(0xFF050812),
+                                    color = if (isActive) QabasTheme.current.secondarySurface else QabasTheme.current.background,
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(
                                         if (isActive) 1.2.dp else 1.dp,
@@ -1301,7 +1282,7 @@ internal fun AgentLiveConsoleTab(
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
                                                     cmd.prompt,
-                                                    color = Color.White,
+                                                    color = QabasTheme.current.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.SemiBold,
                                                     fontSize = 12.sp,
@@ -1345,7 +1326,7 @@ internal fun AgentLiveConsoleTab(
                                                 else if (isCmdPaused) "⏸️ معلقة عند الجولة ${cmd.turnsUsed} من ${cmd.totalTurns}"
                                                 else if (cmd.status == CommandStatus.COMPLETED) "✅ تم الإنجاز في ${cmd.turnsUsed} جولات"
                                                 else "⏳ بانتظار بدء الجولة...",
-                                                color = if (isCmdRunning) Color(0xFF38BDF8) else if (isCmdPaused) Color(0xFFA855F7) else Color(0xFF94A3B8),
+                                                color = if (isCmdRunning) QabasTheme.current.primary else if (isCmdPaused) QabasTheme.current.accent else QabasTheme.current.textSecondary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 12.sp
                                             )
@@ -1365,7 +1346,7 @@ internal fun AgentLiveConsoleTab(
                                             progress = { displayProgress },
                                             modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                                             color = cmd.status.color,
-                                            trackColor = Color(0xFF1E293B)
+                                            trackColor = QabasTheme.current.separator
                                         )
 
                                         Spacer(modifier = Modifier.height(8.dp))
@@ -1381,40 +1362,40 @@ internal fun AgentLiveConsoleTab(
                                                     // زر إيقاف مؤقت
                                                     Button(
                                                         onClick = { pauseAgent() },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4C1D95)),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.accent.copy(alpha = 0.15f)),
                                                         shape = RoundedCornerShape(8.dp),
                                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                                         modifier = Modifier.height(34.dp)
                                                     ) {
-                                                        Icon(Icons.Default.Pause, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                        Icon(Icons.Default.Pause, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(14.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("إيقاف مؤقت", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                                        Text("إيقاف مؤقت", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                                                     }
                                                 } else if (isCmdPaused) {
                                                     // زر استئناف
                                                     Button(
                                                         onClick = { resumeAgent() },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857)),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success),
                                                         shape = RoundedCornerShape(8.dp),
                                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                                         modifier = Modifier.height(34.dp)
                                                     ) {
-                                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(14.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("استئناف", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                                        Text("استئناف", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                                                     }
                                                 } else if (isCmdPending) {
                                                     // زر تشغيل الآن
                                                     Button(
                                                         onClick = { executeCommand(cmd) },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary),
                                                         shape = RoundedCornerShape(8.dp),
                                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                                         modifier = Modifier.height(34.dp)
                                                     ) {
-                                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(14.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("تنفيذ الآن", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                                        Text("تنفيذ الآن", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                                                     }
 
                                                     // أزرار رفع وخفض الأولوية
@@ -1423,7 +1404,7 @@ internal fun AgentLiveConsoleTab(
                                                             onClick = { moveCommandUp(idx) },
                                                             modifier = Modifier.size(34.dp)
                                                         ) {
-                                                            Icon(Icons.Default.ArrowUpward, contentDescription = "رفع الأولوية", tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                                                            Icon(Icons.Default.ArrowUpward, contentDescription = "رفع الأولوية", tint = QabasTheme.current.primary, modifier = Modifier.size(15.dp))
                                                         }
                                                     }
                                                     if (idx < commandQueue.size - 1) {
@@ -1431,7 +1412,7 @@ internal fun AgentLiveConsoleTab(
                                                             onClick = { moveCommandDown(idx) },
                                                             modifier = Modifier.size(34.dp)
                                                         ) {
-                                                            Icon(Icons.Default.ArrowDownward, contentDescription = "خفض الأولوية", tint = Color(0xFF94A3B8), modifier = Modifier.size(15.dp))
+                                                            Icon(Icons.Default.ArrowDownward, contentDescription = "خفض الأولوية", tint = QabasTheme.current.textSecondary, modifier = Modifier.size(15.dp))
                                                         }
                                                     }
                                                 }
@@ -1446,7 +1427,7 @@ internal fun AgentLiveConsoleTab(
                                                     },
                                                     modifier = Modifier.size(34.dp)
                                                 ) {
-                                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
                                                 }
 
                                                 // زر حذف نهائي من الطابور
@@ -1457,7 +1438,7 @@ internal fun AgentLiveConsoleTab(
                                                     Icon(
                                                         Icons.Default.DeleteForever,
                                                         contentDescription = "حذف نهائياً من الطابور",
-                                                        tint = Color(0xFFEF4444).copy(alpha = 0.85f),
+                                                        tint = QabasTheme.current.destructive.copy(alpha = 0.85f),
                                                         modifier = Modifier.size(16.dp)
                                                     )
                                                 }
@@ -1480,9 +1461,9 @@ internal fun AgentLiveConsoleTab(
                                 onClick = { commandQueue.removeAll { it.status == CommandStatus.COMPLETED || it.status == CommandStatus.CANCELLED } },
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                Icon(Icons.Default.CleaningServices, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.CleaningServices, contentDescription = null, tint = QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("مسح المنتهية 🧹", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("مسح المنتهية 🧹", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                             }
 
                             TextButton(
@@ -1493,9 +1474,9 @@ internal fun AgentLiveConsoleTab(
                                 },
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("تفريغ الطابور كاملاً", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("تفريغ الطابور كاملاً", color = QabasTheme.current.destructive, fontFamily = CairoFont, fontSize = 12.sp)
                             }
                         }
                     }
@@ -1511,15 +1492,15 @@ internal fun AgentLiveConsoleTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF080D1C))
+                    .background(QabasTheme.current.background)
                     .border(
                         BorderStroke(
                             1.dp,
                             Brush.horizontalGradient(
                                 listOf(
                                     selectedSpecialization.color.copy(alpha = 0.6f),
-                                    Color(0xFF1E2D4A).copy(alpha = 0.3f),
-                                    Color.Transparent
+                                    QabasTheme.current.separator.copy(alpha = 0.3f),
+                                    selectedSpecialization.color.copy(alpha = 0f)
                                 )
                             )
                         ),
@@ -1538,7 +1519,7 @@ internal fun AgentLiveConsoleTab(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "نمط الوكيل المتخصص:",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -1579,20 +1560,20 @@ internal fun AgentLiveConsoleTab(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clickable { selectedSpecialization = spec },
-                                    color = if (isSelected) spec.color.copy(alpha = 0.18f) else Color(0xFF121B2F),
+                                    color = if (isSelected) spec.color.copy(alpha = 0.18f) else QabasTheme.current.secondarySurface,
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.2.dp, if (isSelected) spec.color else Color(0xFF1E2D4A))
+                                    border = BorderStroke(1.2.dp, if (isSelected) spec.color else QabasTheme.current.separator)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center
                                     ) {
-                                        Icon(spec.icon, contentDescription = null, tint = if (isSelected) spec.color else Color(0xFF94A3B8), modifier = Modifier.size(15.dp))
+                                        Icon(spec.icon, contentDescription = null, tint = if (isSelected) spec.color else QabasTheme.current.textSecondary, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             spec.title,
-                                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                            color = if (isSelected) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
@@ -1614,20 +1595,20 @@ internal fun AgentLiveConsoleTab(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clickable { selectedSpecialization = spec },
-                                    color = if (isSelected) spec.color.copy(alpha = 0.18f) else Color(0xFF121B2F),
+                                    color = if (isSelected) spec.color.copy(alpha = 0.18f) else QabasTheme.current.secondarySurface,
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.2.dp, if (isSelected) spec.color else Color(0xFF1E2D4A))
+                                    border = BorderStroke(1.2.dp, if (isSelected) spec.color else QabasTheme.current.separator)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center
                                     ) {
-                                        Icon(spec.icon, contentDescription = null, tint = if (isSelected) spec.color else Color(0xFF94A3B8), modifier = Modifier.size(15.dp))
+                                        Icon(spec.icon, contentDescription = null, tint = if (isSelected) spec.color else QabasTheme.current.textSecondary, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             spec.title,
-                                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                            color = if (isSelected) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
@@ -1643,14 +1624,14 @@ internal fun AgentLiveConsoleTab(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         selectedSpecialization.description,
-                        color = Color(0xFF94A3B8),
+                        color = QabasTheme.current.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
                         lineHeight = 15.sp
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(color = Color(0xFF1E2D4A))
+                    HorizontalDivider(color = QabasTheme.current.separator)
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // سعة نافذة السياق والضغط الذكي مرتبة عمودياً بهندسة واضحة دون أي تداخل
@@ -1658,8 +1639,8 @@ internal fun AgentLiveConsoleTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF060A14))
-                            .border(BorderStroke(1.dp, Color(0xFF19253C)), RoundedCornerShape(10.dp))
+                            .background(QabasTheme.current.background)
+                            .border(BorderStroke(1.dp, QabasTheme.current.separator), RoundedCornerShape(10.dp))
                             .padding(10.dp)
                     ) {
                         Row(
@@ -1669,14 +1650,14 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Text(
                                 "سعة نافذة السياق (Context Window):",
-                                color = Color(0xFFCBD5E1),
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
                                 "$totalTokensUsed / 128,000 توكن",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -1692,8 +1673,8 @@ internal fun AgentLiveConsoleTab(
                                 .fillMaxWidth()
                                 .height(5.dp)
                                 .clip(RoundedCornerShape(3.dp)),
-                            color = if (progress > 0.8f) Color(0xFFEF4444) else Color(0xFF10B981),
-                            trackColor = Color(0xFF1E293B)
+                            color = if (progress > 0.8f) QabasTheme.current.destructive else QabasTheme.current.success,
+                            trackColor = QabasTheme.current.separator
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1705,7 +1686,7 @@ internal fun AgentLiveConsoleTab(
                         ) {
                             Text(
                                 "🗜️ ضغط ذكي للسياق (Smart Compression)",
-                                color = if (contextCompressionEnabled) Color(0xFF38BDF8) else Color(0xFF64748B),
+                                color = if (contextCompressionEnabled) QabasTheme.current.primary else QabasTheme.current.textTertiary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp
                             )
@@ -1714,8 +1695,8 @@ internal fun AgentLiveConsoleTab(
                                 onCheckedChange = { contextCompressionEnabled = it },
                                 modifier = Modifier.height(26.dp),
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color(0xFF38BDF8),
-                                    checkedTrackColor = Color(0xFF38BDF8).copy(alpha = 0.35f)
+                                    checkedThumbColor = QabasTheme.current.primary,
+                                    checkedTrackColor = QabasTheme.current.primary.copy(alpha = 0.35f)
                                 )
                             )
                         }
@@ -1734,7 +1715,7 @@ internal fun AgentLiveConsoleTab(
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF0F172A).copy(alpha = 0.75f), Color(0xFF090E1A).copy(alpha = 0.85f))
+                            listOf(QabasTheme.current.secondarySurface.copy(alpha = 0.75f), QabasTheme.current.background.copy(alpha = 0.85f))
                         )
                     )
                     .border(
@@ -1742,9 +1723,9 @@ internal fun AgentLiveConsoleTab(
                             1.2.dp,
                             Brush.horizontalGradient(
                                 listOf(
-                                    (if (isRunning) (if (isPaused) Color(0xFFA855F7) else Color(0xFF10B981)) else GoldPrimary).copy(alpha = 0.45f),
-                                    Color(0xFF1E2D4A).copy(alpha = 0.2f),
-                                    Color.Transparent
+                                    (if (isRunning) (if (isPaused) QabasTheme.current.accent else QabasTheme.current.success) else PresetPrimary).copy(alpha = 0.45f),
+                                    QabasTheme.current.separator.copy(alpha = 0.2f),
+                                    (if (isRunning) (if (isPaused) QabasTheme.current.accent else QabasTheme.current.success) else PresetPrimary).copy(alpha = 0f)
                                 )
                             )
                         ),
@@ -1760,13 +1741,13 @@ internal fun AgentLiveConsoleTab(
                     ) {
                         Text(
                             "🎯 المهمة البرمجية المستهدفة (Task Objective):",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
                         if (isRunning) {
-                            val statusColor = if (isPaused) Color(0xFFA855F7) else Color(0xFF10B981)
+                            val statusColor = if (isPaused) QabasTheme.current.accent else QabasTheme.current.success
                             Surface(
                                 color = statusColor.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
@@ -1790,17 +1771,17 @@ internal fun AgentLiveConsoleTab(
                         value = missionInput,
                         onValueChange = { missionInput = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("اكتب الأمر التالي أو مهمة جديدة لإضافتها للطابور...", color = Color(0xFF64748B), fontSize = 12.sp) },
+                        placeholder = { Text("اكتب الأمر التالي أو مهمة جديدة لإضافتها للطابور...", color = QabasTheme.current.textTertiary, fontSize = 12.sp) },
                         textStyle = androidx.compose.ui.text.TextStyle(
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
-                            color = Color.White
+                            color = QabasTheme.current.textPrimary
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF060A14),
-                            unfocusedContainerColor = Color(0xFF060A14),
-                            focusedBorderColor = if (isRunning) (if (isPaused) Color(0xFFA855F7) else Color(0xFF10B981)) else GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E2D4A)
+                            focusedContainerColor = QabasTheme.current.background,
+                            unfocusedContainerColor = QabasTheme.current.background,
+                            focusedBorderColor = if (isRunning) (if (isPaused) QabasTheme.current.accent else QabasTheme.current.success) else PresetPrimary,
+                            unfocusedBorderColor = QabasTheme.current.separator
                         ),
                         shape = RoundedCornerShape(10.dp),
                         minLines = 2,
@@ -1809,7 +1790,7 @@ internal fun AgentLiveConsoleTab(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Text("برومبتات سريعة لتتابع المحادثة والتعديل:", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("برومبتات سريعة لتتابع المحادثة والتعديل:", color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(6.dp))
 
                     // برومبتات سريعة مرتبة في شبكة 2x2 هندسية دون قص جانبي
@@ -1825,13 +1806,13 @@ internal fun AgentLiveConsoleTab(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { missionInput = "🎨 غيّر لون الواجهة إلى الأزرق السيبراني النيون" },
-                                color = Color(0xFF131A2A),
+                                color = QabasTheme.current.cardSurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF22304C))
+                                border = BorderStroke(1.dp, QabasTheme.current.separator)
                             ) {
                                 Text(
                                     "🎨 واجهة سيبرانية نيون",
-                                    color = Color(0xFFCBD5E1),
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     maxLines = 1,
@@ -1844,13 +1825,13 @@ internal fun AgentLiveConsoleTab(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { missionInput = "💬 أضف رسالة تنبيه وتأكيد قبل الحفظ" },
-                                color = Color(0xFF131A2A),
+                                color = QabasTheme.current.cardSurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF22304C))
+                                border = BorderStroke(1.dp, QabasTheme.current.separator)
                             ) {
                                 Text(
                                     "💬 رسالة تأكيد الحفظ",
-                                    color = Color(0xFFCBD5E1),
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     maxLines = 1,
@@ -1868,13 +1849,13 @@ internal fun AgentLiveConsoleTab(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { missionInput = "⚡ فحص خلو الكود من الأخطاء وسلامة البناء" },
-                                color = Color(0xFF131A2A),
+                                color = QabasTheme.current.cardSurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF22304C))
+                                border = BorderStroke(1.dp, QabasTheme.current.separator)
                             ) {
                                 Text(
                                     "⚡ فحص سلامة البناء",
-                                    color = Color(0xFFCBD5E1),
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     maxLines = 1,
@@ -1887,13 +1868,13 @@ internal fun AgentLiveConsoleTab(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { missionInput = "🔍 اعرض شجرة الملفات وابحث عن شاشات العرض" },
-                                color = Color(0xFF131A2A),
+                                color = QabasTheme.current.cardSurface,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF22304C))
+                                border = BorderStroke(1.dp, QabasTheme.current.separator)
                             ) {
                                 Text(
                                     "🔍 استكشاف شاشات العرض",
-                                    color = Color(0xFFCBD5E1),
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     maxLines = 1,
@@ -1909,18 +1890,18 @@ internal fun AgentLiveConsoleTab(
                     // زر فتح شاشة المحادثة المباشرة مع الوكيل
                     OutlinedButton(
                         onClick = { showAgentChatDialog = true },
-                        border = BorderStroke(1.2.dp, Color(0xFF00F0FF)),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF0A182A)),
+                        border = BorderStroke(1.2.dp, QabasTheme.current.primary),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = QabasTheme.current.secondarySurface),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp)
                     ) {
-                        Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(17.dp))
+                        Icon(Icons.Default.SmartToy, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(17.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "فتح شاشة المحادثة المباشرة مع الوكيل 💬🤖",
-                            color = Color(0xFF00F0FF),
+                            color = QabasTheme.current.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -1939,37 +1920,37 @@ internal fun AgentLiveConsoleTab(
                             if (!isPaused) {
                                 Button(
                                     onClick = { pauseAgent() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA855F7)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.accent),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f).height(48.dp)
                                 ) {
-                                    Icon(Icons.Default.Pause, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                    Icon(Icons.Default.Pause, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(17.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("إيقاف مؤقت ⏸️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("إيقاف مؤقت ⏸️", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             } else {
                                 Button(
                                     onClick = { resumeAgent() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f).height(48.dp)
                                 ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(17.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("استئناف التنفيذ ▶️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("استئناف التنفيذ ▶️", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             }
 
                             // زر الإيقاف الفوري الإجباري
                             Button(
                                 onClick = { stopAgent() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f).height(48.dp)
                             ) {
-                                Icon(Icons.Default.Stop, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                Icon(Icons.Default.Stop, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(17.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("إيقاف فوري ⏹️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("إيقاف فوري ⏹️", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
 
@@ -1981,14 +1962,14 @@ internal fun AgentLiveConsoleTab(
                                 enqueueCommand(missionInput, runImmediatelyIfIdle = false)
                                 missionInput = ""
                             },
-                            border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
-                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF091424)),
+                            border = BorderStroke(1.2.dp, QabasTheme.current.primary),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = QabasTheme.current.secondarySurface),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth().height(44.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(17.dp))
+                            Icon(Icons.Default.Add, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(17.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("جدولة كأمر تالٍ في الطابور ➕", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("جدولة كأمر تالٍ في الطابور ➕", color = QabasTheme.current.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     } else {
                         Row(
@@ -2004,9 +1985,9 @@ internal fun AgentLiveConsoleTab(
                                     executeCommand(cmd)
                                     showAgentChatDialog = true
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C2417)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success.copy(alpha = 0.15f)),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.2.dp, Color(0xFF10B981)),
+                                border = BorderStroke(1.2.dp, QabasTheme.current.success),
                                 modifier = Modifier
                                     .weight(1.15f)
                                     .height(48.dp)
@@ -2015,11 +1996,11 @@ internal fun AgentLiveConsoleTab(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         "إطلاق الوكيل ⚡",
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.5.sp
@@ -2033,9 +2014,9 @@ internal fun AgentLiveConsoleTab(
                                     enqueueCommand(missionInput, runImmediatelyIfIdle = true)
                                     missionInput = ""
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0B172C)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.secondarySurface),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.8f)),
+                                border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.8f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
@@ -2044,11 +2025,11 @@ internal fun AgentLiveConsoleTab(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(17.dp))
+                                    Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(17.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         "إضافة للطابور ➕",
-                                        color = Color(0xFF38BDF8),
+                                        color = QabasTheme.current.primary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
@@ -2072,39 +2053,39 @@ internal fun AgentLiveConsoleTab(
                 ) {
                     Surface(
                         modifier = Modifier.weight(1f),
-                        color = Color(0xFF0B101E),
+                        color = QabasTheme.current.cardSurface,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+                        border = BorderStroke(1.dp, QabasTheme.current.separator)
                     ) {
                         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("الخطوات المكتملة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
-                            Text("${steps.size}", color = Color(0xFF38BDF8), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("الخطوات المكتملة", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("${steps.size}", color = QabasTheme.current.primary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
 
                     Surface(
                         modifier = Modifier.weight(1f),
-                        color = Color(0xFF0B101E),
+                        color = QabasTheme.current.cardSurface,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+                        border = BorderStroke(1.dp, QabasTheme.current.separator)
                     ) {
                         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("التوكينز المستهلكة", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
-                            Text("$totalTokensUsed", color = GoldPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("التوكينز المستهلكة", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("$totalTokensUsed", color = PresetPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
 
                     Surface(
                         modifier = Modifier.weight(1f),
-                        color = Color(0xFF0B101E),
+                        color = QabasTheme.current.cardSurface,
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+                        border = BorderStroke(1.dp, QabasTheme.current.separator)
                     ) {
                         Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (isPaused) "موقوف مؤقتاً" else "الوقت المنقضي", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
+                            Text(if (isPaused) "موقوف مؤقتاً" else "الوقت المنقضي", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                             Text(
                                 if (isPaused) "⏸️ PAUSED" else "${elapsedTimeSeconds}s",
-                                color = if (isPaused) Color(0xFFA855F7) else Color(0xFF10B981),
+                                color = if (isPaused) QabasTheme.current.accent else QabasTheme.current.success,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -2122,7 +2103,7 @@ internal fun AgentLiveConsoleTab(
             item {
                 Text(
                     "تسلسل خطوات الوكيل البرمجي (Execution Stream):",
-                    color = Color.White,
+                    color = QabasTheme.current.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -2131,17 +2112,17 @@ internal fun AgentLiveConsoleTab(
 
             items(steps) { step ->
                 val phaseColor = when (step.phase) {
-                    "SUCCESS" -> Color(0xFF10B981)
-                    "ERROR" -> Color(0xFFEF4444)
-                    "PAUSED" -> Color(0xFFA855F7)
-                    "RESUMED" -> Color(0xFF10B981)
-                    "TOOL_CALL" -> Color(0xFF38BDF8)
-                    "PATCHING" -> Color(0xFFF59E0B)
-                    else -> Color(0xFFA855F7)
+                    "SUCCESS" -> QabasTheme.current.success
+                    "ERROR" -> QabasTheme.current.destructive
+                    "PAUSED" -> QabasTheme.current.accent
+                    "RESUMED" -> QabasTheme.current.success
+                    "TOOL_CALL" -> QabasTheme.current.primary
+                    "PATCHING" -> QabasTheme.current.warning
+                    else -> QabasTheme.current.accent
                 }
 
                 Surface(
-                    color = Color(0xFF0B101E).copy(alpha = 0.9f),
+                    color = QabasTheme.current.cardSurface.copy(alpha = 0.9f),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, phaseColor.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
@@ -2170,7 +2151,7 @@ internal fun AgentLiveConsoleTab(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     step.title,
-                                    color = Color.White,
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
@@ -2182,7 +2163,7 @@ internal fun AgentLiveConsoleTab(
                             if (step.latencyMs > 0) {
                                 Text(
                                     "${step.latencyMs}ms",
-                                    color = Color(0xFF64748B),
+                                    color = QabasTheme.current.textTertiary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp
                                 )
@@ -2192,7 +2173,7 @@ internal fun AgentLiveConsoleTab(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             step.detail,
-                            color = Color(0xFFCBD5E1),
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             lineHeight = 15.sp
@@ -2201,12 +2182,12 @@ internal fun AgentLiveConsoleTab(
                         if (step.toolName != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Surface(
-                                color = Color(0xFF030712),
+                                color = QabasTheme.current.background,
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
                                     "TOOL_INVOCATION: ${step.toolName}()",
-                                    color = Color(0xFF38BDF8),
+                                    color = QabasTheme.current.primary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -2227,24 +2208,24 @@ internal fun AgentLiveConsoleTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF050811))
-                        .border(BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
+                        .background(QabasTheme.current.background)
+                        .border(BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
                 ) {
                     Column {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF0F172A))
+                                .background(QabasTheme.current.secondarySurface)
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Code, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.Code, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     generatedDiff!!.filePath.substringAfterLast("/"),
-                                    color = Color.White,
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -2252,9 +2233,9 @@ internal fun AgentLiveConsoleTab(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("+${generatedDiff!!.additions}", color = Color(0xFF10B981), fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("+${generatedDiff!!.additions}", color = QabasTheme.current.success, fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("-${generatedDiff!!.deletions}", color = Color(0xFFEF4444), fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("-${generatedDiff!!.deletions}", color = QabasTheme.current.destructive, fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 IconButton(
                                     onClick = {
@@ -2263,7 +2244,7 @@ internal fun AgentLiveConsoleTab(
                                     },
                                     modifier = Modifier.size(44.dp)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -2271,10 +2252,10 @@ internal fun AgentLiveConsoleTab(
                         Column(modifier = Modifier.padding(10.dp)) {
                             generatedDiff!!.diffText.lines().forEach { line ->
                                 val (bg, txtColor) = when {
-                                    line.startsWith("+") -> Color(0xFF10B981).copy(alpha = 0.15f) to Color(0xFF6EE7B7)
-                                    line.startsWith("-") -> Color(0xFFEF4444).copy(alpha = 0.15f) to Color(0xFFFCA5A5)
-                                    line.startsWith("@@") -> Color(0xFF38BDF8).copy(alpha = 0.12f) to Color(0xFF7DD3FC)
-                                    else -> Color.Transparent to Color(0xFFCBD5E1)
+                                    line.startsWith("+") -> QabasTheme.current.success.copy(alpha = 0.15f) to QabasTheme.current.success
+                                    line.startsWith("-") -> QabasTheme.current.destructive.copy(alpha = 0.15f) to QabasTheme.current.destructive
+                                    line.startsWith("@@") -> QabasTheme.current.primary.copy(alpha = 0.12f) to QabasTheme.current.primary
+                                    else -> QabasTheme.current.background.copy(alpha = 0f) to QabasTheme.current.textPrimary
                                 }
                                 Box(
                                     modifier = Modifier
@@ -2302,8 +2283,8 @@ internal fun AgentLiveConsoleTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF070D1A))
-                        .border(BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)), RoundedCornerShape(14.dp))
+                        .background(QabasTheme.current.background)
+                        .border(BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.6f)), RoundedCornerShape(14.dp))
                         .padding(14.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2313,11 +2294,11 @@ internal fun AgentLiveConsoleTab(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     "فاحص سلامة التنفيذ والتحقق الهندسي",
-                                    color = Color.White,
+                                    color = QabasTheme.current.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -2325,13 +2306,13 @@ internal fun AgentLiveConsoleTab(
                             }
 
                             Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                color = QabasTheme.current.success.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.4f))
                             ) {
                                 Text(
                                     "VERIFIED INTEGRITY ✅",
-                                    color = Color(0xFF10B981),
+                                    color = QabasTheme.current.success,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -2342,7 +2323,7 @@ internal fun AgentLiveConsoleTab(
 
                         Text(
                             "يمكنك فحص الكود المولد للتأكد من سلامة توازنه، أو مراجعة طلب السحب في GitHub، أو التراجع الفوري عن هذه المهمة:",
-                            color = Color(0xFF94A3B8),
+                            color = QabasTheme.current.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             lineHeight = 16.sp
@@ -2350,14 +2331,14 @@ internal fun AgentLiveConsoleTab(
 
                         if (sanityCheckResult != null) {
                             Surface(
-                                color = Color(0xFF041812),
+                                color = QabasTheme.current.success.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                                border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.5f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
                                     sanityCheckResult!!,
-                                    color = Color(0xFF6EE7B7),
+                                    color = QabasTheme.current.success,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(10.dp),
@@ -2408,19 +2389,19 @@ internal fun AgentLiveConsoleTab(
                                 }
                             },
                             enabled = !isPushingToGitHub,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F3A2A)),
-                            border = BorderStroke(1.2.dp, Color(0xFF10B981)),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success.copy(alpha = 0.15f)),
+                            border = BorderStroke(1.2.dp, QabasTheme.current.success),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(46.dp)
                         ) {
                             if (isPushingToGitHub) {
-                                CircularProgressIndicator(color = Color(0xFF10B981), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                                CircularProgressIndicator(color = QabasTheme.current.success, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري حفظ المقترح للفرع...", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("جاري حفظ المقترح للفرع...", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             } else {
-                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("حفظ المقترح إلى فرع GitHub 🔐", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("حفظ المقترح إلى فرع GitHub 🔐", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
 
@@ -2441,15 +2422,15 @@ internal fun AgentLiveConsoleTab(
                                     }
                                     Toast.makeText(context, "تم فحص توازن الأقواس 🧪", Toast.LENGTH_SHORT).show()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF152238)),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.secondarySurface),
+                                border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.6f)),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                 modifier = Modifier.weight(1f).height(44.dp)
                             ) {
-                                Icon(Icons.Default.Science, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.Science, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("فحص الكود 🧪", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("فحص الكود 🧪", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             }
 
                             Button(
@@ -2458,15 +2439,15 @@ internal fun AgentLiveConsoleTab(
                                     clipboard.setText(AnnotatedString(prUrl))
                                     Toast.makeText(context, "تم نسخ رابط طلبات السحب للـ GitHub 📋", Toast.LENGTH_SHORT).show()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF152238)),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.secondarySurface),
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                 modifier = Modifier.weight(1f).height(44.dp)
                             ) {
-                                Icon(Icons.Default.Link, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.Link, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("رابط الـ PR 🔗", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("رابط الـ PR 🔗", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             }
 
                             Button(
@@ -2482,15 +2463,15 @@ internal fun AgentLiveConsoleTab(
                                     )
                                     Toast.makeText(context, "تم تجاهل المقترح ✕", Toast.LENGTH_SHORT).show()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF261016)),
-                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+                                colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive.copy(alpha = 0.15f)),
+                                border = BorderStroke(1.dp, QabasTheme.current.destructive.copy(alpha = 0.6f)),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                                 modifier = Modifier.weight(1f).height(44.dp)
                             ) {
-                                Icon(Icons.Default.Undo, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.Undo, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("تجاهل ✕", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("تجاهل ✕", color = QabasTheme.current.destructive, fontFamily = CairoFont, fontSize = 12.sp)
                             }
                         }
                     }

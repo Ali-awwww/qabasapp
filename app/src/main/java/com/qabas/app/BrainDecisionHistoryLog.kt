@@ -9,7 +9,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,15 +18,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -264,6 +260,7 @@ fun BrainDecisionHistoryLog(
     onClearAll: () -> Unit = {},
     onInspectStyleObject: (StyleObject) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("الكل") }
@@ -323,7 +320,7 @@ fun BrainDecisionHistoryLog(
             value = searchQuery,
             onValueChange = { searchQuery = it },
             placeholder = { Text("بحث في القرارات، الأفكار، أو كائنات الأنماط...", fontSize = 13.sp, color = TextSecondary) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -334,8 +331,8 @@ fun BrainDecisionHistoryLog(
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = GoldPrimary,
-                unfocusedBorderColor = Color(0xFF1E293B),
+                focusedBorderColor = PresetPrimary,
+                unfocusedBorderColor = theme.secondarySurface,
                 focusedContainerColor = CardSurface,
                 unfocusedContainerColor = CardSurface,
                 focusedTextColor = TextPrimary,
@@ -357,9 +354,9 @@ fun BrainDecisionHistoryLog(
             items(filters) { filter ->
                 val isSelected = selectedFilter == filter
                 Surface(
-                    color = if (isSelected) GoldPrimary else CardSurface,
+                    color = if (isSelected) PresetPrimary else CardSurface,
                     shape = RoundedCornerShape(10.dp),
-                    border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, theme.secondarySurface),
                     modifier = Modifier.clickable { selectedFilter = filter }
                 ) {
                     Text(
@@ -424,7 +421,7 @@ fun BrainDecisionHistoryLog(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             containerColor = CardSurface,
-            icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(32.dp)) },
+            icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(32.dp)) },
             title = { Text("مسح سجل قرارات العقل", color = TextPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont) },
             text = { Text("هل أنت متأكد من رغبتك في مسح كافة السجلات الإخراجية المحفوظة؟ لن يؤثر ذلك على كائنات الأنماط الأساسية في Firestore.", color = TextSecondary, fontFamily = CairoFont, fontSize = 13.sp) },
             confirmButton = {
@@ -433,10 +430,10 @@ fun BrainDecisionHistoryLog(
                         onClearAll()
                         showClearDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.destructive),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("مسح الكل", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                    Text("مسح الكل", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -460,6 +457,7 @@ fun BrainDecisionHistoryCard(
     onInspectStyle: () -> Unit,
     onOpenDetails: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(false) }
     val styleObj = item.influencingStyleObject
@@ -470,7 +468,7 @@ fun BrainDecisionHistoryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, if (item.userFeedback == true) GoldPrimary.copy(alpha = 0.5f) else Color(0xFF1E293B), RoundedCornerShape(16.dp)),
+            .border(1.dp, if (item.userFeedback == true) PresetPrimary.copy(alpha = 0.5f) else theme.secondarySurface, RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -483,10 +481,10 @@ fun BrainDecisionHistoryCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Psychology, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Psychology, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                         Text(
                             text = item.decision.title.ifBlank { "قرار إخراجي ذكي" },
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             fontFamily = CairoFont,
@@ -506,16 +504,16 @@ fun BrainDecisionHistoryCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     // شارة التوافق
                     Surface(
-                        color = if (item.decision.compatibilityScore >= 90) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f),
+                        color = if (item.decision.compatibilityScore >= 90) theme.success.copy(alpha = 0.2f) else theme.warning.copy(alpha = 0.2f),
                         shape = RoundedCornerShape(6.dp),
                         border = androidx.compose.foundation.BorderStroke(
                             0.8.dp,
-                            if (item.decision.compatibilityScore >= 90) Color(0xFF10B981) else Color(0xFFF59E0B)
+                            if (item.decision.compatibilityScore >= 90) theme.success else theme.warning
                         )
                     ) {
                         Text(
                             text = "${item.decision.compatibilityScore}% توافق",
-                            color = if (item.decision.compatibilityScore >= 90) Color(0xFF34D399) else Color(0xFFFBBF24),
+                            color = if (item.decision.compatibilityScore >= 90) theme.success else theme.warning,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont,
@@ -536,9 +534,9 @@ fun BrainDecisionHistoryCard(
 
             // الفكرة المدخلة
             Surface(
-                color = Color(0xFF0B1120),
+                color = theme.cardSurface,
                 shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF1E293B)),
+                border = androidx.compose.foundation.BorderStroke(0.6.dp, theme.secondarySurface),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -546,7 +544,7 @@ fun BrainDecisionHistoryCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldSecondary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = PresetAccent, modifier = Modifier.size(16.dp))
                     Text(
                         text = "الفكرة: ${item.ideaInput}",
                         color = TextPrimary,
@@ -575,7 +573,7 @@ fun BrainDecisionHistoryCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(Icons.Default.FlashOn, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.FlashOn, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                     Text(
                         text = "الخطاف: ${item.decision.hook}",
                         color = TextPrimary,
@@ -604,12 +602,12 @@ fun BrainDecisionHistoryCard(
                     // المنطق الإخراجي للذكاء الاصطناعي
                     if (item.decision.aiRationale.isNotBlank()) {
                         Surface(
-                            color = Color(0xFF0F172A),
+                            color = theme.cardSurface,
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("توجيهات العقل الإخراجية:", color = GoldPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                Text("توجيهات العقل الإخراجية:", color = PresetPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(item.decision.aiRationale, color = TextSecondary, fontSize = 12.sp, fontFamily = CairoFont, lineHeight = 18.sp)
                             }
@@ -629,25 +627,25 @@ fun BrainDecisionHistoryCard(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFF0B1120), RoundedCornerShape(6.dp))
+                                    .background(theme.cardSurface, RoundedCornerShape(6.dp))
                                     .padding(8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
-                                    color = GoldPrimary.copy(alpha = 0.2f),
+                                    color = PresetPrimary.copy(alpha = 0.2f),
                                     shape = CircleShape,
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text("${idx + 1}", color = GoldPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text("${idx + 1}", color = PresetPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(sc.title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                     Text(sc.description, color = TextSecondary, fontSize = 11.sp, fontFamily = CairoFont, maxLines = 2)
                                 }
-                                Text("${sc.durationInSeconds}ث", color = GoldSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("${sc.durationInSeconds}ث", color = PresetAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -655,9 +653,9 @@ fun BrainDecisionHistoryCard(
                     // كود FFmpeg وميزة النسخ السريع
                     if (item.decision.ffmpegFilterSnippet.isNotBlank()) {
                         Surface(
-                            color = Color(0xFF06090E),
+                            color = theme.background,
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF334155)),
+                            border = androidx.compose.foundation.BorderStroke(0.6.dp, theme.cardBorder),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
@@ -666,7 +664,7 @@ fun BrainDecisionHistoryCard(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("معادلة فلاتر FFmpeg المولدة:", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Text("معادلة فلاتر FFmpeg المولدة:", color = theme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                     IconButton(
                                         onClick = {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -675,12 +673,12 @@ fun BrainDecisionHistoryCard(
                                         },
                                         modifier = Modifier.size(24.dp)
                                     ) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = Color(0xFF38BDF8), modifier = Modifier.size(14.dp))
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.primary, modifier = Modifier.size(14.dp))
                                     }
                                 }
                                 Text(
                                     text = item.decision.ffmpegFilterSnippet,
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontSize = 10.5.sp,
                                     fontFamily = NotoSansFont,
                                     maxLines = 3,
@@ -708,7 +706,7 @@ fun BrainDecisionHistoryCard(
                     ) {
                         Text(
                             text = if (isExpanded) "عرض أقل ▲" else "عرض التفاصيل ▼",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 11.5.sp,
                             fontFamily = CairoFont
                         )
@@ -730,15 +728,15 @@ fun BrainDecisionHistoryCard(
                         modifier = Modifier
                             .size(32.dp)
                             .background(
-                                if (item.userFeedback == true) Color(0xFF10B981).copy(alpha = 0.25f) else Color.Transparent,
+                                if (item.userFeedback == true) theme.success.copy(alpha = 0.25f) else Color.Transparent,
                                 CircleShape
                             )
-                            .border(0.8.dp, if (item.userFeedback == true) Color(0xFF10B981) else Color(0xFF334155), CircleShape)
+                            .border(0.8.dp, if (item.userFeedback == true) theme.success else theme.cardBorder, CircleShape)
                     ) {
                         Icon(
                             Icons.Default.ThumbUp,
                             contentDescription = "تعزيز النمط",
-                            tint = if (item.userFeedback == true) Color(0xFF10B981) else TextSecondary,
+                            tint = if (item.userFeedback == true) theme.success else TextSecondary,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -749,15 +747,15 @@ fun BrainDecisionHistoryCard(
                         modifier = Modifier
                             .size(32.dp)
                             .background(
-                                if (item.userFeedback == false) Color(0xFFEF4444).copy(alpha = 0.25f) else Color.Transparent,
+                                if (item.userFeedback == false) theme.destructive.copy(alpha = 0.25f) else Color.Transparent,
                                 CircleShape
                             )
-                            .border(0.8.dp, if (item.userFeedback == false) Color(0xFFEF4444) else Color(0xFF334155), CircleShape)
+                            .border(0.8.dp, if (item.userFeedback == false) theme.destructive else theme.cardBorder, CircleShape)
                     ) {
                         Icon(
                             Icons.Default.ThumbDown,
                             contentDescription = "خفض النمط",
-                            tint = if (item.userFeedback == false) Color(0xFFEF4444) else TextSecondary,
+                            tint = if (item.userFeedback == false) theme.destructive else TextSecondary,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -765,7 +763,7 @@ fun BrainDecisionHistoryCard(
                     // زر التطبيق
                     Button(
                         onClick = onApply,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         modifier = Modifier.height(32.dp)
@@ -789,12 +787,13 @@ private fun InfluencingStyleObjectCard(
     fallbackStyleName: String,
     onInspect: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val styleName = styleObject?.name ?: fallbackStyleName.ifBlank { "هوية خادم المسلم السينمائية التراكمية" }
     val primaryColor = remember(styleObject) {
         try {
             Color(android.graphics.Color.parseColor(styleObject?.visualStyle?.primaryColorHex ?: "#E8C547"))
         } catch (e: Exception) {
-            GoldPrimary
+            PresetPrimary
         }
     }
     val bgColor = remember(styleObject) {
@@ -806,7 +805,7 @@ private fun InfluencingStyleObjectCard(
     }
 
     Surface(
-        color = Color(0xFF0F172A),
+        color = theme.cardSurface,
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, primaryColor.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
@@ -847,7 +846,7 @@ private fun InfluencingStyleObjectCard(
                 if (styleObject != null) {
                     Text(
                         text = "تقييم: ${styleObject.overallScore}/100",
-                        color = GoldSecondary,
+                        color = PresetAccent,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = CairoFont
@@ -868,14 +867,14 @@ private fun InfluencingStyleObjectCard(
                             .size(14.dp)
                             .clip(CircleShape)
                             .background(primaryColor)
-                            .border(0.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                            .border(0.5.dp, theme.textPrimary.copy(alpha = 0.5f), CircleShape)
                     )
                     Box(
                         modifier = Modifier
                             .size(14.dp)
                             .clip(CircleShape)
                             .background(bgColor)
-                            .border(0.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                            .border(0.5.dp, theme.textPrimary.copy(alpha = 0.5f), CircleShape)
                     )
                 }
 
@@ -907,10 +906,11 @@ private fun HistoryStatsOverviewBar(
     positiveReinforcements: Int,
     onClearClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Surface(
         color = CardSurface,
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, theme.secondarySurface),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -922,13 +922,13 @@ private fun HistoryStatsOverviewBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.HistoryEdu, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Default.HistoryEdu, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(22.dp))
                     Text("سجل قرارات عقل خادم المسلم (Brain Decisions Log)", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
                 }
 
                 if (totalDecisions > 0) {
                     IconButton(onClick = onClearClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "مسح السجل", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.DeleteOutline, contentDescription = "مسح السجل", tint = theme.destructive, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -939,10 +939,10 @@ private fun HistoryStatsOverviewBar(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                StatBadgeItem("إجمالي القرارات", "$totalDecisions", GoldPrimary)
-                StatBadgeItem("الأنماط المؤثرة", "$stylesUsed", Color(0xFF38BDF8))
-                StatBadgeItem("متوسط التوافق", "$avgCompatibility%", Color(0xFF10B981))
-                StatBadgeItem("التعزيز الإيجابي", "$positiveReinforcements 👍", GoldSecondary)
+                StatBadgeItem("إجمالي القرارات", "$totalDecisions", PresetPrimary)
+                StatBadgeItem("الأنماط المؤثرة", "$stylesUsed", theme.primary)
+                StatBadgeItem("متوسط التوافق", "$avgCompatibility%", theme.success)
+                StatBadgeItem("التعزيز الإيجابي", "$positiveReinforcements 👍", PresetAccent)
             }
         }
     }
@@ -965,6 +965,7 @@ fun BrainDecisionDetailDialog(
     onDismiss: () -> Unit,
     onApply: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val styleObj = item.influencingStyleObject
 
@@ -979,7 +980,7 @@ fun BrainDecisionDetailDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary)
                     Text(item.decision.title.ifBlank { "تفاصيل القرار الإخراجي" }, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = CairoFont)
                 }
                 IconButton(onClick = onDismiss) {
@@ -1000,19 +1001,19 @@ fun BrainDecisionDetailDialog(
                 // 2. كائن النمط المؤثر وتحليله
                 if (styleObj != null) {
                     Surface(
-                        color = Color(0xFF0B1120),
+                        color = theme.cardSurface,
                         shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("كائن النمط الحاكم: ${styleObj.name}", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
+                            Text("كائن النمط الحاكم: ${styleObj.name}", color = PresetPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
                             Text("• النبرة: ${styleObj.contentTone.tone} (الجمهور: ${styleObj.contentTone.targetAudience})", color = TextSecondary, fontSize = 11.5.sp, fontFamily = CairoFont)
                             Text("• الهوية البصرية: ${styleObj.visualStyle.dominantColors} | لون رئيسي: ${styleObj.visualStyle.primaryColorHex}", color = TextSecondary, fontSize = 11.5.sp, fontFamily = CairoFont)
                             Text("• حركة الكاميرا والإيقاع: ${styleObj.motionRhythm.movementPatterns} | سرعة الانتقال: ${styleObj.motionRhythm.transitionSpeed}", color = TextSecondary, fontSize = 11.5.sp, fontFamily = CairoFont)
                             Text("• الخط والكابشن: ${styleObj.contentTone.typographyStyle} | حركة النص: ${styleObj.contentTone.captionAnimation}", color = TextSecondary, fontSize = 11.5.sp, fontFamily = CairoFont)
                             if (styleObj.analysisSummary.isNotBlank()) {
-                                Text("• ملخص التوجيه: ${styleObj.analysisSummary}", color = Color(0xFF38BDF8), fontSize = 11.5.sp, fontFamily = CairoFont)
+                                Text("• ملخص التوجيه: ${styleObj.analysisSummary}", color = theme.primary, fontSize = 11.5.sp, fontFamily = CairoFont)
                             }
                         }
                     }
@@ -1025,22 +1026,22 @@ fun BrainDecisionDetailDialog(
                 // 4. سيناريو المشاهد
                 if (item.decision.scriptScenes.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("السكريبت والمشاهد الإخراجية (${item.decision.scriptScenes.size} مشاهد):", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
+                        Text("السكريبت والمشاهد الإخراجية (${item.decision.scriptScenes.size} مشاهد):", color = PresetPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
                         item.decision.scriptScenes.forEachIndexed { i, sc ->
                             Surface(
-                                color = Color(0xFF0F172A),
+                                color = theme.cardSurface,
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("${i + 1}. ${sc.title}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = CairoFont)
-                                        Text("${sc.durationInSeconds} ثواني | ${sc.transitionType}", color = GoldSecondary, fontSize = 11.sp, fontFamily = CairoFont)
+                                        Text("${sc.durationInSeconds} ثواني | ${sc.transitionType}", color = PresetAccent, fontSize = 11.sp, fontFamily = CairoFont)
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(sc.description, color = TextSecondary, fontSize = 11.5.sp, fontFamily = CairoFont)
                                     if (sc.visualEffect.isNotBlank()) {
-                                        Text("مؤثر بصري: ${sc.visualEffect}", color = Color(0xFF34D399), fontSize = 10.5.sp, fontFamily = CairoFont)
+                                        Text("مؤثر بصري: ${sc.visualEffect}", color = theme.success, fontSize = 10.5.sp, fontFamily = CairoFont)
                                     }
                                 }
                             }
@@ -1051,11 +1052,11 @@ fun BrainDecisionDetailDialog(
                 // 5. فلاتر FFmpeg
                 if (item.decision.ffmpegFilterSnippet.isNotBlank()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("كود فلاتر FFmpeg المولد:", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
+                        Text("كود فلاتر FFmpeg المولد:", color = theme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = CairoFont)
                         Surface(
-                            color = Color(0xFF06090E),
+                            color = theme.background,
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.cardBorder),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -1063,7 +1064,7 @@ fun BrainDecisionDetailDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(item.decision.ffmpegFilterSnippet, color = Color(0xFFCBD5E1), fontSize = 11.sp, fontFamily = NotoSansFont, modifier = Modifier.weight(1f))
+                                Text(item.decision.ffmpegFilterSnippet, color = theme.textSecondary, fontSize = 11.sp, fontFamily = NotoSansFont, modifier = Modifier.weight(1f))
                                 IconButton(
                                     onClick = {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -1071,7 +1072,7 @@ fun BrainDecisionDetailDialog(
                                         Toast.makeText(context, "تم نسخ معادلة FFmpeg", Toast.LENGTH_SHORT).show()
                                     }
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -1082,7 +1083,7 @@ fun BrainDecisionDetailDialog(
         confirmButton = {
             Button(
                 onClick = onApply,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text("تطبيق على المشروع 🎬", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
@@ -1098,14 +1099,15 @@ fun BrainDecisionDetailDialog(
 
 @Composable
 private fun DetailSection(title: String, content: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    val theme = QabasTheme.current
     if (content.isNotBlank()) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
-                Text(title, color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, fontFamily = CairoFont)
+                Icon(icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
+                Text(title, color = PresetPrimary, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, fontFamily = CairoFont)
             }
             Surface(
-                color = Color(0xFF0F172A),
+                color = theme.cardSurface,
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1133,7 +1135,7 @@ private fun EmptyHistoryStateView(
         Icon(
             Icons.Default.HistoryToggleOff,
             contentDescription = null,
-            tint = GoldPrimary.copy(alpha = 0.6f),
+            tint = PresetPrimary.copy(alpha = 0.6f),
             modifier = Modifier.size(64.dp)
         )
         Spacer(modifier = Modifier.height(14.dp))
@@ -1158,7 +1160,7 @@ private fun EmptyHistoryStateView(
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onResetFilter,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text("إعادة ضبط الفلتر", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)

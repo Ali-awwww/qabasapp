@@ -11,13 +11,6 @@ import android.os.VibratorManager
 import android.util.Log
 import android.view.SoundEffectConstants
 import android.view.View
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -85,18 +78,6 @@ enum class AppSoundPreset(
         fun fromId(id: String?): AppSoundPreset =
             entries.find { it.id.equals(id, ignoreCase = true) } ?: CYBER_TECH
     }
-}
-
-/**
- * أنواع المؤثرات الصوتية التفاعلية
- */
-enum class SoundType {
-    CLICK,
-    TOGGLE,
-    TAB,
-    ACTIVATE,
-    SUCCESS,
-    DHIKR
 }
 
 /**
@@ -342,7 +323,7 @@ object AppSoundManager {
                         track.stop()
                         track.release()
                     } catch (_: Throwable) {}
-                } catch (_: Throwable) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) {
                     view?.playSoundEffect(SoundEffectConstants.CLICK)
                 }
             }
@@ -866,35 +847,5 @@ object AppSoundManager {
             bytes[idx + 1] = ((intVal shr 8) and 0xFF).toByte()
         }
         return bytes
-    }
-}
-
-/**
- * Modifier Extension لربط المؤثرات الصوتية تلقائياً بأي عنصر في واجهة Compose
- */
-fun Modifier.soundClickable(
-    enabled: Boolean = true,
-    onClickLabel: String? = null,
-    role: Role? = null,
-    soundType: SoundType = SoundType.CLICK,
-    onClick: () -> Unit
-): Modifier = composed {
-    val interactionSource = remember { MutableInteractionSource() }
-    this.clickable(
-        interactionSource = interactionSource,
-        indication = androidx.compose.material3.ripple(),
-        enabled = enabled,
-        onClickLabel = onClickLabel,
-        role = role
-    ) {
-        when (soundType) {
-            SoundType.CLICK -> AppSoundManager.playClick()
-            SoundType.TOGGLE -> AppSoundManager.playToggle()
-            SoundType.TAB -> AppSoundManager.playTab()
-            SoundType.ACTIVATE -> AppSoundManager.playActivate()
-            SoundType.SUCCESS -> AppSoundManager.playSuccess()
-            SoundType.DHIKR -> AppSoundManager.playDhikr()
-        }
-        onClick()
     }
 }

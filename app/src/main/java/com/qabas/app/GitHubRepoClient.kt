@@ -46,15 +46,6 @@ data class RepoContentResponse(
     val encoding: String,
 )
 
-data class RepoForkResult(
-    val fullName: String,
-    val owner: String,
-    val name: String,
-    val htmlUrl: String,
-    val cloneUrl: String,
-    val defaultBranch: String = "main"
-)
-
 class GitHubRepoClient(
     private val owner: String,
     private val repo: String,
@@ -293,33 +284,6 @@ class GitHubRepoClient(
         }
     }
 
-    /** حماية الفرع الأساسي: الدمج عبر السحب فقط + مراجعة واحدة. يحتاج صلاحية إدارة. */
-    suspend fun protectBranch(branch: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val body = JSONObject()
-                .put("required_status_checks", JSONObject.NULL)
-                .put("enforce_admins", false)
-                .put("required_pull_request_reviews", JSONObject().put("required_approving_review_count", 1))
-                .put("restrictions", JSONObject.NULL)
-                .toString()
-                .toRequestBody("application/json".toMediaType())
-            val client = OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .build()
-            val req = Request.Builder()
-                .url("https://api.github.com/repos/$owner/$repo/branches/${URLEncoder.encode(branch, "UTF-8")}/protection")
-                .header("Accept", "application/vnd.github.v3+json")
-                .header("User-Agent", "Qabas-Studio")
-                .header("Authorization", "Bearer $token")
-                .put(body)
-                .build()
-            client.newCall(req).execute().use { it.code == 200 }
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     /** السحوبات المفتوحة/المغلقة — ليراجعها الوكيل قبل الدمج. */
     suspend fun listPullRequests(state: String = "open"): List<String> =
         get("/repos/$owner/$repo/pulls?state=$state&per_page=20") { raw ->
@@ -387,156 +351,7 @@ class GitHubRepoClient(
         } ?: "main"
     }
 
-    /**
-     * 🍴 تفريع المستودع وعمل Fork إلى حساب المستخدم أو منظمة
-     */
-    suspend fun forkRepository(organization: String? = null): RepoForkResult? = withContext(Dispatchers.IO) {
-        try {
-            if (token.isBlank()) return@withContext null
-            val bodyObj = JSONObject()
-            if (!organization.isNullOrBlank()) {
-                bodyObj.put("organization", organization.trim())
-            }
-            bodyObj.put("default_branch_only", true)
-
-            val client = OkHttpClient.Builder()
-                .connectTimeout(20, TimeUnit.SECONDS)
-                .readTimeout(45, TimeUnit.SECONDS)
-                .build()
-
-            val req = Request.Builder()
-                .url("https://api.github.com/repos/$owner/$repo/forks")
-                .header("Accept", "application/vnd.github.v3+json")
-                .header("User-Agent", "Qabas-Studio")
-                .header("Authorization", "Bearer $token")
-                .post(bodyObj.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            client.newCall(req).execute().use { response ->
-                if (response.code != 202 && response.code != 200 && response.code != 201) return@withContext null
-                val raw = response.body?.string().orEmpty()
-                val json = JSONObject(raw)
-                val fn = json.optString("full_name")
-                val parts = fn.split("/")
-                RepoForkResult(
-                    fullName = fn,
-                    owner = parts.firstOrNull() ?: "",
-                    name = json.optString("name", repo),
-                    htmlUrl = json.optString("html_url", "https://github.com/$fn"),
-                    cloneUrl = json.optString("clone_url", "https://github.com/$fn.git"),
-                    defaultBranch = json.optString("default_branch", "main")
-                )
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /**
-     * 📦 نسخ كامل محتويات وملفات المستودع الحالي إلى مستودع جديد بالكامل في حساب المستخدم
-     */
-    suspend fun duplicateRepository(
-        targetRepoName: String,
-        isPrivate: Boolean = true,
-        onProgress: (String) -> Unit = {}
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            onProgress("إنشاء المستودع الهدف على GitHub...")
-            val newFullName = createUserRepo(token, targetRepoName, description = "نسخة مستنسخة من $owner/$repo عبر مساعد خادم المسلم الفضائي", private = isPrivate)
-                ?: return@withContext null
-
-            val newParts = newFullName.split("/")
-            val newOwner = newParts[0]
-            val newRepo = newParts[1]
-            val newClient = GitHubRepoClient(owner = newOwner, repo = newRepo, token = token)
-
-            onProgress("جلب شجرة ملفات المستودع الأصلي...")
-            val defaultBranch = getDefaultBranch()
-            val tree = getTree(branch = defaultBranch, recursive = true) ?: return@withContext newFullName
-
-            val filesOnly = tree.filter { it.isFile }
-            val total = filesOnly.size
-
-            filesOnly.forEachIndexed { idx, file ->
-                onProgress("نسخ الملف (${idx + 1}/$total): ${file.name}")
-                val contentResp = getFileContent(file.path, defaultBranch)
-                if (contentResp != null) {
-                    val decoded = try {
-                        String(Base64.decode(contentResp.content.replace("\n", ""), Base64.DEFAULT), Charsets.UTF_8)
-                    } catch (_: Exception) { "" }
-
-                    if (decoded.isNotBlank()) {
-                        newClient.createFile(
-                            path = file.path,
-                            branch = "main",
-                            message = "Initial clone from $owner/$repo: ${file.path}",
-                            content = decoded
-                        )
-                    }
-                }
-            }
-
-            onProgress("تم اكتمال نسخ كافة الملفات بنجاح!")
-            newFullName
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /** رابط تحميل أرشيف zipball للمستودع */
-    fun getZipballUrl(branch: String = "main"): String {
-        return "https://api.github.com/repos/$owner/$repo/zipball/$branch"
-    }
-
     companion object {
-        /** ينشئ مستودعاً جديداً في حساب صاحب الرمز — يُعيد الاسم الكامل أو null. */
-        suspend fun createUserRepo(
-            token: String,
-            name: String,
-            description: String = "",
-            private: Boolean = true
-        ): String? = withContext(Dispatchers.IO) {
-            try {
-                val clean = name.trim()
-                if (clean.isBlank() || token.isBlank()) return@withContext null
-                val body = JSONObject()
-                    .put("name", clean)
-                    .put("description", description)
-                    .put("private", private)
-                    .put("auto_init", true)
-                    .toString()
-                    .toRequestBody("application/json".toMediaType())
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(15, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .build()
-                val req = Request.Builder()
-                    .url("https://api.github.com/user/repos")
-                    .header("Accept", "application/vnd.github.v3+json")
-                    .header("User-Agent", "Qabas-Studio")
-                    .header("Authorization", "Bearer $token")
-                    .post(body)
-                    .build()
-                client.newCall(req).execute().use {
-                    if (it.code != 201) return@withContext null
-                    JSONObject(it.body?.string().orEmpty()).optString("full_name")
-                        .takeIf { n -> n.contains("/") }
-                }
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-        /** اسم مستودع صالح من عنوان طلب عربي: حروف/أرقام/شرطات فقط. */
-        fun sanitizeRepoName(title: String): String {
-            var s = title.trim().lowercase()
-                .replace(Regex("[\\s_]+"), "-")
-                .replace(Regex("[^a-z0-9\\-\\u0600-\\u06FF]"), "")
-                .replace(Regex("-+"), "-")
-                .trim('-')
-            if (s.isBlank()) s = "client-app"
-            return s.take(50)
-        }
 
         /** جلب مستودعات المستخدم من حسابه في GitHub */
         suspend fun listUserRepos(token: String): List<UserRepoSummary> = withContext(Dispatchers.IO) {
@@ -576,7 +391,7 @@ class GitHubRepoClient(
                     }
                     list
                 }
-            } catch (_: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                 emptyList()
             }
         }

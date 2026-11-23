@@ -135,16 +135,6 @@ class AccountService(private val context: Context) {
             qabasPrefs.edit().putString("dev_watermark_style", value).apply()
         }
 
-    var isDevExclusiveStudioEnabled: Boolean
-        get() {
-            val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            return qabasPrefs.getBoolean("dev_exclusive_studio_enabled", false)
-        }
-        set(value) {
-            val qabasPrefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-            qabasPrefs.edit().putBoolean("dev_exclusive_studio_enabled", value).apply()
-        }
-
     val isAutoAiReplyEnabled: Boolean
         get() = AppRemoteConfig.current(context).autoAiReply
 
@@ -172,17 +162,5 @@ class AccountService(private val context: Context) {
         return dailyImageCount < MAX_DAILY_IMAGES
     }
 
-    fun incrementImageUsage(): Boolean {
-        if (isDeveloperOrAdmin || hasCustomKeys) return true
-        if (!canGenerateImage()) return false
-        dailyImageCount++
-        return true
-    }
-
-    fun addStrike(reason: String) {
-        if (!isDeveloperOrAdmin) {
-            strikeCount++
-        }
-    }
 }
 

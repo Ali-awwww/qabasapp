@@ -299,7 +299,7 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                 val clean = fbText.replace("```json", "").replace("```", "").trim()
                 return@withContext parseJsonToAnalysis(clean)
             }
-        } catch (_: Exception) { }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
 
         if (apiKey.isNotBlank() && provider != DetectedProvider.NONE) {
             when (provider) {
@@ -361,7 +361,7 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                 else -> {}
             }
         }
-    } catch (_: Exception) {}
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
 
     // Fallback: تحليل دلالي ذكي وسريع محلياً بناءً على الكلمات المفتاحية
     return@withContext deduceHeuristicStyle(input)
@@ -474,6 +474,7 @@ fun VideoStyleClonerScreen(
     onBack: () -> Unit,
     onGenerateProjectWithStyle: (topic: String, style: VideoStyleAnalysis) -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -536,14 +537,14 @@ fun VideoStyleClonerScreen(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(GoldPrimary.copy(alpha = 0.12f))
-                                    .border(1.dp, GoldPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                                    .background(PresetPrimary.copy(alpha = 0.12f))
+                                    .border(1.dp, PresetPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoFixHigh,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(19.dp)
                                 )
                             }
@@ -551,14 +552,14 @@ fun VideoStyleClonerScreen(
                             Column {
                                 Text(
                                     "مستنسخ الأنماط والمونتاج HUD",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 )
                                 Text(
                                     "تفكيك البصمات البصرية، استنساخ الفيديوهات، ودمج الأساليب",
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp
                                 )
@@ -570,7 +571,7 @@ fun VideoStyleClonerScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "رجوع",
-                                tint = Color.White
+                                tint = theme.textPrimary
                             )
                         }
                     },
@@ -584,21 +585,21 @@ fun VideoStyleClonerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 14.dp, vertical = 4.dp),
-                    color = Color(0xEE060C18),
+                    color = theme.background.copy(alpha = 0.93f),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(
                         1.dp,
                         Brush.horizontalGradient(
                             listOf(
-                                GoldPrimary.copy(alpha = 0.45f),
-                                Color(0xFF8B5CF6).copy(alpha = 0.3f),
+                                PresetPrimary.copy(alpha = 0.45f),
+                                theme.accent.copy(alpha = 0.3f),
                                 ThemeSuccess.copy(alpha = 0.45f)
                             )
                         )
                     )
                 ) {
                     Box(modifier = Modifier.fillMaxWidth()) {
-                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.2f))
+                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.2f))
 
                         Row(
                             modifier = Modifier
@@ -618,7 +619,7 @@ fun VideoStyleClonerScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     if (engineProvider != DetectedProvider.NONE) "محرك: ${engineProvider.displayName}" else "المحرك: استدلال ذكي",
-                                    color = if (engineProvider != DetectedProvider.NONE) Color(0xFF6EE7B7) else Color(0xFFFDE68A),
+                                    color = if (engineProvider != DetectedProvider.NONE) theme.success else theme.gold,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
@@ -627,11 +628,11 @@ fun VideoStyleClonerScreen(
 
                             // مؤشر عدد الأساليب الجاهزة
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Inventory2, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Inventory2, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(12.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     "${vaultList.size} أسلوب متاح",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -646,7 +647,7 @@ fun VideoStyleClonerScreen(
                             ) {
                                 Text(
                                     "جاهز للاستنساخ ⚡",
-                                    color = Color(0xFF34D399),
+                                    color = theme.success,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 9.sp,
@@ -663,7 +664,7 @@ fun VideoStyleClonerScreen(
                 TabRow(
                     selectedTabIndex = selectedPortalTab,
                     containerColor = DeepSlate,
-                    contentColor = GoldPrimary,
+                    contentColor = PresetPrimary,
                     divider = { HorizontalDivider(color = ThemeSeparator.copy(alpha = 0.5f)) }
                 ) {
                     portalTabs.forEachIndexed { index, title ->
@@ -674,7 +675,7 @@ fun VideoStyleClonerScreen(
                             text = {
                                 Text(
                                     text = title,
-                                    color = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
+                                    color = if (isSelected) PresetPrimary else theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 11.5.sp
@@ -707,7 +708,7 @@ fun VideoStyleClonerScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xEE090F1E),
+                                color = theme.background.copy(alpha = 0.93f),
                                 shape = RoundedCornerShape(14.dp),
                                 border = BorderStroke(1.dp, ThemeSeparator)
                             ) {
@@ -716,24 +717,24 @@ fun VideoStyleClonerScreen(
                                         modifier = Modifier
                                             .size(38.dp)
                                             .clip(CircleShape)
-                                            .background(GoldPrimary.copy(alpha = 0.15f))
-                                            .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape),
+                                            .background(PresetPrimary.copy(alpha = 0.15f))
+                                            .border(1.dp, PresetPrimary.copy(alpha = 0.4f), CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.Psychology, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Default.Psychology, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                     }
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text(
                                             "هضم وتفكيك خلطات الفيديوهات الناجحة 🪄",
-                                            color = Color.White,
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
                                         )
                                         Text(
                                             "زوّد النظام برابط، وصف، أو اختر فيديو من هاتفك؛ وسيقوم الذكاء الاصطناعي بتفكيك إيقاعه، ألوانه، وتوليد بصمة فنية جاهزة للإنتاج الفوري.",
-                                            color = Color(0xFF94A3B8),
+                                            color = theme.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 10.5.sp,
                                             lineHeight = 16.sp
@@ -760,16 +761,16 @@ fun VideoStyleClonerScreen(
                                         Button(
                                             onClick = { inputMode = 0 },
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (inputMode == 0) GoldPrimary.copy(alpha = 0.15f) else Color.Transparent
+                                                containerColor = if (inputMode == 0) PresetPrimary.copy(alpha = 0.15f) else Color.Transparent
                                             ),
-                                            border = if (inputMode == 0) BorderStroke(1.dp, GoldPrimary) else BorderStroke(0.8.dp, ThemeSeparator),
+                                            border = if (inputMode == 0) BorderStroke(1.dp, PresetPrimary) else BorderStroke(0.8.dp, ThemeSeparator),
                                             shape = RoundedCornerShape(8.dp),
                                             modifier = Modifier.weight(1f).height(40.dp),
                                             contentPadding = PaddingValues(0.dp)
                                         ) {
-                                            Icon(Icons.Default.Link, contentDescription = null, tint = if (inputMode == 0) GoldPrimary else Color.Gray, modifier = Modifier.size(15.dp))
+                                            Icon(Icons.Default.Link, contentDescription = null, tint = if (inputMode == 0) PresetPrimary else theme.textTertiary, modifier = Modifier.size(15.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text("رابط / وصف نصي", color = if (inputMode == 0) Color.White else Color.Gray, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("رابط / وصف نصي", color = if (inputMode == 0) theme.textPrimary else theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
 
                                         Button(
@@ -782,9 +783,9 @@ fun VideoStyleClonerScreen(
                                             modifier = Modifier.weight(1f).height(40.dp),
                                             contentPadding = PaddingValues(0.dp)
                                         ) {
-                                            Icon(Icons.Default.VideoFile, contentDescription = null, tint = if (inputMode == 1) Color(0xFF34D399) else Color.Gray, modifier = Modifier.size(15.dp))
+                                            Icon(Icons.Default.VideoFile, contentDescription = null, tint = if (inputMode == 1) theme.success else theme.textTertiary, modifier = Modifier.size(15.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text("فيديو من الهاتف 📱", color = if (inputMode == 1) Color.White else Color.Gray, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("فيديو من الهاتف 📱", color = if (inputMode == 1) theme.textPrimary else theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
 
@@ -796,17 +797,17 @@ fun VideoStyleClonerScreen(
                                             placeholder = {
                                                 Text(
                                                     "ضع رابط (TikTok / YouTube Shorts / Reels) أو صف الأسلوب (مثال: ألوان داكنة مع ذهبي متوهج وتقطيع سريع)...",
-                                                    color = Color(0xFF64748B),
+                                                    color = theme.textTertiary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 11.sp
                                                 )
                                             },
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = GoldPrimary,
+                                                focusedBorderColor = PresetPrimary,
                                                 unfocusedBorderColor = ThemeSeparator,
-                                                focusedTextColor = Color.White,
-                                                unfocusedTextColor = Color.White,
+                                                focusedTextColor = theme.textPrimary,
+                                                unfocusedTextColor = theme.textPrimary,
                                                 focusedContainerColor = DeepSlate,
                                                 unfocusedContainerColor = DeepSlate
                                             ),
@@ -816,7 +817,7 @@ fun VideoStyleClonerScreen(
                                         )
 
                                         // أزرار أمثلة سريعة
-                                        Text("أمثلة مقترحة للاختبار السريع:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                                        Text("أمثلة مقترحة للاختبار السريع:", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -827,14 +828,14 @@ fun VideoStyleClonerScreen(
                                                 "تلاوة الغروب" to "أسلوب تلاوات خاشعة هادئة مع ألوان غروب وزووم ناعم"
                                             ).forEach { (label, desc) ->
                                                 Surface(
-                                                    color = Color(0xFF131D2E),
+                                                    color = theme.cardSurface,
                                                     shape = RoundedCornerShape(6.dp),
-                                                    border = BorderStroke(0.6.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                                                    border = BorderStroke(0.6.dp, theme.primary.copy(alpha = 0.4f)),
                                                     modifier = Modifier.clickable { inputUrlOrDesc = desc }
                                                 ) {
                                                     Text(
                                                         label,
-                                                        color = Color(0xFF7DD3FC),
+                                                        color = theme.primary,
                                                         fontFamily = CairoFont,
                                                         fontSize = 9.5.sp,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
@@ -861,11 +862,11 @@ fun VideoStyleClonerScreen(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                                             ) {
-                                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(32.dp))
+                                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = theme.success, modifier = Modifier.size(32.dp))
                                                 Text(
                                                     if (selectedLocalVideoName.isNotBlank()) "تم اختيار: $selectedLocalVideoName"
                                                     else "انقر لاختيار مقطع فيديو محلي من الهاتف (Photo Picker)",
-                                                    color = if (selectedLocalVideoName.isNotBlank()) Color(0xFFA7F3D0) else Color.White,
+                                                    color = if (selectedLocalVideoName.isNotBlank()) theme.success else theme.textPrimary,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 12.sp,
@@ -874,7 +875,7 @@ fun VideoStyleClonerScreen(
                                                 )
                                                 Text(
                                                     "يدعم MP4, MOV, WEBM • آمن 100% ومتوافق مع سياسات الأندرويد",
-                                                    color = Color(0xFF64748B),
+                                                    color = theme.textTertiary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 10.sp
                                                 )
@@ -916,7 +917,7 @@ fun VideoStyleClonerScreen(
                                                     selectedPreset = newPreset
 
                                                     Toast.makeText(context, "تم تفكيك الأسلوب واستيعابه في عقل الأساليب بنجاح! 🧠✨", Toast.LENGTH_LONG).show()
-                                                } catch (e: Exception) {
+                                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                                     Toast.makeText(context, "حدث خطأ: ${e.message} — تم تطبيق النموذج المحسن", Toast.LENGTH_SHORT).show()
                                                 } finally {
                                                     isAnalyzing = false
@@ -925,17 +926,17 @@ fun VideoStyleClonerScreen(
                                         },
                                         enabled = !isAnalyzing,
                                         modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
                                         if (isAnalyzing) {
-                                            CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                            CircularProgressIndicator(color = theme.onPrimary, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("جاري تفكيك وهضم الأسلوب بالذكاء الاصطناعي...", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("جاري تفكيك وهضم الأسلوب بالذكاء الاصطناعي...", color = theme.onPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                         } else {
-                                            Icon(Icons.Default.Analytics, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Analytics, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("تفكيك وهضم أسلوب الفيديو الآن 🪄", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                            Text("تفكيك وهضم أسلوب الفيديو الآن 🪄", color = theme.onPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                                         }
                                     }
                                 }
@@ -947,12 +948,12 @@ fun VideoStyleClonerScreen(
                             item {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    color = Color(0xEE060C18),
+                                    color = theme.background.copy(alpha = 0.93f),
                                     shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.2.dp, GoldPrimary.copy(alpha = 0.6f))
+                                    border = BorderStroke(1.2.dp, PresetPrimary.copy(alpha = 0.6f))
                                 ) {
                                     Box(modifier = Modifier.fillMaxWidth()) {
-                                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.2f))
+                                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.2f))
 
                                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                             Row(
@@ -961,11 +962,11 @@ fun VideoStyleClonerScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Text(
                                                         "بصمة الأسلوب المستخرج (STYLE DNA):",
-                                                        color = GoldPrimary,
+                                                        color = PresetPrimary,
                                                         fontFamily = FontFamily.Monospace,
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 12.5.sp
@@ -989,17 +990,17 @@ fun VideoStyleClonerScreen(
                                                     },
                                                     modifier = Modifier.size(40.dp)
                                                 ) {
-                                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                                 }
                                             }
 
                                             // عناصر البصمة
                                             StyleBlueprintRow("🎨 لوحة الألوان والتباين", analysis.dominantColors, ThemeWarning)
-                                            StyleBlueprintRow("⚡ سرعة المونتاج والقطع", analysis.transitionSpeed, Color(0xFFEF4444))
-                                            StyleBlueprintRow("🎥 حركة الكاميرا", analysis.movementPatterns, Color(0xFF38BDF8))
-                                            StyleBlueprintRow("🎙️ الهوية الصوتية", analysis.audioStyle, Color(0xFFA855F7))
+                                            StyleBlueprintRow("⚡ سرعة المونتاج والقطع", analysis.transitionSpeed, theme.destructive)
+                                            StyleBlueprintRow("🎥 حركة الكاميرا", analysis.movementPatterns, theme.primary)
+                                            StyleBlueprintRow("🎙️ الهوية الصوتية", analysis.audioStyle, theme.accent)
                                             StyleBlueprintRow("✍️ نمط الكابشن والخط", analysis.typographyStyle, ThemeSuccess)
-                                            StyleBlueprintRow("🎯 النبرة والجمهور", "${analysis.contentTone} • ${analysis.targetAudience}", Color(0xFFF43F5E))
+                                            StyleBlueprintRow("🎯 النبرة والجمهور", "${analysis.contentTone} • ${analysis.targetAudience}", theme.destructive)
 
                                             Spacer(modifier = Modifier.height(4.dp))
 
@@ -1020,9 +1021,9 @@ fun VideoStyleClonerScreen(
                                                 border = BorderStroke(1.2.dp, ThemeSuccess),
                                                 shape = RoundedCornerShape(10.dp)
                                             ) {
-                                                Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(16.dp))
+                                                Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = theme.success, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Text("إطلاق فيديو جديد بهذا الأسلوب المستخرج 🚀", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                Text("إطلاق فيديو جديد بهذا الأسلوب المستخرج 🚀", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                             }
                                         }
                                     }
@@ -1059,21 +1060,21 @@ fun VideoStyleClonerScreen(
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholder = { Text("بحث في مكتبة الأساليب بالاسم أو المنصة...", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.5.sp) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp)) },
+                                placeholder = { Text("بحث في مكتبة الأساليب بالاسم أو المنصة...", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.5.sp) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp)) },
                                 trailingIcon = {
                                     if (searchQuery.isNotBlank()) {
                                         IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(36.dp)) {
-                                            Icon(Icons.Default.Close, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.Close, contentDescription = "مسح", tint = theme.textTertiary, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = GoldPrimary,
+                                    focusedBorderColor = PresetPrimary,
                                     unfocusedBorderColor = ThemeSeparator,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary,
                                     focusedContainerColor = DeepSlate,
                                     unfocusedContainerColor = DeepSlate
                                 ),
@@ -1088,11 +1089,11 @@ fun VideoStyleClonerScreen(
 
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = if (selectedPreset?.id == preset.id) Color(0xFF071224) else Color(0xFF050914),
+                                color = if (selectedPreset?.id == preset.id) theme.background else theme.background,
                                 shape = RoundedCornerShape(14.dp),
                                 border = BorderStroke(
                                     if (selectedPreset?.id == preset.id) 1.5.dp else 1.dp,
-                                    if (selectedPreset?.id == preset.id) GoldPrimary else ThemeSeparator
+                                    if (selectedPreset?.id == preset.id) PresetPrimary else ThemeSeparator
                                 )
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1103,13 +1104,13 @@ fun VideoStyleClonerScreen(
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             Surface(
-                                                color = if (preset.isPreset) Color(0xFF1E1B4B) else ThemeSuccess.copy(alpha = 0.18f),
+                                                color = if (preset.isPreset) theme.accent.copy(alpha = 0.18f) else ThemeSuccess.copy(alpha = 0.18f),
                                                 shape = RoundedCornerShape(6.dp),
-                                                border = BorderStroke(0.8.dp, if (preset.isPreset) Color(0xFF818CF8) else ThemeSuccess)
+                                                border = BorderStroke(0.8.dp, if (preset.isPreset) theme.accent else ThemeSuccess)
                                             ) {
                                                 Text(
                                                     if (preset.isPreset) "قالب أصلي 🏛️" else "مستنسخ 🧬",
-                                                    color = if (preset.isPreset) Color(0xFFA5B4FC) else Color(0xFF34D399),
+                                                    color = if (preset.isPreset) theme.accent else theme.success,
                                                     fontFamily = CairoFont,
                                                     fontSize = 9.sp,
                                                     fontWeight = FontWeight.Bold,
@@ -1121,7 +1122,7 @@ fun VideoStyleClonerScreen(
 
                                             Text(
                                                 preset.title,
-                                                color = Color.White,
+                                                color = theme.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
@@ -1131,12 +1132,12 @@ fun VideoStyleClonerScreen(
                                         }
 
                                         Surface(
-                                            color = Color(0xFF10192C),
+                                            color = theme.cardSurface,
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
                                             Text(
                                                 preset.sourcePlatform,
-                                                color = Color(0xFF38BDF8),
+                                                color = theme.primary,
                                                 fontFamily = FontFamily.Monospace,
                                                 fontSize = 9.5.sp,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1146,7 +1147,7 @@ fun VideoStyleClonerScreen(
 
                                     Text(
                                         preset.description,
-                                        color = Color(0xFF94A3B8),
+                                        color = theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         lineHeight = 16.sp
@@ -1162,9 +1163,9 @@ fun VideoStyleClonerScreen(
                                             verticalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             StyleBlueprintRow("الألوان", preset.analysis.dominantColors, ThemeWarning)
-                                            StyleBlueprintRow("السرعة", preset.analysis.transitionSpeed, Color(0xFFEF4444))
-                                            StyleBlueprintRow("الحركة", preset.analysis.movementPatterns, Color(0xFF38BDF8))
-                                            StyleBlueprintRow("الصوت", preset.analysis.audioStyle, Color(0xFFA855F7))
+                                            StyleBlueprintRow("السرعة", preset.analysis.transitionSpeed, theme.destructive)
+                                            StyleBlueprintRow("الحركة", preset.analysis.movementPatterns, theme.primary)
+                                            StyleBlueprintRow("الصوت", preset.analysis.audioStyle, theme.accent)
                                             StyleBlueprintRow("الكابشن", preset.analysis.typographyStyle, ThemeSuccess)
                                         }
                                     }
@@ -1185,13 +1186,13 @@ fun VideoStyleClonerScreen(
                                             Icon(
                                                 if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                                 contentDescription = null,
-                                                tint = GoldPrimary,
+                                                tint = PresetPrimary,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 if (isExpanded) "إخفاء البصمة" else "عرض البصمة",
-                                                color = GoldPrimary,
+                                                color = PresetPrimary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 11.sp
                                             )
@@ -1207,7 +1208,7 @@ fun VideoStyleClonerScreen(
                                                     },
                                                     modifier = Modifier.size(36.dp)
                                                 ) {
-                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = theme.destructive, modifier = Modifier.size(16.dp))
                                                 }
                                             }
 
@@ -1220,7 +1221,7 @@ fun VideoStyleClonerScreen(
                                                 },
                                                 modifier = Modifier.size(36.dp)
                                             ) {
-                                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = GoldPrimary, modifier = Modifier.size(15.dp))
+                                                Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = PresetPrimary, modifier = Modifier.size(15.dp))
                                             }
 
                                             // زر التطبيق والإنتاج
@@ -1230,14 +1231,14 @@ fun VideoStyleClonerScreen(
                                                     activeAnalysisResult = preset.analysis
                                                     showLaunchProjectDialog = true
                                                 },
-                                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                                 shape = RoundedCornerShape(8.dp),
                                                 modifier = Modifier.height(34.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                                             ) {
-                                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(14.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("تطبيق الأسلوب", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                                Text("تطبيق الأسلوب", color = theme.onPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                             }
                                         }
                                     }
@@ -1260,16 +1261,16 @@ fun VideoStyleClonerScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xEE1A0E2A),
+                                color = theme.accent.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, theme.accent.copy(alpha = 0.5f))
                             ) {
                                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Science, contentDescription = null, tint = Color(0xFFC084FC), modifier = Modifier.size(28.dp))
+                                    Icon(Icons.Default.Science, contentDescription = null, tint = theme.accent, modifier = Modifier.size(28.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
-                                        Text("مختبر تهجين وخلط الأساليب (Style Fusion) ⚗️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text("امزج بين نمطين مختلفين (مثلاً: ألوان الوثائقيات + سرعة 3nvus) لإنتاج أسلوب سينمائي هجين فريد لم يسبقك إليه أحد!", color = Color(0xFFD8B4FE), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                        Text("مختبر تهجين وخلط الأساليب (Style Fusion) ⚗️", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("امزج بين نمطين مختلفين (مثلاً: ألوان الوثائقيات + سرعة 3nvus) لإنتاج أسلوب سينمائي هجين فريد لم يسبقك إليه أحد!", color = theme.accent, fontFamily = CairoFont, fontSize = 10.5.sp)
                                     }
                                 }
                             }
@@ -1279,24 +1280,24 @@ fun VideoStyleClonerScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xFF090D1C),
+                                color = theme.background,
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, ThemeSeparator)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("1. الأسلوب الأساسي (المصدر أ):", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("1. الأسلوب الأساسي (المصدر أ):", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                                         vaultList.take(4).forEach { p ->
                                             val isSel = fusionStyle1?.id == p.id
                                             Surface(
-                                                color = if (isSel) Color(0xFF0284C7) else Color(0xFF131F33),
+                                                color = if (isSel) theme.primary else theme.cardSurface,
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = BorderStroke(0.8.dp, if (isSel) Color(0xFF38BDF8) else ThemeSeparator),
+                                                border = BorderStroke(0.8.dp, if (isSel) theme.primary else ThemeSeparator),
                                                 modifier = Modifier.weight(1f).clickable { fusionStyle1 = p }
                                             ) {
                                                 Text(
                                                     p.title.split(" ").take(2).joinToString(" "),
-                                                    color = if (isSel) Color.White else Color(0xFF94A3B8),
+                                                    color = if (isSel) theme.onPrimary else theme.textSecondary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 10.sp,
                                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1313,24 +1314,24 @@ fun VideoStyleClonerScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xFF090D1C),
+                                color = theme.background,
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, ThemeSeparator)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("2. الأسلوب الثانوي (المصدر ب):", color = Color(0xFFA855F7), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("2. الأسلوب الثانوي (المصدر ب):", color = theme.accent, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                                         vaultList.takeLast(4).forEach { p ->
                                             val isSel = fusionStyle2?.id == p.id
                                             Surface(
-                                                color = if (isSel) Color(0xFF7C3AED) else Color(0xFF131F33),
+                                                color = if (isSel) theme.accent else theme.cardSurface,
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = BorderStroke(0.8.dp, if (isSel) Color(0xFFA855F7) else ThemeSeparator),
+                                                border = BorderStroke(0.8.dp, if (isSel) theme.accent else ThemeSeparator),
                                                 modifier = Modifier.weight(1f).clickable { fusionStyle2 = p }
                                             ) {
                                                 Text(
                                                     p.title.split(" ").take(2).joinToString(" "),
-                                                    color = if (isSel) Color.White else Color(0xFF94A3B8),
+                                                    color = if (isSel) theme.textPrimary else theme.textSecondary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 10.sp,
                                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1347,22 +1348,22 @@ fun VideoStyleClonerScreen(
                         item {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Color(0xFF090D1C),
+                                color = theme.background,
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, ThemeSeparator)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("نسبة المزج:", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                        Text("${(fusionRatio * 100).toInt()}% أ  |  ${((1f - fusionRatio) * 100).toInt()}% ب", color = GoldPrimary, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("نسبة المزج:", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                        Text("${(fusionRatio * 100).toInt()}% أ  |  ${((1f - fusionRatio) * 100).toInt()}% ب", color = PresetPrimary, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Slider(
                                         value = fusionRatio,
                                         onValueChange = { fusionRatio = it },
                                         colors = SliderDefaults.colors(
-                                            thumbColor = GoldPrimary,
-                                            activeTrackColor = Color(0xFF38BDF8),
-                                            inactiveTrackColor = Color(0xFF7C3AED)
+                                            thumbColor = PresetPrimary,
+                                            activeTrackColor = theme.primary,
+                                            inactiveTrackColor = theme.accent
                                         )
                                     )
                                 }
@@ -1374,13 +1375,13 @@ fun VideoStyleClonerScreen(
                             OutlinedTextField(
                                 value = fusionNameInput,
                                 onValueChange = { fusionNameInput = it },
-                                placeholder = { Text("اسم الأسلوب الهجين الجديد (مثال: وثائقي فيروسي 3nvus)...", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp) },
+                                placeholder = { Text("اسم الأسلوب الهجين الجديد (مثال: وثائقي فيروسي 3nvus)...", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp) },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFFA855F7),
+                                    focusedBorderColor = theme.accent,
                                     unfocusedBorderColor = ThemeSeparator,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary,
                                     focusedContainerColor = DeepSlate,
                                     unfocusedContainerColor = DeepSlate
                                 ),
@@ -1433,12 +1434,12 @@ fun VideoStyleClonerScreen(
                                 },
                                 enabled = !isFusing,
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.accent),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = Color.White)
+                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = theme.textPrimary)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("تخليق وحفظ الأسلوب الهجين الجديد في الخزانة ⚗️", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("تخليق وحفظ الأسلوب الهجين الجديد في الخزانة ⚗️", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }
@@ -1455,34 +1456,34 @@ fun VideoStyleClonerScreen(
 
         AlertDialog(
             onDismissRequest = { showLaunchProjectDialog = false },
-            containerColor = Color(0xFF070D1C),
+            containerColor = theme.background,
             shape = RoundedCornerShape(18.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("إطلاق فيديو جديد بالأسلوب المستنسخ", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("إطلاق فيديو جديد بالأسلوب المستنسخ", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("الأسلوب المطبق: ${selectedPreset?.title ?: styleToApply.detectedStyle}", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("الألوان: ${styleToApply.dominantColors}", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
-                    Text("السرعة والتقطيع: ${styleToApply.transitionSpeed}", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                    Text("الأسلوب المطبق: ${selectedPreset?.title ?: styleToApply.detectedStyle}", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("الألوان: ${styleToApply.dominantColors}", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
+                    Text("السرعة والتقطيع: ${styleToApply.transitionSpeed}", color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
 
                     HorizontalDivider(color = ThemeSeparator)
 
-                    Text("اكتب موضوع أو فكرة الفيديو الجديد:", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp)
+                    Text("اكتب موضوع أو فكرة الفيديو الجديد:", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp)
                     OutlinedTextField(
                         value = newProjectTopic,
                         onValueChange = { newProjectTopic = it },
-                        placeholder = { Text("مثال: قصة أصحاب الكهف وعجائب التدبر...", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp) },
+                        placeholder = { Text("مثال: قصة أصحاب الكهف وعجائب التدبر...", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
+                            focusedBorderColor = PresetPrimary,
                             unfocusedBorderColor = ThemeSeparator,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary
                         ),
                         shape = RoundedCornerShape(8.dp)
                     )
@@ -1492,14 +1493,14 @@ fun VideoStyleClonerScreen(
                         listOf("9:16 (Shorts/Reels)", "16:9 (Landscape)").forEach { ratio ->
                             val isSel = targetRatio == ratio.substringBefore(" ")
                             Surface(
-                                color = if (isSel) ThemeSuccess.copy(alpha = 0.18f) else Color(0xFF131D2E),
+                                color = if (isSel) ThemeSuccess.copy(alpha = 0.18f) else theme.cardSurface,
                                 shape = RoundedCornerShape(6.dp),
                                 border = BorderStroke(0.8.dp, if (isSel) ThemeSuccess else ThemeSeparator),
                                 modifier = Modifier.weight(1f).clickable { targetRatio = ratio.substringBefore(" ") }
                             ) {
                                 Text(
                                     ratio,
-                                    color = if (isSel) Color(0xFF34D399) else Color(0xFF94A3B8),
+                                    color = if (isSel) theme.success else theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1521,15 +1522,15 @@ fun VideoStyleClonerScreen(
                         Toast.makeText(context, "جاري تهيئة المشروع بالخلطة المستنسخة 🚀", Toast.LENGTH_SHORT).show()
                         onGenerateProjectWithStyle(newProjectTopic, styleToApply)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("بدء الإنتاج الآن 🔥", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("بدء الإنتاج الآن 🔥", color = theme.onPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLaunchProjectDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                 }
             }
         )
@@ -1538,6 +1539,7 @@ fun VideoStyleClonerScreen(
 
 @Composable
 private fun StyleBlueprintRow(label: String, value: String, accentColor: Color) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -1551,14 +1553,14 @@ private fun StyleBlueprintRow(label: String, value: String, accentColor: Color) 
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             "$label: ",
-            color = Color(0xFFCBD5E1),
+            color = theme.textPrimary,
             fontFamily = CairoFont,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
         )
         Text(
             value.ifBlank { "افتراضي سينمائي" },
-            color = Color.White,
+            color = theme.textPrimary,
             fontFamily = CairoFont,
             fontSize = 11.sp,
             maxLines = 2,

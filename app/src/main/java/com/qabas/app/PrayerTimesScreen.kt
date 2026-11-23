@@ -6,8 +6,6 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -15,7 +13,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -26,23 +23,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,7 +73,7 @@ private fun PrayerSectionsHub(
         GeoHeader(
             title = "أقسام المحراب",
             subtitle = "خمسة أبواب متكاملة للصلاة والسنن والخشوع",
-            accent = GoldPrimary
+            accent = PresetPrimary
         )
 
         entries.chunked(2).forEachIndexed { rowIndex, rowItems ->
@@ -267,7 +257,6 @@ fun PrayerTimesScreen(
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences("qabas_prayer_prefs", Context.MODE_PRIVATE) }
 
     // The saved city is shared by the prayer hub, home countdown, and alarm scheduler.
@@ -339,6 +328,11 @@ fun PrayerTimesScreen(
     }
 
     val selectedMethod = PrayerCalculationHelper.getSelectedCalculationMethod(context, currentCity)
+    val selectedAsrFactor = PrayerCalculationHelper.getSelectedAsrShadowFactor(context)
+
+    // يُعاد حساب المواقيت عند انتهاء العدّ التنازلي (دخول وقت الصلاة التالية)،
+    // لأن لقطة remember وحدها تجمّد العدّاد على قيمة لحظة التركيب.
+    var timesVersion by remember { mutableIntStateOf(0) }
 
     // Audio Playback State
     val audioPlaybackState by AzanAudioPlayer.playbackState.collectAsState()
@@ -358,17 +352,16 @@ fun PrayerTimesScreen(
         PrayerSectionEntry("القبلة والخشوع", "اتجاه القبلة وفقه الخشوع", Icons.Default.Explore, GeoColor.Qibla)
     )
 
-    // مواقيت الصلاة تتغير عند تغير المدينة أو طريقة الحساب، لا كل ثانية.
-    val prayerTimes = remember(currentCity, selectedMethod) {
+    // مواقيت الصلاة تتغير عند تغير المدينة أو طريقة الحساب أو مذهب العصر، لا كل ثانية.
+    val prayerTimes = remember(currentCity, selectedMethod, selectedAsrFactor, timesVersion) {
         val cal = Calendar.getInstance()
-        PrayerCalculationHelper.calculatePrayerTimes(cal, currentCity, selectedMethod)
+        PrayerCalculationHelper.calculatePrayerTimes(cal, currentCity, selectedMethod, asrShadowFactor = selectedAsrFactor)
     }
 
     // Dialog & Sheet states
     var showCityDialog by remember { mutableStateOf(false) }
     var showAudioSheet by remember { mutableStateOf(false) }
     var selectedPrayerForConfig by remember { mutableStateOf<String?>(null) }
-    var shareTextContent by remember { mutableStateOf<String?>(null) }
 
     // Clean up audio on leave
     DisposableEffect(Unit) {
@@ -386,7 +379,7 @@ fun PrayerTimesScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         GeoIconBadge(
                             icon = Icons.Default.Mosque,
-                            accent = GoldPrimary,
+                            accent = PresetPrimary,
                             size = 36.dp,
                             iconSize = Geo.I_SM
                         )
@@ -395,7 +388,7 @@ fun PrayerTimesScreen(
                             Text(
                                 if (openedSection == -1) "محراب الصلاة والمواقيت"
                                 else sectionEntries[openedSection].title,
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
@@ -424,7 +417,7 @@ fun PrayerTimesScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "رجوع",
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
@@ -434,7 +427,7 @@ fun PrayerTimesScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(GeoShape.Circle)
-                            .background(GoldPrimary.copy(alpha = 0.10f), GeoShape.Circle)
+                            .background(PresetPrimary.copy(alpha = 0.10f), GeoShape.Circle)
                             .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
                             .clickable { showCityDialog = true },
                         contentAlignment = Alignment.Center
@@ -442,14 +435,14 @@ fun PrayerTimesScreen(
                         if (isRefreshingLocation) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(Geo.I_SM),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 Icons.Default.LocationOn,
                                 contentDescription = "تغيير المدينة",
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(Geo.I_SM)
                             )
                         }
@@ -459,7 +452,7 @@ fun PrayerTimesScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(GeoShape.Circle)
-                            .background(GoldPrimary.copy(alpha = 0.10f), GeoShape.Circle)
+                            .background(PresetPrimary.copy(alpha = 0.10f), GeoShape.Circle)
                             .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
                             .clickable { showAudioSheet = true },
                         contentAlignment = Alignment.Center
@@ -467,7 +460,7 @@ fun PrayerTimesScreen(
                         Icon(
                             Icons.Default.VolumeUp,
                             contentDescription = "أصوات الأذان",
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(Geo.I_SM)
                         )
                     }
@@ -493,6 +486,7 @@ fun PrayerTimesScreen(
                     HeroPrayerCountdownCard(
                         prayerTimes = prayerTimes,
                         cityName = currentCity.nameAr,
+                        onCountdownExpired = { timesVersion++ },
                         onOpenVoices = { showAudioSheet = true },
                         onShareTimetable = {
                             val timetableText = """
@@ -605,6 +599,8 @@ fun PrayerTimesScreen(
                     4 -> QiblaAndKhushooTab(
                         prayerTimes = prayerTimes,
                         cityName = currentCity.nameAr,
+                        latitude = currentCity.latitude,
+                        longitude = currentCity.longitude,
                         onShareTopic = { topic ->
                             val text = """
                                 🧭 ${topic.title}
@@ -710,6 +706,14 @@ private fun PrayerNotificationConfigDialog(
     var soundMode by remember {
         mutableStateOf(prefs.getString("sound_mode_$prayerKey", "FULL_AZAN") ?: "FULL_AZAN")
     }
+    // صوت هذه الصلاة تحديداً؛ null = اتّباع الصوت الافتراضي العام.
+    // (قبل هذه الجولة لم يكن للمفتاح voice_id_<prayer> أي واجهة تكتب فيه،
+    // فكان المنبه يرجع دائماً للافتراضي العام رغم وجود السباكة كاملة.)
+    val availableVoices = remember { MuezzinVoiceManager.getAllVoices(context) }
+    val globalDefaultVoiceId = remember { MuezzinVoiceManager.getDefaultVoiceId(context) }
+    var selectedVoiceId by remember {
+        mutableStateOf(prefs.getString("voice_id_$prayerKey", null))
+    }
     var backgroundSelection by remember { mutableStateOf(AdhanBackgroundPreferences.get(context)) }
     var backgroundInfo by remember { mutableStateOf(AdhanBackgroundPreferences.currentMediaInfo(context)) }
     val backgroundScope = rememberCoroutineScope()
@@ -751,12 +755,13 @@ private fun PrayerNotificationConfigDialog(
         }
     }
 
-    // أنماط الصوت — مطابقة تماماً لما يتعامل معه PrayerAzanReceiver
+    // أنماط الصوت — مطابقة لما يتعامل معه PrayerAzanReceiver. لا يوجد خيار
+    // «تكبير فقط»: لم يكن خلفه أي صوت تكبير مستقل، فكان يشغّل الأذان الكامل
+    // (أُزيل من هنا؛ والقيم القديمة المحفوظة تُطبَّع إلى FULL_AZAN عند الجدولة).
     data class SoundOption(val value: String, val label: String, val icon: ImageVector, val hint: String)
 
     val soundOptions = listOf(
         SoundOption("FULL_AZAN", "أذان كامل", Icons.Default.RecordVoiceOver, "تلاوة الأذان كاملة"),
-        SoundOption("TAKBEER_ONLY", "تكبير فقط", Icons.Default.GraphicEq, "التكبير دون التلاوة"),
         SoundOption("NOTIFICATION_ONLY", "تنبيه فقط", Icons.Default.NotificationsActive, "إشعار بلا تشغيل الأذان"),
         SoundOption("SILENT", "صامت", Icons.Default.NotificationsNone, "إشعار صامت بلا صوت")
     )
@@ -770,7 +775,7 @@ private fun PrayerNotificationConfigDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GeoIconBadge(
                     icon = Icons.Default.NotificationsActive,
-                    accent = GoldPrimary,
+                    accent = PresetPrimary,
                     size = 36.dp,
                     iconSize = Geo.I_SM
                 )
@@ -778,7 +783,7 @@ private fun PrayerNotificationConfigDialog(
                 Column {
                     Text(
                         text = "تنبيه $prayerLabel",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -819,7 +824,7 @@ private fun PrayerNotificationConfigDialog(
                         onCheckedChange = { isEnabled = it },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = GoldPrimary,
+                            checkedTrackColor = PresetPrimary,
                             uncheckedThumbColor = theme.textSecondary,
                             uncheckedTrackColor = theme.secondarySurface
                         )
@@ -855,14 +860,14 @@ private fun PrayerNotificationConfigDialog(
                             Icon(
                                 imageVector = option.icon,
                                 contentDescription = null,
-                                tint = if (isSelected) GoldPrimary else GeoColor.textMuted(),
+                                tint = if (isSelected) PresetPrimary else GeoColor.textMuted(),
                                 modifier = Modifier.size(Geo.I_SM)
                             )
                             Spacer(Modifier.width(Geo.S_MD))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = option.label,
-                                    color = if (isSelected) GoldPrimary else GeoColor.textSecondary(),
+                                    color = if (isSelected) PresetPrimary else GeoColor.textSecondary(),
                                     fontFamily = CairoFont,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 12.sp,
@@ -882,7 +887,7 @@ private fun PrayerNotificationConfigDialog(
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(Geo.I_SM)
                                 )
                             }
@@ -890,11 +895,71 @@ private fun PrayerNotificationConfigDialog(
                     }
                 }
 
-                // اختيار صوت المؤذن
+                // صوت المؤذن لهذه الصلاة — خيار مستقل عن الافتراضي العام
+                Text(
+                    text = "صوت المؤذن لهذه الصلاة",
+                    color = GeoColor.textPrimary(),
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                val defaultVoiceLabel = availableVoices
+                    .find { it.id == globalDefaultVoiceId }
+                    ?.let { "الصوت الافتراضي العام (${it.muezzinAr.ifBlank { it.nameAr }})" }
+                    ?: "الصوت الافتراضي العام"
+                val voiceChoices = listOf<Pair<String?, String>>(
+                    null to defaultVoiceLabel
+                ) + availableVoices.map { it.id to it.muezzinAr.ifBlank { it.nameAr } }
+                voiceChoices.forEach { (voiceId, label) ->
+                    val isSelected = selectedVoiceId == voiceId
+                    Surface(
+                        onClick = { selectedVoiceId = voiceId },
+                        shape = GeoShape.CardSm,
+                        color = if (isSelected) GeoColor.selectedBg() else Color.Transparent,
+                        border = BorderStroke(
+                            Geo.B_HAIRLINE,
+                            if (isSelected) GeoColor.outlineStrong() else GeoColor.hairline()
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = Geo.S_MD, vertical = Geo.S_SM),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RecordVoiceOver,
+                                contentDescription = null,
+                                tint = if (isSelected) PresetPrimary else GeoColor.textMuted(),
+                                modifier = Modifier.size(Geo.I_SM)
+                            )
+                            Spacer(Modifier.width(Geo.S_MD))
+                            Text(
+                                text = label,
+                                color = if (isSelected) PresetPrimary else GeoColor.textSecondary(),
+                                fontFamily = CairoFont,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = PresetPrimary,
+                                    modifier = Modifier.size(Geo.I_SM)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // مكتبة أصوات الأذان (استماع وتنزيل وتعيين الافتراضي العام)
                 GeoButton(
-                    text = "اختيار صوت المؤذن",
+                    text = "مكتبة أصوات الأذان",
                     icon = Icons.Default.RecordVoiceOver,
-                    accent = GoldPrimary,
+                    accent = PresetPrimary,
                     variant = GeoButtonStyle.Outline,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onOpenVoices
@@ -922,7 +987,7 @@ private fun PrayerNotificationConfigDialog(
                     variant = GeoButtonStyle.Filled,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        AzanPlaybackService.startAzan(context, "", "تجربة $prayerLabel")
+                        AzanPlaybackService.startAzan(context, selectedVoiceId ?: "", "تجربة $prayerLabel")
                     }
                 )
                 Text(
@@ -931,7 +996,7 @@ private fun PrayerNotificationConfigDialog(
                         AdhanBackgroundPreferences.TYPE_VIDEO -> "فيديو"
                         else -> "لون جاهز"
                     }}",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontSize = 11.sp
                 )
@@ -1007,9 +1072,9 @@ private fun PrayerNotificationConfigDialog(
                                 backgroundSelection = AdhanBackgroundPreferences.get(context)
                                 backgroundInfo = null
                             },
-                            color = if (selected) GoldPrimary.copy(alpha = 0.22f) else GeoColor.surfaceSunken(),
+                            color = if (selected) PresetPrimary.copy(alpha = 0.22f) else GeoColor.surfaceSunken(),
                             shape = GeoShape.CardSm,
-                            border = BorderStroke(Geo.B_HAIRLINE, if (selected) GoldPrimary else GeoColor.hairline()),
+                            border = BorderStroke(Geo.B_HAIRLINE, if (selected) PresetPrimary else GeoColor.hairline()),
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 44.dp)
@@ -1017,7 +1082,7 @@ private fun PrayerNotificationConfigDialog(
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
                                     text = label,
-                                    color = if (selected) GoldPrimary else GeoColor.textSecondary(),
+                                    color = if (selected) PresetPrimary else GeoColor.textSecondary(),
                                     fontFamily = CairoFont,
                                     fontSize = 10.5.sp,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -1034,13 +1099,15 @@ private fun PrayerNotificationConfigDialog(
             GeoButton(
                 text = "حفظ",
                 icon = Icons.Default.Check,
-                accent = GoldPrimary,
+                accent = PresetPrimary,
                 variant = GeoButtonStyle.Filled,
                 onClick = {
-                    prefs.edit()
+                    val editor = prefs.edit()
                         .putBoolean("notify_$prayerKey", isEnabled)
                         .putString("sound_mode_$prayerKey", soundMode)
-                        .apply()
+                    if (selectedVoiceId == null) editor.remove("voice_id_$prayerKey")
+                    else editor.putString("voice_id_$prayerKey", selectedVoiceId)
+                    editor.apply()
                     onSaved()
                 }
             )
@@ -1062,8 +1129,33 @@ fun HeroPrayerCountdownCard(
     prayerTimes: CalculatedPrayerTimes,
     cityName: String,
     onOpenVoices: () -> Unit,
-    onShareTimetable: () -> Unit
+    onShareTimetable: () -> Unit,
+    onCountdownExpired: () -> Unit = {}
 ) {
+    // العدّاد الحي: لقطة millisUntilNextPrayer ثابتة منذ التركيب، فيُنقَص منها
+    // ثانية كل ثانية محلياً؛ وعند بلوغ الصفر يُطلب من الأب إعادة الحساب
+    // للصلاة التالية بدل التجمد على 00:00:00.
+    var elapsedSeconds by remember(prayerTimes) { mutableLongStateOf(0L) }
+    LaunchedEffect(prayerTimes) {
+        while (true) {
+            delay(1000L)
+            elapsedSeconds++
+        }
+    }
+    val remainingMillis = (prayerTimes.millisUntilNextPrayer - elapsedSeconds * 1000L).coerceAtLeast(0L)
+    LaunchedEffect(remainingMillis == 0L) {
+        if (remainingMillis == 0L && elapsedSeconds > 0L) onCountdownExpired()
+    }
+    // تقدّم الحلقة الحي: يُستنتج طول الفترة الكلي من تقدّم اللقطة اللحظي.
+    val totalIntervalMillis = remember(prayerTimes) {
+        val p = prayerTimes.progressToNextPrayer
+        if (p <= 0f || p >= 0.999f) prayerTimes.millisUntilNextPrayer
+        else (prayerTimes.millisUntilNextPrayer / (1f - p)).toLong()
+            .coerceAtLeast(prayerTimes.millisUntilNextPrayer)
+    }
+    val liveProgress = if (totalIntervalMillis <= 0L) 1f
+    else (1f - remainingMillis.toFloat() / totalIntervalMillis.toFloat()).coerceIn(0f, 1f)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1108,7 +1200,7 @@ fun HeroPrayerCountdownCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(GeoShape.Circle)
-                        .background(GoldPrimary.copy(alpha = 0.12f), GeoShape.Circle)
+                        .background(PresetPrimary.copy(alpha = 0.12f), GeoShape.Circle)
                         .border(Geo.B_HAIRLINE, GeoColor.outline(), GeoShape.Circle)
                         .clickable(onClick = onShareTimetable),
                     contentAlignment = Alignment.Center
@@ -1116,7 +1208,7 @@ fun HeroPrayerCountdownCard(
                     Icon(
                         Icons.Default.Share,
                         contentDescription = "مشاركة المواقيت",
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(Geo.I_SM)
                     )
                 }
@@ -1126,15 +1218,15 @@ fun HeroPrayerCountdownCard(
 
             // ── الحلقة الهندسية + العدّاد ──
             GeoProgressRing(
-                progress = prayerTimes.progressToNextPrayer,
+                progress = liveProgress,
                 size = 172.dp,
                 strokeWidth = Geo.RING_STROKE,
                 trackColor = GeoColor.hairline().copy(alpha = 0.55f),
-                progressColor = GoldPrimary
+                progressColor = PresetPrimary
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = PrayerCalculationHelper.formatCountdown(prayerTimes.millisUntilNextPrayer),
+                        text = PrayerCalculationHelper.formatCountdown(remainingMillis),
                         color = GeoColor.textPrimary(),
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
@@ -1145,7 +1237,7 @@ fun HeroPrayerCountdownCard(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "الأذان ${prayerTimes.nextPrayerTimeFormatted}",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
@@ -1222,7 +1314,7 @@ fun HeroPrayerCountdownCard(
                 GeoButton(
                     text = "أصوات الأذان",
                     icon = Icons.Default.VolumeUp,
-                    accent = GoldPrimary,
+                    accent = PresetPrimary,
                     variant = GeoButtonStyle.Filled,
                     modifier = Modifier.weight(1f),
                     onClick = onOpenVoices
@@ -1255,7 +1347,7 @@ fun TimetableAndControlsTab(
         PrayerRowItem("asr", "العصر", prayerTimes.asr, Icons.Default.WbTwilight, Color(0xFFFB923C)),
         PrayerRowItem("maghrib", "المغرب", prayerTimes.maghrib, Icons.Default.NightsStay, GeoColor.Dua),
         PrayerRowItem("isha", "العشاء", prayerTimes.isha, Icons.Default.Bedtime, GeoColor.Qibla),
-        PrayerRowItem("qiyam", "قيام الليل والثلث الأخير", prayerTimes.qiyamStart, Icons.Default.Star, GoldPrimary)
+        PrayerRowItem("qiyam", "قيام الليل والثلث الأخير", prayerTimes.qiyamStart, Icons.Default.Star, PresetPrimary)
     )
 
     LazyColumn(
@@ -1269,7 +1361,7 @@ fun TimetableAndControlsTab(
             val context = LocalContext.current
             var showBgDialog by remember { mutableStateOf(false) }
             val isBgReady = remember { BackgroundPermissionManager.isAllBackgroundPermissionsGranted(context) }
-            val statusAccent = if (isBgReady) GeoColor.Quran else GoldPrimary
+            val statusAccent = if (isBgReady) GeoColor.Quran else PresetPrimary
 
             Surface(
                 onClick = { showBgDialog = true },
@@ -1350,7 +1442,7 @@ fun TimetableAndControlsTab(
             GeoHeader(
                 title = "مواقيت صلوات اليوم",
                 subtitle = "اضغط على أي صلاة لتخصيص تنبيهها",
-                accent = GoldPrimary,
+                accent = PresetPrimary,
                 modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
             )
         }
@@ -1392,7 +1484,7 @@ fun TimetableAndControlsTab(
                                 text = prayer.nameAr,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isNext) GoldPrimary else GeoColor.textPrimary(),
+                                color = if (isNext) PresetPrimary else GeoColor.textPrimary(),
                                 fontSize = 14.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1403,7 +1495,7 @@ fun TimetableAndControlsTab(
                                 GeoChip(
                                     text = "القادمة",
                                     selected = true,
-                                    accent = GoldPrimary
+                                    accent = PresetPrimary
                                 )
                             }
                         }
@@ -1425,7 +1517,7 @@ fun TimetableAndControlsTab(
                         text = prayer.time,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        color = if (isNext) GoldPrimary else GeoColor.textPrimary(),
+                        color = if (isNext) PresetPrimary else GeoColor.textPrimary(),
                         fontSize = 17.sp,
                         maxLines = 1
                     )
@@ -1523,7 +1615,6 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
 
     val completedCount = (if (fajrDone) 1 else 0) + (if (dhuhrDone) 1 else 0) + (if (asrDone) 1 else 0) + (if (maghribDone) 1 else 0) + (if (ishaDone) 1 else 0)
     val totalObligatory = 5
-    val totalSunanCount = (if (rawatibDone) 1 else 0) + (if (duhaDone) 1 else 0) + (if (witrDone) 1 else 0)
 
     LazyColumn(
         modifier = Modifier
@@ -1549,7 +1640,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
                         size = 76.dp,
                         strokeWidth = Geo.RING_TRACK_STROKE,
                         trackColor = GeoColor.hairline().copy(alpha = 0.55f),
-                        progressColor = GoldPrimary
+                        progressColor = PresetPrimary
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
@@ -1578,7 +1669,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
                         Spacer(Modifier.height(3.dp))
                         Text(
                             text = "$streakCount يوماً متتالياً في طاعة الله",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = NotoSansFont,
                             fontSize = 11.sp,
                             maxLines = 1,
@@ -1594,7 +1685,7 @@ fun PrayerHabitTrackerTab(prefs: android.content.SharedPreferences) {
             GeoHeader(
                 title = "الصلوات المكتوبة",
                 subtitle = "الفرائض الخمس — اضغط الدائرة لأداء الصلاة",
-                accent = GoldPrimary,
+                accent = PresetPrimary,
                 modifier = Modifier.padding(top = Geo.S_SM, bottom = Geo.S_XS)
             )
         }
@@ -1747,12 +1838,12 @@ fun PrayerCheckCard(
                     .size(48.dp)
                     .clip(GeoShape.Circle)
                     .background(
-                        if (isDone) GoldPrimary else GeoColor.surfaceSunken(),
+                        if (isDone) PresetPrimary else GeoColor.surfaceSunken(),
                         GeoShape.Circle
                     )
                     .border(
                         Geo.B_HAIRLINE,
-                        if (isDone) GoldPrimary else GeoColor.outline(),
+                        if (isDone) PresetPrimary else GeoColor.outline(),
                         GeoShape.Circle
                     )
                     .clickable { onToggleDone(!isDone) },
@@ -1771,7 +1862,7 @@ fun PrayerCheckCard(
             // النص — weight حتى لا يضغطه الشريحة
             Text(
                 text = title,
-                color = if (isDone) GoldPrimary else GeoColor.textPrimary(),
+                color = if (isDone) PresetPrimary else GeoColor.textPrimary(),
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -1787,7 +1878,7 @@ fun PrayerCheckCard(
                 text = "في المسجد",
                 icon = Icons.Default.Mosque,
                 selected = isJamaah,
-                accent = GoldPrimary,
+                accent = PresetPrimary,
                 onClick = { onToggleJamaah(!isJamaah) }
             )
         }
@@ -1880,7 +1971,7 @@ fun SpiritualTopicsTab(
     topics: List<SpiritualTopic>,
     headerTitle: String,
     headerDesc: String,
-    accent: Color = GoldPrimary,
+    accent: Color = PresetPrimary,
     onShareTopic: (SpiritualTopic) -> Unit
 ) {
     LazyColumn(
@@ -1977,7 +2068,7 @@ fun SpiritualTopicCard(
                     Column(modifier = Modifier.padding(Geo.S_MD)) {
                         Text(
                             text = ayah,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.5.sp,
@@ -2107,11 +2198,15 @@ fun SpiritualTopicCard(
 fun QiblaAndKhushooTab(
     prayerTimes: CalculatedPrayerTimes,
     cityName: String,
+    latitude: Double,
+    longitude: Double,
     onShareTopic: (SpiritualTopic) -> Unit
 ) {
     // بوصلة حية من حساس الدوران؛ عند غياب الحساس يُعرض الاتجاه الثابت فقط
     // بالتسمية الصادقة «اتجاه القبلة» دون ادعاء بوصلة.
-    val compass = rememberQiblaCompassState()
+    // الإحداثيات لتصحيح الانحراف المغناطيسي (الجولة 103): سمت الحساس
+    // مغناطيسي، واتجاه القبلة من الشمال الحقيقي.
+    val compass = rememberQiblaCompassState(latitude = latitude, longitude = longitude)
     val needleRotation = qiblaNeedleRotationDeg(prayerTimes.qiblaDirectionDeg, compass.azimuthDeg)
 
     LazyColumn(
@@ -2189,7 +2284,7 @@ fun QiblaAndKhushooTab(
 
                             // حلقة داخلية
                             drawCircle(
-                                color = GoldPrimary.copy(alpha = 0.08f),
+                                color = PresetPrimary.copy(alpha = 0.08f),
                                 radius = innerRadius,
                                 center = center
                             )
@@ -2206,7 +2301,7 @@ fun QiblaAndKhushooTab(
                                     center.y + outerRadius * sin(rad).toFloat()
                                 )
                                 drawLine(
-                                    color = GoldPrimary.copy(alpha = 0.35f),
+                                    color = PresetPrimary.copy(alpha = 0.35f),
                                     start = start,
                                     end = end,
                                     strokeWidth = 1.5.dp.toPx()
@@ -2219,7 +2314,7 @@ fun QiblaAndKhushooTab(
                         Icon(
                             imageVector = Icons.Default.Navigation,
                             contentDescription = "اتجاه القبلة",
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier
                                 .size(60.dp)
                                 .rotate(needleRotation)
@@ -2231,13 +2326,13 @@ fun QiblaAndKhushooTab(
                                 .size(30.dp)
                                 .clip(CircleShape)
                                 .background(GeoColor.surfaceSunken())
-                                .border(Geo.B_HAIRLINE, GoldPrimary, CircleShape),
+                                .border(Geo.B_HAIRLINE, PresetPrimary, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Mosque,
                                 contentDescription = "الكعبة المشرفة",
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(Geo.I_SM)
                             )
                         }
@@ -2289,7 +2384,7 @@ fun QiblaAndKhushooTab(
                             Spacer(Modifier.width(Geo.S_SM))
                             Text(
                                 text = "${prayerTimes.distanceToMakkahKm} كم",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
@@ -2434,7 +2529,7 @@ fun AzanVoicesDialog(
                         Icon(
                             Icons.Default.VolumeUp,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -2442,7 +2537,7 @@ fun AzanVoicesDialog(
                             "أصوات المؤذنين الحية",
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 16.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -2460,7 +2555,7 @@ fun AzanVoicesDialog(
                         Surface(
                             onClick = { localPicker.launch("audio/*") },
                             shape = GeoShape.Chip,
-                            color = GoldPrimary.copy(alpha = 0.14f),
+                            color = PresetPrimary.copy(alpha = 0.14f),
                             border = BorderStroke(Geo.B_HAIRLINE, GeoColor.outline())
                         ) {
                             Row(
@@ -2470,13 +2565,13 @@ fun AzanVoicesDialog(
                                 Icon(
                                     Icons.Default.Add,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(Geo.I_XS)
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
                                     "من الهاتف",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 11.sp,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
@@ -2553,10 +2648,10 @@ fun AzanVoicesDialog(
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isDefault) GoldPrimary.copy(alpha = 0.14f) else dialogTheme.cardSurface,
+                        color = if (isDefault) PresetPrimary.copy(alpha = 0.14f) else dialogTheme.cardSurface,
                         border = BorderStroke(
                             0.75.dp,
-                            if (isDefault) GoldPrimary.copy(alpha = 0.6f) else dialogTheme.separator
+                            if (isDefault) PresetPrimary.copy(alpha = 0.6f) else dialogTheme.separator
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -2574,14 +2669,14 @@ fun AzanVoicesDialog(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(CircleShape)
-                                            .background(if (isDefault) GoldPrimary.copy(alpha = 0.22f) else dialogTheme.secondarySurface)
-                                            .border(0.75.dp, if (isDefault) GoldPrimary else dialogTheme.separator, CircleShape),
+                                            .background(if (isDefault) PresetPrimary.copy(alpha = 0.22f) else dialogTheme.secondarySurface)
+                                            .border(0.75.dp, if (isDefault) PresetPrimary else dialogTheme.separator, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Mosque,
                                             contentDescription = null,
-                                            tint = if (isDefault) GoldPrimary else dialogTheme.textPrimary,
+                                            tint = if (isDefault) PresetPrimary else dialogTheme.textPrimary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -2590,7 +2685,7 @@ fun AzanVoicesDialog(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 voice.nameAr,
-                                                color = if (isDefault) GoldPrimary else dialogTheme.textPrimary,
+                                                color = if (isDefault) PresetPrimary else dialogTheme.textPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 14.sp
@@ -2614,7 +2709,7 @@ fun AzanVoicesDialog(
                                         }
                                         Text(
                                             voice.muezzinAr,
-                                            color = if (isDefault) GoldPrimary else dialogTheme.textSecondary,
+                                            color = if (isDefault) PresetPrimary else dialogTheme.textSecondary,
                                             fontFamily = NotoSansFont,
                                             fontSize = 11.sp
                                         )
@@ -2631,14 +2726,14 @@ fun AzanVoicesDialog(
                                         if (isLoading) {
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(20.dp),
-                                                color = GoldPrimary,
+                                                color = PresetPrimary,
                                                 strokeWidth = 2.dp
                                             )
                                         } else {
                                             Icon(
                                                 imageVector = if (isPlaying) Icons.Default.StopCircle else Icons.Default.PlayCircle,
                                                 contentDescription = "تشغيل",
-                                                tint = GoldPrimary,
+                                                tint = PresetPrimary,
                                                 modifier = Modifier.size(32.dp)
                                             )
                                         }
@@ -2663,7 +2758,7 @@ fun AzanVoicesDialog(
                                             },
                                             modifier = Modifier.size(48.dp)
                                         ) {
-                                            Icon(Icons.Default.Edit, contentDescription = "تعديل عنوان الصوت الشخصي", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Edit, contentDescription = "تعديل عنوان الصوت الشخصي", tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                         }
                                         IconButton(
                                             onClick = { personalVoicePendingDelete = voice },
@@ -2792,9 +2887,9 @@ fun AzanVoicesDialog(
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                                 ) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(Geo.I_XS))
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(Geo.I_XS))
                                     Spacer(modifier = Modifier.width(5.dp))
-                                    Text("تعيين كأذان افتراضي للصلوات", color = GoldPrimary, fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1)
+                                    Text("تعيين كأذان افتراضي للصلوات", color = PresetPrimary, fontSize = 11.sp, fontFamily = CairoFont, maxLines = 1)
                                 }
                             }
                         }
@@ -2814,7 +2909,7 @@ fun AzanVoicesDialog(
                     GeoButton(
                         text = "إغلاق",
                         icon = Icons.Default.Close,
-                        accent = GoldPrimary,
+                        accent = PresetPrimary,
                         variant = GeoButtonStyle.Outline,
                         onClick = onDismiss
                     )
@@ -2827,7 +2922,7 @@ fun AzanVoicesDialog(
         AlertDialog(
             onDismissRequest = { editingCloudVoice = null },
             containerColor = GeoColor.surfaceSunken(),
-            title = { Text("تعديل وصف الأذان", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            title = { Text("تعديل وصف الأذان", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = editCloudDescription,
@@ -2851,7 +2946,7 @@ fun AzanVoicesDialog(
                         }
                         editingCloudVoice = null
                     }
-                }) { Text("حفظ", color = GoldPrimary) }
+                }) { Text("حفظ", color = PresetPrimary) }
             },
             dismissButton = { TextButton(onClick = { editingCloudVoice = null }) { Text("إلغاء") } }
         )
@@ -2892,7 +2987,7 @@ fun AzanVoicesDialog(
             onDismissRequest = { showVoiceSetupPrompt = false },
             containerColor = GeoColor.surfaceSunken(),
             shape = GeoShape.CardLg,
-            title = { Text("أضف صوت مؤذّن للمحراب", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            title = { Text("أضف صوت مؤذّن للمحراب", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     if (cloudFetchFailed) "لا توجد أصوات عامة متاحة حالياً أو تعذر جلبها. يمكنك حفظ ملف أذان من هاتفك في سحابتك الخاصة، أو إعادة محاولة جلب الأصوات العامة." 
@@ -2902,7 +2997,7 @@ fun AzanVoicesDialog(
             },
             confirmButton = {
                 TextButton(onClick = { showVoiceSetupPrompt = false; localPicker.launch("audio/*") }) {
-                    Text("إضافة من الهاتف", color = GoldPrimary, fontFamily = CairoFont)
+                    Text("إضافة من الهاتف", color = PresetPrimary, fontFamily = CairoFont)
                 }
             },
             dismissButton = {
@@ -2949,7 +3044,7 @@ fun AzanVoicesDialog(
                 }
             },
             containerColor = GeoColor.surfaceSunken(),
-            title = { Text("حفظ أذان في حسابك", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            title = { Text("حفظ أذان في حسابك", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Geo.S_SM)) {
                     Text(
@@ -3010,7 +3105,7 @@ fun AzanVoicesDialog(
                             }
                         }
                     }
-                ) { Text(if (isPersonalUploading) "جارٍ الرفع" else "حفظ", color = GoldPrimary) }
+                ) { Text(if (isPersonalUploading) "جارٍ الرفع" else "حفظ", color = PresetPrimary) }
             },
             dismissButton = {
                 TextButton(
@@ -3028,7 +3123,7 @@ fun AzanVoicesDialog(
         AlertDialog(
             onDismissRequest = { editingPersonalVoice = null },
             containerColor = GeoColor.surfaceSunken(),
-            title = { Text("تعديل عنوان الأذان", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            title = { Text("تعديل عنوان الأذان", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = personalVoiceTitle,
@@ -3054,7 +3149,7 @@ fun AzanVoicesDialog(
                         }
                         editingPersonalVoice = null
                     }
-                }) { Text("حفظ", color = GoldPrimary) }
+                }) { Text("حفظ", color = PresetPrimary) }
             },
             dismissButton = { TextButton(onClick = { editingPersonalVoice = null }) { Text("إلغاء") } }
         )
@@ -3125,7 +3220,7 @@ fun AddCustomMuezzinDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GeoIconBadge(
                     icon = Icons.Default.AddCircle,
-                    accent = GoldPrimary,
+                    accent = PresetPrimary,
                     size = 36.dp,
                     iconSize = Geo.I_SM
                 )
@@ -3168,8 +3263,8 @@ fun AddCustomMuezzinDialog(
                     label = { Text("عنوان الأذان", fontFamily = CairoFont, fontSize = 11.sp) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        focusedLabelColor = GoldPrimary,
+                        focusedBorderColor = PresetPrimary,
+                        focusedLabelColor = PresetPrimary,
                         unfocusedBorderColor = GeoColor.hairline(),
                         focusedTextColor = GeoColor.textPrimary(),
                         unfocusedTextColor = GeoColor.textPrimary()
@@ -3184,8 +3279,8 @@ fun AddCustomMuezzinDialog(
                     label = { Text("اسم المؤذن والشيخ", fontFamily = CairoFont, fontSize = 11.sp) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        focusedLabelColor = GoldPrimary,
+                        focusedBorderColor = PresetPrimary,
+                        focusedLabelColor = PresetPrimary,
                         unfocusedBorderColor = GeoColor.hairline(),
                         focusedTextColor = GeoColor.textPrimary(),
                         unfocusedTextColor = GeoColor.textPrimary()
@@ -3200,8 +3295,8 @@ fun AddCustomMuezzinDialog(
                     label = { Text("رابط الصوت المباشر", fontFamily = CairoFont, fontSize = 11.sp) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        focusedLabelColor = GoldPrimary,
+                        focusedBorderColor = PresetPrimary,
+                        focusedLabelColor = PresetPrimary,
                         unfocusedBorderColor = GeoColor.hairline(),
                         focusedTextColor = GeoColor.textPrimary(),
                         unfocusedTextColor = GeoColor.textPrimary()
@@ -3215,8 +3310,8 @@ fun AddCustomMuezzinDialog(
                     onValueChange = { description = it },
                     label = { Text("وصف مختصر", fontFamily = CairoFont, fontSize = 11.sp) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        focusedLabelColor = GoldPrimary,
+                        focusedBorderColor = PresetPrimary,
+                        focusedLabelColor = PresetPrimary,
                         unfocusedBorderColor = GeoColor.hairline(),
                         focusedTextColor = GeoColor.textPrimary(),
                         unfocusedTextColor = GeoColor.textPrimary()
@@ -3256,7 +3351,7 @@ fun AddCustomMuezzinDialog(
                         onCheckedChange = { isFajrOnly = it },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = GoldPrimary,
+                            checkedTrackColor = PresetPrimary,
                             uncheckedThumbColor = GeoColor.textMuted(),
                             uncheckedTrackColor = GeoColor.surfaceSunken()
                         )
@@ -3268,7 +3363,7 @@ fun AddCustomMuezzinDialog(
             GeoButton(
                 text = "حفظ وإضافة",
                 icon = Icons.Default.Check,
-                accent = GoldPrimary,
+                accent = PresetPrimary,
                 variant = GeoButtonStyle.Filled,
                 enabled = isValid,
                 onClick = {

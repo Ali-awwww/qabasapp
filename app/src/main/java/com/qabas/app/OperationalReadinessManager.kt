@@ -1,10 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import androidx.compose.ui.graphics.Color
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class ServiceReadiness(
     val name: String,
@@ -27,32 +23,8 @@ data class ReadinessReport(
 object OperationalReadinessManager {
 
     private var lastRecordedError: String? = null
-    private var lastRecordedTime: String? = null
-
-    fun recordLastError(service: String, message: String) {
-        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        val timeStr = timeFormat.format(Date())
-        val formatted = "[$service $timeStr] $message"
-        lastRecordedError = formatted
-        lastRecordedTime = timeStr
-        SystemLogsManager.addLog("ERROR", formatted, Color(0xFFEF4444))
-    }
-
-    fun recordLastError(message: String) {
-        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        val timeStr = timeFormat.format(Date())
-        val formatted = "[$timeStr] $message"
-        lastRecordedError = formatted
-        lastRecordedTime = timeStr
-        SystemLogsManager.addLog("ERROR", formatted, Color(0xFFEF4444))
-    }
 
     fun getLastError(): String? = lastRecordedError
-
-    fun clearLastError() {
-        lastRecordedError = null
-        lastRecordedTime = null
-    }
 
     fun calculateReadiness(context: Context, customKeys: Map<String, String>? = null): ReadinessReport {
         val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)

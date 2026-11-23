@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.ApplePrimaryButton
-import com.qabas.app.ui.components.AppleSecondaryButton
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -100,7 +99,7 @@ internal fun ProfileChangePasswordDialog(
                         val success = runCatching {
                             SupabaseServices.isSupabaseAvailable &&
                                 SupabaseServices.Auth.updatePassword(newPw.trim())
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         isUpdatingPw = false
                         if (success) {
                             onDismiss()
@@ -459,10 +458,8 @@ internal fun ProfileEditDialog(
 
                                 profilePrefs.edit().putString("user_name", finalName).putString("user_bio", tempBio).apply()
                                 prefs.edit()
-                                    .putString("user_id", authUid)
                                     .putString("user_display_name", finalName)
                                     .putString("user_name", finalName)
-                                    .putString("user_tag", finalTag)
                                     .putString("user_custom_id", cloudUser.customId)
                                     .putString("user_account_number", cloudUser.accountNumber)
                                     .apply()
@@ -1075,14 +1072,6 @@ fun HudCornerDecor(modifier: Modifier = Modifier) {
     Spacer(modifier = modifier.size(0.dp))
 }
 
-fun formatStatNumber(num: Int): String {
-    return when {
-        num >= 1_000_000 -> String.format(Locale.US, "%.1fM", num / 1_000_000.0)
-        num >= 1_000 -> String.format(Locale.US, "%.1fK", num / 1_000.0)
-        else -> num.toString()
-    }
-}
-
 @Composable
 fun StatCard(modifier: Modifier = Modifier, title: String, value: String, icon: ImageVector, color: Color) {
     val theme = QabasTheme.current
@@ -1138,20 +1127,5 @@ fun ProfileSection(
             )
         }
         content()
-    }
-}
-
-@Composable
-fun ProfileActionButton(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isPrimary: Boolean = false
-) {
-    if (isPrimary) {
-        ApplePrimaryButton(text = label, icon = icon, onClick = onClick, modifier = modifier)
-    } else {
-        AppleSecondaryButton(text = label, icon = icon, onClick = onClick, modifier = modifier)
     }
 }

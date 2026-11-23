@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.os.Build
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -16,9 +15,6 @@ import kotlinx.coroutines.withContext
  */
 object AppRemoteConfig {
     private const val TAG = "AppRemoteConfig"
-
-    const val COLLECTION = "app_config"
-    const val DOC_ID = "config"
 
     const val KEY_MAINTENANCE = "sys_maintenance_mode"
     const val KEY_ACCEPT_REQUESTS = "sys_accept_requests"
@@ -92,8 +88,6 @@ object AppRemoteConfig {
 
     // ──────────────── القواعد المشروطة + تجارب A/B ────────────────
 
-    const val OVERRIDES_COLLECTION = "app_config_overrides"
-
     /**
      * قاعدة تجاوز مشروطة: تغيّر قيمة مفتاح لشريحة فقط
      * (إصدار/نوع مستخدم/نسبة طرح تدريجي) — أساس تجارب A/B.
@@ -105,7 +99,6 @@ object AppRemoteConfig {
         val value: String = "true",
         val userType: String = "all", // all/developers/premium/free
         val minVersion: Int = 0,
-        val maxVersion: Int = Int.MAX_VALUE,
         /** نسبة الطرح 0-100 (100 = الجميع). التوزيع ثابت لكل جهاز. */
         val percent: Int = 100,
         val enabled: Boolean = true,
@@ -116,44 +109,6 @@ object AppRemoteConfig {
     private var cachedOverrides: List<OverrideRule>? = null
 
     /** معرّف ثابت للجهاز لتوزيع نسب A/B بثبات. */
-    fun stableBucket(context: Context): Int {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        var id = prefs.getString("device_stable_id", null)
-        if (id.isNullOrBlank()) {
-            id = java.util.UUID.randomUUID().toString()
-            prefs.edit().putString("device_stable_id", id).apply()
-        }
-        return (kotlin.math.abs(id.hashCode()) % 100)
-    }
-
-    private fun deviceUserType(context: Context): String {
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val cloudRole = SupabaseServices.Auth.getUserRoleFromMetadata()
-        val isDeveloper = SupabaseServices.Auth.isDeveloperRole(cloudRole) ||
-            AdminGuard.isCloudUserOwner()
-        return when {
-            isDeveloper -> "developers"
-            prefs.getBoolean("is_premium", false) -> "premium"
-            else -> "free"
-        }
-    }
-
-    private fun ruleMatches(context: Context, rule: OverrideRule, versionCode: Int): Boolean {
-        if (!rule.enabled) return false
-        if (versionCode < rule.minVersion || versionCode > rule.maxVersion) return false
-        val myType = deviceUserType(context)
-        if (rule.userType != "all" && rule.userType != myType) {
-            // المطور والمميز يريان قواعد الشريحة العامة + شريحتهما فقط
-            if (!(rule.userType == "free" && (myType == "premium" || myType == "developers"))) {
-                // قاعدة premium تشمل developers أيضاً
-                if (!(rule.userType == "premium" && myType == "developers")) return false
-            }
-        }
-        if (rule.percent >= 100) return true
-        if (rule.percent <= 0) return false
-        return stableBucket(context) < rule.percent
-    }
-
     private fun currentVersionCode(context: Context): Int {
         return runCatching {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -172,32 +127,6 @@ object AppRemoteConfig {
 
     fun invalidateOverrides() {
         cachedOverrides = null
-    }
-
-    private suspend fun matchingRule(context: Context, key: String): OverrideRule? {
-        val version = currentVersionCode(context)
-        return fetchOverrides(context).firstOrNull { it.key == key && ruleMatches(context, it, version) }
-    }
-
-    /** قراءة فعالة: القاعدة المشروطة أولاً، ثم القيمة العامة. */
-    suspend fun effectiveBoolean(context: Context, key: String, default: Boolean): Boolean {
-        val rule = matchingRule(context, key) ?: return current(context).let {
-            when (key) {
-                KEY_MAINTENANCE -> it.maintenanceMode
-                KEY_ACCEPT_REQUESTS -> it.acceptRequests
-                KEY_AUTO_AI_REPLY -> it.autoAiReply
-                else -> default
-            }
-        }
-        return rule.value.equals("true", ignoreCase = true)
-    }
-
-    suspend fun effectiveString(context: Context, key: String, default: String): String {
-        val rule = matchingRule(context, key) ?: return when (key) {
-            KEY_MAINTENANCE_MESSAGE -> current(context).maintenanceMessage
-            else -> default
-        }
-        return rule.value
     }
 
     /** إضافة/تحديث قاعدة من لوحة المطور. */

@@ -11,7 +11,6 @@ import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
-import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.postgrest.query.Order
@@ -23,7 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -68,7 +66,7 @@ object SupabaseServices {
                 limit(1)
             }
             true
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 
         /** Read the single cloud-managed Mishkat reminder record. */
         suspend fun getMishkatReminderContent(): MishkatReminderContent? = runCatching {
@@ -77,7 +75,7 @@ object SupabaseServices {
                 filter { eq("id", "global") }
                 limit(1)
             }.decodeSingleOrNull<MishkatReminderContent>()
-        }.onFailure { Log.e(TAG, "getMishkatReminderContent failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMishkatReminderContent failed: ${it.message}") }.getOrNull()
 
         // ════════════════════════════════════════════════════════════════
         // حالة قراءة المكتبة الإسلامية (Batch 6 — الأولوية 2)
@@ -104,7 +102,7 @@ object SupabaseServices {
             client.postgrest.from("library_reading_state").select {
                 filter { eq("user_id", userId) }
             }.decodeList<LibraryReadingStateRow>()
-        }.onFailure { Log.e(TAG, "getLibraryReadingState failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getLibraryReadingState failed: ${it.message}") }
             .getOrDefault(emptyList())
 
         /** يحفظ/يحدّث حالة كتاب واحد للمستخدم الحالي فقط (upsert على المفتاح). */
@@ -116,7 +114,7 @@ object SupabaseServices {
                 onConflict = "user_id,book_id"
             }
             true
-        }.onFailure { Log.e(TAG, "upsertLibraryReadingState failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "upsertLibraryReadingState failed: ${it.message}") }
             .getOrDefault(false)
 
         /** Save the reminder only through the authenticated developer RLS policy. */
@@ -145,7 +143,7 @@ object SupabaseServices {
                 onConflict = "id"
             }
             true
-        }.onFailure { Log.e(TAG, "saveMishkatReminderContent failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveMishkatReminderContent failed: ${it.message}") }.getOrDefault(false)
 
         /**
          * تذكير مشكاة يوم محدد (1–30) من جدول mishkat_daily.
@@ -161,7 +159,7 @@ object SupabaseServices {
                 }
                 limit(1)
             }.decodeSingleOrNull<MishkatDailyRow>()
-        }.onFailure { Log.e(TAG, "getMishkatDaily failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMishkatDaily failed: ${it.message}") }.getOrNull()
 
         /** كل تذكيرات مشكاة اليومية النشطة مرتبة برقم اليوم؛ فارغة عند غياب الجدول. */
         suspend fun getAllActiveMishkatDaily(): List<MishkatDailyRow> = runCatching {
@@ -170,7 +168,7 @@ object SupabaseServices {
                 filter { eq("is_active", true) }
                 order("day_number", Order.ASCENDING)
             }.decodeList<MishkatDailyRow>()
-        }.onFailure { Log.e(TAG, "getAllActiveMishkatDaily failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAllActiveMishkatDaily failed: ${it.message}") }.getOrDefault(emptyList())
 
         /**
          * مهام فيديو الاستوديو للمستخدم الحالي (جدول studio_jobs، الدفعة 4).
@@ -184,7 +182,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
                 limit(50)
             }.decodeList<StudioJobRow>()
-        }.onFailure { Log.e(TAG, "getStudioJobs failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getStudioJobs failed: ${it.message}") }.getOrDefault(emptyList())
 
         /** تسجيل مهمة فيديو منتهية (التنفيذ متزامن في الأداة؛ الطابور يسجّل النتيجة فقط). */
         suspend fun insertStudioJob(job: StudioJobRow): Boolean = runCatching {
@@ -196,7 +194,7 @@ object SupabaseServices {
             )
             client.postgrest.from("studio_jobs").insert(row)
             true
-        }.onFailure { Log.e(TAG, "insertStudioJob failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "insertStudioJob failed: ${it.message}") }.getOrDefault(false)
 
         /**
          * سجل توليدات الاستوديو للمستخدم الحالي (جدول ai_generations، الدفعة 4).
@@ -210,7 +208,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
                 limit(100)
             }.decodeList<AiGenerationRow>()
-        }.onFailure { Log.e(TAG, "getAiGenerations failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAiGenerations failed: ${it.message}") }.getOrDefault(emptyList())
 
         /**
          * تسجيل توليد واحد. التكلفة الفعلية تُسجَّل 0 حتى تُقاس من المزود
@@ -225,7 +223,7 @@ object SupabaseServices {
             )
             client.postgrest.from("ai_generations").insert(row)
             true
-        }.onFailure { Log.e(TAG, "insertAiGeneration failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "insertAiGeneration failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getLatestActiveUpdateOrThrow(): ActiveUpdate? {
             val client = client ?: throw IllegalStateException("Supabase is not configured")
@@ -239,7 +237,7 @@ object SupabaseServices {
         }
 
         suspend fun getLatestActiveUpdate(): ActiveUpdate? =
-            runCatching { getLatestActiveUpdateOrThrow() }
+            runCatching { getLatestActiveUpdateOrThrow() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { Log.e(TAG, "getLatestActiveUpdate failed: ${it.message}") }
                 .getOrNull()
 
@@ -400,7 +398,7 @@ object SupabaseServices {
                     put("p_custom_id", customId ?: "")
                 }
                 client.postgrest.rpc("check_account_availability", params).decodeAs<AccountAvailabilityResponse>()
-            }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         }
 
         suspend fun ensureUser(
@@ -451,7 +449,7 @@ object SupabaseServices {
                     client.postgrest.from("users").insert(payload) {
                         select()
                     }.decodeSingleOrNull<UserRow>()
-                }.onFailure {
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
                     // Concurrent devices may race to create the same UID row.
                     Log.w(TAG, "ensureUser insert raced or failed: ${it.message}")
                 }
@@ -491,7 +489,7 @@ object SupabaseServices {
                         filter { eq("id", authUid) }
                     }
                     existing = readCanonical()
-                }
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             }
 
             existing?.takeIf {
@@ -501,7 +499,7 @@ object SupabaseServices {
                 Log.e(TAG, "ensureUser: canonical cloud profile is missing identity fields")
                 null
             }
-        }.onFailure { Log.e(TAG, "ensureUser failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "ensureUser failed: ${it.message}") }.getOrNull()
 
         suspend fun getUserByEmail(email: String, authUserId: String? = null): UserRow? = runCatching {
             val client = client ?: return null
@@ -529,7 +527,7 @@ object SupabaseServices {
                 limit(2)
             }.decodeList<UserRow>()
             if (matches.size == 1) matches.first() else null
-        }.onFailure { Log.e(TAG, "getUserByEmail failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUserByEmail failed: ${it.message}") }.getOrNull()
 
         suspend fun getUserByCustomId(customId: String): UserRow? = runCatching {
             val client = client ?: return null
@@ -541,7 +539,7 @@ object SupabaseServices {
                 }
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
-        }.onFailure { Log.e(TAG, "getUserByCustomId failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUserByCustomId failed: ${it.message}") }.getOrNull()
 
         suspend fun getUserByAccountNumber(accountNumber: String): UserRow? = runCatching {
             val client = client ?: return null
@@ -580,7 +578,7 @@ object SupabaseServices {
                 }
             }
             null
-        }.onFailure { Log.e(TAG, "getUserByAccountNumber failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUserByAccountNumber failed: ${it.message}") }.getOrNull()
 
 
         /**
@@ -687,7 +685,7 @@ object SupabaseServices {
                 !saved.customId.isNullOrBlank() &&
                 (targetCustomId.isNullOrBlank() ||
                     UserIdentifierManager.normalize(saved.customId) == targetCustomId)
-        }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}", it) }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveUser failed: ${it.message}", it) }.getOrDefault(false)
 
         /** حجز/نبضة ذرّية من الخادم؛ تميّز صراحةً بين التعارض والملف المفقود وتعذر التحقق. */
         suspend fun claimActiveSession(
@@ -707,7 +705,7 @@ object SupabaseServices {
                     .rpc("claim_active_session", params)
                     .decodeAs<String>()
                 parseActiveSessionClaimStatus(status)
-            }.onFailure {
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
                 Log.w(TAG, "claimActiveSession RPC failed (${it.javaClass.simpleName})")
             }.getOrDefault(ActiveSessionClaimResult.UNAVAILABLE)
         }
@@ -724,7 +722,7 @@ object SupabaseServices {
                 client.postgrest
                     .rpc("release_active_session", params)
                     .decodeAs<Boolean>()
-            }.onFailure {
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
                 Log.w(TAG, "releaseActiveSession RPC failed (${it.javaClass.simpleName})")
             }.getOrDefault(false)
         }
@@ -732,7 +730,7 @@ object SupabaseServices {
         suspend fun getAllUsers(): List<UserRow> = runCatching {
             val client = client ?: return emptyList()
             client.postgrest.from("users").select().decodeList<UserRow>()
-        }.onFailure { Log.e(TAG, "getAllUsers failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAllUsers failed: ${it.message}") }.getOrDefault(emptyList())
 
         /** Role changes must pass the server-authorized RPC; never fall back to direct profile writes. */
         suspend fun updateUserRole(userId: String, newType: String): Boolean = runCatching {
@@ -743,7 +741,7 @@ object SupabaseServices {
             }
             client.postgrest.rpc("promote_user_role", params)
             true
-        }.onFailure { Log.e(TAG, "updateUserRole RPC failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "updateUserRole RPC failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun updateUserSuspension(userId: String, isSuspended: Boolean): Boolean = runCatching {
             val client = client ?: return false
@@ -753,7 +751,7 @@ object SupabaseServices {
             }
             client.postgrest.rpc("set_user_suspension", params)
             true
-        }.onFailure { Log.e(TAG, "set_user_suspension RPC failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "set_user_suspension RPC failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun saveProject(
             title: String,
@@ -779,7 +777,7 @@ object SupabaseServices {
             )
             client.postgrest.from("projects").insert(row)
             row
-        }.onFailure { Log.e(TAG, "saveProject failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveProject failed: ${it.message}") }.getOrNull()
 
         suspend fun saveFullProject(
             id: String,
@@ -809,7 +807,7 @@ object SupabaseServices {
             )
             client.postgrest.from("projects").upsert(row)
             true
-        }.onFailure { Log.e(TAG, "saveFullProject failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveFullProject failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getUserProjects(userId: String? = null): List<ProjectRow> = runCatching {
             val client = client ?: return emptyList()
@@ -823,7 +821,7 @@ object SupabaseServices {
                     }
                 }.decodeList<ProjectRow>()
             }
-        }.onFailure { Log.e(TAG, "getUserProjects failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUserProjects failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun getFeed(): List<ProjectRow> = runCatching {
             val client = client ?: return emptyList()
@@ -831,7 +829,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
                 limit(20)
             }.decodeList<ProjectRow>()
-        }.onFailure { Log.e(TAG, "getFeed failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getFeed failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun deleteProject(id: String): Boolean = runCatching {
             val client = client ?: return false
@@ -843,7 +841,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteProject failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteProject failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getHadithPresets(): List<HadithRow> = runCatching {
             val client = client ?: return emptyList()
@@ -852,7 +850,7 @@ object SupabaseServices {
                     eq("is_active", true)
                 }
             }.decodeList<HadithRow>()
-        }.onFailure { Log.e(TAG, "getHadithPresets failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getHadithPresets failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun getAudioTracks(): List<AudioTrackRow> = runCatching {
             val client = client ?: return emptyList()
@@ -861,13 +859,13 @@ object SupabaseServices {
                     eq("is_active", true)
                 }
             }.decodeList<AudioTrackRow>()
-        }.onFailure { Log.e(TAG, "getAudioTracks failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAudioTracks failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun addAudioTrack(track: AudioTrackRow): Boolean = runCatching {
             val client = client ?: return false
             client.postgrest.from("audio_tracks").upsert(track)
             true
-        }.onFailure { Log.e(TAG, "addAudioTrack failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "addAudioTrack failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteAudioTrack(trackId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -877,7 +875,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteAudioTrack failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteAudioTrack failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun updateAudioTrackLikes(trackId: String, newLikesCount: Int): Boolean = runCatching {
             val client = client ?: return false
@@ -887,7 +885,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "updateAudioTrackLikes failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "updateAudioTrackLikes failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getScholarLectures(scholarId: String): List<ScholarLectureRow> = runCatching {
             val client = client ?: return emptyList()
@@ -896,13 +894,13 @@ object SupabaseServices {
                     eq("scholar_id", scholarId)
                 }
             }.decodeList<ScholarLectureRow>()
-        }.onFailure { Log.e(TAG, "getScholarLectures failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getScholarLectures failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun saveScholarLecture(row: ScholarLectureRow): Boolean = runCatching {
             val client = client ?: return false
             client.postgrest.from("scholar_lectures").upsert(row)
             true
-        }.onFailure { Log.e(TAG, "saveScholarLecture failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveScholarLecture failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteScholarLecture(lectureId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -912,7 +910,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteScholarLecture failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteScholarLecture failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getScholarProposals(scholarId: String): List<ScholarProposalRow> = runCatching {
             val client = client ?: return emptyList()
@@ -921,7 +919,7 @@ object SupabaseServices {
                     eq("scholar_id", scholarId)
                 }
             }.decodeList<ScholarProposalRow>()
-        }.onFailure { Log.e(TAG, "getScholarProposals failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getScholarProposals failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun saveScholarProposal(row: ScholarProposalRow): Boolean = runCatching {
             val client = client ?: return false
@@ -933,7 +931,7 @@ object SupabaseServices {
             }
             client.postgrest.from("scholar_proposals").upsert(enriched)
             true
-        }.onFailure { Log.e(TAG, "saveScholarProposal failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveScholarProposal failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteScholarProposal(proposalId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -943,7 +941,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteScholarProposal failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteScholarProposal failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun upvoteScholarProposal(id: String, newCount: Int): Boolean = runCatching {
             val client = client ?: return false
@@ -953,54 +951,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "upvoteScholarProposal failed: ${it.message}") }.getOrDefault(false)
-
-        // ── Batch 6 Priority 5: LEGACY — do not use for points any more. ──
-        // This read the `users.strikes` column as if it were points. The
-        // column is legacy (it really stored strikes) and is left untouched;
-        // community points now live in `user_points` / `points_ledger`
-        // (see getCommunityPointsLeaderboard). Kept only so older callers
-        // keep compiling until they are migrated; new code must not call it.
-        suspend fun getLeaderboard(limit: Long = 50L): List<LeaderboardRow> = runCatching {
-            val client = client ?: return emptyList()
-            client.postgrest.from("users").select {
-                filter {
-                    eq("is_eligible", true)
-                }
-                order("strikes", Order.DESCENDING)
-                limit(limit * 3)
-            }.decodeList<LeaderboardRow>()
-                // صف واحد لكل اسم معروض حتى لا تتكرر الحسابات المكرّرة في لوحة الشرف
-                .distinctBy { it.name.trim().lowercase(java.util.Locale.ROOT).ifBlank { it.userId } }
-                .take(limit.toInt())
-        }.onFailure { Log.e(TAG, "getLeaderboard failed: ${it.message}") }.getOrDefault(emptyList())
-
-        // ── Batch 6 Priority 5: LEGACY — do not use for points any more. ──
-        // This overwrote the legacy `users.strikes` column with the points
-        // total, destroying the audit trail. Points are now recorded as
-        // auditable rows via recordPointsAward (points_ledger + user_points).
-        // Kept only so older callers keep compiling; new code must not call it.
-        suspend fun upsertLeaderboardScore(
-            userId: String,
-            name: String,
-            points: Long,
-            isEligible: Boolean = true,
-            avatarUrl: String? = null
-        ): Boolean = runCatching {
-            val client = client ?: return false
-            client.postgrest.from("users").update(
-                mapOf(
-                    "name" to name,
-                    "strikes" to points.toInt(),
-                    "is_eligible" to isEligible
-                )
-            ) {
-                filter {
-                    eq("id", userId)
-                }
-            }
-            true
-        }.onFailure { Log.e(TAG, "upsertLeaderboardScore failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "upvoteScholarProposal failed: ${it.message}") }.getOrDefault(false)
 
         // ════════════════════════════════════════════════════════════════
         // نقاط المجتمع (Batch 6 — الأولوية 5)
@@ -1009,7 +960,7 @@ object SupabaseServices {
         // التدقيق، وليس كتابة فوق قيمة؛ وعمود `strikes` القديم في جدول
         // `users` لا يُقرأ ولا يُكتب هنا إطلاقاً. غياب الجدولين أو الجلسة
         // أو الشبكة يعيد فراغاً لا خطأ — نمط `getMishkatReminderContent`.
-        // النقاط هنا نقاط مجتمع مكتسبة (تصدير فيديو، اختبار، دخول يومي)
+        // النقاط هنا نقاط مجتمع مكتسبة (إنشاء فيديو، اختبار، دخول يومي)
         // كما يعرّفها PointsManager، وليست منافسة عبادة: لا ترتيب على
         // الصلاة ولا منافسة على الحسنات (§6 من تقرير التدقيق).
         // ════════════════════════════════════════════════════════════════
@@ -1076,7 +1027,13 @@ object SupabaseServices {
                 .filterValues { it != 0L }
         }
 
-        /** أسماء العرض للمستخدمين من جدول `users`؛ الغائب يبقى بلا اسم. */
+        /** أسماء عرض لمجموعة مستخدمين (لأصحاب مشاريع التغذية) — فراغ عند غياب الجدول أو الشبكة. أسماء العرض للمستخدمين من جدول `users`؛ الغائب يبقى بلا اسم. */
+        suspend fun getUserDisplayNames(userIds: List<String>): Map<String, String> = runCatching {
+            val client = client ?: return emptyMap()
+            resolveUserNames(client, userIds)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getUserDisplayNames failed: ${it.message}") }
+            .getOrDefault(emptyMap())
+
         private suspend fun resolveUserNames(
             client: io.github.jan.supabase.SupabaseClient,
             userIds: List<String>
@@ -1103,7 +1060,7 @@ object SupabaseServices {
                 .mapIndexed { index, (userId, points) ->
                     LeaderboardRow(
                         userId = userId,
-                        name = names[userId] ?: "مستخدم قبس",
+                        name = names[userId] ?: "مستخدم خادم المسلم",
                         points = points,
                         isEligible = true,
                         avatarUrl = null,
@@ -1134,7 +1091,7 @@ object SupabaseServices {
                     rows.map { row ->
                         LeaderboardRow(
                             userId = row.userId,
-                            name = names[row.userId] ?: "مستخدم قبس",
+                            name = names[row.userId] ?: "مستخدم خادم المسلم",
                             points = row.points,
                             isEligible = true,
                             avatarUrl = null,
@@ -1165,7 +1122,7 @@ object SupabaseServices {
                     toLeaderboardRows(sums, names, emptyMap(), limit)
                 }
             }
-        }.onFailure { Log.e(TAG, "getCommunityPointsLeaderboard failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getCommunityPointsLeaderboard failed: ${it.message}") }
             .getOrDefault(emptyList())
 
         /**
@@ -1207,7 +1164,7 @@ object SupabaseServices {
                 onConflict = "user_id"
             }
             true
-        }.onFailure { Log.e(TAG, "recordPointsAward failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordPointsAward failed: ${it.message}") }
             .getOrDefault(false)
 
         suspend fun findEmailByCustomId(customId: String): String? = runCatching {
@@ -1219,11 +1176,11 @@ object SupabaseServices {
                 limit(1)
             }.decodeSingleOrNull<UserRow>()
             user?.email
-        }.onFailure { Log.e(TAG, "findEmailByCustomId failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "findEmailByCustomId failed: ${it.message}") }.getOrNull()
 
         suspend fun findEmailByAccountNumber(accountNumber: String): String? = runCatching {
             getUserByAccountNumber(accountNumber)?.email
-        }.onFailure { Log.e(TAG, "findEmailByAccountNumber failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "findEmailByAccountNumber failed: ${it.message}") }.getOrNull()
 
         // ── Promo Codes Operations ──
         suspend fun getValidPromoCodes(): List<PromoCodeRow> = runCatching {
@@ -1233,7 +1190,7 @@ object SupabaseServices {
                     eq("is_active", true)
                 }
             }.decodeList<PromoCodeRow>()
-        }.onFailure { Log.e(TAG, "getValidPromoCodes failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getValidPromoCodes failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun savePromoCode(code: String, type: String, value: Long): Boolean = runCatching {
             val client = client ?: return false
@@ -1245,7 +1202,7 @@ object SupabaseServices {
             )
             client.postgrest.from("promo_codes").upsert(row)
             true
-        }.onFailure { Log.e(TAG, "savePromoCode failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "savePromoCode failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun reservePromoCode(
             code: String,
@@ -1262,7 +1219,7 @@ object SupabaseServices {
                 function = "reserve_promo_code",
                 parameters = params
             ).decodeAs<PromoReservationResponse>()
-        }.onFailure { Log.e(TAG, "reservePromoCode RPC failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "reservePromoCode RPC failed: ${it.message}") }
 
         suspend fun releasePromoCode(reservationToken: String): Result<Boolean> = runCatching {
             val client = client ?: return Result.failure(IllegalStateException("Supabase not available"))
@@ -1274,7 +1231,7 @@ object SupabaseServices {
                 parameters = params
             ).decodeAs<PromoReleaseResponse>()
             res.success
-        }.onFailure { Log.e(TAG, "releasePromoCode RPC failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "releasePromoCode RPC failed: ${it.message}") }
 
         // ── Transactions & Guards Operations ──
         suspend fun recordTransaction(
@@ -1296,7 +1253,7 @@ object SupabaseServices {
             )
             client.postgrest.from("transactions").insert(payload)
             true
-        }.onFailure { Log.e(TAG, "recordTransaction failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordTransaction failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun recordContentGuardCheck(
             id: String = "guard_${System.currentTimeMillis()}",
@@ -1317,7 +1274,7 @@ object SupabaseServices {
             )
             client.postgrest.from("content_guard_logs").insert(payload)
             true
-        }.onFailure { Log.e(TAG, "recordContentGuardCheck failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordContentGuardCheck failed: ${it.message}") }.getOrDefault(false)
 
         private suspend fun withSignedBugReportImage(row: BugReportRow): BugReportRow {
             val path = Storage.normalizeObjectPath("bug_reports", row.imageUrl) ?: return row
@@ -1335,7 +1292,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
             rows.map { withSignedBugReportImage(it) }
-        }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAllBugReports failed: ${it.message}") }.getOrDefault(emptyList())
 
 
         /**
@@ -1369,7 +1326,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
             }.decodeList<BugReportRow>()
             rows.map { withSignedBugReportImage(it) }
-        }.onFailure { Log.e(TAG, "getBugReportsByUser failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getBugReportsByUser failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun recordBugReport(
             userEmail: String,
@@ -1409,7 +1366,7 @@ object SupabaseServices {
             }
             client.postgrest.from("dev_bug_reports").insert(payload)
             true
-        }.onFailure { Log.e(TAG, "recordBugReport failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordBugReport failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun updateBugReportStatus(
             id: String,
@@ -1425,7 +1382,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "updateBugReportStatus failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "updateBugReportStatus failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteBugReport(id: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1435,7 +1392,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteBugReport failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteBugReport failed: ${it.message}") }.getOrDefault(false)
 
         // ── Chat Messages Operations ──
         suspend fun getAllChatThreadsOrNull(): Map<String, List<ChatMessageRow>>? = runCatching {
@@ -1444,7 +1401,7 @@ object SupabaseServices {
                 order("created_at", Order.ASCENDING)
             }.decodeList<ChatMessageRow>()
             list.groupBy { it.userEmail.lowercase().trim() }
-        }.onFailure { Log.e(TAG, "getAllChatThreads failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getAllChatThreads failed: ${it.message}") }.getOrNull()
 
         suspend fun getAllChatThreads(): Map<String, List<ChatMessageRow>> =
             getAllChatThreadsOrNull().orEmpty()
@@ -1458,7 +1415,7 @@ object SupabaseServices {
                 }
                 order("created_at", Order.ASCENDING)
             }.decodeList<ChatMessageRow>()
-        }.onFailure { Log.e(TAG, "getChatMessagesForCurrentUser failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getChatMessagesForCurrentUser failed: ${it.message}") }.getOrNull()
 
         suspend fun getChatMessagesForCurrentUser(): List<ChatMessageRow> =
             getChatMessagesForCurrentUserOrNull().orEmpty()
@@ -1512,10 +1469,10 @@ object SupabaseServices {
                         }
                         limit(1)
                     }.decodeList<ChatMessageRow>().isNotEmpty()
-                }.getOrDefault(false)
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                 if (alreadyPersisted) true else throw insertError
             }
-        }.onFailure { Log.e(TAG, "sendChatMessage failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "sendChatMessage failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun editDevChatMessage(messageId: String, userId: String, message: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1526,7 +1483,7 @@ object SupabaseServices {
                 put("p_message", message)
             }
             client.postgrest.rpc("qabas_edit_dev_chat_message", params).decodeAs<Boolean>()
-        }.onFailure { Log.e(TAG, "editDevChatMessage failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "editDevChatMessage failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteDevChatMessage(messageId: String, userId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1536,14 +1493,14 @@ object SupabaseServices {
                 put("p_user_id", userId)
             }
             client.postgrest.rpc("qabas_delete_dev_chat_message", params).decodeAs<Boolean>()
-        }.onFailure { Log.e(TAG, "deleteDevChatMessage failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteDevChatMessage failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteDevChatThread(userId: String): Int? = runCatching {
             val client = client ?: return null
             if (userId.isBlank()) return null
             val params = buildJsonObject { put("p_user_id", userId) }
             client.postgrest.rpc("qabas_delete_dev_chat_thread", params).decodeAs<Int>()
-        }.onFailure { Log.e(TAG, "deleteDevChatThread failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteDevChatThread failed: ${it.message}") }.getOrNull()
 
         suspend fun upsertPushToken(userId: String, token: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1557,7 +1514,7 @@ object SupabaseServices {
                 )
             )
             true
-        }.onFailure { Log.e(TAG, "upsertPushToken failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "upsertPushToken failed: ${it.message}") }.getOrDefault(false)
 
         // ── Styles Operations ──
         suspend fun getStyleObjects(userId: String? = null): List<StyleRow> = runCatching {
@@ -1571,7 +1528,7 @@ object SupabaseServices {
                     }
                 }.decodeList<StyleRow>()
             }
-        }.onFailure { Log.e(TAG, "getStyleObjects failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getStyleObjects failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun saveStyleObject(
             id: String,
@@ -1598,7 +1555,7 @@ object SupabaseServices {
             )
             client.postgrest.from("styles").upsert(row)
             true
-        }.onFailure { Log.e(TAG, "saveStyleObject failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveStyleObject failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteStyleObject(id: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1608,12 +1565,12 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteStyleObject failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteStyleObject failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getMasterStyles(): List<MasterStyleRow> = runCatching {
             val client = client ?: return emptyList()
             client.postgrest.from("master_styles").select().decodeList<MasterStyleRow>()
-        }.onFailure { Log.e(TAG, "getMasterStyles failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMasterStyles failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun saveMasterStyle(
             id: String,
@@ -1638,7 +1595,7 @@ object SupabaseServices {
             )
             client.postgrest.from("master_styles").upsert(row)
             true
-        }.onFailure { Log.e(TAG, "saveMasterStyle failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "saveMasterStyle failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun deleteMasterStyle(id: String): Boolean = runCatching {
             val client = client ?: return false
@@ -1648,7 +1605,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "deleteMasterStyle failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteMasterStyle failed: ${it.message}") }.getOrDefault(false)
     }
 
     // ==========================================
@@ -1664,13 +1621,6 @@ object SupabaseServices {
         /** Reads only the canonical AuthState; feature screens must not restore sessions. */
         fun getCurrentUserId(): String? =
             SupabaseRepository.getInstance().getCurrentUserId()
-
-        /**
-         * Compatibility accessor for older call sites. This is an in-memory snapshot read,
-         * not a network refresh or session-restoration attempt.
-         */
-        @Suppress("UNUSED_PARAMETER")
-        suspend fun awaitCurrentUserId(timeoutMillis: Long = 8_000L): String? = getCurrentUserId()
 
         fun getCurrentUserEmail(): String? =
             SupabaseRepository.getInstance().authState.value.authenticatedSessionSnapshot()?.email
@@ -1713,11 +1663,6 @@ object SupabaseServices {
             return role
         }
 
-        internal fun readTrustedRoleFromCurrentSession(): String = runCatching {
-            if (!isSupabaseAvailable) "user"
-            else trustedRoleFromAppMetadata(client?.auth?.currentUserOrNull()?.appMetadata)
-        }.getOrDefault("user")
-
         internal fun publishVerifiedRole(role: String) {
             _verifiedRole.value = role
         }
@@ -1732,17 +1677,17 @@ object SupabaseServices {
         suspend fun isAuthAdmin(): Boolean = runCatching {
             // "special" is an account category, not an authorization role for admin APIs.
             isDeveloperRole(getUserRoleFromMetadata())
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 
         suspend fun register(email: String, pass: String, customId: String? = null, displayName: String? = null): Boolean = runCatching {
             val res = SupabaseRepository.getInstance().register(email, pass, customId, displayName)
             res.isSuccess
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 
         suspend fun login(email: String, pass: String): Boolean = runCatching {
             val res = SupabaseRepository.getInstance().login(email, pass)
             res.isSuccess
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 
         suspend fun resetPassword(email: String): Boolean = runCatching {
             if (!isSupabaseAvailable) return false
@@ -1752,7 +1697,7 @@ object SupabaseServices {
                 redirectUrl = SupabaseConfig.PASSWORD_RESET_REDIRECT_URL
             )
             true
-        }.onFailure { Log.e(TAG, "resetPassword failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "resetPassword failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun loginWithGoogle(idToken: String): Boolean = runCatching {
             if (!isSupabaseAvailable) return false
@@ -1762,7 +1707,7 @@ object SupabaseServices {
                 this.provider = Google
             }
             true
-        }.onFailure { Log.e(TAG, "loginWithGoogle failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "loginWithGoogle failed: ${it.message}") }.getOrDefault(false)
 
         // ── Batch 6 Priority 3: email verification (real Supabase Auth state) ──
         //
@@ -1794,7 +1739,7 @@ object SupabaseServices {
         suspend fun refreshEmailConfirmationState(): Boolean? = runCatching {
             if (!isSupabaseAvailable) return null
             val client = client ?: return null
-            runCatching { client.auth.retrieveUserForCurrentSession(updateSession = true) }
+            runCatching { client.auth.retrieveUserForCurrentSession(updateSession = true) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             val confirmed = client.auth.currentUserOrNull()?.emailConfirmedAt != null
             runCatching {
                 AppServices.appContext
@@ -1802,7 +1747,7 @@ object SupabaseServices {
                     .edit().putBoolean("email_confirmed", confirmed).apply()
             }
             confirmed
-        }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
 
         /** Re-sends the signup confirmation email via Supabase Auth (`resend`, type signup). Returns false when the server refuses (e.g. rate-limited: one request per 60s). */
         suspend fun resendSignupConfirmation(email: String): Boolean = runCatching {
@@ -1810,7 +1755,7 @@ object SupabaseServices {
             val client = client ?: return false
             client.auth.resendEmail(OtpType.Email.SIGNUP, email.trim())
             true
-        }.onFailure { Log.e(TAG, "resendSignupConfirmation failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "resendSignupConfirmation failed: ${it.message}") }.getOrDefault(false)
 
         // ── Batch 6 Priority 3: real account deletion ──
 
@@ -1830,7 +1775,7 @@ object SupabaseServices {
             )
             val body = response.body<JsonObject>()
             body["ok"]?.jsonPrimitive?.booleanOrNull == true
-        }.onFailure { Log.e(TAG, "invokeDeleteAccountFunction failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "invokeDeleteAccountFunction failed: ${it.message}") }.getOrDefault(false)
 
         /**
          * Best-effort client-side deletion of the caller's own rows, used as a
@@ -1859,13 +1804,13 @@ object SupabaseServices {
                 results[table] = runCatching {
                     client.postgrest.from(table).delete { filter { eq("user_id", userId) } }
                     true
-                }.onFailure { Log.w(TAG, "deleteOwnAccountRows: $table failed: ${it.message}") }
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: $table failed: ${it.message}") }
                     .getOrDefault(false)
             }
             results["users"] = runCatching {
                 client.postgrest.from("users").delete { filter { eq("id", userId) } }
                 true
-            }.onFailure { Log.w(TAG, "deleteOwnAccountRows: users failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "deleteOwnAccountRows: users failed: ${it.message}") }
                 .getOrDefault(false)
             return results
         }
@@ -1876,7 +1821,7 @@ object SupabaseServices {
                 password = newPassword
             }
             true
-        }.onFailure { Log.e(TAG, "updatePassword failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "updatePassword failed: ${it.message}") }.getOrDefault(false)
 
         /**
          * Password changes originating from the recovery screen must be backed
@@ -1890,7 +1835,7 @@ object SupabaseServices {
                 password = newPassword
             }
             true
-        }.onFailure { Log.e(TAG, "updateRecoveredPassword failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "updateRecoveredPassword failed: ${it.message}") }.getOrDefault(false)
 
         /** Route every application logout path through the repository cleanup. */
         suspend fun logout(): Boolean =
@@ -1918,7 +1863,7 @@ object SupabaseServices {
                     userId = uid,
                     rawErrorMessage = null
                 )
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 // التفاصيل الخام (روابط/مضيفون/أكواد) تبقى في السجلات فقط — لا تُعرض للمستخدم
                 Log.e(TAG, "diagnoseSignInAttempt failed: ${e.message}", e)
                 val safe = describeAuthFailure(e)
@@ -2080,7 +2025,7 @@ object SupabaseServices {
                     throw IllegalStateException("Profile mirror did not confirm the requested email")
                 }
                 true
-            }.onFailure { err ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { err ->
                 if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
                     Log.w(TAG, "syncUserProfile RLS/permission denied for $userId: ${err.message}")
                 } else {
@@ -2102,7 +2047,7 @@ object SupabaseServices {
                     }
                     limit(1)
                 }.decodeSingleOrNull<ProfileRow>()
-            }.onFailure { err ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { err ->
                 if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
                     Log.w(TAG, "getUserProfile RLS/permission denied for $userId: ${err.message}")
                 } else {
@@ -2120,7 +2065,7 @@ object SupabaseServices {
                     filter { eq("id", creatorId) }
                     limit(1)
                 }.decodeSingleOrNull<PublicCreatorProfileRow>()
-            }.onFailure {
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure {
                 Log.w(TAG, "getPublicCreatorProfile failed")
             }.getOrNull()
         }
@@ -2138,7 +2083,7 @@ object SupabaseServices {
                 limit(1)
             }.decodeList<ReelRow>().firstOrNull()?.userCustomId
                 ?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
-        }.onFailure { Log.w(TAG, "getCreatorCustomId failed") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "getCreatorCustomId failed") }.getOrNull()
 
         /**
          * جلب مقاطع الريلز النشطة مع تقرير تشخيصي دقيق (زمن الاستجابة، رمز HTTP، ومرحلة الفشل).
@@ -2220,6 +2165,8 @@ object SupabaseServices {
                     errorMessage = if (list.isEmpty()) "لا توجد مقاطع نشطة مسجلة في السحابة حالياً" else null,
                     rawEndpoint = endpoint
                 )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (t: Throwable) {
                 val latency = (System.currentTimeMillis() - startTime).coerceAtLeast(1L)
                 ReelSafetyGuardrails.recordNetworkFailure()
@@ -2301,7 +2248,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
                 limit(maxItems.coerceIn(1, 100).toLong())
             }.decodeList<ReelRow>()
-        }.onFailure { Log.w(TAG, "getPublicCreatorReels failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "getPublicCreatorReels failed: ${it.message}") }.getOrDefault(emptyList())
 
 
         /** جلب الفيديوهات المخصصة لوضع الأثر (المحقونة صامتاً) */
@@ -2317,7 +2264,7 @@ object SupabaseServices {
                 }
                 order("created_at", Order.DESCENDING)
             }.decodeList<ReelRow>()
-        }.onFailure { Log.e(TAG, "getSilentSeedReels failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getSilentSeedReels failed: ${it.message}") }.getOrNull()
 
         suspend fun saveReel(
             userId: String,
@@ -2372,7 +2319,7 @@ object SupabaseServices {
                     limit(1)
                 }.decodeSingleOrNull<UserRow>()?.customId?.trim()?.removePrefix("@")
                     ?.takeIf { it.isNotBlank() }
-            }.onFailure { Log.w("ReelPublish", "Could not load creator custom_id") }.getOrNull()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w("ReelPublish", "Could not load creator custom_id") }.getOrNull()
 
             val now = java.time.Instant.now().toString()
             val payload = ReelInsertPayload(
@@ -2411,10 +2358,10 @@ object SupabaseServices {
                 if (publishType == "normal") {
                     runCatching {
                         DevWorkQueuesRepository.enqueueReelForModeration(saved.id, effectiveUserId)
-                    }
+                    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 }
                 saved
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e("ReelPublish", "Supabase reels insert error: ${e.message}", e)
                 throw e
             }
@@ -2434,7 +2381,7 @@ object SupabaseServices {
                 limit(1)
             }.decodeList<ReelRow>()
             remaining.isEmpty()
-        }.onFailure { Log.e(TAG, "deleteReel failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteReel failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun toggleReelActive(reelId: String, isActive: Boolean): Boolean = runCatching {
             val client = client ?: return false
@@ -2444,7 +2391,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "toggleReelActive failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "toggleReelActive failed: ${it.message}") }.getOrDefault(false)
 
         private suspend fun ensureStarterReel(reelId: String, creatorId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -2460,7 +2407,7 @@ object SupabaseServices {
                 limit(1)
             }.decodeList<ReelRow>()
             rows.isNotEmpty()
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             Log.w(TAG, "ensureStarterReel failed for $reelId: ${e.message}")
         }.getOrDefault(false)
 
@@ -2487,7 +2434,7 @@ object SupabaseServices {
                 onConflict = "reel_id,user_id"
             }
             true
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             val msg = e.message.orEmpty()
             Log.e(TAG, "likeReel failed for reel $reelId, user $userId: $msg", e)
             lastInteractionError = msg
@@ -2513,7 +2460,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             val msg = e.message.orEmpty()
             Log.e(TAG, "unlikeReel failed for reel $reelId, user $userId: $msg")
             lastInteractionError = msg
@@ -2527,7 +2474,7 @@ object SupabaseServices {
                 filter { eq("id", reelId) }
                 limit(1)
             }.decodeSingleOrNull<ReelLikesCountRow>()?.likesCount
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             Log.e(TAG, "getReelLikesCount failed for reel $reelId: ${e.message}")
         }.getOrNull()
 
@@ -2539,7 +2486,7 @@ object SupabaseServices {
                 }
                 order("created_at", Order.ASCENDING)
             }.decodeList<ReelCommentRow>()
-        }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getReelComments failed: ${it.message}") }.getOrNull()
 
         suspend fun addReelBookmark(reelId: String, userId: String): Boolean = runCatching {
             lastInteractionError = null
@@ -2562,7 +2509,7 @@ object SupabaseServices {
                 onConflict = "reel_id,user_id"
             }
             true
-        }.onFailure { e ->
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
             val msg = e.message.orEmpty()
             Log.e(TAG, "addReelBookmark failed: $msg")
             lastInteractionError = msg
@@ -2580,7 +2527,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { e -> Log.e(TAG, "removeReelBookmark failed: ${e.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e -> Log.e(TAG, "removeReelBookmark failed: ${e.message}") }.getOrDefault(false)
 
         suspend fun addReelComment(
             reelId: String,
@@ -2621,7 +2568,7 @@ object SupabaseServices {
             client.postgrest.from("reel_comments").insert(comment) {
                 select()
             }.decodeSingleOrNull<ReelCommentRow>()
-        }.onFailure { Log.e(TAG, "addReelComment failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "addReelComment failed: ${it.message}") }.getOrNull()
 
         /** Update a comment only when the current authenticated user owns the row. */
         suspend fun updateReelComment(
@@ -2645,7 +2592,7 @@ object SupabaseServices {
                 }
                 select()
             }.decodeSingleOrNull<ReelCommentRow>()
-        }.onFailure { Log.e(TAG, "updateReelComment failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "updateReelComment failed: ${it.message}") }.getOrNull()
 
         /** Delete a comment only when the current authenticated user owns the row. */
         suspend fun deleteReelComment(commentId: String, userId: String): Boolean = runCatching {
@@ -2661,7 +2608,7 @@ object SupabaseServices {
                 }
                 select()
             }.decodeList<ReelCommentRow>().isNotEmpty()
-        }.onFailure { Log.e(TAG, "deleteReelComment failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteReelComment failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getBookmarkedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
@@ -2670,7 +2617,7 @@ object SupabaseServices {
             client.postgrest.from("reel_bookmarks").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
                 filter { eq("user_id", authUid) }
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
-        }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getBookmarkedReelIds failed: ${it.message}") }.getOrNull()
 
         suspend fun getLikedReelIds(userId: String): Set<String>? = runCatching {
             val client = client ?: return null
@@ -2681,7 +2628,7 @@ object SupabaseServices {
             client.postgrest.from("reel_likes").select(columns = io.github.jan.supabase.postgrest.query.Columns.list("reel_id")) {
                 filter { eq("user_id", authUid) }
             }.decodeList<ReelBookmarkRow>().mapNotNull { it.reelId }.toSet()
-        }.onFailure { Log.w(TAG, "getLikedReelIds failed (${it.javaClass.simpleName})") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "getLikedReelIds failed (${it.javaClass.simpleName})") }.getOrNull()
 
         /**
          * Returns the signed-in user's activity only. RLS is enforced by Supabase as a
@@ -2702,7 +2649,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "removeReelWatchHistory failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "removeReelWatchHistory failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun clearReelWatchHistory(userId: String): Boolean = runCatching {
             val client = client ?: return false
@@ -2713,7 +2660,7 @@ object SupabaseServices {
                 filter { eq("user_id", authUid) }
             }
             true
-        }.onFailure { Log.e(TAG, "clearReelWatchHistory failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "clearReelWatchHistory failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun getReelById(reelId: String): ReelRow? = runCatching {
             if (reelId.isBlank()) return null
@@ -2722,7 +2669,7 @@ object SupabaseServices {
                 filter { eq("id", reelId) }
                 limit(1)
             }.decodeList<ReelRow>().firstOrNull()
-        }.onFailure { Log.e(TAG, "getReelById failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getReelById failed: ${it.message}") }.getOrNull()
 
         // ==========================================
         // سجل المشاهدات السحابي (reel_history)
@@ -2742,7 +2689,7 @@ object SupabaseServices {
                 put("p_watched_duration_sec", watchedDurationSec.coerceIn(0, 3600))
             }
             client.postgrest.rpc("record_reel_view", params).decodeAs<Int>()
-        }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "recordReelWatch failed: ${it.message}") }.getOrNull()
     }
 
     // ==========================================
@@ -2763,7 +2710,7 @@ object SupabaseServices {
                 )
                 client.postgrest.from("user_settings").upsert(row)
                 true
-            }.onFailure { err ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { err ->
                 if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
                     Log.w(TAG, "saveUserSettings RLS/permission denied for $userId: ${err.message}")
                 } else {
@@ -2785,7 +2732,7 @@ object SupabaseServices {
                     }
                     limit(1)
                 }.decodeSingleOrNull<UserSettingsRow>()
-            }.onFailure { err ->
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { err ->
                 if (err.message?.contains("permission denied") == true || err.message?.contains("42501") == true) {
                     Log.w(TAG, "getUserSettings RLS/permission denied for $userId: ${err.message}")
                 } else {
@@ -2810,16 +2757,6 @@ object SupabaseServices {
             return saveUserSettings(userId, json)
         }
 
-        suspend fun getUserBio(userId: String): String? {
-            val existing = getUserSettings(userId) ?: return null
-            if (existing.preferencesJson.isBlank()) return null
-            return try {
-                val obj = org.json.JSONObject(existing.preferencesJson)
-                if (obj.has("bio")) obj.optString("bio", "") else null
-            } catch (e: Exception) {
-                null
-            }
-        }
     }
 
     // ==========================================
@@ -2832,13 +2769,13 @@ object SupabaseServices {
                 .decodeList<VerifiedCreatorRow>()
                 .map { it.id }
                 .filter { it.isNotBlank() }
-        }.onFailure { Log.e(TAG, "getVerifiedIds failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getVerifiedIds failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun addVerified(id: String): Boolean = runCatching {
             val client = client ?: return false
             client.postgrest.from("verified_creators").upsert(mapOf("id" to id))
             true
-        }.onFailure { Log.e(TAG, "addVerified failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "addVerified failed: ${it.message}") }.getOrDefault(false)
 
         suspend fun removeVerified(id: String): Boolean = runCatching {
             val client = client ?: return false
@@ -2848,7 +2785,7 @@ object SupabaseServices {
                 }
             }
             true
-        }.onFailure { Log.e(TAG, "removeVerified failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "removeVerified failed: ${it.message}") }.getOrDefault(false)
     }
 
     // ==========================================
@@ -2880,7 +2817,7 @@ object SupabaseServices {
                 limit(10_000)
             }.decodeList<HelpfulVoteRow>()
                 .groupingBy { it.reviewId }.eachCount()
-        }.onFailure { Log.e(TAG, "realHelpfulCounts failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "realHelpfulCounts failed: ${it.message}") }
             .getOrDefault(emptyMap())
 
         suspend fun getAppReviews(): Result<List<AppReviewDto>> = runCatching {
@@ -2906,7 +2843,7 @@ object SupabaseServices {
                     fixed
                 }
             }
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /** مراجعة المستخدم الحالي (واحدة فقط) أو null؛ null أيضاً عند غياب الجدول. */
         suspend fun getMyReview(): Result<AppReviewDto?> = runCatching {
@@ -2918,7 +2855,7 @@ object SupabaseServices {
                 order("created_at", Order.DESCENDING)
                 limit(1)
             }.decodeSingleOrNull<AppReviewDto>()
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /**
          * إرسال مراجعة جديدة. يشترط مستخدماً مسجّلاً وتعليقاً غير فارغ،
@@ -2948,7 +2885,7 @@ object SupabaseServices {
             val review = AppReviewDto(
                 id = UUID.randomUUID().toString(),
                 userId = uid,
-                authorName = authorName.ifBlank { "مستخدم قبس" },
+                authorName = authorName.ifBlank { "مستخدم خادم المسلم" },
                 rating = rating.coerceIn(1, 5),
                 categoryRating = category,
                 appVersion = "v${BuildConfig.VERSION_NAME}",
@@ -2960,7 +2897,7 @@ object SupabaseServices {
             )
             client.postgrest.from("app_reviews").insert(review)
             Unit
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /** تعديل مراجعتي الخاصة فقط (الفلترة بـ id + user_id). */
         suspend fun updateMyReview(
@@ -2990,7 +2927,7 @@ object SupabaseServices {
                 }
             }
             Unit
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /** حذف مراجعتي الخاصة فقط (الفلترة بـ id + user_id). */
         suspend fun deleteMyReview(reviewId: String): Result<Unit> = runCatching {
@@ -3005,7 +2942,7 @@ object SupabaseServices {
                 }
             }
             Unit
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /** بلاغ على مراجعة: صف واحد في `review_reports` (بلا واجهة إشراف بعد). */
         suspend fun submitReviewReport(reviewId: String, reason: String): Result<Unit> = runCatching {
@@ -3022,7 +2959,7 @@ object SupabaseServices {
                 )
             )
             Unit
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /**
          * تبديل صوت "مفيد": صوت واحد لكل مستخدم لكل مراجعة (المفتاح
@@ -3060,7 +2997,7 @@ object SupabaseServices {
                 )
                 true
             }
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         /** معرّفات المراجعات التي صوّت لها المستخدم الحالي بـ"مفيد". */
         suspend fun getMyHelpfulVoteReviewIds(): Set<String> = runCatching {
@@ -3072,7 +3009,7 @@ object SupabaseServices {
                 filter { eq("user_id", uid) }
                 limit(10_000)
             }.decodeList<HelpfulVoteRow>().map { it.reviewId }.toSet()
-        }.onFailure { Log.e(TAG, "getMyHelpfulVoteReviewIds failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "getMyHelpfulVoteReviewIds failed: ${it.message}") }
             .getOrDefault(emptySet())
     }
 
@@ -3094,7 +3031,7 @@ object SupabaseServices {
             }
             client.postgrest.from("dev_bug_reports").insert(payload)
             Unit
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     // ==========================================
@@ -3270,7 +3207,7 @@ object SupabaseServices {
                 this.upsert = upsert
             }
             client.storage.from(bucketName).publicUrl(path)
-        }.onFailure { Log.e(TAG, "uploadFile failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "uploadFile failed: ${it.message}") }.getOrNull()
 
         suspend fun uploadAudioFile(
             bucketName: String = "audio-tracks",
@@ -3395,13 +3332,13 @@ object SupabaseServices {
                     createdAt = f.createdAt?.toString()
                 )
             }
-        }.onFailure { Log.e(TAG, "listFiles failed: ${it.message}") }.getOrDefault(emptyList())
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "listFiles failed: ${it.message}") }.getOrDefault(emptyList())
 
         suspend fun deleteFiles(bucketName: String, paths: List<String>): Boolean = runCatching {
             val client = client ?: return false
             client.storage.from(bucketName).delete(paths)
             true
-        }.onFailure { Log.e(TAG, "deleteFiles failed: ${it.message}") }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "deleteFiles failed: ${it.message}") }.getOrDefault(false)
 
         /**
          * التحقق من وجود وجاهزية رابط الفيديو في Supabase Storage قبل العرض في المشغل،
@@ -3663,7 +3600,7 @@ object SupabaseServices {
     data class AppReviewDto(
         val id: String = UUID.randomUUID().toString(),
         @SerialName("user_id") val userId: String? = null,
-        @SerialName("author_name") val authorName: String = "مستخدم قبس",
+        @SerialName("author_name") val authorName: String = "مستخدم خادم المسلم",
         // لا افتراض: غياب التقييم في الصف يعني 0 لا 5.
         val rating: Int = 0,
         @SerialName("category_rating") val categoryRating: String = "overall",
@@ -3769,19 +3706,6 @@ object SupabaseServices {
     @Serializable
     data class ReelLikesCountRow(
         @SerialName("likes_count") val likesCount: Int = 0
-    )
-
-    @Serializable
-    data class ReelHistoryActivityRow(
-        @SerialName("reel_id") val reelId: String,
-        @SerialName("watched_duration_sec") val watchedDurationSec: Int = 0,
-        @SerialName("created_at") val createdAt: String? = null
-    )
-
-    @Serializable
-    data class ReelActivityRelationRow(
-        @SerialName("reel_id") val reelId: String,
-        @SerialName("created_at") val createdAt: String? = null
     )
 
     @Serializable

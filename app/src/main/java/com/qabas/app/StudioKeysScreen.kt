@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PermMedia
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -190,7 +189,10 @@ private val FREE_ALTERNATIVES = listOf(
 @Composable
 fun StudioKeysScreen(
     onBack: () -> Unit,
-    bottomBar: @Composable () -> Unit = {}
+    bottomBar: @Composable () -> Unit = {},
+    /** (12.3) «خيارات متقدمة» — رابط واحد إلى ApiKeysScreen (مسابح احتياطية،
+     * نسخ احتياطي JSON، إحصاءات طلبات)؛ لا شاشتا مفاتيح متوازيتان. */
+    onOpenAdvancedKeys: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -276,6 +278,23 @@ fun StudioKeysScreen(
                 }
             }
 
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("خيارات متقدمة للمفاتيح", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "مسابح المفاتيح الاحتياطية، النسخ الاحتياطي JSON، وإحصاءات الطلبات — " +
+                                "الشاشة المفصّلة نفسها، برابط واحد من هنا لا كمدخل موازٍ.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(onClick = onOpenAdvancedKeys) {
+                            Text("فتح الخيارات المتقدمة")
+                        }
+                    }
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
@@ -335,7 +354,7 @@ private fun ProviderKeyCard(
         LaunchedEffect(refreshTick) {
             gatewayConfigured = runCatching {
                 HiggsfieldVideoService.isConfigured(context)
-            }.getOrNull()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
         }
     }
     val connected = if (spec.gatewayManaged) gatewayConfigured == true else activeKey.isNotBlank()
@@ -455,14 +474,14 @@ private fun ProviderKeyCard(
                                 if (spec.vaultService != null) {
                                     val deleted = runCatching {
                                         SupabaseRepository.getInstance().deleteApiKey(spec.id)
-                                    }.getOrDefault(false)
+                                    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                                     cloudNote = if (deleted) " وحُذف من السحابة."
                                     else " (تعذّر حذف نسخة السحابة — أعد المحاولة)."
                                     if (spec.needsRegion) {
                                         runCatching {
                                             SupabaseRepository.getInstance()
                                                 .deleteApiKey("azure_speech_region")
-                                        }
+                                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                     }
                                 } else {
                                     cloudNote = " (محلي فقط أصلاً)."
@@ -502,6 +521,10 @@ private fun openUrl(context: Context, url: String) {
  * وللبقية عبر [ApiKeyValidator.validateKey] ثم حفظ محلي مشفّر + خزنة سحابية إن سُمح.
  * لا يُطبع المفتاح أبداً في أي رسالة أو سجل.
  */
+/** روابط مزودي «مفاتيحي» الأحد عشر — تُعاد في تبويب الروابط بقسم فايب كودينج (12.8). */
+val MY_KEYS_PROVIDER_LINKS: List<Pair<String, String?>>
+    get() = PROVIDER_SPECS.map { it.displayName to it.keyUrl }
+
 private suspend fun saveAndTestKey(
     context: Context,
     spec: ProviderSpec,
@@ -516,7 +539,7 @@ private suspend fun saveAndTestKey(
                 if (spec.vaultService != null) {
                     val pushed = runCatching {
                         SupabaseRepository.getInstance().registerApiKey(spec.id, key)
-                    }.getOrDefault(false)
+                    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                     note = if (pushed) " وزُامن إلى الخزنة السحابية."
                     else " (تعذّرت المزامنة السحابية — محفوظ محلياً فقط)."
                 } else {
@@ -539,13 +562,13 @@ private suspend fun saveAndTestKey(
         AgentPrefs.putString(context, "azure_speech_region", region.trim())
         runCatching {
             SupabaseRepository.getInstance().registerApiKey("azure_speech_region", region.trim())
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
     var note = ""
     if (spec.vaultService != null) {
         val pushed = runCatching {
             SupabaseRepository.getInstance().registerApiKey(spec.id, key)
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
         note = if (pushed) " وزُامن إلى الخزنة السحابية."
         else " (تعذّرت المزامنة السحابية — محفوظ محلياً فقط)."
     } else {

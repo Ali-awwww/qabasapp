@@ -11,7 +11,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -193,14 +191,14 @@ fun TeleprompterScreen(
                         Column {
                             Text(
                                 Translator.tr("المُلقن الذكي"),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont,
                                 fontSize = 18.sp
                             )
                             Text(
                                 if (isMirrored) Translator.tr("وضع المرآة العاكسة مفعّل 🪞") else Translator.tr("وضع العرض المباشر"),
-                                color = if (isMirrored) GoldPrimary else TextSecondary,
+                                color = if (isMirrored) PresetPrimary else TextSecondary,
                                 fontSize = 11.sp,
                                 fontFamily = NotoSansFont
                             )
@@ -214,7 +212,7 @@ fun TeleprompterScreen(
                             }
                             onBack()
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = PresetPrimary)
                         }
                     },
                     actions = {
@@ -223,7 +221,7 @@ fun TeleprompterScreen(
                             Icon(
                                 Icons.Default.Description,
                                 contentDescription = "استيراد السكريبت",
-                                tint = GoldPrimary
+                                tint = PresetPrimary
                             )
                         }
                         // Mirror Mode Toggle
@@ -238,7 +236,7 @@ fun TeleprompterScreen(
                             Icon(
                                 Icons.Default.Flip,
                                 contentDescription = "عكس الشاشة",
-                                tint = if (isMirrored) GoldPrimary else Color.White
+                                tint = if (isMirrored) PresetPrimary else TextPrimary
                             )
                         }
                         // Focus Guide Toggle
@@ -246,7 +244,7 @@ fun TeleprompterScreen(
                             Icon(
                                 Icons.Default.RemoveRedEye,
                                 contentDescription = "خط التركيز",
-                                tint = if (showFocusGuide) GoldPrimary else Color.Gray
+                                tint = if (showFocusGuide) PresetPrimary else TextTertiary
                             )
                         }
                         // Text Alignment Toggle
@@ -257,14 +255,14 @@ fun TeleprompterScreen(
                                 else -> TextAlign.Center
                             }
                         }) {
-                            Icon(Icons.Default.FormatAlignJustify, contentDescription = "محاذاة", tint = Color.White)
+                            Icon(Icons.Default.FormatAlignJustify, contentDescription = "محاذاة", tint = TextPrimary)
                         }
                         // Settings Drawer Toggle
                         IconButton(onClick = { showSettings = !showSettings }) {
-                            Icon(Icons.Default.Tune, contentDescription = "التحكم", tint = if (showSettings) GoldPrimary else Color.White)
+                            Icon(Icons.Default.Tune, contentDescription = "التحكم", tint = if (showSettings) PresetPrimary else TextPrimary)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0A0F1D))
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
                 )
             }
         },
@@ -319,7 +317,7 @@ fun TeleprompterScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Transparent,
                         unfocusedBorderColor = Color.Transparent,
-                        cursorColor = GoldPrimary,
+                        cursorColor = PresetPrimary,
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent
                     )
@@ -331,7 +329,7 @@ fun TeleprompterScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(2.dp)
-                            .background(GoldPrimary.copy(alpha = 0.45f))
+                            .background(PresetPrimary.copy(alpha = 0.45f))
                             .align(Alignment.Center)
                     )
                     Row(
@@ -344,13 +342,13 @@ fun TeleprompterScreen(
                         Icon(
                             Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = GoldPrimary.copy(alpha = 0.8f),
+                            tint = PresetPrimary.copy(alpha = 0.8f),
                             modifier = Modifier.size(18.dp)
                         )
                         Icon(
                             Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = GoldPrimary.copy(alpha = 0.8f),
+                            tint = PresetPrimary.copy(alpha = 0.8f),
                             modifier = Modifier
                                 .size(18.dp)
                                 .graphicsLayer { scaleX = -1f }
@@ -368,7 +366,7 @@ fun TeleprompterScreen(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             modifier = Modifier.size(120.dp),
                             shadowElevation = 16.dp
                         ) {
@@ -388,9 +386,9 @@ fun TeleprompterScreen(
                 // Mirror Mode Banner Badge
                 if (isMirrored && !isPlaying) {
                     Surface(
-                        color = GoldPrimary.copy(alpha = 0.15f),
+                        color = PresetPrimary.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = 16.dp)
@@ -399,11 +397,11 @@ fun TeleprompterScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
-                            Icon(Icons.Default.Flip, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Flip, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "وضع المرآة نشط (معكوس للزجاج العاكس)",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -455,8 +453,8 @@ fun TeleprompterScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.96f))
-                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                        .background(DeepSlate.copy(alpha = 0.96f))
+                        .border(1.dp, ThemeSecondarySurface, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                         .padding(horizontal = 20.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -474,15 +472,15 @@ fun TeleprompterScreen(
                             },
                             modifier = Modifier
                                 .size(48.dp)
-                                .background(Color(0xFF1E293B), CircleShape)
+                                .background(ThemeSecondarySurface, CircleShape)
                         ) {
-                            Icon(Icons.Default.Replay, contentDescription = "إعادة للبداية", tint = Color.White)
+                            Icon(Icons.Default.Replay, contentDescription = "إعادة للبداية", tint = TextPrimary)
                         }
 
                         // Play/Pause Floating Action Button
                         Button(
                             onClick = { startPlayWithCountdown() },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),
                             modifier = Modifier.size(68.dp)
@@ -510,14 +508,14 @@ fun TeleprompterScreen(
                             modifier = Modifier
                                 .size(48.dp)
                                 .background(
-                                    if (isRecordingAudio) Color.Red else Color(0xFF1E293B),
+                                    if (isRecordingAudio) Color.Red else ThemeSecondarySurface,
                                     CircleShape
                                 )
                         ) {
                             Icon(
                                 if (isRecordingAudio) Icons.Default.Stop else Icons.Default.Mic,
                                 contentDescription = "تسجيل الصوت",
-                                tint = Color.White
+                                tint = TextPrimary
                             )
                         }
                     }
@@ -526,9 +524,9 @@ fun TeleprompterScreen(
                     if (hasRecordedTrack) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Surface(
-                            color = Color(0xFF151B2B),
+                            color = CardSurface,
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
@@ -538,9 +536,9 @@ fun TeleprompterScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Audiotrack, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Audiotrack, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(Translator.tr("التسجيل الصوتي جاهز للمراجعة"), color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                                        Text(Translator.tr("التسجيل الصوتي جاهز للمراجعة"), color = TextPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                                     }
                                     IconButton(
                                         onClick = {
@@ -559,7 +557,7 @@ fun TeleprompterScreen(
                                         Icon(
                                             if (isPlayingRecordedAudio) Icons.Default.Pause else Icons.Default.PlayArrow,
                                             contentDescription = "استماع",
-                                            tint = GoldPrimary
+                                            tint = PresetPrimary
                                         )
                                     }
                                 }
@@ -575,7 +573,7 @@ fun TeleprompterScreen(
                                             val audioPath = recorderHelper.outputFile?.absolutePath
                                             onNavigateToEditor(scriptText, audioPath)
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.fillMaxWidth().height(42.dp)
                                     ) {
@@ -592,14 +590,14 @@ fun TeleprompterScreen(
                             onClick = {
                                 onNavigateToEditor(scriptText, null)
                             },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(44.dp)
                         ) {
-                            Icon(Icons.Default.Movie, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Movie, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("فتح السكريبت في استوديو المونتاج 🎬", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("فتح السكريبت في استوديو المونتاج 🎬", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
 
@@ -614,7 +612,7 @@ fun TeleprompterScreen(
                         ) {
                             Text(
                                 "سرعة التمرير: ${String.format("%.1f", scrollSpeed)}x",
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -626,10 +624,10 @@ fun TeleprompterScreen(
                                         onClick = { scrollSpeed = speed },
                                         label = { Text(label, fontSize = 10.sp, fontFamily = CairoFont) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = GoldPrimary,
+                                            selectedContainerColor = PresetPrimary,
                                             selectedLabelColor = DeepSlate,
-                                            containerColor = Color(0xFF1E293B),
-                                            labelColor = Color.White
+                                            containerColor = ThemeSecondarySurface,
+                                            labelColor = TextPrimary
                                         )
                                     )
                                 }
@@ -640,9 +638,9 @@ fun TeleprompterScreen(
                             onValueChange = { scrollSpeed = it },
                             valueRange = 1.0f..10.0f,
                             colors = SliderDefaults.colors(
-                                thumbColor = GoldPrimary,
-                                activeTrackColor = GoldPrimary,
-                                inactiveTrackColor = Color(0xFF334155)
+                                thumbColor = PresetPrimary,
+                                activeTrackColor = PresetPrimary,
+                                inactiveTrackColor = ThemeSeparator
                             )
                         )
                     }
@@ -656,7 +654,7 @@ fun TeleprompterScreen(
                         ) {
                             Text(
                                 "حجم الخط: ${fontSize.toInt()}sp",
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -668,10 +666,10 @@ fun TeleprompterScreen(
                                         onClick = { fontSize = size },
                                         label = { Text(label, fontSize = 10.sp, fontFamily = CairoFont) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = GoldPrimary,
+                                            selectedContainerColor = PresetPrimary,
                                             selectedLabelColor = DeepSlate,
-                                            containerColor = Color(0xFF1E293B),
-                                            labelColor = Color.White
+                                            containerColor = ThemeSecondarySurface,
+                                            labelColor = TextPrimary
                                         )
                                     )
                                 }
@@ -682,9 +680,9 @@ fun TeleprompterScreen(
                             onValueChange = { fontSize = it },
                             valueRange = 24f..72f,
                             colors = SliderDefaults.colors(
-                                thumbColor = GoldPrimary,
-                                activeTrackColor = GoldPrimary,
-                                inactiveTrackColor = Color(0xFF334155)
+                                thumbColor = PresetPrimary,
+                                activeTrackColor = PresetPrimary,
+                                inactiveTrackColor = ThemeSeparator
                             )
                         )
                     }
@@ -692,7 +690,7 @@ fun TeleprompterScreen(
                     // Quick Tip
                     Text(
                         "💡 نقرة واحدة لإخفاء/إظهار التحكم • نقرتين للتشغيل والإيقاف المباشر",
-                        color = Color.Gray,
+                        color = TextTertiary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp)
@@ -751,16 +749,16 @@ fun TeleprompterScriptImportDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
+        containerColor = DeepSlate,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("استيراد نص للمُلقن", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("استيراد نص للمُلقن", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.Gray)
+                    Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextTertiary)
                 }
             }
         },
@@ -768,8 +766,8 @@ fun TeleprompterScriptImportDialog(
             Column(modifier = Modifier.fillMaxWidth()) {
                 ScrollableTabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = Color(0xFF1E293B),
-                    contentColor = GoldPrimary,
+                    containerColor = ThemeSecondarySurface,
+                    contentColor = PresetPrimary,
                     edgePadding = 8.dp
                 ) {
                     tabs.forEachIndexed { index, title ->
@@ -782,7 +780,7 @@ fun TeleprompterScriptImportDialog(
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp,
                                     fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selectedTab == index) GoldPrimary else Color.LightGray
+                                    color = if (selectedTab == index) PresetPrimary else TextSecondary
                                 )
                             }
                         )
@@ -798,21 +796,21 @@ fun TeleprompterScriptImportDialog(
                             Column(modifier = Modifier.fillMaxSize()) {
                                 if (currentInput.isNotBlank()) {
                                     Card(
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                        colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface),
                                         shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(14.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("نص المشروع الحالي قيد العمل:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                Text("نص المشروع الحالي قيد العمل:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                             }
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
                                                 currentInput,
-                                                color = Color.White,
+                                                color = TextPrimary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 12.sp,
                                                 maxLines = 6,
@@ -821,7 +819,7 @@ fun TeleprompterScriptImportDialog(
                                             Spacer(modifier = Modifier.height(12.dp))
                                             Button(
                                                 onClick = { onSelectScript(currentInput) },
-                                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                                 shape = RoundedCornerShape(8.dp),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
@@ -831,7 +829,7 @@ fun TeleprompterScriptImportDialog(
                                     }
                                 } else {
                                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        Text("لا يوجد نص مشروع نشط حالياً.\nيمكنك كتابة فكرة من الشاشة الرئيسية.", color = Color.Gray, textAlign = TextAlign.Center, fontFamily = CairoFont)
+                                        Text("لا يوجد نص مشروع نشط حالياً.\nيمكنك كتابة فكرة من الشاشة الرئيسية.", color = TextTertiary, textAlign = TextAlign.Center, fontFamily = CairoFont)
                                     }
                                 }
                             }
@@ -845,7 +843,7 @@ fun TeleprompterScriptImportDialog(
                                 ) {
                                     items(savedProjects) { project ->
                                         Card(
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                            colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface),
                                             shape = RoundedCornerShape(10.dp),
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -855,16 +853,16 @@ fun TeleprompterScriptImportDialog(
                                                 }
                                         ) {
                                             Column(modifier = Modifier.padding(12.dp)) {
-                                                Text(project.title.ifBlank { "مشروع بدون عنوان" }, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                Text(project.title.ifBlank { "مشروع بدون عنوان" }, color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text(project.idea, color = Color.LightGray, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontFamily = NotoSansFont)
+                                                Text(project.idea, color = TextSecondary, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontFamily = NotoSansFont)
                                             }
                                         }
                                     }
                                 }
                             } else {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("لا توجد مشاريع محفوظة في السجل.", color = Color.Gray, fontFamily = CairoFont)
+                                    Text("لا توجد مشاريع محفوظة في السجل.", color = TextTertiary, fontFamily = CairoFont)
                                 }
                             }
                         }
@@ -876,16 +874,16 @@ fun TeleprompterScriptImportDialog(
                             ) {
                                 items(readyTemplates) { (title, content) ->
                                     Card(
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                        colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface),
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable { onSelectScript(content) }
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
-                                            Text(title, color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                            Text(title, color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                             Spacer(modifier = Modifier.height(4.dp))
-                                            Text(content, color = Color.LightGray, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontFamily = NotoSansFont)
+                                            Text(content, color = TextSecondary, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontFamily = NotoSansFont)
                                         }
                                     }
                                 }
@@ -897,7 +895,7 @@ fun TeleprompterScriptImportDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont)
+                Text("إغلاق", color = PresetPrimary, fontFamily = CairoFont)
             }
         }
     )

@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.components.AppleCard
 import com.qabas.app.ui.components.AppleGroupedSection
 import com.qabas.app.ui.components.AppleInsetDivider
 import com.qabas.app.ui.components.ApplePrimaryButton

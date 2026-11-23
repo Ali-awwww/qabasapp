@@ -1,10 +1,8 @@
 package com.qabas.app
 
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.util.UUID
 
 /**
@@ -38,7 +36,6 @@ object AiAutonomousRemediationEngine {
         val affectedModule: String,
         val targetFilePath: String,
         val actionType: RemediationActionType,
-        val proposedCodeBefore: String = "",
         val proposedCodeAfter: String = "",
         val commitMessage: String = "",
         val pullRequestTitle: String = "",
@@ -48,143 +45,6 @@ object AiAutonomousRemediationEngine {
         var executionDetails: String = ""
     )
 
-    /**
-     * تحليل البلاغ أو العطل البرمجي وتوليد مقترح إصلاح ذكي بانتظار موافقة المطور
-     */
-    suspend fun analyzeAndProposeFix(
-        context: Context,
-        title: String,
-        description: String,
-        stackTrace: String = ""
-    ): AiRemediationProposal = withContext(Dispatchers.IO) {
-        val prompt = """
-            أنت مهندس برمجيات ذكي وخبير في تطبيقات Android المكتوبة بـ Kotlin و Jetpack Compose و GitHub API.
-            لديك بلاغ مشكلة أو مقترح من المستخدم في تطبيق «استوديو خادم المسلم»:
-            
-            عنوان البلاغ: $title
-            تفاصيل البلاغ: $description
-            سجل الخطأ/التيليمتري (إن وجد): $stackTrace
-            
-            المطلوب:
-            1. تشخيص سبب الخلل أو الاحتياج بدقة وأمانة علمية دون ادعاءات كاذبة.
-            2. تحديد اسم الملف المتأثر في حزمة com.qabas.app (مثل DeveloperContactScreen.kt, AudioPlaybackManager.kt, etc).
-            3. كتابة الكود المقترح للإصلاح أو التحسين.
-            4. اقتراح رسالة Commit احترافية وعنوان Issue/Pull Request.
-            
-            أجب بصيغة JSON فقط بهذا الهيكل:
-            {
-              "diagnosis": "تشخيص المشكلة وأسبابها باللغة العربية",
-              "affectedModule": "Core/UI/Audio/Network",
-              "targetFilePath": "app/src/main/java/com/qabas/app/TargetFile.kt",
-              "actionType": "CREATE_PULL_REQUEST",
-              "codeBefore": "// الكود الحالي أو المنطق المتأثر",
-              "codeAfter": "// الكود المصحح الجديد",
-              "commitMessage": "fix: resolve issue description",
-              "prTitle": "Fix: عنوان المشكلة",
-              "prBody": "تفاصيل ما تم إصلاحه والمبرر البرمجي"
-            }
-        """.trimIndent()
-
-        var rawAiResponse: String? = null
-        try {
-            // المحاولة عبر Gemini Gateway
-            rawAiResponse = GatewayAiService.geminiText(
-                prompt = prompt,
-                system = "You are a professional Android Kotlin Architect. Output valid JSON only."
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Gateway AI failed: ${e.message}")
-        }
-
-        // إذا لم يتوفر الرد من Gateway، استخدام محرك التحليل الاحتياطي الذكي
-        if (rawAiResponse.isNullOrBlank()) {
-            try {
-                rawAiResponse = PollinationsTextService.chat(prompt)
-            } catch (e: Exception) {
-                Log.w(TAG, "Fallback AI failed: ${e.message}")
-            }
-        }
-
-        parseAiResponseToProposal(title, description, rawAiResponse)
-    }
-
-    private fun parseAiResponseToProposal(
-        title: String,
-        description: String,
-        rawJson: String?
-    ): AiRemediationProposal {
-        if (rawJson.isNullOrBlank()) {
-            return generateFallbackProposal(title, description)
-        }
-
-        return try {
-            val cleanJson = rawJson.replace("```json", "").replace("```", "").trim()
-            val startIdx = cleanJson.indexOf('{')
-            val endIdx = cleanJson.lastIndexOf('}')
-            if (startIdx != -1 && endIdx != -1) {
-                val json = JSONObject(cleanJson.substring(startIdx, endIdx + 1))
-                val actionStr = json.optString("actionType", "CREATE_PULL_REQUEST")
-                val actionType = when (actionStr.uppercase()) {
-                    "CREATE_GITHUB_ISSUE" -> RemediationActionType.CREATE_GITHUB_ISSUE
-                    "COMMIT_FILE_FIX" -> RemediationActionType.COMMIT_FILE_FIX
-                    "LOCAL_CONFIG_PATCH" -> RemediationActionType.LOCAL_CONFIG_PATCH
-                    else -> RemediationActionType.CREATE_PULL_REQUEST
-                }
-
-                AiRemediationProposal(
-                    issueTitle = title,
-                    originalReport = description,
-                    aiDiagnosis = json.optString("diagnosis", "تم تحليل البلاغ ومقارنته بالهندسة المعمارية للنظام."),
-                    affectedModule = json.optString("affectedModule", "UI / Core Engine"),
-                    targetFilePath = json.optString("targetFilePath", "app/src/main/java/com/qabas/app/DeveloperContactScreen.kt"),
-                    actionType = actionType,
-                    proposedCodeBefore = json.optString("codeBefore", "// المنطق السابق الذي تسبب بالخطأ"),
-                    proposedCodeAfter = json.optString("codeAfter", "// التعديل البرمجي الآمن المقترح"),
-                    commitMessage = json.optString("commitMessage", "fix(${json.optString("affectedModule", "core")}): resolve reported issue"),
-                    pullRequestTitle = json.optString("prTitle", "Fix: $title"),
-                    pullRequestBody = json.optString("prBody", "إصلاح آلي مقترح من Gemini AI بعد التحقق البرمجي وموافقة المطور."),
-                    status = ApprovalStatus.PENDING_APPROVAL
-                )
-            } else {
-                generateFallbackProposal(title, description)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse AI JSON: ${e.message}", e)
-            generateFallbackProposal(title, description)
-        }
-    }
-
-    private fun generateFallbackProposal(title: String, description: String): AiRemediationProposal {
-        val isExoError = description.contains("ExoPlayer") || description.contains("403") || description.contains("Playback")
-        val isChatError = description.contains("chat") || description.contains("محادثة") || description.contains("ردود")
-        
-        val diag = when {
-            isExoError -> "تم تشخيص استجابة الخادم 403 في تشغيل الوسائط؛ يُرجى التحقق من صحة توثيق مصدر البث وإضافة معالجة لأخطاء التصريح أو استخدام وكيل التنزيل."
-            isChatError -> "الطلب يتضمن تخصيص قنوات المراسلة مع المستخدمين وقصر الردود التلقائية على حالات الطوارئ ورسائل الشكر والدعاء الصادقة."
-            else -> "تم فحص البلاغ البرمجي؛ يتطلب التعديل مراجعة الوحدة المستهدفة وإضافة شروط تحقق وضوابط أمان تمنع تكرار الخطأ."
-        }
-
-        val target = when {
-            isExoError -> "app/src/main/java/com/qabas/app/AudioPlaybackManager.kt"
-            isChatError -> "app/src/main/java/com/qabas/app/DevChatRepository.kt"
-            else -> "app/src/main/java/com/qabas/app/DeveloperContactScreen.kt"
-        }
-
-        return AiRemediationProposal(
-            issueTitle = title,
-            originalReport = description,
-            aiDiagnosis = diag,
-            affectedModule = if (isExoError) "Audio Engine" else "Dev Nexus / Chat",
-            targetFilePath = target,
-            actionType = RemediationActionType.CREATE_PULL_REQUEST,
-            proposedCodeBefore = "// السلوك السابق",
-            proposedCodeAfter = "// التعديل البرمجي الموثوق",
-            commitMessage = "fix: address $title with verified guards",
-            pullRequestTitle = "Fix: $title",
-            pullRequestBody = "تم إنشاء هذا المقترح بعد رصد البلاغ وفحصه برمجياً.",
-            status = ApprovalStatus.PENDING_APPROVAL
-        )
-    }
 
     /**
      * تنفيذ الإجراء البرمجي المعتمد على GitHub بعد موافقة المطور الصريحة
@@ -328,7 +188,7 @@ object AiAutonomousRemediationEngine {
                     Result.success(res)
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             proposal.status = ApprovalStatus.FAILED
             proposal.executionDetails = "خطأ في الاتصال: ${e.message}"
             Result.failure(e)

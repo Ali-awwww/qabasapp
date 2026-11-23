@@ -8,34 +8,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -136,7 +128,7 @@ fun AutoSeriesGeneratorDialog(
                 .heightIn(max = 760.dp),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, GoldPrimary)
+            border = BorderStroke(1.dp, PresetPrimary)
         ) {
             Column(
                 modifier = Modifier
@@ -152,14 +144,14 @@ fun AutoSeriesGeneratorDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.15f),
+                            color = PresetPrimary.copy(alpha = 0.15f),
                             shape = CircleShape,
-                            border = BorderStroke(1.dp, GoldPrimary)
+                            border = BorderStroke(1.dp, PresetPrimary)
                         ) {
                             Icon(
                                 Icons.Default.MovieFilter,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.padding(6.dp).size(20.dp)
                             )
                         }
@@ -167,7 +159,7 @@ fun AutoSeriesGeneratorDialog(
                         Column {
                             Text(
                                 "محرك السلاسل الدعوية الآلي 🚀",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -182,7 +174,7 @@ fun AutoSeriesGeneratorDialog(
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextPrimary)
                     }
                 }
 
@@ -192,7 +184,7 @@ fun AutoSeriesGeneratorDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0B0F19), RoundedCornerShape(12.dp))
+                        .background(DeepSlate, RoundedCornerShape(12.dp))
                         .padding(4.dp)
                 ) {
                     TabButton(
@@ -222,7 +214,7 @@ fun AutoSeriesGeneratorDialog(
                         // CONFIGURATION TAB
                         Text(
                             "اختر قالباً جاهزاً أو أدخل موضوعك الخاص:",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -242,17 +234,17 @@ fun AutoSeriesGeneratorDialog(
                                             seriesTitle = preset.sampleTopic
                                             episodeCount = preset.defaultEpisodeCount
                                         },
-                                    color = Color(0xFF151B2B),
+                                    color = CardSurface,
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(
                                         1.dp,
-                                        if (seriesTitle == preset.sampleTopic) GoldPrimary else Color(0xFF1E293B)
+                                        if (seriesTitle == preset.sampleTopic) PresetPrimary else ThemeSecondarySurface
                                     )
                                 ) {
                                     Column(modifier = Modifier.padding(10.dp)) {
-                                        Text("${preset.iconEmoji} ${preset.title}", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("${preset.iconEmoji} ${preset.title}", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        Text(preset.description, color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 14.sp)
+                                        Text(preset.description, color = TextTertiary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 14.sp)
                                     }
                                 }
                             }
@@ -264,13 +256,13 @@ fun AutoSeriesGeneratorDialog(
                         OutlinedTextField(
                             value = seriesTitle,
                             onValueChange = { seriesTitle = it },
-                            label = { Text("اسم السلسلة / عنوان الموضوع الشامل", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("اسم السلسلة / عنوان الموضوع الشامل", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = GoldPrimary,
-                                unfocusedBorderColor = Color(0xFF1E293B),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedBorderColor = PresetPrimary,
+                                unfocusedBorderColor = ThemeSecondarySurface,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -283,7 +275,7 @@ fun AutoSeriesGeneratorDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("عدد الحلقات المطلوبة:", color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("عدد الحلقات المطلوبة:", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf(3, 5, 7, 10).forEach { count ->
                                     FilterChip(
@@ -291,10 +283,10 @@ fun AutoSeriesGeneratorDialog(
                                         onClick = { episodeCount = count },
                                         label = { Text("$count حلقات", fontFamily = NotoSansFont, fontSize = 12.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = GoldPrimary,
+                                            selectedContainerColor = PresetPrimary,
                                             selectedLabelColor = DeepSlate,
-                                            containerColor = Color(0xFF151B2B),
-                                            labelColor = Color.White
+                                            containerColor = CardSurface,
+                                            labelColor = TextPrimary
                                         )
                                     )
                                 }
@@ -304,7 +296,7 @@ fun AutoSeriesGeneratorDialog(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Target Format Selection
-                        Text("مقاس الفيديو وتنسيق العرض:", color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                        Text("مقاس الفيديو وتنسيق العرض:", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             val formats = listOf("Shorts / TikTok (9:16)", "YouTube (16:9)", "Instagram (4:5)")
@@ -315,10 +307,10 @@ fun AutoSeriesGeneratorDialog(
                                     label = { Text(fmt, fontSize = 12.sp, fontFamily = NotoSansFont) },
                                     modifier = Modifier.weight(1f),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = GoldPrimary,
+                                        selectedContainerColor = PresetPrimary,
                                         selectedLabelColor = DeepSlate,
-                                        containerColor = Color(0xFF151B2B),
-                                        labelColor = Color.White
+                                        containerColor = CardSurface,
+                                        labelColor = TextPrimary
                                     )
                                 )
                             }
@@ -327,7 +319,7 @@ fun AutoSeriesGeneratorDialog(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Frequency Schedule
-                        Text("وتيرة النشر والجدولة:", color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                        Text("وتيرة النشر والجدولة:", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             val freqs = listOf("يومياً (Daily)", "كل يومين", "أسبوعياً")
@@ -338,10 +330,10 @@ fun AutoSeriesGeneratorDialog(
                                     label = { Text(frq, fontSize = 12.sp, fontFamily = NotoSansFont) },
                                     modifier = Modifier.weight(1f),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = GoldPrimary,
+                                        selectedContainerColor = PresetPrimary,
                                         selectedLabelColor = DeepSlate,
-                                        containerColor = Color(0xFF151B2B),
-                                        labelColor = Color.White
+                                        containerColor = CardSurface,
+                                        labelColor = TextPrimary
                                     )
                                 )
                             }
@@ -353,13 +345,13 @@ fun AutoSeriesGeneratorDialog(
                         OutlinedTextField(
                             value = defaultEpilogText,
                             onValueChange = { defaultEpilogText = it },
-                            label = { Text("عبارة التشويق والربط بالحلقة القادمة (Epilog Callout)", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("عبارة التشويق والربط بالحلقة القادمة (Epilog Callout)", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = GoldPrimary,
-                                unfocusedBorderColor = Color(0xFF1E293B),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedBorderColor = PresetPrimary,
+                                unfocusedBorderColor = ThemeSecondarySurface,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             shape = RoundedCornerShape(12.dp),
                             minLines = 2
@@ -417,7 +409,7 @@ fun AutoSeriesGeneratorDialog(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             if (isGeneratingSeries) {
@@ -444,33 +436,33 @@ fun AutoSeriesGeneratorDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(220.dp)
-                                    .background(Color(0xFF0B0F19), RoundedCornerShape(16.dp)),
+                                    .background(DeepSlate, RoundedCornerShape(16.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(48.dp))
+                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Text("لم يتم توليد أي حلقات بعد", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                                    Text("لم يتم توليد أي حلقات بعد", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text("عد للتبويب الأول واضغط على زر توليد السلسلة", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                    Text("عد للتبويب الأول واضغط على زر توليد السلسلة", color = TextTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                 }
                             }
                         } else {
                             Surface(
-                                color = GoldPrimary.copy(alpha = 0.12f),
+                                color = PresetPrimary.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.FormatListNumbered, contentDescription = null, tint = GoldPrimary)
+                                    Icon(Icons.Default.FormatListNumbered, contentDescription = null, tint = PresetPrimary)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
-                                        Text("السلسلة: $seriesTitle", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("إجمالي الحلقات: ${generatedEpisodes.size} مقطع | وتيرة النشر: $selectedFrequency", color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                        Text("السلسلة: $seriesTitle", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("إجمالي الحلقات: ${generatedEpisodes.size} مقطع | وتيرة النشر: $selectedFrequency", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -552,7 +544,7 @@ fun AutoSeriesGeneratorDialog(
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(Icons.Default.CloudUpload, contentDescription = null, tint = DeepSlate)
@@ -568,13 +560,13 @@ fun AutoSeriesGeneratorDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(200.dp)
-                                    .background(Color(0xFF0B0F19), RoundedCornerShape(16.dp)),
+                                    .background(DeepSlate, RoundedCornerShape(16.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(40.dp))
+                                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(40.dp))
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Text("لا توجد سلاسل محفوظة في قاعدة البيانات", color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp)
+                                    Text("لا توجد سلاسل محفوظة في قاعدة البيانات", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
                                 }
                             }
                         } else {
@@ -633,9 +625,9 @@ fun SavedSeriesCardItem(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
+        border = BorderStroke(1.dp, ThemeSecondarySurface)
     ) {
         Row(
             modifier = Modifier
@@ -647,7 +639,7 @@ fun SavedSeriesCardItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     series.title,
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -656,14 +648,14 @@ fun SavedSeriesCardItem(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "${series.episodeCount} حلقات",
-                        color = Color.White,
+                        color = TextPrimary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont
                     )
-                    Text("•", color = Color.Gray)
+                    Text("•", color = TextTertiary)
                     Text(
                         series.scheduleFrequency,
-                        color = Color.LightGray,
+                        color = TextSecondary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont
                     )
@@ -672,10 +664,10 @@ fun SavedSeriesCardItem(
 
             Row {
                 IconButton(onClick = onLoad) {
-                    Icon(Icons.Default.Visibility, contentDescription = "استعراض", tint = GoldPrimary)
+                    Icon(Icons.Default.Visibility, contentDescription = "استعراض", tint = PresetPrimary)
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color.Red.copy(alpha = 0.8f))
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = ThemeDestructive.copy(alpha = 0.8f))
                 }
             }
         }
@@ -692,14 +684,14 @@ fun TabButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) GoldPrimary else Color.Transparent)
+            .background(if (isSelected) PresetPrimary else Color.Transparent)
             .clickable { onClick() }
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             title,
-            color = if (isSelected) DeepSlate else Color.Gray,
+            color = if (isSelected) DeepSlate else TextTertiary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp
@@ -718,9 +710,9 @@ fun EpisodeCardItem(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
+        border = BorderStroke(1.dp, ThemeSecondarySurface)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -730,7 +722,7 @@ fun EpisodeCardItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Surface(
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
@@ -745,7 +737,7 @@ fun EpisodeCardItem(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         episode.title,
-                        color = Color.White,
+                        color = TextPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -756,7 +748,7 @@ fun EpisodeCardItem(
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = "التفاصيل",
-                        tint = GoldPrimary
+                        tint = PresetPrimary
                     )
                 }
             }
@@ -766,7 +758,7 @@ fun EpisodeCardItem(
             // Hook line
             Text(
                 "الخطاف: ${episode.hook}",
-                color = GoldPrimary,
+                color = PresetPrimary,
                 fontFamily = CairoFont,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
@@ -775,23 +767,23 @@ fun EpisodeCardItem(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (expanded) {
-                HorizontalDivider(color = Color(0xFF1E293B))
+                HorizontalDivider(color = ThemeSecondarySurface)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text("مضمون الحلقة السريع:", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
-                Text(episode.bodySummary, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("مضمون الحلقة السريع:", color = TextTertiary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                Text(episode.bodySummary, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 18.sp)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Surface(
-                    color = Color.Black.copy(alpha = 0.6f),
+                    color = DeepSlate.copy(alpha = 0.6f),
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(8.dp)) {
-                        Text("ربط الحلقة القادمة (Cliffhanger):", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text(episode.epilogCliffhanger, color = Color.LightGray, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text("ربط الحلقة القادمة (Cliffhanger):", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(episode.epilogCliffhanger, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                 }
 
@@ -803,19 +795,19 @@ fun EpisodeCardItem(
                 ) {
                     OutlinedButton(
                         onClick = onCopyScript,
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("نسخ النص", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                        Text("نسخ النص", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 11.sp)
                     }
 
                     Button(
                         onClick = onProduceEpisode,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1.3f),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
@@ -834,9 +826,9 @@ fun EpisodeCardItem(
                         onClick = onProduceEpisode,
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.MovieCreation, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("إنتاج الحلقة ✦", color = GoldPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("إنتاج الحلقة ✦", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -895,7 +887,7 @@ suspend fun generateSeriesOutline(
             }
             if (list.isNotEmpty()) return list
         }
-    } catch (e: Exception) {
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
         android.util.Log.e("SeriesEngine", "Gemini series generation fallback: ${e.message}")
     }
 

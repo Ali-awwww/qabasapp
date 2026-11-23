@@ -52,7 +52,7 @@ object AzanCloudRepository {
                     isFajrSpecific = it.isFajrSpecific
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "fetch failed: ${e.message}")
             emptyList()
         }
@@ -114,7 +114,7 @@ object AzanCloudRepository {
             // في supabase-kt 3.x، insert() يرمي استثناءً (وليس يُرجع .error) при فشل RLS
             try {
                 client.from(TABLE).insert(row)
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "insert failed", e)
                 return@withContext Result.failure(
                     IllegalStateException("تعذّر حفظ الصوت في قاعدة البيانات: ${e.message}")
@@ -126,7 +126,7 @@ object AzanCloudRepository {
                 fetchCloudVoices()
             )
             Result.success(publicUrl)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "upload failed", e)
             Result.failure(e)
         }
@@ -146,7 +146,7 @@ object AzanCloudRepository {
             }
             MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
             true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "description update failed: ${e.message}", e)
             false
         }
@@ -169,7 +169,7 @@ object AzanCloudRepository {
             client.from(TABLE).delete { filter { eq("id", rowId) } }
             MuezzinVoiceManager.cacheCloudVoices(context, fetchCloudVoices())
             true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "delete failed: ${e.message}", e)
             false
         }

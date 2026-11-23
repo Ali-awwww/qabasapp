@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,17 +28,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -58,9 +69,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -154,6 +167,11 @@ fun MushafReaderScreen(
     val verseFontSize = quranFontSize.coerceIn(14f, 30f)
 
     var quranReady by remember { mutableStateOf(false) }
+    // فشل تحميل المصحف: كان ensureQuranLoaded=false يترك القارئ على مؤشر
+    // تحميل عارٍ للأبد بلا رسالة ولا إعادة محاولة. quranLoadAttempt يعيد
+    // تشغيل التحميل كاملاً (أصول ← كاش ← شبكة) عند الضغط على إعادة المحاولة.
+    var quranLoadFailed by remember { mutableStateOf(false) }
+    var quranLoadAttempt by remember { mutableStateOf(0) }
     var pageMapReady by remember { mutableStateOf(false) }
     var selectedSurah by remember { mutableStateOf(initialSurah?.takeIf { it in 1..114 } ?: 1) }
     var targetAyah by remember { mutableStateOf<Int?>(null) }
@@ -246,29 +264,28 @@ fun MushafReaderScreen(
         isPlayingAudio = true
     }
 
-    /** تلاوة السورة كاملة من آيتها الأولى (لتكرار السورة)، مع قفزة القارئ إليها. */
-    fun startSurahAudio(surah: Int) {
-        if (isLoadingAudio) return
-        stopAudio()
-        audioMessage = null
-        isLoadingAudio = true
-        audioScope.launch {
-            val ayahs = QuranAudioService.getSurahAudioUrls(surah, selectedReciter)
-            isLoadingAudio = false
-            if (ayahs.isEmpty()) {
-                audioMessage = "تعذّر تحميل تلاوة هذه السورة."
-                return@launch
-            }
-            jumpTo(surah, 1)
-            startPlayback(ayahs, page = null, surah = surah)
-        }
-    }
-
     fun togglePageAudio() {
         if (isLoadingAudio) return
         if (playingPage != null || playingSurah != null) {
             // استئناف/إيقاف التلاوة الجارية دون إعادة تحميل.
             isPlayingAudio = QuranAudioPlayer.toggle()
+            return
+        }
+        // بلا صفحة معروفة (خريطة الصفحات غير جاهزة): شغّل تلاوة
+        // السورة المعروضة كاملة بدل زرٍّ لا يفعل شيئاً — فتلاوة
+        // السورة لا تحتاج خريطة الصفحات إطلاقاً.
+        if (currentPage == null) {
+            audioMessage = null
+            isLoadingAudio = true
+            audioScope.launch {
+                val ayahs = QuranAudioService.getSurahAudioUrls(selectedSurah, selectedReciter)
+                isLoadingAudio = false
+                if (ayahs.isEmpty()) {
+                    audioMessage = "تعذّر تحميل تلاوة هذه السورة."
+                    return@launch
+                }
+                startPlayback(ayahs, page = null, surah = selectedSurah)
+            }
             return
         }
         val page = currentPage ?: return
@@ -297,44 +314,6 @@ fun MushafReaderScreen(
         }
     }
 
-    /** تبديل وضع التكرار؛ الصفحة/السورة تعيد بناء قائمة التشغيل المناسبة. */
-    fun cycleRepeatMode() {
-        val next = when (repeatMode) {
-            QuranRepeatMode.OFF -> QuranRepeatMode.VERSE
-            QuranRepeatMode.VERSE -> QuranRepeatMode.PAGE
-            QuranRepeatMode.PAGE -> QuranRepeatMode.SURAH
-            QuranRepeatMode.SURAH -> QuranRepeatMode.OFF
-        }
-        repeatMode = next
-        UserPreferencesManager.saveMushafAudioRepeat(context, next.name)
-        when {
-            next == QuranRepeatMode.VERSE || next == QuranRepeatMode.OFF ->
-                QuranAudioPlayer.setRepeatMode(next)
-            next == QuranRepeatMode.PAGE -> {
-                val page = playingPage ?: currentPage
-                if (page != null && playingSurah == null) {
-                    QuranAudioPlayer.setRepeatMode(next)
-                } else if (page != null) {
-                    // قائمة سورة جارية: أعد البناء كصفحة لتكرار الصفحة فعلاً.
-                    stopAudio()
-                    audioMessage = null
-                    isLoadingAudio = true
-                    audioScope.launch {
-                        val urls = QuranAudioService.getPageAudioUrls(context, page, selectedReciter)
-                        val refs = MushafPageData.getPageRefs(page)
-                        val ayahs = urls.mapIndexed { index, url ->
-                            val (s, a) = refs.getOrNull(index) ?: (selectedSurah to 0)
-                            QuranAudioService.QuranTimedAyahAudio(s, a, url)
-                        }
-                        isLoadingAudio = false
-                        if (ayahs.isNotEmpty()) startPlayback(ayahs, page = page, surah = null)
-                    }
-                }
-            }
-            next == QuranRepeatMode.SURAH -> startSurahAudio(selectedSurah)
-        }
-    }
-
     /** تنزيل تلاوة صفحة (آية آية، مع تقدّم حقيقي) عبر مخزن التنزيلات الموحّد. */
     fun downloadPageAudio(page: Int) {
         if (downloadStatus == MushafDownloadStatus.DOWNLOADING) return
@@ -352,23 +331,40 @@ fun MushafReaderScreen(
         audioScope.launch {
             var done = 0
             var bytes = 0L
-            for ((s, a) in refs) {
-                val url = QuranAudioService.getAyahAudioUrl(s, a, selectedReciter)
-                val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة صفحة $page — آية $a")
-                if (ok) {
-                    done++
-                    bytes += DownloadsHubManager.audioFileForUrl(context, url)?.length() ?: 0L
+            try {
+                for ((s, a) in refs) {
+                    val url = QuranAudioService.getAyahAudioUrl(s, a, selectedReciter)
+                    val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة صفحة $page — آية $a")
+                    if (ok) {
+                        done++
+                        bytes += DownloadsHubManager.audioFileForUrl(context, url)?.length() ?: 0L
+                        downloadDone = done
+                        downloadBytes = bytes
+                    }
+                }
+                downloadStatus = when {
+                    done == refs.size -> MushafDownloadStatus.DONE
+                    done > 0 -> MushafDownloadStatus.PARTIAL
+                    else -> MushafDownloadStatus.ERROR
+                }
+                if (downloadStatus == MushafDownloadStatus.ERROR) {
+                    downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
+                }
+            } finally {
+                // إن أُلغي التنزيل (مغادرة الشاشة مثلاً) لا يبقى
+                // «جارٍ التنزيل» عالقاً: يُغلق بالحالة الفعلية.
+                if (downloadStatus == MushafDownloadStatus.DOWNLOADING) {
                     downloadDone = done
                     downloadBytes = bytes
+                    downloadStatus = when {
+                        done == refs.size -> MushafDownloadStatus.DONE
+                        done > 0 -> MushafDownloadStatus.PARTIAL
+                        else -> MushafDownloadStatus.ERROR
+                    }
+                    if (downloadStatus == MushafDownloadStatus.ERROR) {
+                        downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
+                    }
                 }
-            }
-            downloadStatus = when {
-                done == refs.size -> MushafDownloadStatus.DONE
-                done > 0 -> MushafDownloadStatus.PARTIAL
-                else -> MushafDownloadStatus.ERROR
-            }
-            if (downloadStatus == MushafDownloadStatus.ERROR) {
-                downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
             }
         }
     }
@@ -390,23 +386,40 @@ fun MushafReaderScreen(
         audioScope.launch {
             var done = 0
             var bytes = 0L
-            for (ayah in 1..count) {
-                val url = QuranAudioService.getAyahAudioUrl(surah, ayah, selectedReciter)
-                val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة سورة ${QuranDataProvider.surahNameOf(surah)} — آية $ayah")
-                if (ok) {
-                    done++
-                    bytes += DownloadsHubManager.audioFileForUrl(context, url)?.length() ?: 0L
+            try {
+                for (ayah in 1..count) {
+                    val url = QuranAudioService.getAyahAudioUrl(surah, ayah, selectedReciter)
+                    val ok = AudioDownloadHelper.downloadAudio(context, url, "تلاوة سورة ${QuranDataProvider.surahNameOf(surah)} — آية $ayah")
+                    if (ok) {
+                        done++
+                        bytes += DownloadsHubManager.audioFileForUrl(context, url)?.length() ?: 0L
+                        downloadDone = done
+                        downloadBytes = bytes
+                    }
+                }
+                downloadStatus = when {
+                    done == count -> MushafDownloadStatus.DONE
+                    done > 0 -> MushafDownloadStatus.PARTIAL
+                    else -> MushafDownloadStatus.ERROR
+                }
+                if (downloadStatus == MushafDownloadStatus.ERROR) {
+                    downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
+                }
+            } finally {
+                // إن أُلغي التنزيل (مغادرة الشاشة مثلاً) لا يبقى
+                // «جارٍ التنزيل» عالقاً: يُغلق بالحالة الفعلية.
+                if (downloadStatus == MushafDownloadStatus.DOWNLOADING) {
                     downloadDone = done
                     downloadBytes = bytes
+                    downloadStatus = when {
+                        done == count -> MushafDownloadStatus.DONE
+                        done > 0 -> MushafDownloadStatus.PARTIAL
+                        else -> MushafDownloadStatus.ERROR
+                    }
+                    if (downloadStatus == MushafDownloadStatus.ERROR) {
+                        downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
+                    }
                 }
-            }
-            downloadStatus = when {
-                done == count -> MushafDownloadStatus.DONE
-                done > 0 -> MushafDownloadStatus.PARTIAL
-                else -> MushafDownloadStatus.ERROR
-            }
-            if (downloadStatus == MushafDownloadStatus.ERROR) {
-                downloadError = "تعذّر تنزيل التلاوة — تحقق من الاتصال."
             }
         }
     }
@@ -462,11 +475,21 @@ fun MushafReaderScreen(
     // تفتح بنقرة على أي آية. بلا اتصال: الترجمة والكلمات غير متاحتين
     // (رسالة صادقة)، أما التفسير الميسر فمن ملف محلي فيعمل دون اتصال.
     var showTranslation by remember { mutableStateOf(UserPreferencesManager.getMushafShowTranslation(context)) }
+    // الترجمة الإنجليزية المختارة (قسم القرآن — الكتب): محفوظة محلياً،
+    // وتبديلها يعيد جلب الترجمة السطرية بالمعرّف الجديد.
+    var mushafTranslationId by remember { mutableStateOf(UserPreferencesManager.getMushafTranslation(context)) }
     var translationMaps by remember { mutableStateOf<Map<Int, Map<Int, String>>>(emptyMap()) }
     var translationLoading by remember { mutableStateOf(false) }
     var translationError by remember { mutableStateOf<String?>(null) }
     var translationRetryTick by remember { mutableStateOf(0) }
     var studyVerse by remember { mutableStateOf<QuranVerseDetail?>(null) }
+    // آية معلّقة للدراسة من ورقة المكتبة: حين تكون سورتها غير
+    // السورة المعروضة، ننتقل إليها أولاً ثم نفتح لوحتها عند
+    // وصول آياتها — لا نفتح دراسة آية أخرى برقمها نفسه.
+    var pendingStudyVerse by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // كتاب الإعراب المفروض عند فتح الدراسة من فئة البلاغة في المكتبة
+    // (الدرويش، لعرض قسم البلاغة)؛ يُمسح عند إغلاق اللوحة.
+    var studyIrabBookOverride by remember { mutableStateOf<String?>(null) }
 
     // --- الحفظ والختمة (خارطة المصحف — المرحلة 4) ---
     // وضع الحفظ إخفاء عرض فقط (النص لا يُغيَّر أبداً)؛ والآيات
@@ -490,6 +513,7 @@ fun MushafReaderScreen(
     var twoPageSpread by remember { mutableStateOf(UserPreferencesManager.getMushafTwoPageSpread(context)) }
     var displaySettingsOpen by remember { mutableStateOf(false) }
     var tajweedLegendOpen by remember { mutableStateOf(false) }
+    var booksLibraryOpen by remember { mutableStateOf(false) }
     var tajweedMaps by remember { mutableStateOf<Map<Int, Map<Int, String>>>(emptyMap()) }
     var tajweedLoading by remember { mutableStateOf(false) }
     var tajweedError by remember { mutableStateOf<String?>(null) }
@@ -539,8 +563,9 @@ fun MushafReaderScreen(
         if (spreadActive) spreadSurahs + selectedSurah else setOf(selectedSurah)
     }
 
-    // جلب ترجمة السور المعروضة عند تفعيل العرض أو تبديلها أو إعادة المحاولة.
-    LaunchedEffect(showTranslation, displaySurahs, translationRetryTick) {
+    // جلب ترجمة السور المعروضة عند تفعيل العرض أو تبديلها أو تبديل
+    // الترجمة المختارة أو إعادة المحاولة.
+    LaunchedEffect(showTranslation, mushafTranslationId, displaySurahs, translationRetryTick) {
         if (!showTranslation) {
             translationMaps = emptyMap()
             translationError = null
@@ -550,7 +575,7 @@ fun MushafReaderScreen(
         val ready = LinkedHashMap<Int, Map<Int, String>>()
         val missing = ArrayList<Int>()
         for (surah in displaySurahs) {
-            val cached = QuranDataProvider.getCachedSurahTranslation(surah)
+            val cached = QuranDataProvider.getCachedSurahTranslationFor(mushafTranslationId, surah)
             if (cached != null) ready[surah] = cached else missing += surah
         }
         if (missing.isEmpty()) {
@@ -563,7 +588,7 @@ fun MushafReaderScreen(
         translationError = null
         var failed = false
         for (surah in missing) {
-            val fetched = QuranDataProvider.fetchSurahTranslation(surah)
+            val fetched = QuranDataProvider.fetchSurahTranslationFor(mushafTranslationId, surah)
             if (fetched != null) ready[surah] = fetched else failed = true
         }
         translationMaps = ready
@@ -669,6 +694,62 @@ fun MushafReaderScreen(
         }
     }
 
+    /** تلاوة السورة كاملة من آيتها الأولى (لتكرار السورة)، مع قفزة القارئ إليها. */
+    fun startSurahAudio(surah: Int) {
+        if (isLoadingAudio) return
+        stopAudio()
+        audioMessage = null
+        isLoadingAudio = true
+        audioScope.launch {
+            val ayahs = QuranAudioService.getSurahAudioUrls(surah, selectedReciter)
+            isLoadingAudio = false
+            if (ayahs.isEmpty()) {
+                audioMessage = "تعذّر تحميل تلاوة هذه السورة."
+                return@launch
+            }
+            jumpTo(surah, 1)
+            startPlayback(ayahs, page = null, surah = surah)
+        }
+    }
+
+    /** تبديل وضع التكرار؛ الصفحة/السورة تعيد بناء قائمة التشغيل المناسبة. */
+    fun cycleRepeatMode() {
+        val next = when (repeatMode) {
+            QuranRepeatMode.OFF -> QuranRepeatMode.VERSE
+            QuranRepeatMode.VERSE -> QuranRepeatMode.PAGE
+            QuranRepeatMode.PAGE -> QuranRepeatMode.SURAH
+            QuranRepeatMode.SURAH -> QuranRepeatMode.OFF
+        }
+        repeatMode = next
+        UserPreferencesManager.saveMushafAudioRepeat(context, next.name)
+        when {
+            next == QuranRepeatMode.VERSE || next == QuranRepeatMode.OFF ->
+                QuranAudioPlayer.setRepeatMode(next)
+            next == QuranRepeatMode.PAGE -> {
+                val page = playingPage ?: currentPage
+                if (page != null && playingSurah == null) {
+                    QuranAudioPlayer.setRepeatMode(next)
+                } else if (page != null) {
+                    // قائمة سورة جارية: أعد البناء كصفحة لتكرار الصفحة فعلاً.
+                    stopAudio()
+                    audioMessage = null
+                    isLoadingAudio = true
+                    audioScope.launch {
+                        val urls = QuranAudioService.getPageAudioUrls(context, page, selectedReciter)
+                        val refs = MushafPageData.getPageRefs(page)
+                        val ayahs = urls.mapIndexed { index, url ->
+                            val (s, a) = refs.getOrNull(index) ?: (selectedSurah to 0)
+                            QuranAudioService.QuranTimedAyahAudio(s, a, url)
+                        }
+                        isLoadingAudio = false
+                        if (ayahs.isNotEmpty()) startPlayback(ayahs, page = page, surah = null)
+                    }
+                }
+            }
+            next == QuranRepeatMode.SURAH -> startSurahAudio(selectedSurah)
+        }
+    }
+
     // تحميل النص وخريطة الصفحات، ثم تحديد موضع البداية (خارطة المصحف —
     // المرحلة 1: الاستئناف التلقائي مكتمل): الآية المحددة أدق من الصفحة،
     // فالترتيب: 1) سورة/آية محددتان (من نتيجة بحث أو «أكمل») → تلك الآية
@@ -678,11 +759,16 @@ fun MushafReaderScreen(
     // (قبل هذا الإصلاح كان الصفحة تتقدم على الآية، فبطاقة «أكمل» التي
     // تمرر السورة والآية والصفحة معاً كانت تفتح أول آية في الصفحة لا
     // الآية المحفوظة نفسها؛ وكانت سورة بلا آية تُهمل وتفتح آخر قراءة.)
-    LaunchedEffect(Unit) {
+    LaunchedEffect(quranLoadAttempt) {
         refreshBookmarks()
+        quranLoadFailed = false
         quranReady = QuranDataProvider.ensureQuranLoaded(context)
+        quranLoadFailed = !quranReady
         QuranDataProvider.loadTafsirFromAssets(context)
         pageMapReady = MushafPageData.loadPageMap(context)
+        // اشتقاق موضع البدء مرة واحدة فقط: إعادة المحاولة بعد فشل يجب ألا
+        // تعيد المستخدم إلى السورة الابتدائية بعد أن تنقّل منها.
+        if (quranLoadAttempt == 0) {
         val validInitialSurah = initialSurah?.takeIf { it in 1..114 }
         val maxAyahOf = { surah: Int ->
             QuranDataProvider.surahs.firstOrNull { it.id == surah }?.versesCount
@@ -710,9 +796,10 @@ fun MushafReaderScreen(
             )
             currentPage = latestPosition.value?.page
         }
+        }
     }
 
-    val verses = remember(selectedSurah, quranReady) {
+    val verses = remember(selectedSurah, quranReady, quranLoadAttempt) {
         if (!quranReady) {
             emptyList()
         } else {
@@ -734,6 +821,19 @@ fun MushafReaderScreen(
             recordPosition(selectedSurah, targetAyah!!)
         }
         targetConsumed = true
+    }
+
+    // فتح دراسة الآية المعلّقة من ورقة المكتبة حال وصول آيات سورتها.
+    LaunchedEffect(verses, pendingStudyVerse) {
+        val pending = pendingStudyVerse ?: return@LaunchedEffect
+        if (verses.isEmpty()) return@LaunchedEffect
+        val detail = verses.firstOrNull {
+            it.surahNumber == pending.first && it.verseNumber == pending.second
+        }
+        if (detail != null) {
+            pendingStudyVerse = null
+            studyVerse = detail
+        }
     }
 
     // تتبّع أول آية ظاهرة مع مهلة — لا حفظ عند كل إطار تمرير.
@@ -877,10 +977,26 @@ fun MushafReaderScreen(
             if (timings.isNotEmpty() && ref != null && (ref.surah == selectedSurah || spreadActive)) {
                 // في العرض المزدوج قد تكون الآية الجارية في سورة العمود
                 // الآخر؛ كلماتها تؤخذ من تفاصيل الصفحتين لا من السورة المختارة.
-                val displayedText = if (spreadActive) {
-                    spreadDetails[ref.surah to ref.ayah]?.verseText
+                // نص الكلمات المطابَق هو النص المعروض نفسه (بطاقة
+                // الآية): نص التجويد الملوّن عند تفعيله، وإلا الرسم
+                // البديل، وإلا النص المحلي — لا النص المحلي دائماً،
+                // فعدّ كلماته قد يخالف عدّ كلمات نص التجويد فيُطفئ
+                // تمييز الكلمة بصمت كلما فُعّلت ألوان التجويد.
+                val baseDetail = if (spreadActive) {
+                    spreadDetails[ref.surah to ref.ayah]
                 } else {
-                    verses.firstOrNull { it.verseNumber == ref.ayah }?.verseText
+                    verses.firstOrNull { it.verseNumber == ref.ayah }
+                }
+                val displayedText = when {
+                    baseDetail == null -> null
+                    showTajweed && mushafScript == "uthmani" -> tajweedMaps[ref.surah]?.get(ref.ayah)
+                        ?.let { markup ->
+                            QuranDataProvider.parseTajweedMarkup(markup)
+                                .joinToString("") { it.text }
+                        } ?: baseDetail.verseText
+                    mushafScript != "uthmani" -> scriptMaps[ref.surah]?.get(ref.ayah)
+                        ?: baseDetail.verseText
+                    else -> baseDetail.verseText
                 }
                 val tokens = displayedText?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
                 activeWordPosition = if (timings.size == tokens.size) {
@@ -1324,7 +1440,10 @@ fun MushafReaderScreen(
             // والكلمة أثناء التشغيل + تكرار وسرعة ومؤقت نوم وتنزيل دون اتصال.
             // الصوت حقيقي من QuranAudioService (EveryAyah CDN، وQF API للعفاسي
             // عند توفر المفاتيح مع توقيت الكلمات words=true).
-            if (currentPage != null || playingPage != null || playingSurah != null) {
+            // يظهر الشريط ما دامت آيات السورة محمّلة ولو غابت خريطة
+            // الصفحات (فزر التشغيل ينتقل حينها لتلاوة السورة) — لا
+            // يختفي كلياً بفشل الخريطة.
+            if (currentPage != null || verses.isNotEmpty() || playingPage != null || playingSurah != null) {
                 val reciterName = QuranAudioService.getReciterInfo(selectedReciter).nameAr
                 val audioLabel = when {
                     audioMessage != null -> audioMessage!!
@@ -1333,7 +1452,8 @@ fun MushafReaderScreen(
                     isPlayingAudio && playingPage != null -> "تشغيل تلاوة صفحة $playingPage"
                     playingSurah != null -> "تلاوة سورة ${QuranDataProvider.surahNameOf(playingSurah!!)} متوقفة مؤقتاً"
                     playingPage != null -> "تلاوة صفحة $playingPage متوقفة مؤقتاً"
-                    else -> "تلاوة صفحة $currentPage"
+                    currentPage != null -> "تلاوة صفحة $currentPage"
+                    else -> "تلاوة سورة $surahName"
                 }
                 val audioSubLabel = buildString {
                     append("القارئ: $reciterName")
@@ -1717,7 +1837,24 @@ fun MushafReaderScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = theme.primary)
+                    if (quranLoadFailed) {
+                        QabasErrorState(
+                            title = "تعذّر تحميل المصحف",
+                            message = "تعذّر تحميل نص القرآن من ملفات التطبيق. تحقق من اكتمال التثبيت واتصالك ثم حاول مجدداً.",
+                            onRetry = { quranLoadAttempt++ }
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = theme.primary)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                "جاري تحميل المصحف...",
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
                 }
                 return@Column
             }
@@ -1727,13 +1864,10 @@ fun MushafReaderScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "تعذّر تحميل آيات سورة $surahName. تحقق من الاتصال وحاول مجدداً.",
-                        color = theme.textSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(24.dp)
+                    QabasErrorState(
+                        title = "تعذّر تحميل آيات سورة $surahName",
+                        message = "تحقق من الاتصال وحاول مجدداً.",
+                        onRetry = { quranLoadAttempt++ }
                     )
                 }
                 return@Column
@@ -1837,6 +1971,7 @@ fun MushafReaderScreen(
         if (navDialogOpen) {
             MushafNavigationDialog(
                 pageMapReady = pageMapReady,
+                quranReady = quranReady,
                 onDismiss = { navDialogOpen = false },
                 onJumpTo = { surah, ayah ->
                     navDialogOpen = false
@@ -1882,7 +2017,11 @@ fun MushafReaderScreen(
         studyVerse?.let { verse ->
             MushafStudyDialog(
                 verse = verse,
-                onDismiss = { studyVerse = null }
+                onDismiss = {
+                    studyVerse = null
+                    studyIrabBookOverride = null
+                },
+                initialIrabBookId = studyIrabBookOverride
             )
         }
         if (khatmahDialogOpen) {
@@ -1930,7 +2069,43 @@ fun MushafReaderScreen(
                     UserPreferencesManager.saveMushafScript(context, next)
                 },
                 onShowTajweedLegend = { tajweedLegendOpen = true },
+                onOpenLibrary = { booksLibraryOpen = true },
                 onDismiss = { displaySettingsOpen = false }
+            )
+        }
+        if (booksLibraryOpen) {
+            MushafBooksLibrarySheet(
+                currentSurah = latestPosition.value?.surah ?: selectedSurah,
+                currentAyah = latestPosition.value?.ayah ?: 1,
+                onDismiss = { booksLibraryOpen = false },
+                onTranslationSelected = { id ->
+                    UserPreferencesManager.saveMushafTranslation(context, id)
+                    mushafTranslationId = id
+                },
+                onOpenTajweedLegend = {
+                    booksLibraryOpen = false
+                    tajweedLegendOpen = true
+                },
+                onOpenStudyVerse = { surah, ayah ->
+                    // الآية الحالية من موضع القراءة المسجّل. إن كانت
+                    // سورتها هي المعروضة تُفتح لوحتها فوراً؛ وإلا
+                    // ننتقل إلى سورتها أولاً وتفتحها آلية الآية
+                    // المعلّقة عند وصول آياتها — بلا احتياط برقم
+                    // الآية وحده (كان يفتح آية سورة أخرى خطأً).
+                    val detail = verses.firstOrNull {
+                        it.surahNumber == surah && it.verseNumber == ayah
+                    }
+                    if (detail != null) {
+                        booksLibraryOpen = false
+                        studyVerse = detail
+                        studyIrabBookOverride = "darwish"
+                    } else {
+                        booksLibraryOpen = false
+                        studyIrabBookOverride = "darwish"
+                        pendingStudyVerse = surah to ayah
+                        jumpTo(surah, ayah)
+                    }
+                }
             )
         }
         if (tajweedLegendOpen) {
@@ -1955,6 +2130,7 @@ private enum class MushafDownloadStatus { IDLE, DOWNLOADING, DONE, PARTIAL, ERRO
 @Composable
 private fun MushafNavigationDialog(
     pageMapReady: Boolean,
+    quranReady: Boolean,
     onDismiss: () -> Unit,
     onJumpTo: (Int, Int) -> Unit
 ) {
@@ -1963,6 +2139,13 @@ private fun MushafNavigationDialog(
     var pageText by remember { mutableStateOf("") }
     var pageError by remember { mutableStateOf<String?>(null) }
     val surahResults = remember(surahQuery) { QuranDataProvider.searchSurahs(surahQuery) }
+    // بحث نصي كامل في آيات المصحف (الدالة موجودة أصلاً وكانت بلا
+    // واجهة داخل القارئ): 3 أحرف على الأقل، و20 نتيجة حداً أقصى.
+    var verseQuery by remember { mutableStateOf("") }
+    val verseResults = remember(verseQuery, quranReady) {
+        if (!quranReady || verseQuery.trim().length < 3) emptyList()
+        else QuranDataProvider.searchVerses(verseQuery, limit = 20)
+    }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = theme.primary,
         unfocusedBorderColor = theme.textSecondary.copy(alpha = 0.4f),
@@ -2065,6 +2248,95 @@ private fun MushafNavigationDialog(
                     )
                 }
                 Text(
+                    text = Translator.tr("بحث في نص الآيات"),
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                OutlinedTextField(
+                    value = verseQuery,
+                    onValueChange = { verseQuery = it },
+                    placeholder = {
+                        Text(
+                            text = Translator.tr("اكتب كلمة أو أكثر من نص الآية…"),
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 12.5.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = theme.textSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    singleLine = true,
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                when {
+                    !quranReady && verseQuery.isNotBlank() -> {
+                        Text(
+                            text = Translator.tr("نص المصحف غير جاهز بعد — انتظر تحميله ثم ابحث."),
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 12.5.sp
+                        )
+                    }
+                    verseQuery.trim().length in 1..2 -> {
+                        Text(
+                            text = Translator.tr("اكتب 3 أحرف على الأقل للبحث في الآيات."),
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 12.5.sp
+                        )
+                    }
+                    verseQuery.trim().length >= 3 && verseResults.isEmpty() -> {
+                        Text(
+                            text = Translator.tr("لا توجد آية تطابق هذا النص."),
+                            color = theme.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 12.5.sp
+                        )
+                    }
+                    verseResults.isNotEmpty() -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            items(verseResults, key = { "${it.surahNumber}:${it.verseNumber}" }) { verse ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { onJumpTo(verse.surahNumber, verse.verseNumber) }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "سورة ${verse.surahName} • آية ${verse.verseNumber}",
+                                        color = theme.primary,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = verse.verseText.take(90),
+                                        color = theme.textPrimary,
+                                        fontFamily = AmiriFont,
+                                        fontSize = 13.sp,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Text(
                     text = Translator.tr("الجزء"),
                     color = theme.textPrimary,
                     fontFamily = CairoFont,
@@ -2086,6 +2358,36 @@ private fun MushafNavigationDialog(
                         ) {
                             Text(
                                 text = juz.toString(),
+                                color = theme.textPrimary,
+                                fontFamily = NotoSansFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = Translator.tr("الحزب"),
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) {
+                    items((1..60).toList(), key = { it }) { hizb ->
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(theme.background)
+                                .clickable { jumpToPage(MushafPageData.getPageForHizb(hizb)) }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = hizb.toString(),
                                 color = theme.textPrimary,
                                 fontFamily = NotoSansFont,
                                 fontWeight = FontWeight.Bold,
@@ -2409,17 +2711,26 @@ private fun MushafBookmarkEditorDialog(
 }
 
 // ============================================================================
-// لوحة دراسة الآية (خارطة المصحف — المرحلة 3).
+// لوحة دراسة الآية (خارطة المصحف — المرحلة 3 + قسم القرآن — الكتب).
 //
-// ثلاثة أقسام فقط، لكل قسم مصدر حقيقي موثّق:
-// 1) التفسير الميسر — ملف محلي (tafsir_muyassar.json، 6236 مدخلاً) يقرأه
-//    QuranDataProvider.getTafsirForVerse، وملاذه الشبكي QuranEnc.
-// 2) الترجمة الإنجليزية (Saheeh International) — QuranEnc، نقطة نهاية
-//    translation/sura/english_saheeh، تُجلب للسورة كاملة وتُخزَّن.
+// الأقسام، لكل قسم مصدر حقيقي موثّق:
+// 1) التفسير — منتقٍ بين ثمانية كتب: الميسر ملف محلي
+//    (tafsir_muyassar.json، 6236 مدخلاً)، والسعدي وابن كثير والطبري من
+//    spa5k/tafsir_api (MIT)، والجلالين من alquran.cloud. الكتاب المختار
+//    محفوظ محلياً، واللوحة تسمّي المصدر الفعلي ولا تخلط بين الكتب؛ وملاذ
+//    السعدي عند فشل spa5k هو QuranEnc (مفتاح arabic_saadi، فُحص حياً).
+// 2) الترجمة الإنجليزية — ثلاث ترجمات من QuranEnc (Saheeh الافتراضية،
+//    وHilali-Khan، وRowwad) يختار المستخدم بينها من مكتبة الكتب؛
+//    وتُجلب السورة كاملة وتُخزَّن بمفتاح الترجمة.
 // 3) كلمة بكلمة — واجهة Quran.com العامة (words=true): نقل صوتي وترجمة
 //    إنجليزية لكل كلمة؛ علامات نهاية الآية مستبعدة.
-// الإعراب والصرف وأسباب النزول والآيات المشابهة: لا مصدر موثّق لها في
-// التطبيق ولا في هاتين الواجهتين، فلا لوحات لها إطلاقاً.
+// 4) الإعراب — منتقٍ بين كتابين من spa5k/tafsir_api (MIT): الإعراب
+//    الميسر وإعراب الدرويش (مفصّل).
+// 5) أسباب النزول — مستودع asbab-al-nuzul-dataset (MIT): «صحيح أسباب
+//    النزول» لإبراهيم محمد العلي؛ التغطية 50 سورة فقط.
+// 6) الآيات المشابهة — مستودع Quran_Mutashabihat_Data (CC0): فهرس
+//    بالأرقام العالمية؛ ليست قائمة شاملة ولا تغطي العالميات 6,201–6,236.
+// الصرف: لا مصدر موثّق له في التطبيق ولا في هذه الواجهات، فلا لوحة له.
 // كل قسم يعالج حالاته بصراحة: تحميل / نص / خطأ دون اتصال / غياب بيانات.
 // ============================================================================
 
@@ -2451,34 +2762,57 @@ private fun MushafStudySectionCaption(text: String) {
 @Composable
 private fun MushafStudyDialog(
     verse: QuranVerseDetail,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialIrabBookId: String? = null
 ) {
     val theme = QabasTheme.current
 
-    // التفسير: من بطاقة الآية أولاً، وإلا جلب QuranEnc عند الطلب.
+    // التفسير: منتقٍ بين كتب MUSHAF_TAFSIR_BOOKS؛ الكتاب المختار محفوظ
+    // محلياً (getMushafTafsirBook)، والجلب عبر fetchTafsirForBook عند
+    // فتح اللوحة أو تبديل الكتاب. للميسر يُستعمل نص بطاقة الآية أولاً
+    // (الميسر المحلي نفسه) وإلا getTafsirForVerse؛ ولا ملاذ صامت لكتاب
+    // آخر عند غياب الميسر. التسمية تتبع الكتاب المختار بصراحة.
+    val context = LocalContext.current
+    var tafsirBookId by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf(UserPreferencesManager.getMushafTafsirBook(context))
+    }
+    val selectedTafsirBook =
+        QuranDataProvider.MUSHAF_TAFSIR_BOOKS.firstOrNull { it.id == tafsirBookId }
+            ?: QuranDataProvider.MUSHAF_TAFSIR_BOOKS[0]
     var tafsirText by remember(verse.surahNumber, verse.verseNumber) {
-        mutableStateOf(verse.tafseer)
+        mutableStateOf<String?>(null)
     }
     var tafsirLoading by remember(verse.surahNumber, verse.verseNumber) {
-        mutableStateOf(verse.tafseer.isBlank())
+        mutableStateOf(true)
     }
     var tafsirFailed by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf(false)
     }
-    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
-        if (verse.tafseer.isNotBlank()) return@LaunchedEffect
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, tafsirBookId) {
         tafsirLoading = true
         tafsirFailed = false
-        val remote = QuranDataProvider.fetchRemoteTafsir(verse.surahNumber, verse.verseNumber)
-        if (remote.isNullOrBlank()) {
-            tafsirFailed = true
+        tafsirText = null
+        val fetched = if (tafsirBookId == "muyassar" && verse.tafseer.isNotBlank()) {
+            verse.tafseer
         } else {
-            tafsirText = remote
+            QuranDataProvider.fetchTafsirForBook(tafsirBookId, verse.surahNumber, verse.verseNumber)
+        }
+        if (fetched.isNullOrBlank()) {
+            // الميسر: غياب بيانات محلية (لا ملاذ)؛ غيره: فشل شبكي.
+            tafsirFailed = tafsirBookId != "muyassar"
+        } else {
+            tafsirText = fetched
         }
         tafsirLoading = false
     }
 
-    // الترجمة: من ذاكرة السورة، وإلا جلب السورة كاملة (مكالمة واحدة).
+    // الترجمة: من ذاكرة السورة بالترجمة المختارة، وإلا جلب السورة
+    // كاملة (مكالمة واحدة). الترجمة المختارة محفوظة محلياً وتُقرأ عند
+    // فتح اللوحة؛ وتبديلها من مكتبة الكتب يسري على الفتح التالي.
+    val studyTranslationId = UserPreferencesManager.getMushafTranslation(context)
+    val selectedTranslation =
+        QuranDataProvider.MUSHAF_TRANSLATIONS.firstOrNull { it.id == studyTranslationId }
+            ?: QuranDataProvider.MUSHAF_TRANSLATIONS[0]
     var translationText by remember(verse.surahNumber, verse.verseNumber) {
         mutableStateOf<String?>(null)
     }
@@ -2487,9 +2821,11 @@ private fun MushafStudyDialog(
     }
     LaunchedEffect(verse.surahNumber, verse.verseNumber) {
         translationLoading = true
-        val cached = QuranDataProvider.getCachedSurahTranslation(verse.surahNumber)
+        val cached = QuranDataProvider.getCachedSurahTranslationFor(
+            studyTranslationId, verse.surahNumber
+        )
         translationText = cached?.get(verse.verseNumber)
-            ?: QuranDataProvider.fetchSurahTranslation(verse.surahNumber)
+            ?: QuranDataProvider.fetchSurahTranslationFor(studyTranslationId, verse.surahNumber)
                 ?.get(verse.verseNumber)
         translationLoading = false
     }
@@ -2505,6 +2841,88 @@ private fun MushafStudyDialog(
         wordsLoading = true
         words = QuranDataProvider.fetchVerseWords(verse.surahNumber, verse.verseNumber)
         wordsLoading = false
+    }
+
+    // الإعراب: منتقٍ بين كتابين من spa5k؛ يُجلب عند الطلب أو تبديل الكتاب.
+    // initialIrabBookId (من فئة البلاغة في المكتبة) يفرض الدرويش مبدئياً
+    // لعرض قسم البلاغة، وإلا يُقرأ الكتاب المحفوظ؛ ولا يُكتب التفضيل
+    // إلا عند نقر المستخدم على شريحة كتاب.
+    var irabBookId by remember(verse.surahNumber, verse.verseNumber, initialIrabBookId) {
+        mutableStateOf(initialIrabBookId ?: UserPreferencesManager.getMushafIrabBook(context))
+    }
+    var irabText by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf<String?>(null)
+    }
+    var irabLoading by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf(true)
+    }
+    LaunchedEffect(verse.surahNumber, verse.verseNumber, irabBookId) {
+        irabLoading = true
+        irabText = QuranDataProvider.fetchIrab(irabBookId, verse.surahNumber, verse.verseNumber)
+        irabLoading = false
+    }
+
+    // البلاغة: قسم مستقل داخل نص الدرويش وحده — يُقسم النص المجلوب
+    // عند أول ورود «البلاغة:»؛ ما قبله إعراب وما بدءاً منها بلاغة.
+    // التقسيم عرضٌ للنص نفسه بلا تغيير كلمة. لا واسم يعني لا قسم
+    // بلاغة مسجّلاً لهذه الآية في هذا المصدر.
+    val balaghaMarker = "البلاغة:"
+    val balaghaIndex = if (irabBookId == "darwish" && !irabText.isNullOrBlank()) {
+        irabText!!.indexOf(balaghaMarker)
+    } else {
+        -1
+    }
+    val irabDisplayText = if (balaghaIndex >= 0) {
+        irabText!!.substring(0, balaghaIndex).trimEnd().ifBlank { null }
+    } else {
+        irabText
+    }
+    val balaghaText = if (balaghaIndex >= 0) {
+        irabText!!.substring(balaghaIndex).trim()
+    } else {
+        null
+    }
+
+    // أسباب النزول: تُجلب خريطة السورة مرة واحدة وتُحفظ في ذاكرة
+    // المزوّد؛ null هنا تعني فشل الشبكة، والقائمة الفارغة تعني غياب
+    // سبب مسجّل لهذه الآية في المصدر.
+    var asbabList by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf<List<String>?>(null)
+    }
+    var asbabLoading by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf(true)
+    }
+    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
+        asbabLoading = true
+        asbabList = QuranDataProvider.fetchAsbabForVerse(verse.surahNumber, verse.verseNumber)
+        asbabLoading = false
+    }
+
+    // الآيات المشابهة: ملف المتشابهات يُجلب مرة واحدة ويُحفظ في ذاكرة
+    // المزوّد؛ null من fetchMutashabihat تعني فشل الشبكة (وتُعرض رسالة
+    // فشل)، والقائمة الفارغة تعني غياب متشابهات مسجّلة لهذه الآية.
+    var mutashabihatList by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf<List<Pair<Int, Int>>?>(null)
+    }
+    var mutashabihatFailed by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf(false)
+    }
+    var mutashabihatLoading by remember(verse.surahNumber, verse.verseNumber) {
+        mutableStateOf(true)
+    }
+    LaunchedEffect(verse.surahNumber, verse.verseNumber) {
+        mutashabihatLoading = true
+        mutashabihatFailed = false
+        val data = QuranDataProvider.fetchMutashabihat()
+        if (data == null) {
+            mutashabihatFailed = true
+            mutashabihatList = null
+        } else {
+            mutashabihatList = QuranDataProvider.fetchMutashabihatForVerse(
+                verse.surahNumber, verse.verseNumber
+            )
+        }
+        mutashabihatLoading = false
     }
 
     AlertDialog(
@@ -2539,9 +2957,47 @@ private fun MushafStudyDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                // 1) التفسير الميسر.
+                // 1) التفسير — منتقٍ بين كتب التفسير الثمانية.
                 item {
-                    MushafStudySectionTitle(Translator.tr("التفسير الميسر"))
+                    MushafStudySectionTitle(
+                        Translator.tr(selectedTafsirBook.arabicName)
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    ) {
+                        items(QuranDataProvider.MUSHAF_TAFSIR_BOOKS, key = { it.id }) { book ->
+                            val isSelected = book.id == tafsirBookId
+                            Text(
+                                text = book.arabicName,
+                                color = if (isSelected) theme.primary else theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        if (isSelected) theme.primary.copy(alpha = 0.15f)
+                                        else theme.cardSurface
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) theme.primary
+                                        else theme.textSecondary.copy(alpha = 0.4f),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable {
+                                        if (book.id != tafsirBookId) {
+                                            UserPreferencesManager.saveMushafTafsirBook(context, book.id)
+                                            tafsirBookId = book.id
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                     when {
                         tafsirLoading -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2559,16 +3015,18 @@ private fun MushafStudyDialog(
                                 )
                             }
                         }
-                        tafsirText.isNotBlank() -> {
+                        !tafsirText.isNullOrBlank() -> {
                             Text(
-                                text = tafsirText,
+                                text = tafsirText!!,
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 13.sp,
                                 lineHeight = 21.sp
                             )
                             MushafStudySectionCaption(
-                                Translator.tr("المصدر: التفسير الميسر — مجمع الملك فهد لطباعة المصحف الشريف")
+                                Translator.tr(
+                                    "المصدر: ${selectedTafsirBook.source} — ${selectedTafsirBook.author}"
+                                )
                             )
                         }
                         else -> {
@@ -2586,10 +3044,10 @@ private fun MushafStudyDialog(
                         }
                     }
                 }
-                // 2) الترجمة الإنجليزية.
+                // 2) الترجمة الإنجليزية — بالترجمة المختارة من مكتبة الكتب.
                 item {
                     MushafStudySectionTitle(
-                        Translator.tr("الترجمة الإنجليزية — ${QuranDataProvider.MUSHAF_TRANSLATION_LABEL}")
+                        Translator.tr("الترجمة الإنجليزية — ${selectedTranslation.label}")
                     )
                     when {
                         translationLoading -> {
@@ -2619,7 +3077,7 @@ private fun MushafStudyDialog(
                                 modifier = Modifier.fillMaxWidth()
                             )
                             MushafStudySectionCaption(
-                                Translator.tr("المصدر: QuranEnc — Saheeh International")
+                                Translator.tr("المصدر: QuranEnc — ${selectedTranslation.label}")
                             )
                         }
                         else -> {
@@ -2710,6 +3168,308 @@ private fun MushafStudyDialog(
                         }
                     }
                 }
+                // 4) الإعراب — منتقٍ بين الإعراب الميسر والدرويش (مفصّل).
+                item {
+                    MushafStudySectionTitle(Translator.tr("الإعراب"))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    ) {
+                        items(
+                            listOf(
+                                "muyassar" to "الإعراب الميسر",
+                                "darwish" to "الدرويش (مفصّل)"
+                            ),
+                            key = { it.first }
+                        ) { (bookId, label) ->
+                            val isSelected = bookId == irabBookId
+                            Text(
+                                text = label,
+                                color = if (isSelected) theme.primary else theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        if (isSelected) theme.primary.copy(alpha = 0.15f)
+                                        else theme.cardSurface
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) theme.primary
+                                        else theme.textSecondary.copy(alpha = 0.4f),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable {
+                                        if (bookId != irabBookId) {
+                                            UserPreferencesManager.saveMushafIrabBook(context, bookId)
+                                            irabBookId = bookId
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                    when {
+                        irabLoading -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    color = theme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = Translator.tr("جارٍ تحميل الإعراب…"),
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                        }
+                        !irabDisplayText.isNullOrBlank() -> {
+                            Text(
+                                text = irabDisplayText!!,
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontSize = 13.sp,
+                                lineHeight = 21.sp
+                            )
+                            MushafStudySectionCaption(
+                                Translator.tr(
+                                    "المصدر: spa5k/tafsir_api (MIT) — " +
+                                        if (irabBookId == "darwish") "إعراب القرآن للدرويش"
+                                        else "الإعراب الميسر"
+                                )
+                            )
+                        }
+                        else -> {
+                            Text(
+                                text = if (!irabText.isNullOrBlank()) {
+                                    Translator.tr(
+                                        "لا يوجد نص إعراب قبل قسم البلاغة لهذه الآية في هذا المصدر."
+                                    )
+                                } else {
+                                    Translator.tr("تعذّر تحميل الإعراب — تحقق من الاتصال وحاول مجدداً.")
+                                },
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                    }
+                }
+                // 4-ب) البلاغة — قسم مستقل داخل نص الدرويش (لا كتاب
+                // بلاغة منفصل): يُعرض ما بدءاً من أول «البلاغة:» في نص
+                // الدرويش المجلوب؛ وبلا الواسم لا قسم بلاغة مسجّلاً.
+                item {
+                    MushafStudySectionTitle(Translator.tr("البلاغة"))
+                    when {
+                        irabLoading -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    color = theme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = Translator.tr("جارٍ تحميل البلاغة…"),
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                        }
+                        irabBookId != "darwish" -> {
+                            Text(
+                                text = Translator.tr(
+                                    "قسم البلاغة من كتاب الدرويش — اختر «الدرويش (مفصّل)» " +
+                                        "في قسم الإعراب أعلاه لعرضه لهذه الآية."
+                                ),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        irabText.isNullOrBlank() -> {
+                            Text(
+                                text = Translator.tr("تعذّر تحميل البلاغة — تحقق من الاتصال وحاول مجدداً."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        !balaghaText.isNullOrBlank() -> {
+                            Text(
+                                text = balaghaText!!,
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontSize = 13.sp,
+                                lineHeight = 21.sp
+                            )
+                            MushafStudySectionCaption(
+                                Translator.tr(
+                                    "قسم البلاغة من كتاب «إعراب القرآن وبيانه» للدرويش — " +
+                                        "لا كتاب بلاغة منفصل"
+                                )
+                            )
+                        }
+                        else -> {
+                            Text(
+                                text = Translator.tr("لا يوجد قسم بلاغة مسجّل لهذه الآية في هذا المصدر."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                    }
+                }
+                // 5) أسباب النزول — فقرات منفصلة، بلا اختلاق عند الغياب.
+                item {
+                    MushafStudySectionTitle(Translator.tr("أسباب النزول"))
+                    when {
+                        asbabLoading -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    color = theme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = Translator.tr("جارٍ تحميل أسباب النزول…"),
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                        }
+                        asbabList == null -> {
+                            Text(
+                                text = Translator.tr("تعذّر تحميل أسباب النزول — تحقق من الاتصال وحاول مجدداً."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        asbabList!!.isEmpty() -> {
+                            Text(
+                                text = Translator.tr("لا يوجد سبب نزول مسجّل لهذه الآية في المصدر."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        else -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                asbabList!!.forEach { reason ->
+                                    Text(
+                                        text = reason,
+                                        color = theme.textPrimary,
+                                        fontFamily = CairoFont,
+                                        fontSize = 13.sp,
+                                        lineHeight = 21.sp
+                                    )
+                                }
+                            }
+                            MushafStudySectionCaption(
+                                Translator.tr(
+                                    "المصدر: «صحيح أسباب النزول» لإبراهيم محمد العلي — " +
+                                        "عبر مستودع asbab-al-nuzul-dataset (MIT)؛ التغطية 50 سورة فقط"
+                                )
+                            )
+                        }
+                    }
+                }
+                // 6) الآيات المشابهة — عرض فقط، بلا تنقّل بالنقر.
+                item {
+                    MushafStudySectionTitle(Translator.tr("الآيات المشابهة"))
+                    when {
+                        mutashabihatLoading -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    color = theme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = Translator.tr("جارٍ تحميل الآيات المشابهة…"),
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                        }
+                        mutashabihatFailed -> {
+                            Text(
+                                text = Translator.tr("تعذّر تحميل الآيات المشابهة — تحقق من الاتصال وحاول مجدداً."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        mutashabihatList.isNullOrEmpty() -> {
+                            Text(
+                                text = Translator.tr("لا توجد متشابهات مسجّلة لهذه الآية."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        else -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                mutashabihatList!!.forEach { (similarSurah, similarAyah) ->
+                                    val similarSurahName =
+                                        QuranDataProvider.surahNameOf(similarSurah)
+                                    val similarText = QuranDataProvider.getVerseText(
+                                        similarSurah, similarAyah
+                                    )
+                                    Column {
+                                        Text(
+                                            text = Translator.tr(
+                                                "سورة $similarSurahName • آية $similarAyah"
+                                            ),
+                                            color = theme.textPrimary,
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp
+                                        )
+                                        if (similarText != null) {
+                                            Text(
+                                                text = similarText,
+                                                color = theme.textPrimary,
+                                                fontFamily = AmiriFont,
+                                                fontSize = 16.sp,
+                                                lineHeight = 28.sp,
+                                                textAlign = TextAlign.Right,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            MushafStudySectionCaption(
+                                Translator.tr(
+                                    "المصدر: Quran_Mutashabihat_Data (CC0) — ليست قائمة " +
+                                        "شاملة، بل الأكثر إرباكاً للحفّاظ؛ ولا تغطي العالميات 6,201–6,236"
+                                )
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -2741,7 +3501,6 @@ private fun MushafStudyDialog(
 private const val MUSHAF_KHATMAH_DAY_MS = 86_400_000L
 private const val MUSHAF_KHATMAH_TOTAL_AYAH_COUNT = 6236
 
-/** الترتيب العام لآية (سورة، آية) بين آيات المصحف الـ 6236 (1-based). */
 // ============================================================================
 // بناء نص الآية المعروض (خارطة المصحف — المرحلة 5).
 // - التجويد: مقاطع <tajweed> بألوان أحكامها (تحليل مكدّس في
@@ -2798,6 +3557,7 @@ private fun buildMushafVerseAnnotatedString(
     }
 }
 
+/** الترتيب العام لآية (سورة، آية) بين آيات المصحف الـ 6236 (1-based). */
 private fun mushafGlobalAyahIndex(surah: Int, ayah: Int): Int {
     var index = ayah.coerceAtLeast(1)
     for (item in QuranDataProvider.surahs) {
@@ -3273,7 +4033,7 @@ private fun MushafKhatmahDialog(
                                 text = if (targetMode == 0) {
                                     Translator.tr("أدخل عدد أيام بين 1 و 3650.")
                                 } else {
-                                    Translator.tr("اختر تاريخاً بعد اليوم.")
+                                    Translator.tr("اختر تاريخ اليوم أو بعده.")
                                 },
                                 color = Color(0xFFEF4444),
                                 fontFamily = CairoFont,
@@ -3530,6 +4290,7 @@ private fun MushafDisplaySettingsDialog(
     script: String,
     onScriptChanged: (String) -> Unit,
     onShowTajweedLegend: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val theme = QabasTheme.current
@@ -3693,6 +4454,46 @@ private fun MushafDisplaySettingsDialog(
                     }
                 }
                 item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(theme.cardSurface)
+                            .clickable { onOpenLibrary() }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LibraryBooks,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = Translator.tr("مكتبة الكتب والترجمات"),
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = Translator.tr("كتب التفسير والإعراب وأسباب النزول والمتشابهات والترجمات"),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 11.5.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = null,
+                            tint = theme.textSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                item {
                     Spacer(modifier = Modifier.height(6.dp))
                     MushafStudySectionTitle(Translator.tr("الرسم والطبعة"))
                 }
@@ -3759,6 +4560,820 @@ private fun MushafDisplaySettingsDialog(
             }
         }
     )
+}
+
+// ============================================================================
+// ورقة مكتبة الكتب والترجمات (قسم القرآن — الكتب).
+//
+// ورقة سفلية (ModalBottomSheet) على نمط أوراق المشروع القائمة
+// (AudioPlaylistBottomSheet) وبروح خادم المسلم الداكنة NEO COSMIC — رموز سمة
+// التطبيق (QabasTheme) لا ألوان المرجع؛ والهيكل فقط مأخوذ من اللقطة
+// المرجعية (ورقة + صفوف فئات + فتح كتب الفئة) دون نسخ شكلها
+// (لا بطاقات بيضاء على بيج، ولا أيقونات كتب ملوّنة منسوخة).
+// الفئات الموثّقة فقط: التفسير (8 كتب)، أسباب النزول (مصدر واحد)،
+// الإعراب (كتابان)، المتشابهات اللفظية (فهرس)، التجويد (دليل التطبيق
+// القائم — 16 قاعدة + كتاب الوجيز الكامل)، الترجمات (3)، الفوائد
+// (كتاب كامل 1727)، البلاغة (قسم الدرويش للآية + كتاب 439 الكامل).
+// لا صف للصرف (تدقيق قانوني معلّق). صف «إضافة كتب أخرى» يعرض
+// القرطبي/البغوي/الوسيط — عيناتها 1:1 فُحصت حياً (HTTP 200 + نص حقيقي).
+// الشارات صادقة: "دون اتصال" للميسر وحده (مضمّن في APK)، و"شبكي" لغيره.
+// النقر على كتاب يحفظه افتراضياً ويعلّمه مختاراً؛ ومصدرا الأسباب
+// والمتشابهات بطاقتا معلومات (بلا اختيار — لا كتاب افتراضي لهما).
+// ============================================================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MushafBooksLibrarySheet(
+    currentSurah: Int,
+    currentAyah: Int,
+    onDismiss: () -> Unit,
+    onTranslationSelected: (String) -> Unit,
+    onOpenTajweedLegend: () -> Unit,
+    onOpenStudyVerse: (Int, Int) -> Unit
+) {
+    val theme = QabasTheme.current
+    val context = LocalContext.current
+    var openCategory by remember { mutableStateOf<String?>(null) }
+    var openBook by remember { mutableStateOf<QuranDataProvider.QuranPediaBookInfo?>(null) }
+    var selectedTafsir by remember { mutableStateOf(UserPreferencesManager.getMushafTafsirBook(context)) }
+    var selectedIrab by remember { mutableStateOf(UserPreferencesManager.getMushafIrabBook(context)) }
+    var selectedTranslation by remember { mutableStateOf(UserPreferencesManager.getMushafTranslation(context)) }
+    // الكتب الكاملة الثلاثة من quranpedia (بطاقات وصفية فقط، بلا نص).
+    val fawaidBook = QuranDataProvider.MUSHAF_QURANPEDIA_BOOKS.firstOrNull { it.id == 1727 }
+    val balaghaBook = QuranDataProvider.MUSHAF_QURANPEDIA_BOOKS.firstOrNull { it.id == 439 }
+    val tajweedBook = QuranDataProvider.MUSHAF_QURANPEDIA_BOOKS.firstOrNull { it.id == 89 }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = theme.background,
+        contentColor = theme.textPrimary,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(40.dp)
+                    .height(4.dp),
+                shape = CircleShape,
+                color = theme.separator.copy(alpha = 0.7f)
+            ) {}
+        }
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .heightIn(max = 560.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Text(
+                    text = Translator.tr("كتب التفسير والترجمات"),
+                    color = theme.textPrimary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = Translator.tr("كتب موثّقة المصدر — «دون اتصال» للميسر وحده، والباقي شبكي"),
+                    color = theme.textSecondary,
+                    fontFamily = CairoFont,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            if (openCategory == null) {
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.MenuBook,
+                        tint = theme.primary,
+                        title = "التفسير",
+                        subtitle = "8 كتب — الميسر دون اتصال والباقي شبكي",
+                        onClick = { openCategory = "tafsir" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.History,
+                        tint = theme.accent,
+                        title = "أسباب النزول",
+                        subtitle = "«صحيح أسباب النزول» — 50 سورة فقط",
+                        onClick = { openCategory = "asbab" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.Edit,
+                        tint = theme.success,
+                        title = "الإعراب",
+                        subtitle = "كتابان — الميسر والدرويش",
+                        onClick = { openCategory = "irab" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.CompareArrows,
+                        tint = theme.warning,
+                        title = "المتشابهات اللفظية",
+                        subtitle = "فهرس — 1,348 موضعاً",
+                        onClick = { openCategory = "mutashabihat" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.Lightbulb,
+                        tint = theme.warning,
+                        title = "الفوائد",
+                        subtitle = "«فوائد منتقاة من تفسير ابن كثير» — كتاب كامل",
+                        onClick = { openCategory = "fawaid" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.AutoStories,
+                        tint = theme.primary,
+                        title = "البلاغة",
+                        subtitle = "قسم البلاغة للآية + كتاب «من بلاغة القرآن»",
+                        onClick = { openCategory = "balagha" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.Palette,
+                        tint = theme.primary,
+                        title = "التجويد",
+                        subtitle = "دليل ألوان التجويد — 16 قاعدة",
+                        onClick = { openCategory = "tajweed" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.Translate,
+                        tint = theme.accent,
+                        title = "الترجمات",
+                        subtitle = "3 ترجمات إنجليزية — شبكية",
+                        onClick = { openCategory = "translations" }
+                    )
+                }
+                item {
+                    MushafLibraryCategoryRow(
+                        icon = Icons.Default.Add,
+                        tint = theme.success,
+                        title = "إضافة كتب أخرى +",
+                        subtitle = "القرطبي • البغوي • الوسيط — تحققت عيناتها حياً",
+                        onClick = { openCategory = "more-books" }
+                    )
+                }
+            } else {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { openCategory = null }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = Translator.tr("رجوع إلى الفئات"),
+                            color = theme.primary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                when (openCategory) {
+                    "tafsir" -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("كتب التفسير"))
+                        }
+                        items(QuranDataProvider.MUSHAF_TAFSIR_BOOKS, key = { it.id }) { book ->
+                            MushafLibraryBookRow(
+                                name = book.arabicName,
+                                detail = "${book.author} • ${book.source}",
+                                badge = if (book.offline) "دون اتصال" else "شبكي",
+                                isSelected = book.id == selectedTafsir,
+                                onClick = {
+                                    UserPreferencesManager.saveMushafTafsirBook(context, book.id)
+                                    selectedTafsir = book.id
+                                }
+                            )
+                        }
+                    }
+                    "asbab" -> {
+                        item {
+                            MushafLibraryInfoCard(
+                                title = "صحيح أسباب النزول",
+                                lines = listOf(
+                                    "المؤلف: إبراهيم محمد العلي",
+                                    "المصدر: مستودع asbab-al-nuzul-dataset (MIT)",
+                                    "التغطية: 50 سورة فقط — السور الأخرى بلا ملف في المصدر",
+                                    "يُعرض في لوحة دراسة الآية عند الضغط على آية."
+                                )
+                            )
+                        }
+                    }
+                    "irab" -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("كتب الإعراب"))
+                        }
+                        items(
+                            listOf(
+                                Triple("muyassar", "الإعراب الميسر", "spa5k/tafsir_api (MIT)"),
+                                Triple("darwish", "إعراب القرآن للدرويش", "spa5k/tafsir_api (MIT)")
+                            ),
+                            key = { it.first }
+                        ) { (bookId, name, source) ->
+                            MushafLibraryBookRow(
+                                name = name,
+                                detail = source,
+                                badge = "شبكي",
+                                isSelected = bookId == selectedIrab,
+                                onClick = {
+                                    UserPreferencesManager.saveMushafIrabBook(context, bookId)
+                                    selectedIrab = bookId
+                                }
+                            )
+                        }
+                    }
+                    "mutashabihat" -> {
+                        item {
+                            MushafLibraryInfoCard(
+                                title = "فهرس المتشابهات اللفظية",
+                                lines = listOf(
+                                    "المصدر: Quran_Mutashabihat_Data (CC0)",
+                                    "1,348 موضعاً — ليست قائمة شاملة، بل الأكثر إرباكاً للحفّاظ",
+                                    "لا تغطي العالميات 6,201–6,236",
+                                    "تُعرض في لوحة دراسة الآية عند الضغط على آية."
+                                )
+                            )
+                        }
+                    }
+                    "fawaid" -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("الفوائد"))
+                        }
+                        item {
+                            MushafLibraryInfoCard(
+                                title = "كتاب كامل — لا محتوى لكل آية",
+                                lines = listOf(
+                                    "«فوائد منتقاة من تفسير ابن كثير» — عبد الله زقيل",
+                                    "المصدر: quranpedia.net — يُجلب شبكياً عند الطلب فقط",
+                                    "لا يُضمَّن نص الكتاب في التطبيق؛ يُقرأ فصلاً فصلاً."
+                                )
+                            )
+                        }
+                        fawaidBook?.let { book ->
+                            item {
+                                MushafLibraryBookRow(
+                                    name = book.arabicTitle,
+                                    detail = "${book.author} • ${book.source}",
+                                    badge = "شبكي",
+                                    isSelected = false,
+                                    onClick = { openBook = book }
+                                )
+                            }
+                        }
+                    }
+                    "balagha" -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("البلاغة"))
+                        }
+                        item {
+                            MushafLibraryCategoryRow(
+                                icon = Icons.Default.AutoStories,
+                                tint = theme.primary,
+                                title = "قسم البلاغة للآية الحالية",
+                                subtitle = "سورة ${QuranDataProvider.surahNameOf(currentSurah)}" +
+                                    " • آية $currentAyah — من كتاب الدرويش",
+                                onClick = { onOpenStudyVerse(currentSurah, currentAyah) }
+                            )
+                        }
+                        item {
+                            MushafLibraryInfoCard(
+                                title = "تنبيه صادق",
+                                lines = listOf(
+                                    "قسم البلاغة للآية من كتاب «إعراب القرآن وبيانه» للدرويش — لا كتاب بلاغة منفصل.",
+                                    "الكتاب أدناه كتاب بلاغة كامل مستقل يُقرأ فصلاً فصلاً."
+                                )
+                            )
+                        }
+                        balaghaBook?.let { book ->
+                            item {
+                                MushafLibraryBookRow(
+                                    name = book.arabicTitle,
+                                    detail = "${book.author} • ${book.source}",
+                                    badge = "شبكي",
+                                    isSelected = false,
+                                    onClick = { openBook = book }
+                                )
+                            }
+                        }
+                    }
+                    "tajweed" -> {
+                        item {
+                            MushafLibraryCategoryRow(
+                                icon = Icons.Default.Palette,
+                                tint = theme.primary,
+                                title = "دليل ألوان التجويد",
+                                subtitle = "16 قاعدة — أحكام التجويد بألوانها",
+                                onClick = onOpenTajweedLegend
+                            )
+                        }
+                        tajweedBook?.let { book ->
+                            item {
+                                MushafLibraryBookRow(
+                                    name = book.arabicTitle,
+                                    detail = "${book.author} • ${book.source}",
+                                    badge = "شبكي",
+                                    isSelected = false,
+                                    onClick = { openBook = book }
+                                )
+                            }
+                        }
+                    }
+                    "translations" -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("الترجمات الإنجليزية"))
+                        }
+                        items(QuranDataProvider.MUSHAF_TRANSLATIONS, key = { it.id }) { translation ->
+                            MushafLibraryBookRow(
+                                name = "${translation.arabicName} — ${translation.label}",
+                                detail = translation.source,
+                                badge = "شبكي",
+                                isSelected = translation.id == selectedTranslation,
+                                onClick = {
+                                    selectedTranslation = translation.id
+                                    onTranslationSelected(translation.id)
+                                }
+                            )
+                        }
+                    }
+                    "more-books" -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("كتب تفسير إضافية"))
+                        }
+                        item {
+                            MushafLibraryInfoCard(
+                                title = "كتب تحققت عيناتها حياً فقط",
+                                lines = listOf(
+                                    "كل كتاب أدناه فُحصت عينته للآية 1:1 (HTTP 200 + نص حقيقي).",
+                                    "الاختيار يعيّن الكتاب كتابَ التفسير للوحة الدراسة."
+                                )
+                            )
+                        }
+                        items(QuranDataProvider.MUSHAF_EXTRA_TAFSIR_BOOKS, key = { it.id }) { book ->
+                            MushafLibraryBookRow(
+                                name = book.arabicName,
+                                detail = "${book.author} • ${book.source}",
+                                badge = "شبكي",
+                                isSelected = book.id == selectedTafsir,
+                                onClick = {
+                                    UserPreferencesManager.saveMushafTafsirBook(context, book.id)
+                                    selectedTafsir = book.id
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+    // قارئ الكتب الكاملة: حوار فوق الورقة، يُفتح من فئات الفوائد
+    // والبلاغة والتجويد؛ ويُغلق بالرجوع إلى الورقة.
+    openBook?.let { book ->
+        MushafBookReaderDialog(
+            book = book,
+            onDismiss = { openBook = null }
+        )
+    }
+}
+
+/** صف فئة في ورقة المكتبة: أيقونة مادية بلون من السمة + عنوان + سهم. */
+@Composable
+private fun MushafLibraryCategoryRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    val theme = QabasTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.cardSurface)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(tint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Text(
+                text = subtitle,
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 11.5.sp
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronLeft,
+            contentDescription = null,
+            tint = theme.textSecondary,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+/** صف كتاب في ورقة المكتبة: الاسم والتفاصيل وشارة الاتصال وعلامة المختار. */
+@Composable
+private fun MushafLibraryBookRow(
+    name: String,
+    detail: String,
+    badge: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val theme = QabasTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isSelected) theme.primary.copy(alpha = 0.12f) else theme.cardSurface
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp
+            )
+            Text(
+                text = detail,
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 11.5.sp,
+                lineHeight = 17.sp
+            )
+            Text(
+                text = badge,
+                color = if (badge == "دون اتصال") theme.success else theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = theme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/** بطاقة معلومات لمصدر بلا كتاب افتراضي (الأسباب والمتشابهات): عرض فقط. */
+@Composable
+private fun MushafLibraryInfoCard(
+    title: String,
+    lines: List<String>
+) {
+    val theme = QabasTheme.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.cardSurface)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            color = theme.textPrimary,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.5.sp
+        )
+        lines.forEach { line ->
+            Text(
+                text = line,
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 12.sp,
+                lineHeight = 19.sp
+            )
+        }
+    }
+}
+
+/**
+ * قارئ الكتب الكاملة من quranpedia (الفوائد/البلاغة/التجويد): يُجلب
+ * الكتاب شبكياً عند الطلب فقط — بلا تضمين لنصه في التطبيق — ثم تنقّل
+ * ثلاثي المستويات: فصول ← مقاطع الفصل ← نص المقطع. حالات تحميل
+ * وخطأ وفراغ صريحة، وتسمية «المصدر: quranpedia.net — العنوان — المؤلف»
+ * على مستوى النص. نصوص المقاطع تُعرض بعد نزع وسوم HTML وحدها.
+ */
+@Composable
+private fun MushafBookReaderDialog(
+    book: QuranDataProvider.QuranPediaBookInfo,
+    onDismiss: () -> Unit
+) {
+    val theme = QabasTheme.current
+    var bookData by remember(book.id) { mutableStateOf<QuranDataProvider.QuranPediaBook?>(null) }
+    var bookLoading by remember(book.id) { mutableStateOf(true) }
+    var bookFailed by remember(book.id) { mutableStateOf(false) }
+    var selectedChapterId by remember(book.id) { mutableStateOf<Int?>(null) }
+    var selectedContentId by remember(book.id) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(book.id) {
+        bookLoading = true
+        bookFailed = false
+        bookData = null
+        selectedChapterId = null
+        selectedContentId = null
+        val fetched = QuranDataProvider.fetchQuranPediaBook(book.id)
+        bookData = fetched
+        if (fetched == null) bookFailed = true
+        bookLoading = false
+    }
+
+    val data = bookData
+    val selectedChapter = data?.chapters?.firstOrNull { it.id == selectedChapterId }
+    val chapterContents = selectedChapter?.let { chapter ->
+        data?.contents?.filter { it.chapterId == chapter.id }
+    }.orEmpty()
+    val selectedContent = chapterContents.firstOrNull { it.id == selectedContentId }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = theme.cardSurface,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                text = book.arabicTitle,
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                when {
+                    bookLoading -> {
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    color = theme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = Translator.tr("جارٍ تحميل الكتاب…"),
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.5.sp
+                                )
+                            }
+                        }
+                    }
+                    bookFailed || data == null -> {
+                        item {
+                            Text(
+                                text = Translator.tr("تعذّر تحميل الكتاب — تحقق من الاتصال وحاول مجدداً."),
+                                color = theme.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 12.5.sp,
+                                lineHeight = 20.sp
+                            )
+                        }
+                    }
+                    selectedContent != null -> {
+                        item {
+                            MushafBookReaderBackRow(
+                                label = Translator.tr("رجوع إلى مقاطع الفصل"),
+                                onClick = { selectedContentId = null }
+                            )
+                        }
+                        item {
+                            Text(
+                                text = selectedContent.text,
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontSize = 13.sp,
+                                lineHeight = 21.sp
+                            )
+                            MushafStudySectionCaption(
+                                Translator.tr(
+                                    "المصدر: quranpedia.net — ${book.arabicTitle} — ${book.author}"
+                                )
+                            )
+                        }
+                    }
+                    selectedChapter != null -> {
+                        item {
+                            MushafBookReaderBackRow(
+                                label = Translator.tr("رجوع إلى الفصول"),
+                                onClick = {
+                                    selectedChapterId = null
+                                    selectedContentId = null
+                                }
+                            )
+                        }
+                        item {
+                            MushafStudySectionTitle(selectedChapter.name)
+                        }
+                        if (chapterContents.isEmpty()) {
+                            item {
+                                Text(
+                                    text = Translator.tr("لا توجد مقاطع في هذا الفصل."),
+                                    color = theme.textSecondary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 20.sp
+                                )
+                            }
+                        } else {
+                            items(chapterContents, key = { it.id }) { content ->
+                                val position = chapterContents.indexOf(content) + 1
+                                val preview = content.text
+                                    .lineSequence()
+                                    .firstOrNull { it.isNotBlank() }
+                                    ?.trim()
+                                    .orEmpty()
+                                MushafBookReaderRow(
+                                    title = if (preview.length > 120) {
+                                        preview.take(120) + "…"
+                                    } else {
+                                        preview.ifBlank { Translator.tr("مقطع بلا نص ظاهر") }
+                                    },
+                                    subtitle = "مقطع $position من ${chapterContents.size}",
+                                    onClick = { selectedContentId = content.id }
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        item {
+                            MushafStudySectionTitle(Translator.tr("فصول الكتاب"))
+                        }
+                        items(data.chapters, key = { it.id }) { chapter ->
+                            val count = data.contents.count { it.chapterId == chapter.id }
+                            MushafBookReaderRow(
+                                title = chapter.name,
+                                subtitle = "$count مقطعاً",
+                                onClick = {
+                                    selectedChapterId = chapter.id
+                                    selectedContentId = null
+                                }
+                            )
+                        }
+                        item {
+                            MushafStudySectionCaption(
+                                Translator.tr(
+                                    "المصدر: quranpedia.net — ${book.arabicTitle} — ${book.author}؛ " +
+                                        "كتاب كامل يُجلب شبكياً عند الطلب ولا يُضمَّن نصه في التطبيق. " +
+                                        "تجميع المقاطع في الفصول يتبع ترتيب الكتاب حيث لا يسمّي المصدر الفصل بدقة."
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = Translator.tr("إغلاق"),
+                    color = theme.primary,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    )
+}
+
+/** صف رجوع في قارئ الكتب: سهم + تسمية، يعيد مستوى واحداً إلى الوراء. */
+@Composable
+private fun MushafBookReaderBackRow(
+    label: String,
+    onClick: () -> Unit
+) {
+    val theme = QabasTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = null,
+            tint = theme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            color = theme.primary,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
+    }
+}
+
+/** صف فصل أو مقطع في قارئ الكتب: عنوان + سطر ثانوي، على خلفية الحوار. */
+@Composable
+private fun MushafBookReaderRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    val theme = QabasTheme.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.background)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = theme.textPrimary,
+                fontFamily = CairoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                color = theme.textSecondary,
+                fontFamily = CairoFont,
+                fontSize = 11.5.sp
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronLeft,
+            contentDescription = null,
+            tint = theme.textSecondary,
+            modifier = Modifier.size(20.dp)
+        )
+    }
 }
 
 @Composable

@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
@@ -12,11 +11,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
-import java.net.URL
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -54,8 +50,6 @@ data class MoneyPrinterTaskState(
     val isFinished: Boolean = false,
     val isFailed: Boolean = false,
     val outputVideoPath: String? = null,
-    val generatedScript: String = "",
-    val brollKeywords: List<String> = emptyList(),
     val errorMessage: String? = null
 )
 
@@ -301,7 +295,7 @@ object MoneyPrinterTurboService {
                 generatedAudio
             } else {
                 onProgressUpdate("الاستعانة بالمحرك الاحتياطي لتوليد الصوت...", 0.40f)
-                val backupTtsPath = try { AndroidTTSService.synthesizeSpeech(script) } catch (_: Exception) { null }
+                val backupTtsPath = try { AndroidTTSService.synthesizeSpeech(script) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 backupTtsPath?.let { File(it) }?.takeIf { it.exists() && it.length() >= 500 }
             }
 
@@ -447,14 +441,14 @@ object MoneyPrinterTurboService {
                             status = "completed"
                         )
                     )
-                } catch (_: Exception) {}
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
 
                 onProgressUpdate("تم اكتمال الفيديو الريلز بنجاح بنسبة 100% ✓", 1.0f)
                 Result.success(finalOutput)
             } else {
                 Result.failure(Exception("تعذر توليد الإطار البصري أو استكمال رندرة FFmpeg"))
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Autonomous pipeline failed", e)
             Result.failure(e)
         }

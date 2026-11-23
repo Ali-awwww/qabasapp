@@ -381,7 +381,7 @@ fun QabasStudioScreen(
                                                         createdAt = System.currentTimeMillis()
                                                     )
                                                     AppDatabase.getDatabase(context).hadithCardDao().insertCard(cardEntity)
-                                                } catch (_: Throwable) {
+                                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) {
                                                 }
                                             }
                                             Toast.makeText(context, "تم حفظ البطاقة في المعرض بدقة $selectedQuality", Toast.LENGTH_LONG).show()
@@ -397,11 +397,11 @@ fun QabasStudioScreen(
                             modifier = Modifier
                                 .weight(1.3f)
                                 .heightIn(min = 48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = Color.White),
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary, contentColor = theme.onPrimary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             if (isExportingImage) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = theme.onPrimary, strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("حفظ $selectedQuality...", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             } else {
@@ -488,7 +488,7 @@ fun QabasStudioScreen(
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
                                 Text(
                                     aspect,
-                                    color = if (selected) Color.White else theme.textSecondary,
+                                    color = if (selected) theme.onPrimary else theme.textSecondary,
                                     fontFamily = RobotoMonoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
@@ -529,7 +529,7 @@ fun QabasStudioScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.55f))
+                                .background(theme.background.copy(alpha = 0.55f))
                         )
                     } else {
                         Box(
@@ -623,11 +623,11 @@ fun QabasStudioScreen(
                                 ) {
                                     if (showBadge && hadithStatus.isNotBlank()) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                                            Text("خلاصة الحكم: ", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                            Text("خلاصة الحكم: ", color = currentCardTheme.textColor, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                                             Surface(color = currentCardTheme.accentColor, shape = RoundedCornerShape(4.dp)) {
                                                 Text(
                                                     hadithStatus,
-                                                    color = Color(0xFF0F172A),
+                                                    color = DeepSlate,
                                                     fontFamily = CairoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 10.sp,
@@ -712,7 +712,7 @@ fun QabasStudioScreen(
                                         label = { Text("${category.icon} ${category.label}", fontFamily = CairoFont, fontSize = 11.5.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = theme.primary,
-                                            selectedLabelColor = Color.White,
+                                            selectedLabelColor = theme.onPrimary,
                                             containerColor = theme.secondarySurface,
                                             labelColor = theme.textPrimary
                                         )
@@ -744,7 +744,7 @@ fun QabasStudioScreen(
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = theme.primary,
-                                            selectedLabelColor = Color.White,
+                                            selectedLabelColor = theme.onPrimary,
                                             containerColor = theme.secondarySurface,
                                             labelColor = theme.textPrimary
                                         )
@@ -846,7 +846,7 @@ fun QabasStudioScreen(
                                                         } else {
                                                             Toast.makeText(context, "لم يتم إرجاع نتيجة من محرك الذكاء", Toast.LENGTH_LONG).show()
                                                         }
-                                                    } catch (_: Exception) {
+                                                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                                                         Toast.makeText(context, "تعذر التدقيق والتنسيق، تحقق من الاتصال وحاول مرة أخرى", Toast.LENGTH_LONG).show()
                                                     } finally {
                                                         isGeneratingAi = false
@@ -926,7 +926,7 @@ fun QabasStudioScreen(
                                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 12.dp)) {
                                                 Text(
                                                     q,
-                                                    color = if (isSel) Color.White else theme.textPrimary,
+                                                    color = if (isSel) theme.onPrimary else theme.textPrimary,
                                                     fontFamily = RobotoMonoFont,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 11.5.sp
@@ -978,7 +978,7 @@ fun QabasStudioScreen(
                                         label = { Text(font.displayName, fontFamily = designFontFamily(font), fontSize = 12.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = theme.primary,
-                                            selectedLabelColor = Color.White,
+                                            selectedLabelColor = theme.onPrimary,
                                             containerColor = theme.secondarySurface,
                                             labelColor = theme.textPrimary
                                         )
@@ -1016,7 +1016,7 @@ fun QabasStudioScreen(
                                             label = { Text(align.label, fontFamily = CairoFont, fontSize = 11.sp) },
                                             colors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = theme.primary,
-                                                selectedLabelColor = Color.White,
+                                                selectedLabelColor = theme.onPrimary,
                                                 containerColor = theme.secondarySurface,
                                                 labelColor = theme.textPrimary
                                             )
@@ -1035,7 +1035,7 @@ fun QabasStudioScreen(
                                         label = { Text("${orn.icon} ${orn.label}", fontFamily = CairoFont, fontSize = 12.sp) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = theme.primary,
-                                            selectedLabelColor = Color.White,
+                                            selectedLabelColor = theme.onPrimary,
                                             containerColor = theme.secondarySurface,
                                             labelColor = theme.textPrimary
                                         )
@@ -1096,7 +1096,7 @@ fun QabasStudioScreen(
                                             } else {
                                                 Toast.makeText(context, "تعذر توليد خلفية جديدة: تحقق من الاتصال أو مفاتيح الصور", Toast.LENGTH_LONG).show()
                                             }
-                                        } catch (e: Exception) {
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                             Toast.makeText(context, "تعذر توليد الخلفية: ${e.message ?: "تحقق من الاتصال"}", Toast.LENGTH_LONG).show()
                                         } finally {
                                             isGeneratingAiImage = false

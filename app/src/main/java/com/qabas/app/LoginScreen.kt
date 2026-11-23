@@ -19,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -159,7 +158,7 @@ fun LoginScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "شعار قبس",
+                        contentDescription = "شعار خادم المسلم",
                         tint = theme.primary,
                         modifier = Modifier.size(34.dp)
                     )
@@ -169,7 +168,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "قبس ستوديو",
+                text = "ستوديو خادم المسلم",
                 color = theme.textPrimary,
                 fontSize = 30.sp,
                 fontFamily = CairoFont,
@@ -399,7 +398,7 @@ fun LoginScreen(
                                 when (ActiveSessionManager.claim(context, authUid)) {
                                     ActiveSessionClaimResult.CLAIMED -> Unit
                                     ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
-                                        runCatching { ActiveSessionManager.endLocalSession(context) }
+                                        runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                         authErrorMessage = "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة."
                                         authErrorIsNetwork = false
                                         Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
@@ -407,7 +406,7 @@ fun LoginScreen(
                                         return@launch
                                     }
                                     ActiveSessionClaimResult.PROFILE_MISSING -> {
-                                        runCatching { ActiveSessionManager.endLocalSession(context) }
+                                        runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                         authErrorMessage = "تعذر العثور على ملف حسابك في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم."
                                         authErrorIsNetwork = false
                                         Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
@@ -415,7 +414,7 @@ fun LoginScreen(
                                         return@launch
                                     }
                                     ActiveSessionClaimResult.UNAVAILABLE -> {
-                                        runCatching { ActiveSessionManager.endLocalSession(context) }
+                                        runCatching { ActiveSessionManager.endLocalSession(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                         authErrorMessage = "تعذر التحقق من جلستك الآن. تحقق من الإنترنت ثم أعد المحاولة."
                                         authErrorIsNetwork = true
                                         Toast.makeText(context, authErrorMessage, Toast.LENGTH_LONG).show()
@@ -440,15 +439,11 @@ fun LoginScreen(
                                 prefs.edit().apply {
                                     putBoolean("is_logged_in", true)
                                     putBoolean("is_guest", false)
-                                    putBoolean("is_admin", finalIsAdmin)
-                                    putBoolean("is_developer", finalIsDeveloper)
                                     putBoolean("is_relative", isRelative)
-                                    putString("user_id", authUid)
                                     putString("user_email", authEmail)
                                     putString("user_name", effectiveLoginName)
                                     putString("user_display_name", effectiveLoginName)
                                     putString("user_custom_id", cloudCustomId)
-                                    putString("user_tag", UserIdentifierManager.formatDisplay(cloudCustomId))
                                     putString("user_account_number", accountNumber)
                                     putString("user_name_with_account", nameWithAccount)
                                     if (rememberMe) putString("saved_login_email", authEmail) else remove("saved_login_email")
@@ -470,7 +465,7 @@ fun LoginScreen(
                                             newEmail = authEmail,
                                             emailConfirmed = emailConfirmedAfterLogin
                                         )
-                                    }
+                                    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                 }
                                 val firstBadge = if (UserIdentifierManager.isFirstAccount(accountNumber)) " (أول حساب مسجل)" else ""
                                 Toast.makeText(
@@ -827,23 +822,20 @@ fun LoginScreen(
                     prefs.edit().apply {
                         putBoolean("is_logged_in", false)
                         putBoolean("is_guest", true)
-                        putBoolean("is_admin", false)
-                        putBoolean("is_developer", false)
                         remove("user_id")
                         remove("saved_login_email")
                         remove("user_account_number")
                         remove("user_name_with_account")
                         putString("user_email", "guest@qabas.studio")
-                        putString("user_name", "ضيف قبس")
+                        putString("user_name", "ضيف خادم المسلم")
                         putString("user_display_name", "زائر مؤقت")
                         putString("user_custom_id", "guest")
-                        putString("user_tag", "@guest")
                         remove("auth_token")
                         remove("refresh_token")
                         remove("user_api_key")
                         apply()
                     }
-                    SupabaseRepository.getInstance().emitGuestMode("ضيف قبس")
+                    SupabaseRepository.getInstance().emitGuestMode("ضيف خادم المسلم")
                     Toast.makeText(
                         context,
                         "تم الدخول كضيف. هذا الوضع للمعاينة فقط؛ لا يتم حفظ البيانات أو مزامنتها مع السحابة بدون تسجيل دخول رسمي.",
@@ -857,7 +849,7 @@ fun LoginScreen(
 
             TextButton(onClick = onNavigateToRules) {
                 Text(
-                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام قبس",
+                    text = "بتسجيل دخولك أنت توافق على القواعد والسياسات الموحدة لاستخدام خادم المسلم",
                     color = theme.primary,
                     fontSize = 11.5.sp,
                     fontFamily = CairoFont,

@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -175,7 +174,7 @@ fun UpdateErrorReportDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("طور الفشل (Phase):", color = TextSecondary, fontSize = 11.sp, fontFamily = CairoFont)
-                        Text(report.phase, color = GoldSecondary, fontSize = 11.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                        Text(report.phase, color = PresetAccent, fontSize = 11.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -334,7 +333,7 @@ fun UpdateErrorReportDialog(
                             .height(46.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = GoldPrimary,
+                            containerColor = PresetPrimary,
                             contentColor = DeepSlate
                         )
                     ) {

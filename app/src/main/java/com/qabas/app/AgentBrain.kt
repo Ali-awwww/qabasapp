@@ -127,15 +127,41 @@ object UniversalKeyBrain {
         fallbackSingleKey: String = "",
         model: String? = null,
         stream: Boolean = false,
-        onPartial: ((String) -> Unit)? = null
+        onPartial: ((String) -> Unit)? = null,
+        // (12.14) تتبع التكلفة + إيقاف عند الحد: بلا Context لا تسجيل
+        // ولا فحص — وكل المسارات الحية الآن تمرر Context (ر20: الفريق
+        // ووحدة التحكم كانا يمران بلا Context فالتفّا على الحد؛ صُلحا).
+        // يبقى المعامل اختيارياً null لمسارات الفحص/التشخيص غير المدفوعة.
+        context: Context? = null,
+        missionTitle: String? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
+        // (12.14) فحص حد التكلفة قبل أي استدعاء مدفوع.
+        if (context != null) {
+            val limitMessage = VibeCostTracker.checkLimit(context)
+            if (limitMessage != null) {
+                return@withContext Result.failure(Exception(limitMessage))
+            }
+        }
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) for Gemini provider
         if (provider == DetectedProvider.GEMINI || provider == DetectedProvider.NONE) {
             try {
                 val responseText = FirebaseAiService.generateText(prompt, systemInstruction)
                 if (responseText.isNotBlank()) {
-                    return@withContext Result.success(RealAgentResponse(responseText, 500, 250, 250))
+                    // أعداد الرموز هنا ثابتة مختلقة (500/250/250) — تُسجَّل
+                    // «غير مقاسة» للتكلفة (tokensEstimated = true).
+                    val response = RealAgentResponse(responseText, 500, 250, 250, tokensEstimated = true)
+                    if (context != null) {
+                        VibeCostTracker.record(context, provider.id, "gemini-3.8-flash", response, missionTitle)
+                    }
+                    return@withContext Result.success(response)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // الإلغاء ليس خطأً ولا يُبتلَع: إعادة رميه فوراً حتى لا
+                // يسقط التنفيذ إلى حلقة المفاتيح المدفوعة بعد أن ألغى
+                // المستخدم المهمة (نفس نمط AgentStreaming.stream و
+                // executeAgentMission — الـ catch العام تحته يبتلع
+                // CancellationException لأنها subclass من Exception).
+                throw e
             } catch (e: Exception) {
                 android.util.Log.w("UniversalKeyBrain", "Firebase AI Logic attempt failed: ${e.message}")
             }
@@ -163,6 +189,13 @@ object UniversalKeyBrain {
                 if (prefsKey.isNotBlank()) {
                     KeyLatencyTracker.record(prefsKey, k, ms, true)
                     KeyPoolManager.promoteKey(prefsKey, k)
+                }
+                // (12.14) تسجيل الاستهلاك والتكلفة بالنموذج الفعلي.
+                if (context != null) {
+                    res.getOrNull()?.let { response ->
+                        val effectiveModel = model?.takeIf { it.isNotBlank() } ?: provider.defaultModel
+                        VibeCostTracker.record(context, provider.id, effectiveModel, response, missionTitle)
+                    }
                 }
                 return@withContext res
             }
@@ -459,45 +492,4 @@ object UniversalKeyBrain {
         return sb.toString().takeIf { it.isNotBlank() }
     }
 
-    suspend fun pingActiveEngine(context: Context): KeyValidationResult = withContext(Dispatchers.IO) {
-        val (provider, key) = getActiveEngine()
-        if (provider == DetectedProvider.NONE || key.isBlank()) {
-            return@withContext KeyValidationResult(
-                isValid = false,
-                summary = "غير متصل 🔴",
-                explanation = "لا يوجد أي مفتاح API نشط أو مدخل في النظام حالياً.",
-                suggestedFix = "أدخل مفتاحك (Gemini, OpenRouter, Groq, OpenAI) لتفعيل الذكاء الاصطناعي الفعلي."
-            )
-        }
-        val serviceType = when (provider) {
-            DetectedProvider.GEMINI -> "gemini"
-            DetectedProvider.OPENROUTER -> "openrouter"
-            DetectedProvider.OPENAI -> "openai"
-            DetectedProvider.GROQ -> "groq"
-            DetectedProvider.HUGGINGFACE -> "huggingface"
-            else -> "gemini"
-        }
-        ApiKeyValidator.validateKey(context, serviceType, key)
-    }
-
-    suspend fun pingKey(context: Context, rawKey: String): KeyValidationResult = withContext(Dispatchers.IO) {
-        val provider = detect(rawKey)
-        if (provider == DetectedProvider.NONE || rawKey.isBlank()) {
-            return@withContext KeyValidationResult(
-                isValid = false,
-                summary = "مفتاح فارغ ⚪",
-                explanation = "يرجى لصق مفتاح API للتحقق من صحته.",
-                suggestedFix = "تأكد من نسخ المفتاح كاملاً."
-            )
-        }
-        val serviceType = when (provider) {
-            DetectedProvider.GEMINI -> "gemini"
-            DetectedProvider.OPENROUTER -> "openrouter"
-            DetectedProvider.OPENAI -> "openai"
-            DetectedProvider.GROQ -> "groq"
-            DetectedProvider.HUGGINGFACE -> "huggingface"
-            else -> "gemini"
-        }
-        ApiKeyValidator.validateKey(context, serviceType, rawKey)
-    }
 }

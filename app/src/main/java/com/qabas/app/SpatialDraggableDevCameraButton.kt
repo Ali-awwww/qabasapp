@@ -7,8 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Paint
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -38,11 +36,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -86,6 +81,7 @@ fun SpatialDraggableDevCameraButton(
     onOpenMyReports: () -> Unit,
     onOpenDiagnosticReport: (PrecisionDiagnosticEngine.DiagnosticTelemetry, Bitmap?, File?) -> Unit = { _, _, _ -> }
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val view = LocalView.current
     val density = LocalDensity.current
@@ -223,7 +219,7 @@ fun SpatialDraggableDevCameraButton(
                     } else {
                         Toast.makeText(context, "تعذر التقاط صورة الشاشة الحالية", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                     Log.e("SpatialDevCamera", "Screenshot flow failed", e)
                     Toast.makeText(context, "حدث خطأ أثناء التقاط الصورة", Toast.LENGTH_SHORT).show()
                 } finally {
@@ -256,7 +252,7 @@ fun SpatialDraggableDevCameraButton(
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                GoldPrimary.copy(alpha = 0.28f),
+                                PresetPrimary.copy(alpha = 0.28f),
                                 Color.Transparent
                             )
                         )
@@ -272,8 +268,8 @@ fun SpatialDraggableDevCameraButton(
             ) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                    color = theme.background.copy(alpha = 0.75f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f))
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -285,7 +281,7 @@ fun SpatialDraggableDevCameraButton(
                         )
                         Text(
                             text = "جارٍ تخطي الوميض الأبيض… $captureCountdown",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont,
@@ -334,15 +330,15 @@ fun SpatialDraggableDevCameraButton(
                             .background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color(0xFF0F172A),
-                                        Color(0xFF1E293B),
-                                        GoldPrimary.copy(alpha = 0.85f)
+                                        theme.cardSurface,
+                                        theme.secondarySurface,
+                                        PresetPrimary.copy(alpha = 0.85f)
                                     )
                                 )
                             )
                             .border(
                                 1.2.dp,
-                                Brush.verticalGradient(listOf(GoldPrimary, Color(0xFF00E5FF))),
+                                Brush.verticalGradient(listOf(PresetPrimary, theme.primary)),
                                 if (isNearRightEdge) RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
                                 else RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
                             ),
@@ -356,13 +352,13 @@ fun SpatialDraggableDevCameraButton(
                                 modifier = Modifier
                                     .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF00E5FF))
+                                    .background(theme.primary)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
                                 contentDescription = "زر الكاميرا الفضائي",
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -432,8 +428,8 @@ fun SpatialDraggableDevCameraButton(
                             .background(
                                 Brush.radialGradient(
                                     listOf(
-                                        GoldPrimary.copy(alpha = if (isDragging) 0.5f else 0.35f),
-                                        Color(0xFF00E5FF).copy(alpha = 0.2f),
+                                        PresetPrimary.copy(alpha = if (isDragging) 0.5f else 0.35f),
+                                        theme.primary.copy(alpha = 0.2f),
                                         Color.Transparent
                                     )
                                 )
@@ -450,11 +446,11 @@ fun SpatialDraggableDevCameraButton(
                                 width = 1.4.dp,
                                 brush = Brush.sweepGradient(
                                     listOf(
-                                        GoldPrimary,
-                                        Color(0xFF00E5FF),
-                                        GoldPrimary.copy(alpha = 0.2f),
-                                        Color(0xFF00E5FF),
-                                        GoldPrimary
+                                        PresetPrimary,
+                                        theme.primary,
+                                        PresetPrimary.copy(alpha = 0.2f),
+                                        theme.primary,
+                                        PresetPrimary
                                     )
                                 ),
                                 shape = CircleShape
@@ -468,15 +464,15 @@ fun SpatialDraggableDevCameraButton(
                             .shadow(
                                 elevation = if (isDragging) 12.dp else 8.dp,
                                 shape = CircleShape,
-                                spotColor = GoldPrimary
+                                spotColor = PresetPrimary
                             )
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
                                     listOf(
-                                        Color(0xFF0F172A),
-                                        Color(0xFF1E293B),
-                                        Color(0xFF0A0F1D)
+                                        theme.cardSurface,
+                                        theme.secondarySurface,
+                                        theme.background
                                     )
                                 )
                             )
@@ -484,9 +480,9 @@ fun SpatialDraggableDevCameraButton(
                                 1.4.dp,
                                 Brush.linearGradient(
                                     listOf(
-                                        GoldPrimary,
-                                        Color(0xFF38BDF8),
-                                        GoldPrimary.copy(alpha = 0.85f)
+                                        PresetPrimary,
+                                        theme.primary,
+                                        PresetPrimary.copy(alpha = 0.85f)
                                     )
                                 ),
                                 CircleShape
@@ -500,12 +496,12 @@ fun SpatialDraggableDevCameraButton(
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
                                 contentDescription = "كاميرا وتوثيق خادم المسلم",
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(if (isCompactMode) 20.dp else 22.dp)
                             )
                             Text(
                                 text = "SNAP",
-                                color = Color(0xFF38BDF8),
+                                color = theme.primary,
                                 fontSize = if (isCompactMode) 9.sp else 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
@@ -519,8 +515,8 @@ fun SpatialDraggableDevCameraButton(
                                 .padding(top = 4.dp, end = 4.dp)
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF10B981))
-                                .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                                .background(theme.success)
+                                .border(1.dp, theme.textPrimary.copy(alpha = 0.85f), CircleShape)
                         )
                     }
                 }
@@ -657,6 +653,7 @@ private fun SpatialDevCamHubDialog(
     onToggleSkipWhiteFlash: (Boolean) -> Unit,
     onSelectCorner: (DevCamCorner) -> Unit
 ) {
+    val theme = QabasTheme.current
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -664,7 +661,7 @@ private fun SpatialDevCamHubDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.72f))
+                .background(theme.background.copy(alpha = 0.72f))
                 .clickable { onDismiss() }
                 .padding(16.dp),
             contentAlignment = Alignment.Center
@@ -684,7 +681,7 @@ private fun SpatialDevCamHubDialog(
                     )
                     .border(
                         1.2.dp,
-                        Brush.linearGradient(listOf(GoldPrimary, Color(0xFF00E5FF), GoldPrimary)),
+                        Brush.linearGradient(listOf(PresetPrimary, theme.primary, PresetPrimary)),
                         RoundedCornerShape(24.dp)
                     )
                     .clickable(enabled = false) {}
@@ -705,7 +702,7 @@ private fun SpatialDevCamHubDialog(
                             onClick = onDismiss,
                             modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.8f))
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textPrimary.copy(alpha = 0.8f))
                         }
 
                         Row(
@@ -714,7 +711,7 @@ private fun SpatialDevCamHubDialog(
                         ) {
                             Text(
                                 text = "عدسة الكاميرا وتوثيق النظام 📸",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
@@ -723,7 +720,7 @@ private fun SpatialDevCamHubDialog(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF00E5FF))
+                                    .background(theme.primary)
                             )
                         }
                     }
@@ -731,8 +728,8 @@ private fun SpatialDevCamHubDialog(
                     // Active Screen Badge
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF1E293B).copy(alpha = 0.85f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                        color = theme.secondarySurface.copy(alpha = 0.85f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -742,14 +739,14 @@ private fun SpatialDevCamHubDialog(
                         ) {
                             Text(
                                 text = "الشاشة الحالية: ${BugReportManager.currentScreen}",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
                                 text = "${containerWidthDp.roundToInt()}×${containerHeightDp.roundToInt()} dp",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 11.5.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold
@@ -757,14 +754,14 @@ private fun SpatialDevCamHubDialog(
                         }
                     }
 
-                    HorizontalDivider(color = GoldPrimary.copy(alpha = 0.2f), thickness = 0.8.dp)
+                    HorizontalDivider(color = PresetPrimary.copy(alpha = 0.2f), thickness = 0.8.dp)
 
                     // 1. Precision Diagnostic Lens (التشخيص الدقيق الفوري الشامل - الدور الجوهري)
                     DevCamActionCard(
                         icon = Icons.Default.Troubleshoot,
                         title = "فحص وتشخيص دقيق للنظام 🔬",
                         subtitle = "مسح فوري لأبعاد الشاشة، خط النظام، الذاكرة، والشبكة وتحديد العطل آلياً",
-                        accentColor = Color(0xFF00E5FF),
+                        accentColor = theme.primary,
                         badge = "AI DIAGNOSTICS",
                         onClick = onOpenPrecisionDiagnostics
                     )
@@ -774,7 +771,7 @@ private fun SpatialDevCamHubDialog(
                         icon = Icons.Default.BugReport,
                         title = "بلاغ مشخص فورياً مع اللقطة ⚡",
                         subtitle = "التقاط فوري للشاشة وإرفاق البصمة التقنية الكاملة لتسهيل مهمة المطور",
-                        accentColor = GoldPrimary,
+                        accentColor = PresetPrimary,
                         badge = "SMART REPORT",
                         onClick = onDirectDiagnosticReport
                     )
@@ -784,7 +781,7 @@ private fun SpatialDevCamHubDialog(
                         icon = Icons.Default.CameraAlt,
                         title = "التقاط لقطة شاشة وحفظها 📸",
                         subtitle = "توثيق الشاشة الحالية بدقة، تمييز موضع الخلل، أو حفظها بالمعرض ومشاركتها",
-                        accentColor = Color(0xFF10B981),
+                        accentColor = theme.success,
                         badge = "SCREENSHOT",
                         onClick = onInstantCapture
                     )
@@ -794,7 +791,7 @@ private fun SpatialDevCamHubDialog(
                         icon = Icons.Default.Analytics,
                         title = "مفتش أبعاد الشاشة ومقاييس الـ DP 📏",
                         subtitle = "فحص الأبعاد الدقيقة (dp/px)، كثافة الشاشة، ونسخ التقرير التقني للمطور",
-                        accentColor = Color(0xFFA855F7),
+                        accentColor = theme.accent,
                         badge = "DEV METRICS",
                         onClick = onOpenInspector
                     )
@@ -810,11 +807,11 @@ private fun SpatialDevCamHubDialog(
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f))
                         ) {
-                            Icon(Icons.Default.ListAlt, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ListAlt, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("طلباتي السابقة 📋", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("طلباتي السابقة 📋", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp)
                         }
 
                         OutlinedButton(
@@ -823,20 +820,20 @@ private fun SpatialDevCamHubDialog(
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.warning.copy(alpha = 0.5f))
                         ) {
-                            Icon(Icons.Default.Chat, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Chat, contentDescription = null, tint = theme.warning, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("التواصل مع المطور 💬", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 12.sp)
+                            Text("التواصل مع المطور 💬", color = theme.warning, fontFamily = CairoFont, fontSize = 12.sp)
                         }
                     }
 
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f), thickness = 0.8.dp)
+                    HorizontalDivider(color = theme.textPrimary.copy(alpha = 0.12f), thickness = 0.8.dp)
 
                     // Quick Preferences
                     Text(
                         text = "خيارات تخصيص الزر العائم ⚙️",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = CairoFont,
@@ -852,14 +849,14 @@ private fun SpatialDevCamHubDialog(
                     ) {
                         Text(
                             text = "التقاط فوري بنقرة واحدة (بدون فتح القائمة)",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont
                         )
                         Switch(
                             checked = singleTapInstantSnap,
                             onCheckedChange = onToggleInstantSnap,
-                            colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary)
+                            colors = SwitchDefaults.colors(checkedThumbColor = PresetPrimary)
                         )
                     }
 
@@ -875,7 +872,7 @@ private fun SpatialDevCamHubDialog(
                         ) {
                             Text(
                                 text = "تخطي الوميض الأبيض (تأخير الالتقاط ثانية)",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
                                 maxLines = 1,
@@ -884,7 +881,7 @@ private fun SpatialDevCamHubDialog(
                             )
                             Text(
                                 text = "يمنع التقاط شاشة بيضاء عندRapidCapture",
-                                color = Color.White.copy(alpha = 0.55f),
+                                color = theme.textPrimary.copy(alpha = 0.55f),
                                 fontSize = 10.sp,
                                 fontFamily = CairoFont,
                                 maxLines = 1,
@@ -896,7 +893,7 @@ private fun SpatialDevCamHubDialog(
                         Switch(
                             checked = skipWhiteFlash,
                             onCheckedChange = onToggleSkipWhiteFlash,
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF10B981))
+                            colors = SwitchDefaults.colors(checkedThumbColor = theme.success)
                         )
                     }
 
@@ -908,14 +905,14 @@ private fun SpatialDevCamHubDialog(
                     ) {
                         Text(
                             text = "الحجم المدمج الخفيف (46dp بدلاً من 54dp)",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont
                         )
                         Switch(
                             checked = isCompact,
                             onCheckedChange = onToggleCompact,
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF38BDF8))
+                            colors = SwitchDefaults.colors(checkedThumbColor = theme.primary)
                         )
                     }
 
@@ -927,21 +924,21 @@ private fun SpatialDevCamHubDialog(
                     ) {
                         Text(
                             text = "وضع الالتصاق بالحافة (شريط جانبي نحيف)",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont
                         )
                         Switch(
                             checked = isDocked,
                             onCheckedChange = onToggleDocked,
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00E5FF))
+                            colors = SwitchDefaults.colors(checkedThumbColor = theme.primary)
                         )
                     }
 
                     // 4-Corner Pinning
                     Text(
                         text = "تثبيت الزر في إحدى زوايا الشاشة 🧲",
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = theme.textPrimary.copy(alpha = 0.85f),
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         modifier = Modifier.fillMaxWidth(),
@@ -978,6 +975,7 @@ private fun SpatialSnapshotPreviewDialog(
     onDismiss: () -> Unit,
     onSendToDev: (Bitmap, File?) -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isSaving by remember { mutableStateOf(false) }
@@ -1074,7 +1072,7 @@ private fun SpatialSnapshotPreviewDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.85f))
+                .background(theme.background.copy(alpha = 0.85f))
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -1084,7 +1082,7 @@ private fun SpatialSnapshotPreviewDialog(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
                     .background(DeepSlate)
-                    .border(1.2.dp, GoldPrimary.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+                    .border(1.2.dp, PresetPrimary.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1100,11 +1098,11 @@ private fun SpatialSnapshotPreviewDialog(
                         onClick = onDismiss,
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.8f))
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textPrimary.copy(alpha = 0.8f))
                     }
                     Text(
                         text = "توثيق الشاشة بالأشكال الهندسية 📸",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = CairoFont,
@@ -1120,8 +1118,8 @@ private fun SpatialSnapshotPreviewDialog(
                         .fillMaxWidth()
                         .heightIn(min = 200.dp, max = 320.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black)
-                        .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                        .background(theme.background)
+                        .border(1.dp, theme.primary.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
                 ) {
                     SpatialMarkupCanvas(
                         bitmap = bitmap,
@@ -1141,14 +1139,14 @@ private fun SpatialSnapshotPreviewDialog(
                     // Helper overlay badge
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color.Black.copy(alpha = 0.65f),
+                        color = theme.background.copy(alpha = 0.65f),
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 8.dp)
                     ) {
                         Text(
                             text = activeTool.hint,
-                            color = if (shapes.isEmpty()) Color.White.copy(alpha = 0.85f) else Color(0xFF10B981),
+                            color = if (shapes.isEmpty()) theme.textPrimary.copy(alpha = 0.85f) else theme.success,
                             fontSize = 10.5.sp,
                             fontFamily = CairoFont,
                             maxLines = 1,
@@ -1194,7 +1192,7 @@ private fun SpatialSnapshotPreviewDialog(
                     } else {
                         "عدد التحديدات: ${shapes.size} — يمكن سحب أي شكل في وضع «تحريك» لنقله"
                     },
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = theme.textPrimary.copy(alpha = 0.7f),
                     fontSize = 11.sp,
                     fontFamily = CairoFont,
                     textAlign = TextAlign.Center,
@@ -1214,7 +1212,7 @@ private fun SpatialSnapshotPreviewDialog(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.SaveAlt, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -1227,7 +1225,7 @@ private fun SpatialSnapshotPreviewDialog(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -1242,7 +1240,7 @@ private fun SpatialSnapshotPreviewDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.warning),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.BugReport, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -1266,6 +1264,7 @@ private fun SpatialDpMetricsInspectorDialog(
     densityDpi: Int,
     onDismiss: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val windowClass = when {
         containerWidthDp < 600 -> "Compact (هاتف عمودي)"
@@ -1315,7 +1314,7 @@ private fun SpatialDpMetricsInspectorDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.8f))
+                .background(theme.background.copy(alpha = 0.8f))
                 .clickable { onDismiss() }
                 .padding(16.dp),
             contentAlignment = Alignment.Center
@@ -1326,7 +1325,7 @@ private fun SpatialDpMetricsInspectorDialog(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
                     .background(DeepSlate)
-                    .border(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.7f), RoundedCornerShape(24.dp))
+                    .border(1.2.dp, theme.primary.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
                     .clickable(enabled = false) {}
                     .padding(20.dp)
             ) {
@@ -1342,11 +1341,11 @@ private fun SpatialDpMetricsInspectorDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.8f))
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textPrimary.copy(alpha = 0.8f))
                         }
                         Text(
                             text = "مفتش أبعاد الشاشة ومقاييس الـ DP 📐",
-                            color = Color(0xFF00E5FF),
+                            color = theme.primary,
                             fontSize = 15.5.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont
@@ -1355,7 +1354,7 @@ private fun SpatialDpMetricsInspectorDialog(
 
                     Text(
                         text = "فحص مباشر للأبعاد وكثافة البكسلات لضمان توافق التصميم مع معايير Material 3 وشاشات الهواتف والتابلت:",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = theme.textPrimary.copy(alpha = 0.8f),
                         fontSize = 11.5.sp,
                         fontFamily = NotoSansFont,
                         lineHeight = 17.sp,
@@ -1371,14 +1370,14 @@ private fun SpatialDpMetricsInspectorDialog(
                             label = "عرض الشاشة (Width)",
                             value = "${containerWidthDp.roundToInt()} dp",
                             subValue = "${(containerWidthDp * densityFactor).roundToInt()} px",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             modifier = Modifier.weight(1f)
                         )
                         MetricCard(
                             label = "ارتفاع الشاشة (Height)",
                             value = "${containerHeightDp.roundToInt()} dp",
                             subValue = "${(containerHeightDp * densityFactor).roundToInt()} px",
-                            color = Color(0xFF38BDF8),
+                            color = theme.primary,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -1391,14 +1390,14 @@ private fun SpatialDpMetricsInspectorDialog(
                             label = "كثافة الشاشة (Density)",
                             value = "${densityDpi} DPI",
                             subValue = "${"%.2f".format(densityFactor)}x factor",
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             modifier = Modifier.weight(1f)
                         )
                         MetricCard(
                             label = "فئة النافذة (Size Class)",
                             value = if (containerWidthDp < 600) "Compact" else "Medium+",
                             subValue = windowClass,
-                            color = Color(0xFFA855F7),
+                            color = theme.accent,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -1406,8 +1405,8 @@ private fun SpatialDpMetricsInspectorDialog(
                     // Device Telemetry Row
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF1E293B),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                        color = theme.secondarySurface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1426,7 +1425,7 @@ private fun SpatialDpMetricsInspectorDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
@@ -1440,9 +1439,9 @@ private fun SpatialDpMetricsInspectorDialog(
                             .fillMaxWidth()
                             .height(46.dp),
                         shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.3f))
                     ) {
-                        Text("إغلاق", color = Color.White, fontFamily = CairoFont)
+                        Text("إغلاق", color = theme.textPrimary, fontFamily = CairoFont)
                     }
                 }
             }
@@ -1458,10 +1457,11 @@ private fun MetricCard(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF1E293B),
+        color = theme.secondarySurface,
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.4f))
     ) {
         Column(
@@ -1469,24 +1469,25 @@ private fun MetricCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(label, color = Color.White.copy(alpha = 0.7f), fontSize = 10.5.sp, fontFamily = CairoFont, textAlign = TextAlign.Center)
+            Text(label, color = theme.textPrimary.copy(alpha = 0.7f), fontSize = 10.5.sp, fontFamily = CairoFont, textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(2.dp))
             Text(value, color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont, textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(subValue, color = Color.White.copy(alpha = 0.5f), fontSize = 9.5.sp, fontFamily = CairoFont, textAlign = TextAlign.Center)
+            Text(subValue, color = theme.textPrimary.copy(alpha = 0.5f), fontSize = 9.5.sp, fontFamily = CairoFont, textAlign = TextAlign.Center)
         }
     }
 }
 
 @Composable
 private fun DiagnosticInfoRow(title: String, detail: String) {
+    val theme = QabasTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, color = Color.White.copy(alpha = 0.6f), fontSize = 11.5.sp, fontFamily = CairoFont)
-        Text(detail, color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, fontFamily = CairoFont)
+        Text(title, color = theme.textPrimary.copy(alpha = 0.6f), fontSize = 11.5.sp, fontFamily = CairoFont)
+        Text(detail, color = theme.textPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, fontFamily = CairoFont)
     }
 }
 
@@ -1499,11 +1500,12 @@ private fun DevCamActionCard(
     badge: String,
     onClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1E293B).copy(alpha = 0.75f))
+            .background(theme.secondarySurface.copy(alpha = 0.75f))
             .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(14.dp)
@@ -1531,7 +1533,7 @@ private fun DevCamActionCard(
                 ) {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = CairoFont,
@@ -1559,7 +1561,7 @@ private fun DevCamActionCard(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = theme.textPrimary.copy(alpha = 0.7f),
                     fontSize = 11.sp,
                     fontFamily = NotoSansFont,
                     lineHeight = 16.sp
@@ -1582,16 +1584,17 @@ private fun CornerPinButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Button(
         onClick = onClick,
         modifier = modifier.height(48.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+        colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
         shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.45f))
     ) {
         Text(
             text = title,
-            color = GoldPrimary,
+            color = PresetPrimary,
             fontSize = 11.5.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = CairoFont

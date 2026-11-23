@@ -1,11 +1,8 @@
 package com.qabas.app
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.Debug
 import android.os.PowerManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -31,7 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -39,14 +35,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -63,7 +55,6 @@ import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -72,7 +63,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
-import kotlin.math.sin
 
 /**
  * 🛸 مركز سجل وملتقط الانهيارات السيبراني الذكي (Cybernetic Spatial Crash Guard HUD & Auto-Healer)
@@ -85,15 +75,22 @@ import kotlin.math.sin
  * - تصدير السجلات المشفرة ومزامنتها سحابياً.
  */
 
-private val HudCyan = Color(0xFF00E5FF)
-private val HudPink = Color(0xFFFF2A85)
-private val HudGold = Color(0xFFFFD700)
-private val HudGreen = Color(0xFF10B981)
-private val HudAmber = Color(0xFFF59E0B)
-private val HudViolet = Color(0xFF8B5CF6)
-private val HudObsidian = Color(0xFF060913)
-private val HudCardSurface = Color(0xFF0D1424)
-private val HudCardBorder = Color(0xFF1E2D4A)
+private val HudCyan: Color
+    get() = PresetPrimary
+private val HudPink: Color
+    get() = PresetAccent
+private val HudGold: Color
+    get() = QabasGold
+private val HudGreen: Color
+    get() = ThemeSuccess
+private val HudAmber: Color
+    get() = ThemeWarning
+private val HudViolet: Color
+    get() = PresetAccent
+private val HudObsidian: Color
+    get() = DeepSlate
+private val HudCardSurface: Color
+    get() = CardSurface
 
 enum class CrashFilterCategory(val label: String, val icon: ImageVector) {
     ALL("الكل 🌐", Icons.Default.Apps),
@@ -127,6 +124,7 @@ data class SystemLiveTelemetry(
 fun CrashLogsHubScreen(
     onBack: (() -> Unit)? = null
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val supabaseAuthUser by SupabaseServices.Auth.currentUser.collectAsState()
     val coroutineScope = rememberCoroutineScope()
@@ -194,7 +192,7 @@ fun CrashLogsHubScreen(
                         AppSoundManager.playSuccess()
                         Toast.makeText(context, "تم تصدير حزمة السجلات والتشخيصات بنجاح 📦", Toast.LENGTH_LONG).show()
                     }
-                }.onFailure { err ->
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { err ->
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "فشل التصدير: ${err.message}", Toast.LENGTH_SHORT).show()
                     }
@@ -217,7 +215,6 @@ fun CrashLogsHubScreen(
                 // Calculate Memory Metrics
                 val rt = Runtime.getRuntime()
                 val totalMem = rt.totalMemory() / (1024 * 1024)
-                val freeMem = rt.freeMemory() / (1024 * 1024)
                 val heapAllocated = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
 
                 val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -373,7 +370,7 @@ fun CrashLogsHubScreen(
     }
 
     val stabilityColor = when {
-        healthStabilityRate == null -> Color(0xFF94A3B8)
+        healthStabilityRate == null -> theme.textSecondary
         healthStabilityRate >= 95.0 -> HudGreen
         healthStabilityRate >= 80.0 -> HudAmber
         else -> HudPink
@@ -528,7 +525,7 @@ fun CrashLogsHubScreen(
                                         coroutineScope.launch(Dispatchers.IO) {
                                             runCatching {
                                                 File(context.filesDir, "crash_logs").listFiles()?.forEach { it.delete() }
-                                            }
+                                            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                                             withContext(Dispatchers.Main) {
                                                 crashesList = emptyList()
                                                 AppSoundManager.playClick()
@@ -552,7 +549,7 @@ fun CrashLogsHubScreen(
                                             shape = RoundedCornerShape(16.dp),
                                             border = BorderStroke(
                                                 if (isSelected) 1.2.dp else 1.dp,
-                                                if (isSelected) HudCyan else Color.White.copy(alpha = 0.08f)
+                                                if (isSelected) HudCyan else theme.textPrimary.copy(alpha = 0.08f)
                                             ),
                                             modifier = Modifier.clickable {
                                                 AppSoundManager.playClick()
@@ -567,12 +564,12 @@ fun CrashLogsHubScreen(
                                                 Icon(
                                                     imageVector = category.icon,
                                                     contentDescription = null,
-                                                    tint = if (isSelected) HudCyan else Color(0xFF94A3B8),
+                                                    tint = if (isSelected) HudCyan else theme.textSecondary,
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                                 Text(
                                                     text = category.label,
-                                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                                    color = if (isSelected) theme.textPrimary else theme.textSecondary,
                                                     fontFamily = CairoFont,
                                                     fontSize = 11.5.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
@@ -594,7 +591,7 @@ fun CrashLogsHubScreen(
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 CircularProgressIndicator(color = HudCyan, strokeWidth = 2.5.dp, modifier = Modifier.size(36.dp))
                                                 Spacer(modifier = Modifier.height(12.dp))
-                                                Text("جاري فحص وجلب سجلات الانهيارات...", color = Color.White.copy(alpha = 0.8f), fontFamily = CairoFont, fontSize = 13.sp)
+                                                Text("جاري فحص وجلب سجلات الانهيارات...", color = theme.textPrimary.copy(alpha = 0.8f), fontFamily = CairoFont, fontSize = 13.sp)
                                             }
                                         }
                                     }
@@ -619,7 +616,7 @@ fun CrashLogsHubScreen(
                                         ) {
                                             Text(
                                                 "لا توجد نتائج تطابق استعلام البحث أو الفلتر المحدد 🔍",
-                                                color = Color(0xFF94A3B8),
+                                                color = theme.textSecondary,
                                                 fontFamily = CairoFont,
                                                 fontSize = 13.sp
                                             )
@@ -683,18 +680,18 @@ fun CrashLogsHubScreen(
     if (showSelfHealingDialog) {
         AlertDialog(
             onDismissRequest = { showSelfHealingDialog = false },
-            containerColor = Color(0xFF0C1322),
+            containerColor = theme.cardSurface,
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.Healing, contentDescription = null, tint = HudGreen, modifier = Modifier.size(24.dp))
-                    Text("تشغيل الإنعاش والإصلاح الذاتي ⚡", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("تشغيل الإنعاش والإصلاح الذاتي ⚡", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         "سيقوم محرك الإنعاش بتنفيذ الإجراءات التالية فورياً:",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = CairoFont,
                         fontSize = 12.5.sp
                     )
@@ -707,7 +704,7 @@ fun CrashLogsHubScreen(
                     steps.forEach { step ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = HudGreen, modifier = Modifier.size(14.dp))
-                            Text(step, color = Color(0xFFE2E8F0), fontFamily = CairoFont, fontSize = 11.5.sp)
+                            Text(step, color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.5.sp)
                         }
                     }
                 }
@@ -726,7 +723,7 @@ fun CrashLogsHubScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showSelfHealingDialog = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             }
         )
@@ -743,6 +740,7 @@ private fun CrashHubTopBar(
     onExportZip: () -> Unit,
     onOpenSelfHealing: () -> Unit
 ) {
+    val theme = QabasTheme.current
     TopAppBar(
         title = {
             Row(
@@ -763,7 +761,7 @@ private fun CrashHubTopBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "سجل وملتقط الانهيارات",
-                            color = Color.White,
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.5.sp,
@@ -788,7 +786,7 @@ private fun CrashHubTopBar(
                     }
                     Text(
                         "مراقبة حية، تشخيص الأسباب الجذرية، وإنعاش الأنظمة الذاتي",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 10.5.sp,
                         maxLines = 1,
@@ -800,7 +798,7 @@ private fun CrashHubTopBar(
         navigationIcon = {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                 }
             }
         },
@@ -809,7 +807,7 @@ private fun CrashHubTopBar(
                 Icon(Icons.Default.Healing, contentDescription = "الإنعاش الذاتي", tint = HudGreen)
             }
             IconButton(onClick = onExportZip) {
-                Icon(Icons.Default.Archive, contentDescription = "تصدير ZIP", tint = GoldPrimary)
+                Icon(Icons.Default.Archive, contentDescription = "تصدير ZIP", tint = PresetPrimary)
             }
             IconButton(onClick = onRefresh) {
                 if (isRefreshing) {
@@ -833,6 +831,7 @@ private fun SpatialLiveOscilloscopeCard(
     telemetry: SystemLiveTelemetry?,
     onTriggerHeal: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val lastCrashText = if (lastCrashTimestamp > 0L) {
         val diffMins = (System.currentTimeMillis() - lastCrashTimestamp) / 60_000
         when {
@@ -875,7 +874,7 @@ private fun SpatialLiveOscilloscopeCard(
                     )
                     Text(
                         "مؤشرات النظام والاستقرار",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
@@ -922,14 +921,14 @@ private fun SpatialLiveOscilloscopeCard(
             if (stabilityRate == null) {
                 Text(
                     "لا تتوفر بيانات إقلاع كافية لحساب مؤشر الاستقرار.",
-                    color = Color(0xFF94A3B8),
+                    color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 11.sp
                 )
             } else {
                 Text(
                     "المؤشر تقديري ويقارن سجلات الأعطال المحلية بعدد مرات تشغيل التطبيق.",
-                    color = Color(0xFF94A3B8),
+                    color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 10.sp
                 )
@@ -947,7 +946,7 @@ private fun SpatialLiveOscilloscopeCard(
                 TelemetryMetricPill(title = "الفصائل", value = "$uniqueFamilies", accent = HudCyan)
                 TelemetryMetricPill(title = "ذاكرة الهيب", value = telemetry?.let { "${it.allocatedHeapMb}MB" } ?: "—", accent = HudViolet)
                 TelemetryMetricPill(title = "الخيوط الحية", value = telemetry?.activeThreadsCount?.toString() ?: "—", accent = HudGold)
-                TelemetryMetricPill(title = "آخر حادثة", value = lastCrashText, accent = Color(0xFFA78BFA))
+                TelemetryMetricPill(title = "آخر حادثة", value = lastCrashText, accent = theme.accent)
             }
         }
     }
@@ -959,6 +958,7 @@ private fun TelemetryMetricPill(
     value: String,
     accent: Color
 ) {
+    val theme = QabasTheme.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -972,7 +972,7 @@ private fun TelemetryMetricPill(
         )
         Text(
             text = title,
-            color = Color(0xFF94A3B8),
+            color = theme.textSecondary,
             fontFamily = CairoFont,
             fontSize = 9.5.sp
         )
@@ -987,6 +987,7 @@ private fun SpatialSearchAndControlsBar(
     onViewModeChange: (SpatialCrashViewMode) -> Unit,
     onClearAll: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -994,23 +995,23 @@ private fun SpatialSearchAndControlsBar(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text("بحث بالسباك، اسم الملف، الكلاس، أو الخيط...", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp) },
+            placeholder = { Text("بحث بالسباك، اسم الملف، الكلاس، أو الخيط...", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = HudCyan, modifier = Modifier.size(18.dp)) },
             trailingIcon = if (searchQuery.isNotBlank()) {
                 @Composable {
                     IconButton(onClick = { onSearchChange("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Close, contentDescription = "مسح", tint = theme.textTertiary, modifier = Modifier.size(16.dp))
                     }
                 }
             } else null,
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = HudCyan,
-                unfocusedBorderColor = Color(0xFF1E2D4A),
-                focusedContainerColor = Color(0xFF090E1B),
-                unfocusedContainerColor = Color(0xFF090E1B),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
+                unfocusedBorderColor = theme.separator,
+                focusedContainerColor = theme.background,
+                unfocusedContainerColor = theme.background,
+                focusedTextColor = theme.textPrimary,
+                unfocusedTextColor = theme.textPrimary
             ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
@@ -1023,34 +1024,34 @@ private fun SpatialSearchAndControlsBar(
         ) {
         // Switch View Modes
         Surface(
-            color = Color(0xFF0E1526),
+            color = theme.cardSurface,
             shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+            border = BorderStroke(1.dp, theme.separator)
         ) {
             Row(modifier = Modifier.padding(3.dp)) {
                 IconButton(
                     onClick = { onViewModeChange(SpatialCrashViewMode.STREAM) },
                     modifier = Modifier.size(34.dp).background(if (viewMode == SpatialCrashViewMode.STREAM) HudCyan.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(8.dp))
                 ) {
-                    Icon(Icons.Default.List, contentDescription = "قائمة", tint = if (viewMode == SpatialCrashViewMode.STREAM) HudCyan else Color.Gray, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.List, contentDescription = "قائمة", tint = if (viewMode == SpatialCrashViewMode.STREAM) HudCyan else theme.textTertiary, modifier = Modifier.size(18.dp))
                 }
                 IconButton(
                     onClick = { onViewModeChange(SpatialCrashViewMode.GROUPED) },
                     modifier = Modifier.size(34.dp).background(if (viewMode == SpatialCrashViewMode.GROUPED) HudCyan.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(8.dp))
                 ) {
-                    Icon(Icons.Default.GridView, contentDescription = "تجميع", tint = if (viewMode == SpatialCrashViewMode.GROUPED) HudCyan else Color.Gray, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.GridView, contentDescription = "تجميع", tint = if (viewMode == SpatialCrashViewMode.GROUPED) HudCyan else theme.textTertiary, modifier = Modifier.size(18.dp))
                 }
                 IconButton(
                     onClick = { onViewModeChange(SpatialCrashViewMode.TIMELINE) },
                     modifier = Modifier.size(34.dp).background(if (viewMode == SpatialCrashViewMode.TIMELINE) HudCyan.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(8.dp))
                 ) {
-                    Icon(Icons.Default.Timeline, contentDescription = "مسار زمني", tint = if (viewMode == SpatialCrashViewMode.TIMELINE) HudCyan else Color.Gray, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Timeline, contentDescription = "مسار زمني", tint = if (viewMode == SpatialCrashViewMode.TIMELINE) HudCyan else theme.textTertiary, modifier = Modifier.size(18.dp))
                 }
                 IconButton(
                     onClick = { onViewModeChange(SpatialCrashViewMode.HEALING) },
                     modifier = Modifier.size(34.dp).background(if (viewMode == SpatialCrashViewMode.HEALING) HudGreen.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(8.dp))
                 ) {
-                    Icon(Icons.Default.Healing, contentDescription = "الإنعاش", tint = if (viewMode == SpatialCrashViewMode.HEALING) HudGreen else Color.Gray, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Healing, contentDescription = "الإنعاش", tint = if (viewMode == SpatialCrashViewMode.HEALING) HudGreen else theme.textTertiary, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -1076,6 +1077,7 @@ private fun SpatialCrashStreamCard(
     crash: CrashLogFile,
     onClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val diag = remember(crash.fullStack) { diagnoseCrash(crash) }
     val formattedDate = remember(crash.timestampMs) {
         SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault()).format(Date(crash.timestampMs))
@@ -1087,7 +1089,7 @@ private fun SpatialCrashStreamCard(
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1222)),
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
         border = BorderStroke(1.dp, HudPink.copy(alpha = 0.35f))
     ) {
         Column(
@@ -1120,7 +1122,7 @@ private fun SpatialCrashStreamCard(
 
                     Text(
                         text = crash.fileName,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontFamily = RobotoMonoFont,
                         fontSize = 10.5.sp,
                         maxLines = 1,
@@ -1130,7 +1132,7 @@ private fun SpatialCrashStreamCard(
 
                 Text(
                     text = formattedDate,
-                    color = Color.Gray,
+                    color = theme.textTertiary,
                     fontFamily = NotoSansFont,
                     fontSize = 10.sp
                 )
@@ -1138,7 +1140,7 @@ private fun SpatialCrashStreamCard(
 
             Text(
                 text = crash.exceptionLine.ifBlank { "Uncaught Exception / Fatal Error" },
-                color = Color(0xFFFCA5A5),
+                color = theme.destructive,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
@@ -1161,19 +1163,19 @@ private fun SpatialCrashStreamCard(
             }
 
             Surface(
-                color = Color(0xFF070C18),
+                color = theme.background,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(0.6.dp, Color(0xFF1E2D4A)),
+                border = BorderStroke(0.6.dp, theme.separator),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("السبب:", color = HudAmber, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        Text(diag.why, color = Color(0xFFE2E8F0), fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+                        Text(diag.why, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
                     }
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("الحل:", color = HudGreen, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        Text(diag.fix, color = Color(0xFF94A3B8), fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+                        Text(diag.fix, color = theme.textSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
                     }
                 }
             }
@@ -1186,12 +1188,13 @@ private fun SpatialCrashGroupCard(
     group: CrashGroup,
     onClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1222)),
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
         border = BorderStroke(1.dp, HudCyan.copy(alpha = 0.35f))
     ) {
         Row(
@@ -1204,14 +1207,14 @@ private fun SpatialCrashGroupCard(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = group.type,
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.5.sp
                 )
                 Text(
                     text = "آخر حدوث: ${SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(group.latestMs))}",
-                    color = Color(0xFF94A3B8),
+                    color = theme.textSecondary,
                     fontFamily = NotoSansFont,
                     fontSize = 11.sp
                 )
@@ -1249,6 +1252,7 @@ private fun SpatialBreadcrumbsTimelineCard(
     crashes: List<CrashLogFile>,
     onSelectCrash: (CrashLogFile) -> Unit
 ) {
+    val theme = QabasTheme.current
     val crumbLines = remember(breadcrumbs) {
         breadcrumbs.lines().filter { it.isNotBlank() && !it.contains("لا فتات") }
     }
@@ -1256,8 +1260,8 @@ private fun SpatialBreadcrumbsTimelineCard(
     Card(
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1222)),
-        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
+        border = BorderStroke(1.dp, theme.separator)
     ) {
         Column(
             modifier = Modifier
@@ -1272,18 +1276,18 @@ private fun SpatialBreadcrumbsTimelineCard(
             ) {
                 Text(
                     "تسلسل خطوات المستخدم قبل العطل (Breadcrumbs Trail) 🍞",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.5.sp
                 )
                 Surface(
-                    color = GoldPrimary.copy(alpha = 0.15f),
+                    color = PresetPrimary.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
                         "${crumbLines.size} حدث",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = RobotoMonoFont,
                         fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1293,7 +1297,7 @@ private fun SpatialBreadcrumbsTimelineCard(
 
             if (crumbLines.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("(لا يوجد فتات مسجل حالياً)", color = Color.Gray, fontFamily = CairoFont)
+                    Text("(لا يوجد فتات مسجل حالياً)", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             } else {
                 LazyColumn(
@@ -1303,9 +1307,9 @@ private fun SpatialBreadcrumbsTimelineCard(
                     itemsIndexed(crumbLines) { index, line ->
                         val (time, category, msg) = parseCrumbLine(line)
                         Surface(
-                            color = Color(0xFF060A14),
+                            color = theme.background,
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(0.6.dp, Color(0xFF1E2D4A)),
+                            border = BorderStroke(0.6.dp, theme.separator),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -1325,20 +1329,20 @@ private fun SpatialBreadcrumbsTimelineCard(
 
                                 Surface(
                                     color = when (category) {
-                                        "screen" -> Color(0xFF38BDF8).copy(alpha = 0.15f)
-                                        "action" -> Color(0xFF10B981).copy(alpha = 0.15f)
-                                        "api" -> Color(0xFFF59E0B).copy(alpha = 0.15f)
-                                        else -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
+                                        "screen" -> theme.primary.copy(alpha = 0.15f)
+                                        "action" -> theme.success.copy(alpha = 0.15f)
+                                        "api" -> theme.warning.copy(alpha = 0.15f)
+                                        else -> theme.accent.copy(alpha = 0.15f)
                                     },
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
                                         category,
                                         color = when (category) {
-                                            "screen" -> Color(0xFF38BDF8)
-                                            "action" -> Color(0xFF10B981)
-                                            "api" -> Color(0xFFF59E0B)
-                                            else -> Color(0xFF8B5CF6)
+                                            "screen" -> theme.primary
+                                            "action" -> theme.success
+                                            "api" -> theme.warning
+                                            else -> theme.accent
                                         },
                                         fontFamily = RobotoMonoFont,
                                         fontSize = 9.5.sp,
@@ -1348,7 +1352,7 @@ private fun SpatialBreadcrumbsTimelineCard(
 
                                 Text(
                                     text = msg,
-                                    color = Color(0xFFF1F5F9),
+                                    color = theme.textPrimary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.5.sp,
                                     modifier = Modifier.weight(1f)
@@ -1356,7 +1360,7 @@ private fun SpatialBreadcrumbsTimelineCard(
 
                                 Text(
                                     text = time,
-                                    color = Color.Gray,
+                                    color = theme.textTertiary,
                                     fontFamily = RobotoMonoFont,
                                     fontSize = 9.5.sp
                                 )
@@ -1387,10 +1391,11 @@ private fun SpatialSelfHealingConsoleCard(
     isInProgress: Boolean,
     onExecuteHeal: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1222)),
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
         border = BorderStroke(1.dp, HudGreen.copy(alpha = 0.4f))
     ) {
         Column(
@@ -1408,7 +1413,7 @@ private fun SpatialSelfHealingConsoleCard(
                     Icon(Icons.Default.Healing, contentDescription = null, tint = HudGreen, modifier = Modifier.size(20.dp))
                     Text(
                         "وحدة التحكم بالإنعاش والإصلاح الذاتي ⚡",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp
@@ -1430,16 +1435,16 @@ private fun SpatialSelfHealingConsoleCard(
             }
 
             Surface(
-                color = Color(0xFF050811),
+                color = theme.background,
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, Color(0xFF152238)),
+                border = BorderStroke(1.dp, theme.secondarySurface),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
             ) {
                 if (healingLogs.isEmpty() && !isInProgress) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("اضغط 'بدء الفحص والإنعاش' لتشغيل بروتوكول التشخيص والتصحيح التلقائي.", color = Color.Gray, fontFamily = CairoFont, fontSize = 12.sp)
+                        Text("اضغط 'بدء الفحص والإنعاش' لتشغيل بروتوكول التشخيص والتصحيح التلقائي.", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                     }
                 } else {
                     LazyColumn(
@@ -1451,7 +1456,7 @@ private fun SpatialSelfHealingConsoleCard(
                         items(healingLogs) { logLine ->
                             Text(
                                 text = logLine,
-                                color = if (logLine.contains("✅")) Color(0xFF34D399) else if (logLine.contains("⚠️")) HudAmber else Color(0xFF38BDF8),
+                                color = if (logLine.contains("✅")) theme.success else if (logLine.contains("⚠️")) HudAmber else theme.primary,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp
@@ -1469,6 +1474,7 @@ private fun EmptyCrashesState(
     onRefresh: () -> Unit,
     onTriggerSelfHeal: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1491,7 +1497,7 @@ private fun EmptyCrashesState(
 
         Text(
             "لا توجد أي انهيارات مسجلة 🎉",
-            color = Color.White,
+            color = theme.textPrimary,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold,
             fontSize = 17.sp
@@ -1501,7 +1507,7 @@ private fun EmptyCrashesState(
 
         Text(
             "لم تُسجّل أعطال في ملفات السجل المحلية. هذا لا يؤكد خلو جميع الوحدات من المشاكل. يمكنك تحديث السجلات أو فتح إجراءات الصيانة.",
-            color = Color(0xFF94A3B8),
+            color = theme.textSecondary,
             fontFamily = CairoFont,
             fontSize = 12.5.sp,
             textAlign = TextAlign.Center,
@@ -1519,6 +1525,7 @@ private fun SpatialCrashInspectorDialog(
     onCopy: () -> Unit,
     onShare: () -> Unit
 ) {
+    val theme = QabasTheme.current
     var aiAnalysis by remember { mutableStateOf<String?>(null) }
     var aiLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -1531,14 +1538,14 @@ private fun SpatialCrashInspectorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF080D1A),
+        containerColor = theme.background,
         title = {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Default.BugReport, contentDescription = null, tint = HudPink, modifier = Modifier.size(20.dp))
-                    Text("تشخيص العطل والسباك البرمجي", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("تشخيص العطل والسباك البرمجي", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
-                Text(crash.fileName, color = Color.Gray, fontFamily = RobotoMonoFont, fontSize = 10.sp)
+                Text(crash.fileName, color = theme.textTertiary, fontFamily = RobotoMonoFont, fontSize = 10.sp)
             }
         },
         text = {
@@ -1552,9 +1559,9 @@ private fun SpatialCrashInspectorDialog(
                 // AI Diagnosis Section
                 if (aiLoading) {
                     Surface(
-                        color = Color(0xFF8B5CF6).copy(alpha = 0.12f),
+                        color = theme.accent.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, theme.accent.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1562,15 +1569,15 @@ private fun SpatialCrashInspectorDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            CircularProgressIndicator(color = Color(0xFF8B5CF6), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                            Text("يقوم الذكاء الاصطناعي بتحليل الـ Stack وموقع الخلل...", color = Color.White, fontFamily = CairoFont, fontSize = 11.5.sp)
+                            CircularProgressIndicator(color = theme.accent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                            Text("يقوم الذكاء الاصطناعي بتحليل الـ Stack وموقع الخلل...", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.5.sp)
                         }
                     }
                 } else if (aiAnalysis != null) {
                     Surface(
-                        color = Color(0xFF8B5CF6).copy(alpha = 0.14f),
+                        color = theme.accent.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                        border = BorderStroke(1.dp, theme.accent),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1579,7 +1586,7 @@ private fun SpatialCrashInspectorDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("تحليل وتوجيه الذكاء الاصطناعي 🧠:", color = Color(0xFFC084FC), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("تحليل وتوجيه الذكاء الاصطناعي 🧠:", color = theme.accent, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 IconButton(
                                     onClick = {
                                         clipboard.setText(AnnotatedString(aiAnalysis!!))
@@ -1587,10 +1594,10 @@ private fun SpatialCrashInspectorDialog(
                                     },
                                     modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = Color(0xFFC084FC), modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.accent, modifier = Modifier.size(14.dp))
                                 }
                             }
-                            Text(aiAnalysis!!, color = Color(0xFFF1F5F9), fontFamily = NotoSansFont, fontSize = 11.5.sp, lineHeight = 16.sp)
+                            Text(aiAnalysis!!, color = theme.textPrimary, fontFamily = NotoSansFont, fontSize = 11.5.sp, lineHeight = 16.sp)
                         }
                     }
                 } else {
@@ -1617,21 +1624,21 @@ private fun SpatialCrashInspectorDialog(
                                 aiLoading = false
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6).copy(alpha = 0.25f)),
-                        border = BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.accent.copy(alpha = 0.25f)),
+                        border = BorderStroke(1.dp, theme.accent),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFC084FC), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = theme.accent, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("تحليل الخلل بالذكاء الاصطناعي ✨", color = Color(0xFFC084FC), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("تحليل الخلل بالذكاء الاصطناعي ✨", color = theme.accent, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 // Full Syntax Highlighted Stack View
                 Surface(
-                    color = Color(0xFF040711),
+                    color = theme.background,
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                    border = BorderStroke(1.dp, theme.separator),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
@@ -1650,10 +1657,10 @@ private fun SpatialCrashInspectorDialog(
                     Text("📋 نسخ", color = HudCyan, fontFamily = CairoFont)
                 }
                 TextButton(onClick = onShare) {
-                    Text("📤 مشاركة", color = GoldPrimary, fontFamily = CairoFont)
+                    Text("📤 مشاركة", color = PresetPrimary, fontFamily = CairoFont)
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("إغلاق", color = Color.White, fontFamily = CairoFont)
+                    Text("إغلاق", color = theme.textPrimary, fontFamily = CairoFont)
                 }
             }
         }
@@ -1672,27 +1679,27 @@ private fun buildHighlightedStack(rawStack: String): AnnotatedString {
         lines.forEach { line ->
             when {
                 line.startsWith("Caused by:") || line.contains("Exception:") || line.contains("Error:") -> {
-                    pushStyle(SpanStyle(color = Color(0xFFFDA4AF), fontWeight = FontWeight.Bold))
+                    pushStyle(SpanStyle(color = ThemeDestructive, fontWeight = FontWeight.Bold))
                     append(line)
                     pop()
                 }
                 line.contains("at com.qabas.app.") -> {
-                    pushStyle(SpanStyle(color = Color(0xFFFFD700), fontWeight = FontWeight.SemiBold))
+                    pushStyle(SpanStyle(color = QabasGold, fontWeight = FontWeight.SemiBold))
                     append(line)
                     pop()
                 }
                 line.contains("at kotlinx.coroutines.") || line.contains("at androidx.compose.") -> {
-                    pushStyle(SpanStyle(color = Color(0xFF38BDF8)))
+                    pushStyle(SpanStyle(color = PresetPrimary))
                     append(line)
                     pop()
                 }
                 line.startsWith("===") || line.startsWith("---") || line.startsWith("Thread:") -> {
-                    pushStyle(SpanStyle(color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold))
+                    pushStyle(SpanStyle(color = TextSecondary, fontWeight = FontWeight.Bold))
                     append(line)
                     pop()
                 }
                 else -> {
-                    pushStyle(SpanStyle(color = Color(0xFF64748B)))
+                    pushStyle(SpanStyle(color = TextTertiary))
                     append(line)
                     pop()
                 }

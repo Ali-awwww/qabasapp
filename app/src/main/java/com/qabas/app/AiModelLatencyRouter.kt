@@ -12,7 +12,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
 
 data class ModelBenchmarkResult(
     val id: String,
@@ -464,7 +463,7 @@ object AiModelLatencyRouter {
                     message = "لا يوجد رد متاح"
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             ModelBenchmarkResult(
                 id = "pollinations",
                 name = "Pollinations",
@@ -490,7 +489,7 @@ object AiModelLatencyRouter {
             groqText = RealGroqService.chatOrGenerate(prompt)
             groqTime = System.currentTimeMillis() - startGroq
             groqOk = !groqText.isNullOrBlank()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             groqTime = System.currentTimeMillis() - startGroq
         }
 
@@ -503,7 +502,7 @@ object AiModelLatencyRouter {
             geminiText = RealGeminiService.chatWithAssistant(listOf(Pair(true, prompt)), null)
             geminiTime = System.currentTimeMillis() - startGemini
             geminiOk = !geminiText.isNullOrBlank()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             geminiTime = System.currentTimeMillis() - startGemini
         }
 

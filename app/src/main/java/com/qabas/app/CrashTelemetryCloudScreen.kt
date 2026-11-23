@@ -92,7 +92,7 @@ fun CrashTelemetryCloudScreen() {
         scope.launch {
             try {
                 reports = SupabaseServices.Database.getCrashTelemetryReports()
-            } catch (error: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
                 loadError = error.message ?: "تعذر تحميل تقارير الأعطال من السحابة"
             } finally {
                 isLoading = false

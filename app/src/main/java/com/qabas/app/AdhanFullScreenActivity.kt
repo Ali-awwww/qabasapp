@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.app.NotificationManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
@@ -51,16 +50,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.Image
 import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 
 /**
  * شاشة الأذان التي يفتحها Full-Screen Intent فوق شاشة القفل.
@@ -192,18 +189,16 @@ private fun AdhanScreen(
     ) {
         Box(Modifier.fillMaxSize().background(background).alpha(backgroundAlpha))
         if (selection.type == AdhanBackgroundPreferences.TYPE_IMAGE) {
-            val bitmap = androidx.compose.runtime.remember(selection.value) {
-                BitmapFactory.decodeFile(selection.value)
-            }
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                        .alpha(backgroundAlpha)
-                )
-            }
+            // كان فكّ ترميز الصورة كاملةً يجري على الخيط الرئيسي أثناء التركيب
+            // (remember { BitmapFactory.decodeFile }) فيجمّد شاشة الأذان لحظة
+            // ظهورها؛ Coil يفكّ الترميز خارج الرئيسي ويحجّم للعرض الفعلي.
+            AsyncImage(
+                model = java.io.File(selection.value),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+                    .alpha(backgroundAlpha)
+            )
         } else if (selection.type == AdhanBackgroundPreferences.TYPE_VIDEO) {
             AndroidView(
                 factory = { viewContext ->

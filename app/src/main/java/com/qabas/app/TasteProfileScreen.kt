@@ -1,10 +1,7 @@
 package com.qabas.app
 
-import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -34,7 +31,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
         try {
             val db = AppDatabase.getDatabase(context)
             tastes = db.tasteDao().getAllTastes()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             // Error handling
         } finally {
             isLoading = false
@@ -44,7 +41,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("هوية الذكاء الاصطناعي", color = GoldPrimary, fontFamily = CairoFont) },
+                title = { Text("هوية الذكاء الاصطناعي", color = PresetPrimary, fontFamily = CairoFont) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = TextPrimary)
@@ -57,7 +54,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showRequestDialog = true },
-                containerColor = GoldPrimary,
+                containerColor = PresetPrimary,
                 contentColor = DeepSlate,
                 icon = { Icon(Icons.Default.Psychology, contentDescription = null) },
                 text = { Text("طلب أسلوب جديد", fontFamily = TajawalFont, fontWeight = FontWeight.Bold) }
@@ -66,7 +63,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
     ) { paddingValues ->
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = GoldPrimary)
+                CircularProgressIndicator(color = PresetPrimary)
             }
         } else if (tastes.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -133,9 +130,9 @@ fun TasteProfileScreen(onBack: () -> Unit) {
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(translatedCategory, color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    Text(translatedCategory, color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
@@ -153,7 +150,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
                                         LinearProgressIndicator(
                                             progress = { progress },
                                             modifier = Modifier.weight(1f).height(8.dp),
-                                            color = GoldSecondary,
+                                            color = PresetAccent,
                                             trackColor = DeepSlate
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
@@ -176,7 +173,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
             onDismissRequest = { showRequestDialog = false },
             containerColor = CardSurface,
             title = {
-                Text("اقترح أسلوباً ليتم تغذيته", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text("اقترح أسلوباً ليتم تغذيته", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -190,7 +187,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
                         label = { Text("اسم الأسلوب أو المرجع", fontFamily = NotoSansFont) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
+                            focusedBorderColor = PresetPrimary,
                             unfocusedBorderColor = Color(0xFF1E293B),
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
@@ -203,7 +200,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
+                            focusedBorderColor = PresetPrimary,
                             unfocusedBorderColor = Color(0xFF1E293B),
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
@@ -223,7 +220,7 @@ fun TasteProfileScreen(onBack: () -> Unit) {
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     if (isSubmitting) {
                         CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(20.dp))

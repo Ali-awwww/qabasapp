@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -101,8 +100,8 @@ class HomeTodayState(private val appContext: Context) {
         runCatching {
             val city = PrayerCalculationHelper.getSavedCity(appContext)
             val cal = Calendar.getInstance()
-            val times = PrayerCalculationHelper.calculatePrayerTimes(
-                cal, city, city.defaultMethod
+            val times = PrayerCalculationHelper.calculatePrayerTimesForUser(
+                appContext, cal, city
             )
             nextPrayerName = times.nextPrayerName
             nextPrayerTime = times.nextPrayerTimeFormatted
@@ -140,6 +139,13 @@ class HomeTodayState(private val appContext: Context) {
         prayedToday = true
     }
 
+    /** التراجع عن تأكيد أداء الصلاة (ضغطة خاطئة لا تُحبس ليوم كامل). */
+    fun unconfirmPrayerDone() {
+        val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        prefs.edit().remove("daily_prayer_done_${todayKey()}").apply()
+        prayedToday = false
+    }
+
     /** زيادة عدّاد التسبيح (مفاتيح المشكاة نفسها). */
     fun incrementTasbeeh() {
         val prefs = appContext.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
@@ -158,11 +164,11 @@ class HomeTodayState(private val appContext: Context) {
     /** تحميل آية اليوم وحديث اليوم (آية من uthmani.json، وحديث من السحابة أو محلياً). */
     suspend fun loadDailyContent() {
         val (verse, hadith) = withContext(Dispatchers.IO) {
-            runCatching { QuranDataProvider.ensureQuranLoaded(appContext) }
+            runCatching { QuranDataProvider.ensureQuranLoaded(appContext) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             val loadedVerse = runCatching { QuranDataProvider.getVerseOfDay() }.getOrNull()
             val presets = runCatching {
                 SupabaseServices.Database.getHadithPresets()
-            }.getOrNull().orEmpty()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
             val loadedHadith = if (presets.isNotEmpty()) {
                 val dayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
                 val preset = presets[dayOfYear % presets.size]
@@ -187,9 +193,20 @@ fun rememberHomeTodayState(): HomeTodayState {
     LaunchedEffect(state) {
         state.refreshFlags()
         state.loadDailyContent()
+        // review-r13: العدّاد وحده كان يتحدث كل ثانية، أما أعلام اليوم
+        // (صلاة/أذكار/ورد/تسبيح) وآية اليوم وحديث اليوم فكانت تتجمد على يوم
+        // أمس إن بقي التطبيق مفتوحاً بعد منتصف الليل. الآن يُكتشف تبدّل
+        // التاريخ في الحلقة نفسها فتُحدَّث الأعلام والمحتوى اليومي معاً.
+        var currentDayKey = todayKey()
         while (true) {
             delay(1000L)
             state.updatePrayerCountdown()
+            val newDayKey = todayKey()
+            if (newDayKey != currentDayKey) {
+                currentDayKey = newDayKey
+                state.refreshFlags()
+                state.loadDailyContent()
+            }
         }
     }
     return state
@@ -372,7 +389,10 @@ fun HomeTodayCard(
                     HomeGoalChip(
                         label = "الصلاة",
                         done = state.prayedToday,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        // review-r13: كان الشريحة الوحيدة بلا نقر بين أخواتها
+                        // (الأذكار والورد يفتحان قسميهما) — الآن تفتح المواقيت.
+                        onClick = onOpenPrayerTimes
                     )
                     HomeGoalChip(
                         label = "الأذكار",
@@ -397,15 +417,22 @@ fun HomeTodayCard(
                         Text("تأكيد أداء الصلاة", fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                     }
                 } else {
-                    Text(
-                        text = "تم تأكيد أداء الصلاة لهذا اليوم",
-                        color = Color(0xFF86D6A6),
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+                    // review-r13: التأكيد كان بلا تراجع — ضغطة خاطئة تُحبس
+                    // ليوم كامل. الآن النص نفسه زر تراجع.
+                    TextButton(
+                        onClick = { state.unconfirmPrayerDone() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF86D6A6))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "تم تأكيد أداء الصلاة لهذا اليوم — اضغط للتراجع",
+                            color = Color(0xFF86D6A6),
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }
@@ -516,7 +543,7 @@ fun HomeContinueRow(
                 HomeContinueChip(
                     icon = Icons.Default.Fingerprint,
                     title = "التسبيح: ${state.tasbeehCount} / 33",
-                    subtitle = "اضغط + للزيادة",
+                    subtitle = "اضغط للزيادة",
                     onClick = { state.incrementTasbeeh() }
                 )
             }
@@ -615,7 +642,7 @@ fun HomeGlobalSearch(
         delay(350L)
         isSearching = true
         val found = withContext(Dispatchers.IO) {
-            runCatching { searchHomeContent(context, trimmed) }.getOrNull()
+            runCatching { searchHomeContent(context, trimmed) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
                 ?: HomeSearchResults()
         }
         results = found
@@ -729,7 +756,7 @@ private suspend fun searchHomeContent(context: Context, query: String): HomeSear
     }
     val hadithResults = runCatching {
         SahihHadithsRepository.searchHadiths(null, null, query).take(4)
-    }.getOrNull().orEmpty()
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
     val libraryResults = IslamicLibraryRepository.books.filter { book ->
         book.title.contains(query, ignoreCase = true) ||
             book.authorName.contains(query, ignoreCase = true) ||
@@ -738,12 +765,15 @@ private suspend fun searchHomeContent(context: Context, query: String): HomeSear
     }.take(4)
 
     // ريلز: الذاكرة المحلية أولاً، ثم جلب سحابي عند الحاجة.
+    // review-r13: كان الجلب السحابي يقتصر على أول 20 مقطعاً، فالبحث عن
+    // مقطع أقدم لا يجد شيئاً أبداً رغم وجوده. الآن 100 مقطع للبحث فقط
+    // (خلاصة الريلز نفسها لم تتغير).
     val localReels = runCatching { ReelPreferencesManager.getCachedReels(context) }.getOrNull().orEmpty()
     val localMatches = localReels.filter { reelMatches(it, query) }
     val cloudMatches = if (localMatches.size < 4) {
         val cloud = runCatching {
-            SupabaseServices.Profiles.getActiveReels(limit = 20, offset = 0).orEmpty()
-        }.getOrNull().orEmpty()
+            SupabaseServices.Profiles.getActiveReels(limit = 100, offset = 0).orEmpty()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
             .mapNotNull { ReelSafetyGuardrails.validateAndSanitizeReel(it) }
         cloud.filter { reelMatches(it, query) }
             .filter { cloudReel -> localMatches.none { it.id == cloudReel.id } }

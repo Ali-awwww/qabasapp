@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.shape.CutCornerShape
 import com.qabas.app.ui.components.GlassmorphicSurface
-import com.qabas.app.HudCornerDecor
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -66,6 +65,7 @@ fun ProcessingScreen(
     onProcessingComplete: (List<Scene>) -> Unit,
     onCancel: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val pipelineRunId = remember { java.util.UUID.randomUUID().toString() }
     val prefs = remember(context) {
@@ -176,7 +176,6 @@ fun ProcessingScreen(
                 notificationService.showErrorNotification()
                 return@LaunchedEffect
             }
-            val pipelineStartMs = System.currentTimeMillis()
             ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.PIPELINE_START, ProductionPipelineTracker.Result.SUCCESS, "بدء تحضير السيناريو", inputText.take(80), 0, pipelineRunId)
             pushActivity("بدء تحضير مسار الإنتاج — تهيئة العقل")
             notificationService.showProgressNotification(5, 100, Translator.tr("جاري تحضير السيناريو..."))
@@ -217,7 +216,7 @@ fun ProcessingScreen(
             val styleStartMs = System.currentTimeMillis()
             val bestStyle = try {
                 directStyle ?: StyleBrain.chooseBestStyleForIdea(inputText, duration, contentTone, "الجمهور العام")
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.w("ProcessingScreen", "StyleBrain choose failed", e)
                 pushActivity("StyleBrain: فشل — استخدام الافتراضي")
                 ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.STYLE_SELECTION, ProductionPipelineTracker.Result.FALLBACK, "StyleBrain فشل — استخدام الافتراضي", e.message ?: "", System.currentTimeMillis() - styleStartMs, pipelineRunId)
@@ -261,7 +260,7 @@ fun ProcessingScreen(
             SystemLogsManager.addLog(
                 "STYLE_BRAIN",
                 "تطبيق سمات: ألوان [$effectiveColors] | انتقال [$effectiveTransition] | نص [$effectiveTextAnim]",
-                Color(0xFFE8C547)
+                theme.gold
             )
 
             if (!isActive) return@LaunchedEffect
@@ -285,7 +284,7 @@ fun ProcessingScreen(
                         directStyle = directStyle
                     )
                     if (directed.isNotEmpty()) {
-                        SystemLogsManager.addLog("DIRECTOR", "خطة المخرج: ${directed.size} مشاهد", Color(0xFF4CAF50))
+                        SystemLogsManager.addLog("DIRECTOR", "خطة المخرج: ${directed.size} مشاهد", theme.success)
                         ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.SCRIPT_GENERATION, ProductionPipelineTracker.Result.SUCCESS, "خطة المخرج: ${directed.size} مشاهد", "", System.currentTimeMillis() - scriptStartMs, pipelineRunId)
                         directed
                     } else {
@@ -373,7 +372,7 @@ fun ProcessingScreen(
             }
             
             if (totalRamGB < 2.5) {
-                SystemLogsManager.addLog("SYSTEM", "تفعيل وضع الموارد المحدودة (Parallelism: 1)", Color(0xFFE8C547))
+                SystemLogsManager.addLog("SYSTEM", "تفعيل وضع الموارد المحدودة (Parallelism: 1)", theme.gold)
             }
 
             suspend fun processOneScene(index: Int, scene: Scene): Scene {
@@ -514,7 +513,7 @@ fun ProcessingScreen(
                 if (finalProducedFile != null && VideoProcessor.isValidVideoFile(finalProducedFile.absolutePath)) {
                     val isDraft = finalProducedFile.name.startsWith("Qabas_Draft_")
                     pushActivity(if (isDraft) "مسودة بلا B-Roll حقيقي: ${finalProducedFile.name}" else "تصدير ناجح: ${finalProducedFile.name}")
-                    SystemLogsManager.addLog("SUCCESS", "تم إنتاج الفيديو (${finalProducedFile.name})", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("SUCCESS", "تم إنتاج الفيديو (${finalProducedFile.name})", theme.success)
                     ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.EXPORT, ProductionPipelineTracker.Result.SUCCESS, "تصدير ناجح: ${finalProducedFile.name}", "${processedScenes.size} مشاهد | $videoQuality", engineDurationMs, pipelineRunId)
                     try { 
                         StyleBrain.recordProductionResult(context, effectiveStyleId, success = true)
@@ -524,11 +523,11 @@ fun ProcessingScreen(
                                 StyleBrain.runContinuousLearningAnalysis(context)
                             }
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
                 } else {
                     isFailed = true
                     pushActivity("تحذير: التصدير لم يكتمل")
-                    SystemLogsManager.addLog("ERROR", "فشل إنتاج الفيديو النهائي أو الملف غير موجود", Color(0xFFEF4444))
+                    SystemLogsManager.addLog("ERROR", "فشل إنتاج الفيديو النهائي أو الملف غير موجود", theme.destructive)
                     ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.EXPORT, ProductionPipelineTracker.Result.FAILURE, "فشل التصدير — ملف غير صالح أو غير موجود", finalProducedFile?.name ?: "لا ملف", engineDurationMs, pipelineRunId)
                     try { StyleBrain.recordProductionResult(context, effectiveStyleId, success = false) } catch (_: Exception) {}
                     statusText = Translator.tr("تعذر إكمال التصدير — لا يوجد ملف فيديو صالح")
@@ -537,7 +536,7 @@ fun ProcessingScreen(
                 if (e is CancellationException) throw e
                 isFailed = true
                 pushActivity("خطأ: ${e.localizedMessage ?: e.message}")
-                SystemLogsManager.addLog("ERROR", "فشل التجميع: ${e.message}", Color(0xFFEF4444))
+                SystemLogsManager.addLog("ERROR", "فشل التجميع: ${e.message}", theme.destructive)
                 val isTimeout = e is kotlinx.coroutines.TimeoutCancellationException
                 ProductionPipelineTracker.record(context, ProductionPipelineTracker.Stage.VIDEO_ENGINE, if (isTimeout) ProductionPipelineTracker.Result.TIMEOUT else ProductionPipelineTracker.Result.FAILURE, if (isTimeout) "مهلة المحرك انتهت" else "خطأ في محرك الفيديو", e.message ?: "", 0, pipelineRunId)
                 statusText = Translator.tr("حدث خطأ في الإنتاج النهائي")
@@ -594,7 +593,7 @@ fun ProcessingScreen(
                         }
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
         }
     }
 
@@ -648,6 +647,7 @@ private fun ProcessingScreenUI(
     onDismissCancel: () -> Unit,
     onConfirmCancel: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val scrollState = rememberScrollState()
 
     if (isStoryboardMode) {
@@ -665,7 +665,7 @@ private fun ProcessingScreenUI(
             title = {
                 Text(
                     Translator.tr("إلغاء المعالجة؟"),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold
                 )
@@ -673,7 +673,7 @@ private fun ProcessingScreenUI(
             text = {
                 Text(
                     Translator.tr("سيتم إيقاف الإنتاج الحالي. لن يُحفظ الفيديو إن لم يكتمل بعد."),
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontSize = 14.sp
                 )
@@ -682,7 +682,7 @@ private fun ProcessingScreenUI(
                 TextButton(onClick = onConfirmCancel) {
                     Text(
                         Translator.tr("نعم، إلغاء"),
-                        color = Color(0xFFEF4444),
+                        color = theme.destructive,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold
                     )
@@ -692,20 +692,20 @@ private fun ProcessingScreenUI(
                 TextButton(onClick = onDismissCancel) {
                     Text(
                         Translator.tr("متابعة العمل"),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
-            containerColor = Color(0xFF151B2B)
+            containerColor = theme.cardSurface
         )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -750,7 +750,7 @@ private fun ProcessingScreenUI(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = CutCornerShape(12.dp),
-                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.28f))
+                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.28f))
             ) {
                 Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                     Row(
@@ -760,14 +760,14 @@ private fun ProcessingScreenUI(
                     ) {
                         Text(
                             Translator.tr("تقدم المعالجة والرندرة"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 13.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             "${(progress * 100).toInt()}%",
-                            color = if (progress >= 1f) Color(0xFF10B981) else GoldPrimary,
+                            color = if (progress >= 1f) theme.success else PresetPrimary,
                             fontSize = 15.sp,
                             fontFamily = TajawalFont,
                             fontWeight = FontWeight.Bold
@@ -786,8 +786,8 @@ private fun ProcessingScreenUI(
                             .fillMaxWidth()
                             .height(10.dp)
                             .clip(CutCornerShape(2.dp)),
-                        color = if (progress >= 1f) Color(0xFF10B981) else GoldPrimary,
-                        trackColor = Color(0xFF0F172A),
+                        color = if (progress >= 1f) theme.success else PresetPrimary,
+                        trackColor = theme.cardSurface,
                         strokeCap = StrokeCap.Square
                     )
                     if (totalScenes > 0 && progress in 0.20f..0.78f) {
@@ -799,21 +799,21 @@ private fun ProcessingScreenUI(
                         ) {
                             Text(
                                 Translator.tr("المشاهد"),
-                                color = Color.White.copy(alpha = 0.45f),
+                                color = theme.textPrimary.copy(alpha = 0.45f),
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "$scenesProcessed",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 14.sp,
                                 fontFamily = TajawalFont,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 " / $totalScenes",
-                                color = Color.White.copy(alpha = 0.55f),
+                                color = theme.textPrimary.copy(alpha = 0.55f),
                                 fontSize = 13.sp,
                                 fontFamily = CairoFont
                             )
@@ -823,7 +823,7 @@ private fun ProcessingScreenUI(
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             Translator.tr("اكتملت المعالجة بنجاح"),
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             fontSize = 13.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -835,7 +835,7 @@ private fun ProcessingScreenUI(
                             onClick = { if (isComplete) onViewVideo() },
                             enabled = isComplete,
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = CutCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(20.dp))
@@ -855,17 +855,17 @@ private fun ProcessingScreenUI(
             if (engineName.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
-                    color = if (engineName == "محلي") Color(0xFFE8C547).copy(alpha = 0.12f) else Color(0xFF10B981).copy(alpha = 0.12f),
+                    color = if (engineName == "محلي") theme.gold.copy(alpha = 0.12f) else theme.success.copy(alpha = 0.12f),
                     shape = CutCornerShape(8.dp),
                     border = BorderStroke(
                         1.dp,
-                        if (engineName == "محلي") Color(0xFFE8C547).copy(alpha = 0.5f) else Color(0xFF10B981).copy(alpha = 0.5f)
+                        if (engineName == "محلي") theme.gold.copy(alpha = 0.5f) else theme.success.copy(alpha = 0.5f)
                     )
                 ) {
                     Text(
                         if (engineName == "محلي") "المحرك: محلي — أضف مفتاحاً لجودة أعلى"
                         else "المحرك الحي: $engineName ⚡",
-                        color = if (engineName == "محلي") Color(0xFFE8C547) else Color(0xFF10B981),
+                        color = if (engineName == "محلي") theme.gold else theme.success,
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
@@ -877,7 +877,7 @@ private fun ProcessingScreenUI(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     chosenStyleMessage,
-                    color = GoldPrimary.copy(alpha = 0.9f),
+                    color = PresetPrimary.copy(alpha = 0.9f),
                     fontSize = 13.sp,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.SemiBold,
@@ -888,7 +888,7 @@ private fun ProcessingScreenUI(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     styleTraitsSummary,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = theme.textPrimary.copy(alpha = 0.55f),
                     fontSize = 11.sp,
                     fontFamily = CairoFont,
                     textAlign = TextAlign.Center
@@ -899,9 +899,9 @@ private fun ProcessingScreenUI(
                 Spacer(modifier = Modifier.height(14.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0B1120)),
+                    colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
                     shape = CutCornerShape(10.dp),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -911,10 +911,10 @@ private fun ProcessingScreenUI(
                                 infiniteRepeatable(tween(900), RepeatMode.Reverse),
                                 label = "a"
                             )
-                            Box(modifier = Modifier.size(10.dp).background(GoldPrimary.copy(alpha = alpha), CircleShape))
+                            Box(modifier = Modifier.size(10.dp).background(PresetPrimary.copy(alpha = alpha), CircleShape))
                             Text(
                                 Translator.tr("نشاط العقل والمحرك (حي)"),
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = CairoFont
@@ -923,12 +923,12 @@ private fun ProcessingScreenUI(
                         Spacer(modifier = Modifier.height(8.dp))
                         activityLog.take(10).forEach { line ->
                             val lineColor = when {
-                                line.contains("✅") || line.contains("نجاح") || line.contains("تم") -> Color(0xFF10B981)
-                                line.contains("❌") || line.contains("فشل") || line.contains("خطأ") -> Color(0xFFEF4444)
-                                line.contains("⚠️") || line.contains("تحذير") -> Color(0xFFF59E0B)
-                                line.contains("Gemini") || line.contains("توليد") || line.contains("StyleBrain") -> GoldPrimary
+                                line.contains("✅") || line.contains("نجاح") || line.contains("تم") -> theme.success
+                                line.contains("❌") || line.contains("فشل") || line.contains("خطأ") -> theme.destructive
+                                line.contains("⚠️") || line.contains("تحذير") -> theme.warning
+                                line.contains("Gemini") || line.contains("توليد") || line.contains("StyleBrain") -> PresetPrimary
                                 line.contains("FFmpeg") || line.contains("محرك") -> AiCyan
-                                else -> Color.White.copy(alpha = 0.72f)
+                                else -> theme.textPrimary.copy(alpha = 0.72f)
                             }
                             Text(
                                 line,
@@ -949,8 +949,8 @@ private fun ProcessingScreenUI(
                 OutlinedButton(
                     onClick = onConfirmCancel,
                     modifier = Modifier.fillMaxWidth(0.85f).height(56.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
-                    border = BorderStroke(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.destructive),
+                    border = BorderStroke(1.5.dp, theme.destructive.copy(alpha = 0.5f)),
                     shape = CutCornerShape(10.dp)
                 ) {
                     Text(
@@ -971,6 +971,7 @@ private fun ProcessingScreenUI(
 
 @Composable
 private fun ProcessingStagePipeline(currentStage: String, progress: Float) {
+    val theme = QabasTheme.current
     val stages = listOf(
         "prepare" to Translator.tr("تحضير"),
         "script" to Translator.tr("سيناريو"),
@@ -983,9 +984,9 @@ private fun ProcessingStagePipeline(currentStage: String, progress: Float) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
         shape = CutCornerShape(10.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E293B))
+        border = BorderStroke(1.dp, theme.secondarySurface)
     ) {
         Row(
             modifier = Modifier
@@ -997,9 +998,9 @@ private fun ProcessingStagePipeline(currentStage: String, progress: Float) {
                 val done = progress >= 1f || idx < currentIdx
                 val active = idx == currentIdx && progress < 1f
                 val color = when {
-                    done -> Color(0xFF10B981)
-                    active -> GoldPrimary
-                    else -> Color(0xFF475569)
+                    done -> theme.success
+                    active -> PresetPrimary
+                    else -> theme.separator
                 }
                 if (idx > 0) {
                     // خط واصل بين المراحل — positional Modifier to avoid named-parameter resolution issues
@@ -1008,8 +1009,8 @@ private fun ProcessingStagePipeline(currentStage: String, progress: Float) {
                             .weight(0.35f)
                             .height(2.dp)
                             .background(
-                                if (done || (active && idx <= currentIdx)) GoldPrimary.copy(alpha = 0.55f)
-                                else Color(0xFF1E293B)
+                                if (done || (active && idx <= currentIdx)) PresetPrimary.copy(alpha = 0.55f)
+                                else theme.secondarySurface
                             )
                     )
                 }
@@ -1049,6 +1050,7 @@ private fun ProcessingStagePipeline(currentStage: String, progress: Float) {
 
 @Composable
 private fun ProcessingProgressRing(progress: Float, scenesProcessed: Int, totalScenes: Int) {
+    val theme = QabasTheme.current
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val glowPulse by infiniteTransition.animateFloat(
         initialValue = 0.92f,
@@ -1065,7 +1067,7 @@ private fun ProcessingProgressRing(progress: Float, scenesProcessed: Int, totalS
         label = "progAnim"
     )
     val done = progress >= 1f
-    val ringColor = if (done) Color(0xFF10B981) else GoldPrimary
+    val ringColor = if (done) theme.success else QabasGold
 
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp)) {
         // هالة ذهبية نابضة
@@ -1085,7 +1087,7 @@ private fun ProcessingProgressRing(progress: Float, scenesProcessed: Int, totalS
         CircularProgressIndicator(
             progress = { 1f },
             Modifier.size(160.dp),
-            color = Color(0xFF1E293B),
+            color = theme.secondarySurface,
             strokeWidth = 12.dp,
             strokeCap = StrokeCap.Round
         )
@@ -1108,7 +1110,7 @@ private fun ProcessingProgressRing(progress: Float, scenesProcessed: Int, totalS
             if (done) {
                 Text(
                     Translator.tr("مكتمل"),
-                    color = Color(0xFF10B981),
+                    color = theme.success,
                     fontSize = 13.sp,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold
@@ -1116,14 +1118,14 @@ private fun ProcessingProgressRing(progress: Float, scenesProcessed: Int, totalS
             } else if (totalScenes > 0) {
                 Text(
                     "$scenesProcessed / $totalScenes",
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = theme.textPrimary.copy(alpha = 0.55f),
                     fontSize = 12.sp,
                     fontFamily = CairoFont
                 )
             } else {
                 Text(
                     Translator.tr("جاري العمل"),
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = theme.textPrimary.copy(alpha = 0.45f),
                     fontSize = 12.sp,
                     fontFamily = CairoFont
                 )
@@ -1134,6 +1136,7 @@ private fun ProcessingProgressRing(progress: Float, scenesProcessed: Int, totalS
 
 @Composable
 private fun ProcessingDetailsText(statusText: String, progress: Float, elapsedSeconds: Int, currentStage: String) {
+    val theme = QabasTheme.current
     val stageLabel = when (currentStage) {
         "prepare" -> Translator.tr("التحضير")
         "script" -> Translator.tr("بناء السيناريو")
@@ -1152,22 +1155,22 @@ private fun ProcessingDetailsText(statusText: String, progress: Float, elapsedSe
         } else null
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(statusText, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = CairoFont, textAlign = TextAlign.Center)
+        Text(statusText, color = theme.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = CairoFont, textAlign = TextAlign.Center)
         if (stageLabel.isNotBlank() && progress < 1f) {
             Spacer(modifier = Modifier.height(6.dp))
-            Text(stageLabel, color = GoldSecondary.copy(alpha = 0.8f), fontSize = 13.sp, fontFamily = CairoFont)
+            Text(stageLabel, color = PresetAccent.copy(alpha = 0.8f), fontSize = 13.sp, fontFamily = CairoFont)
         }
         if (progress < 1f) {
             Spacer(modifier = Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     String.format(Translator.tr("المنقضي: %02d:%02d"), elapsedSeconds / 60, elapsedSeconds % 60),
-                    color = Color.White.copy(alpha = 0.45f), fontSize = 12.sp, fontFamily = CairoFont
+                    color = theme.textPrimary.copy(alpha = 0.45f), fontSize = 12.sp, fontFamily = CairoFont
                 )
                 if (etaText != null) {
                     Text(
                         etaText,
-                        color = GoldSecondary.copy(alpha = 0.75f), fontSize = 12.sp, fontFamily = CairoFont
+                        color = PresetAccent.copy(alpha = 0.75f), fontSize = 12.sp, fontFamily = CairoFont
                     )
                 }
             }
@@ -1177,11 +1180,12 @@ private fun ProcessingDetailsText(statusText: String, progress: Float, elapsedSe
 
 @Composable
 private fun CancelProcessingButton(onCancel: () -> Unit) {
+    val theme = QabasTheme.current
     OutlinedButton(
         onClick = onCancel,
         modifier = Modifier.fillMaxWidth(0.85f).height(56.dp),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
-        border = BorderStroke(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.destructive),
+        border = BorderStroke(1.5.dp, theme.destructive.copy(alpha = 0.5f)),
         shape = CutCornerShape(12.dp)
     ) {
         Icon(Icons.Default.Close, Translator.tr("إلغاء المعالجة"), modifier = Modifier.padding(end = 8.dp))
@@ -1191,6 +1195,7 @@ private fun CancelProcessingButton(onCancel: () -> Unit) {
 
 @Composable
 fun AutomatedErrorFeedback(statusText: String, activityLog: List<String>) {
+    val theme = QabasTheme.current
     val errorAnalysis = remember(statusText, activityLog) {
         val log = activityLog.joinToString(" ").lowercase()
         val status = statusText.lowercase()
@@ -1210,21 +1215,21 @@ fun AutomatedErrorFeedback(statusText: String, activityLog: List<String>) {
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A080C)),
+        colors = CardDefaults.cardColors(containerColor = theme.destructive.copy(alpha = 0.12f)),
         shape = CutCornerShape(10.dp),
-        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(
                     imageVector = Icons.Default.Warning,
                     contentDescription = "Error",
-                    tint = Color(0xFFEF4444),
+                    tint = theme.destructive,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
                     text = Translator.tr("تحليل تلقائي لسبب الفشل"),
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = CairoFont
@@ -1233,7 +1238,7 @@ fun AutomatedErrorFeedback(statusText: String, activityLog: List<String>) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = errorAnalysis,
-                color = Color.White.copy(alpha = 0.85f),
+                color = theme.textPrimary.copy(alpha = 0.85f),
                 fontSize = 13.sp,
                 fontFamily = CairoFont,
                 lineHeight = 20.sp
@@ -1241,10 +1246,10 @@ fun AutomatedErrorFeedback(statusText: String, activityLog: List<String>) {
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "الخطأ البرمجي: $statusText",
-                color = Color(0xFFEF4444).copy(alpha = 0.75f),
+                color = theme.destructive.copy(alpha = 0.75f),
                 fontSize = 11.sp,
                 fontFamily = CairoFont,
-                modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CutCornerShape(4.dp)).padding(8.dp).fillMaxWidth()
+                modifier = Modifier.background(theme.background.copy(alpha = 0.3f), CutCornerShape(4.dp)).padding(8.dp).fillMaxWidth()
             )
         }
     }
@@ -1256,6 +1261,7 @@ private fun StoryboardPreviewUI(
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val scrollState = rememberScrollState()
 
     Box(
@@ -1268,7 +1274,7 @@ private fun StoryboardPreviewUI(
             val w = size.width
             val h = size.height
             drawCircle(
-                color = GoldPrimary.copy(alpha = 0.03f),
+                color = PresetPrimary.copy(alpha = 0.03f),
                 radius = w * 0.4f,
                 center = Offset(w * 0.8f, h * 0.2f)
             )
@@ -1286,12 +1292,12 @@ private fun StoryboardPreviewUI(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
+                    Icon(Icons.Default.Close, contentDescription = "Cancel", tint = theme.textPrimary)
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = Translator.tr("لوحة قصة خادم المسلم (Storyboard)"),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = CairoFont
@@ -1301,7 +1307,7 @@ private fun StoryboardPreviewUI(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = Translator.tr("تم توليد ${scenes.size} مشاهد سينمائية. راجع السرد قبل بدء الرندر الثقيل."),
-                color = Color.White.copy(alpha = 0.6f),
+                color = theme.textPrimary.copy(alpha = 0.6f),
                 fontSize = 12.sp,
                 fontFamily = CairoFont,
                 textAlign = TextAlign.Center,
@@ -1330,13 +1336,13 @@ private fun StoryboardPreviewUI(
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .background(GoldPrimary.copy(alpha = 0.1f), CircleShape)
-                                    .border(1.dp, GoldPrimary.copy(alpha = 0.3f), CircleShape),
+                                    .background(PresetPrimary.copy(alpha = 0.1f), CircleShape)
+                                    .border(1.dp, PresetPrimary.copy(alpha = 0.3f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     "${index + 1}",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -1347,7 +1353,7 @@ private fun StoryboardPreviewUI(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = scene.title.ifBlank { "—" },
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = CairoFont
@@ -1355,7 +1361,7 @@ private fun StoryboardPreviewUI(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "المدة: ${scene.durationInSeconds} ثوانٍ · الإيقاع: ${scene.tempo}",
-                                    color = GoldPrimary.copy(alpha = 0.7f),
+                                    color = PresetPrimary.copy(alpha = 0.7f),
                                     fontSize = 11.sp,
                                     fontFamily = CairoFont
                                 )
@@ -1363,7 +1369,7 @@ private fun StoryboardPreviewUI(
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = scene.description,
-                                        color = Color.White.copy(alpha = 0.5f),
+                                        color = theme.textPrimary.copy(alpha = 0.5f),
                                         fontSize = 12.sp,
                                         fontFamily = CairoFont,
                                         maxLines = 2
@@ -1390,7 +1396,7 @@ private fun StoryboardPreviewUI(
                     .fillMaxWidth()
                     .height(56.dp)
                     .clip(CutCornerShape(12.dp)),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 shape = CutCornerShape(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

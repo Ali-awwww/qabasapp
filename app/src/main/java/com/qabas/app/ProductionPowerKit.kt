@@ -72,9 +72,9 @@ object BrollPrefetch {
                     try {
                         val url = withTimeoutOrNull(20_000L) { AppServices.fetchMedia(w, "video") } ?: ""
                         if (url.isNotBlank()) memCache[w] = url
-                    } catch (_: Exception) {}
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
                 }
-            } catch (_: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
         }
     }
 

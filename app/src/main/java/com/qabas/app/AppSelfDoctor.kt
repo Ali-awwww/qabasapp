@@ -367,7 +367,7 @@ prefs.edit().putString("gemini_key", "YOUR_ACTUAL_KEY_HERE").apply()
 
         val higgsfieldConfiguredOnServer = runCatching {
             PlatformGatewayClient.providerConfiguredSuspend("higgsfield")
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
         if (higgsfieldConfiguredOnServer) {
             reports.add(
                 DoctorReport(

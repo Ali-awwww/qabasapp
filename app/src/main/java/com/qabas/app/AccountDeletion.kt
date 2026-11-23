@@ -91,7 +91,7 @@ object AccountDeletionService {
             clearLocalAccountData(context)
             SupabaseServices.Auth.logout()
             true
-        }.getOrDefault(false)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
 
         val summary = when {
             serverDeleted -> "تم حذف الحساب نهائياً من الخادم: حُذف حساب المصادقة وملفك الشخصي وإعداداتك وعناصرك المحفوظة وحالة القراءة ومفاتيحك. سُجّل خروجك من هذا الجهاز."
@@ -168,7 +168,7 @@ fun AccountDeletionCard(modifier: Modifier = Modifier) {
         isExporting = true
         scope.launch {
             val json = withContext(Dispatchers.IO) {
-                runCatching { UserPreferencesManager.exportBackupJson(context) }.getOrNull()
+                runCatching { UserPreferencesManager.exportBackupJson(context) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
             }
             if (json != null) {
                 withContext(Dispatchers.IO) {

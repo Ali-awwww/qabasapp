@@ -22,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -146,7 +145,7 @@ fun DeltaMonitoringDashboard(
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = "Refresh",
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -190,7 +189,7 @@ fun DeltaMonitoringDashboard(
             KpiMetricCard(
                 title = "الطور الأكثر تعثراً",
                 value = topPhase,
-                accentColor = GoldPrimary,
+                accentColor = PresetPrimary,
                 modifier = Modifier.weight(1.2f)
             )
         }
@@ -212,10 +211,10 @@ fun DeltaMonitoringDashboard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) GoldPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                        .background(if (isSelected) PresetPrimary.copy(alpha = 0.15f) else Color.Transparent)
                         .border(
                             1.dp,
-                            if (isSelected) GoldPrimary.copy(alpha = 0.5f) else Color.Transparent,
+                            if (isSelected) PresetPrimary.copy(alpha = 0.5f) else Color.Transparent,
                             RoundedCornerShape(8.dp)
                         )
                         .clickable { selectedTab = index }
@@ -224,7 +223,7 @@ fun DeltaMonitoringDashboard(
                 ) {
                     Text(
                         title,
-                        color = if (isSelected) GoldPrimary else TextSecondary,
+                        color = if (isSelected) PresetPrimary else TextSecondary,
                         fontSize = 11.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -241,7 +240,7 @@ fun DeltaMonitoringDashboard(
                     .height(160.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = GoldPrimary, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                CircularProgressIndicator(color = PresetPrimary, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
             }
         } else if (errorMessage != null && recentFailures.isEmpty() && commonErrors.isEmpty()) {
             GlassmorphicSurface(
@@ -255,7 +254,7 @@ fun DeltaMonitoringDashboard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(errorMessage ?: "", color = AiDanger, fontSize = 12.sp, fontFamily = CairoFont)
-                    Button(onClick = { refreshData() }, colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)) {
+                    Button(onClick = { refreshData() }, colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)) {
                         Text("إعادة المحاولة", color = DeepSlate, fontFamily = CairoFont, fontSize = 12.sp)
                     }
                 }
@@ -356,10 +355,10 @@ private fun CommonErrorItem(error: UpdateTelemetryManager.DeltaErrorSummary) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(GoldPrimary.copy(alpha = 0.15f))
+                            .background(PresetPrimary.copy(alpha = 0.15f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(error.phase, color = GoldPrimary, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                        Text(error.phase, color = PresetPrimary, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     }
                     Text(
                         "${error.count} تكرار",
@@ -502,7 +501,7 @@ private fun LiveFailureCard(item: UpdateTelemetryManager.UpdateErrorReport) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(item.phase, color = GoldSecondary, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                    Text(item.phase, color = PresetAccent, fontSize = 10.sp, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                     Text("• ${item.deviceAbi}", color = AiCyan, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                 }
                 Text(dateFmt.format(Date(item.timestamp)), color = TextSecondary, fontSize = 9.sp, fontFamily = RobotoMonoFont)

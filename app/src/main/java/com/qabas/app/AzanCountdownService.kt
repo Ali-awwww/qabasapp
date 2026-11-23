@@ -280,9 +280,9 @@ class AzanCountdownService : Service() {
             val tomorrowCalendar = (now.clone() as Calendar).apply {
                 add(Calendar.DAY_OF_YEAR, 1)
             }
-            val yesterday = PrayerCalculationHelper.calculatePrayerTimes(yesterdayCalendar, city, city.defaultMethod)
-            val today = PrayerCalculationHelper.calculatePrayerTimes(now, city, city.defaultMethod)
-            val tomorrow = PrayerCalculationHelper.calculatePrayerTimes(tomorrowCalendar, city, city.defaultMethod)
+            val yesterday = PrayerCalculationHelper.calculatePrayerTimesForUser(context, yesterdayCalendar, city)
+            val today = PrayerCalculationHelper.calculatePrayerTimesForUser(context, now, city)
+            val tomorrow = PrayerCalculationHelper.calculatePrayerTimesForUser(context, tomorrowCalendar, city)
 
             val prayerDefinitions = listOf(
                 PrayerDefinition(PrayerAlarmManager.PRAYER_FAJR, "صلاة الفجر") { it.fajr },

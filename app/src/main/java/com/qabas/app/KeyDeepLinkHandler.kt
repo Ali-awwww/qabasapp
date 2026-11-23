@@ -3,7 +3,6 @@ package com.qabas.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 
 object KeyDeepLinkHandler {
 
@@ -110,37 +109,4 @@ object KeyDeepLinkHandler {
         return true to "تم استيراد ${keys.size} مفتاح: ${names.joinToString("، ")} ✅"
     }
 
-    fun generateShareLink(keys: Map<String, String>): String {
-        val params = mutableListOf<String>()
-
-        val reverseNames = mapOf(
-            "gemini_key" to "gemini",
-            "groq_key" to "groq",
-            "openai_key" to "openai",
-            "openrouter_key" to "openrouter",
-            "huggingface_key" to "hf",
-            "azure_speech_key" to "azure",
-            "azure_speech_region" to "azure_region",
-            "elevenlabs_key" to "elevenlabs",
-            "pexels_key" to "pexels",
-            "pixabay_key" to "pixabay"
-        )
-
-        keys.forEach { (field, value) ->
-            val paramName = reverseNames[field] ?: return@forEach
-            params.add("$paramName=${Uri.encode(value)}")
-        }
-
-        return "qabas://keys/import?${params.joinToString("&")}"
-    }
-
-    fun generateShareText(keys: Map<String, String>): String {
-        val sb = StringBuilder()
-        sb.appendLine("🔑 مفاتيح خادم المسلم — افتح هذا الرابط في التطبيق:")
-        sb.appendLine()
-        sb.appendLine(generateShareLink(keys))
-        sb.appendLine()
-        sb.appendLine("⚠️ هذا الرابط يحتوي مفاتيح خاصة — لا تشاركه مع أحد")
-        return sb.toString()
-    }
 }

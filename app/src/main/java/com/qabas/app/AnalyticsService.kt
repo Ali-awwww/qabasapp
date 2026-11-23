@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import android.os.Bundle
 import android.util.Log
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
@@ -15,9 +14,6 @@ interface AnalyticsService {
     fun logScreenView(screenName: String)
     fun logEvent(eventName: String, parameters: Map<String, Any>?)
     fun logProjectCreated(projectId: String, template: String, duration: String)
-    fun logVideoGenerated(projectId: String, cost: Double, libraryCount: Int, generatedCount: Int)
-    fun logPaymentCompleted(projectId: String, amount: Double)
-    fun logError(errorMessage: String, stackTrace: String)
     fun setAnalyticsCollectionEnabled(enabled: Boolean)
 }
 
@@ -38,8 +34,9 @@ class RealAnalyticsService(context: Context) : AnalyticsService {
     /**
      * تسجيل حدث في analytics_events بأفضل جهد (الدفعة 5 — الجزء أ).
      * يفشل بصمت إلى Logcat إن غاب الجدول (قبل تطبيق الترحيل) أو
-     * انقطع الاتصال؛ لا يتعطل التطبيق ولا يُعاد المحاولة.
-     * السلوك الافتراضي يبقى Logcat فقط حتى يُطبَّق الترحيل.
+     * انقطع الاتصال؛ لا يتعطل التطبيق ولا تُعاد المحاولة.
+     * الترحيل مطبَّق الآن، فالأحداث ومشاهدات الشاشات تُسجَّل في
+     * السحابة لا في Logcat وحده (انظر logScreenView).
      */
     private fun recordEventCloud(eventName: String, parameters: Map<String, Any>?) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -57,7 +54,7 @@ class RealAnalyticsService(context: Context) : AnalyticsService {
                         appVersion = appVersion
                     )
                 )
-            }.onFailure { Log.d("Analytics", "Cloud event insert skipped: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.d("Analytics", "Cloud event insert skipped: ${it.message}") }
         }
     }
 
@@ -70,6 +67,11 @@ class RealAnalyticsService(context: Context) : AnalyticsService {
         val isEnabled = prefs.getBoolean("analytics_enabled", true)
         if (!isEnabled) return
         Log.d("Analytics", "Screen View: $screenName")
+        // كانت مشاهدات الشاشات تذهب إلى Logcat وحده فلا تصل أبداً إلى
+        // analytics_events: لوحة المطور (DAU/الأحداث) لا ترى أي شاشة
+        // زارها المستخدم. الترحيل مطبَّق، فتُسجَّل كحدث screen_view
+        // بأفضل جهد كسائر الأحداث.
+        recordEventCloud("screen_view", mapOf("screen" to screenName))
     }
 
     override fun logEvent(eventName: String, parameters: Map<String, Any>?) {
@@ -81,18 +83,6 @@ class RealAnalyticsService(context: Context) : AnalyticsService {
 
     override fun logProjectCreated(projectId: String, template: String, duration: String) {
         logEvent("project_created", mapOf("pid" to projectId, "tpl" to template))
-    }
-
-    override fun logVideoGenerated(projectId: String, cost: Double, libraryCount: Int, generatedCount: Int) {
-        logEvent("video_generated", mapOf("pid" to projectId, "cost" to cost))
-    }
-
-    override fun logPaymentCompleted(projectId: String, amount: Double) {
-        logEvent("purchase_complete", mapOf("pid" to projectId, "amount" to amount))
-    }
-
-    override fun logError(errorMessage: String, stackTrace: String) {
-        logEvent("app_error", mapOf("msg" to errorMessage))
     }
 }
 

@@ -5,9 +5,6 @@ import android.util.Log
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -38,8 +35,6 @@ object BroadcastCloudRepository {
     private const val PREFS = "qabas_broadcasts"
     private const val SEEN_IDS = "seen_ids"
 
-    private val _pendingBroadcast = MutableStateFlow<BroadcastRow?>(null)
-    val pendingBroadcast: StateFlow<BroadcastRow?> = _pendingBroadcast.asStateFlow()
 
     suspend fun insertBroadcast(
         title: String,
@@ -55,7 +50,7 @@ object BroadcastCloudRepository {
             }
             val broadcastId = client.postgrest.rpc("create_broadcast", params).decodeAs<String>()
             Result.success(broadcastId)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "insert failed", e)
             Result.failure(e)
         }
@@ -72,12 +67,11 @@ object BroadcastCloudRepository {
             }.decodeList<BroadcastRow>().filterNot { it.id in seenIds }
 
             for (row in pending) {
-                _pendingBroadcast.value = row
                 if (deliverLocalNotification(context, row)) {
                     rememberSeen(context, row.id)
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "checkPendingBroadcasts failed", e)
         }
     }
@@ -86,10 +80,6 @@ object BroadcastCloudRepository {
         CoroutineScope(Dispatchers.IO).launch {
             checkPendingBroadcasts(context)
         }
-    }
-
-    fun unsubscribe() {
-        _pendingBroadcast.value = null
     }
 
     private fun deliverLocalNotification(context: Context, row: BroadcastRow): Boolean {
@@ -117,12 +107,4 @@ object BroadcastCloudRepository {
         preferences.edit().putStringSet(SEEN_IDS, bounded).apply()
     }
 
-    /**
-     * Intentionally no longer calls mark_broadcast_sent: that RPC changes a global
-     * row and would allow one recipient to suppress delivery for every other user.
-     */
-    @Deprecated("Global broadcast acknowledgement is unsafe from the mobile client")
-    suspend fun markAsSent(broadcastId: String) = withContext(Dispatchers.IO) {
-        Log.w(TAG, "Ignoring global broadcast acknowledgement for $broadcastId")
-    }
 }

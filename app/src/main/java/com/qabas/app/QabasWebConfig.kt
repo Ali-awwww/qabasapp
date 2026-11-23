@@ -1,9 +1,6 @@
 package com.qabas.app
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
 
 /**
  * 🌐 إعدادات وبوابة الربط بالموقع الرسمي لمنظومة خادم المسلم (Qabas Official Web Hub)
@@ -13,13 +10,6 @@ object QabasWebConfig {
     /** الرابط الأساسي للموقع الرسمي */
     const val OFFICIAL_WEBSITE_URL = "https://alippappa7-maker.github.io/Website-/"
     const val OFFICIAL_WEB_HOST = "alippappa7-maker.github.io"
-
-    /** روابط الأقسام المباشرة على الموقع */
-    const val URL_DOWNLOAD = "$OFFICIAL_WEBSITE_URL/download"
-    const val URL_LECTURES = "$OFFICIAL_WEBSITE_URL/lectures"
-    const val URL_NEWS = "$OFFICIAL_WEBSITE_URL/news"
-    const val URL_REVIEWS = "$OFFICIAL_WEBSITE_URL/reviews"
-    const val URL_ADMIN_PORTAL = "$OFFICIAL_WEBSITE_URL/admin"
 
     /** رابط مجموعة ومجتمع خادم المسلم الرسمي (WhatsApp / Telegram) */
     const val DEFAULT_COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/FwpPfcgETYX2qw2XZE9QAF?s=sh&p=a&mlu=4&ilr=4&iam=2"
@@ -36,11 +26,6 @@ object QabasWebConfig {
         } else {
             saved
         }
-    }
-
-    fun setOfficialGroupUrl(context: Context, url: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_CUSTOM_GROUP_URL, url.trim()).apply()
     }
 
     /**

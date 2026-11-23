@@ -4,17 +4,14 @@ import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -63,8 +60,8 @@ import java.util.UUID
  *   في التطبيق).
  * - تكلفة الخطة تقديرات ثابتة موسومة «تقريبي»؛ التكلفة الفعلية لكل توليد
  *   تُسجَّل 0 في `ai_generations.cost_usd` حتى تُقاس من المزود.
- * - وكيل البرمجة (AiStudioAgentScreen) منفصل تماماً خلف «وضع المطوّر»
- *   وبوابة [AdminGuard]؛ هذا الوكيل للمحتوى فقط ولا يعدّل كود التطبيق.
+ * - وكيل البرمجة (AiStudioAgentScreen) هو المسار الآخر للمحادثة الموحدة
+ *   في قسم «فايب كودينج»؛ هذا الوكيل للمحتوى فقط ولا يعدّل كود التطبيق.
  */
 private enum class AgentPhase { IDLE, CLARIFYING, PLAN_PENDING, EXECUTING, DONE }
 
@@ -96,10 +93,22 @@ private val STYLE_OPTIONS = listOf("مسجد", "مخطوطة", "طبيعة")
 private val DURATION_OPTIONS = listOf("15 ثانية", "30 ثانية", "60 ثانية")
 
 private suspend fun runStudioTool(context: Context, name: String, args: JSONObject): String {
+    // (12.6) فحص التفعيل ونطاق المسار قبل التنفيذ. الموافقة المدمرة لا تُطلب
+    // هنا لأن اعتماد بطاقة الخطة (PLAN_PENDING) هو التأكيد البشري لهذا المسار.
+    AgentToolGate.checkBeforeRun(
+        context, name,
+        path = args.optString("path").takeIf { it.isNotBlank() },
+        requireDestructiveApproval = false
+    )?.let { return it }
     val def = AiTools.definitions(context).firstOrNull { it.name == name }
         ?: return "الأداة $name غير متوفرة."
     return try {
         def.run(args)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        // الإلغاء ليس خطأً ولا يُبتلَع (نمط الجولة 87 في AgentBrain):
+        // إعادة رميه حتى لا يواصل executePlan الخطوات التالية بعد أن
+        // ألغى المستخدم المهمة — وإلا عاد «فشل تنفيذ» وتابع التنفيذ.
+        throw e
     } catch (e: Exception) {
         "فشل تنفيذ $name: ${e.message ?: "خطأ غير معروف"}"
     }
@@ -113,7 +122,16 @@ fun StudioAgentScreen(
     onOpenKeys: () -> Unit = {},
     onOpenProject: (ProjectService.Project) -> Unit = {},
     initialBrief: String? = null,
-    bottomBar: @Composable () -> Unit = {}
+    bottomBar: @Composable () -> Unit = {},
+    /**
+     * يُخفى الشريط العلوي عند التضمين في تبويب «المحادثة» بقسم فايب
+     * كودينج (12.2): الشاشة الحاوية لها شريطها وتبويباتها، وشريط
+     * «وكيل الاستوديو» المكرر (رجوع ثانٍ + زر «مسار البرمجة» المكرر
+     * لشريحتي التبويب) كان شريطاً مكرراً بلا وظيفة إضافية — حوار
+     * «مسار البرمجة» نفسه شرح فقط وزرّه يبدّل للشريحة نفسها.
+     * الاستعمال المستقل (STUDIO_AGENT) يبقي الشريط كما هو.
+     */
+    showTopBar: Boolean = true
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -375,6 +393,9 @@ fun StudioAgentScreen(
                 updatedAt = now
             )
             runCatching { ProjectService(context).saveProject(project) }
+                // الحفظ best-effort (فشله لا يوقف فتح المشروع) لكن الإلغاء
+                // ليس خطأً ولا يُبتلَع (نمط الجولة 87): إعادة رميه.
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             statusLine = "تم حفظ المشروع."
             onOpenProject(project)
         }
@@ -397,18 +418,20 @@ fun StudioAgentScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("وكيل الاستوديو") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
+            if (showTopBar) {
+                TopAppBar(
+                    title = { Text("وكيل الاستوديو") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = { showDevModeDialog = true }) { Text("مسار البرمجة") }
+                        TextButton(onClick = onOpenKeys) { Text("مفاتيحي") }
                     }
-                },
-                actions = {
-                    TextButton(onClick = { showDevModeDialog = true }) { Text("وضع المطوّر") }
-                    TextButton(onClick = onOpenKeys) { Text("مفاتيحي") }
-                }
-            )
+                )
+            }
         },
         bottomBar = bottomBar
     ) { padding ->
@@ -532,14 +555,14 @@ fun StudioAgentScreen(
     if (showDevModeDialog) {
         AlertDialog(
             onDismissRequest = { showDevModeDialog = false },
-            title = { Text("وضع المطوّر — ما الفرق؟") },
+            title = { Text("مسار البرمجة — ما الفرق؟") },
             text = {
                 Text(
                     "وكيل الاستوديو هذا وكيل محتوى: يكتب السكربت ويولّد الصور والصوت " +
                         "والفيديو وينشر الريلز — ولا يمسّ كود التطبيق أبداً.\n\n" +
-                        "وكيل البرمجة (وضع المطوّر) وكيل مختلف تماماً: يعدّل كود التطبيق " +
-                        "نفسه (مهام وخطط وفروقات مقترحة وبناء). وهو محروس بصلاحية المطوّر " +
-                        "من Supabase، فلا يظهر إلا لمن يملك الرتبة."
+                        "وكيل البرمجة مسار آخر في المحادثة الموحدة نفسها (تبويب «برمجة»): " +
+                        "يعدّل كود التطبيق نفسه (مهام وخطط وفروقات مقترحة وبناء)، " +
+                        "والأمان فيه بتأكيدات قبل الإجراءات المدمرة لا برتبة دخول."
                 )
             },
             confirmButton = {
@@ -683,40 +706,6 @@ private fun ResultCard(
                     Button(onClick = it) { Text("انشر كريلز") }
                 }
             }
-        }
-    }
-}
-
-/**
- * شاشة قفل وضع المطوّر: تظهر لمن لا يملك رتبة المطوّر السحابية
- * (app_metadata فقط عبر [AdminGuard.isDashboardAccessAllowed]) عند محاولة
- * فتح وكيل البرمجة. وكيل المحتوى (هذه الشاشة) غير مقيّد.
- */
-@Composable
-fun DeveloperModeLockedScreen(
-    onBack: () -> Unit,
-    onOpenStudioAgent: () -> Unit = {}
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(Icons.Default.Lock, contentDescription = null)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text("وضع المطوّر مقفل", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "وكيل البرمجة يعدّل كود التطبيق نفسه، وهو متاح فقط لمن يملك رتبة " +
-                "المطوّر في حسابه (تُمنح من لوحة المطور في Supabase). " +
-                "وكيل الاستوديو للمحتوى متاح لك بالكامل — اصنع الريلز والصور والصوت من هناك.",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onOpenStudioAgent) { Text("فتح وكيل الاستوديو") }
-            OutlinedButton(onClick = onBack) { Text("رجوع") }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.qabas.app
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -31,7 +32,35 @@ object CodeTools {
 
     private fun strProp(desc: String) = JSONObject().put("type", "string").put("description", desc)
 
-    fun definitions(ctx: CodeTools.Ctx): List<AiTools.ToolDef> {
+    /**
+     * تعريفات الأدوات مع بوابة التنفيذ (12.6 + 12.16): كل استدعاء لأي أداة يمر
+     * عبر [AgentToolGate.checkBeforeRun] — التفعيل من تبويب الأدوات، ونطاق
+     * المسار/الفرع من تبويب التحكم، وموافقة بشرية لمرة واحدة للأدوات المدمرة.
+     * لا يمرر أي مسار حي هذه التعريفات إلى حلقة أدوات LLM اليوم (الحلقة
+     * الوحيدة تستدعي AiTools فقط) — والبوابة هنا دفاعٌ في نقطة التعريف نفسها
+     * لأي مستدعٍ حالي أو مستقبلي.
+     */
+    fun definitions(context: Context, ctx: CodeTools.Ctx): List<AiTools.ToolDef> {
+        return buildDefinitions(ctx).map { def ->
+            def.copy(run = { args ->
+                val path = args.optString("path").takeIf { it.isNotBlank() }
+                AgentToolGate.checkBeforeRun(context, def.name, path = path, branch = ctx.branch)
+                    ?: try {
+                        def.run(args)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        // الإلغاء ليس خطأً ولا يُبتلَع (نمط الجولة 87 في AgentBrain):
+                        // إعادة رميه حتى لا يواصل الوكيل تنفيذ الأدوات بعد أن
+                        // ألغى المستخدم المهمة — وإلا عاد «تعذر تنفيذ الأداة»
+                        // وتابعت الحلقة كأن الأداة فشلت فحسب.
+                        throw e
+                    } catch (e: Exception) {
+                        "تعذر تنفيذ الأداة ${def.name}."
+                    }
+            })
+        }
+    }
+
+    private fun buildDefinitions(ctx: CodeTools.Ctx): List<AiTools.ToolDef> {
         val rc = GitHubRepoClient(ctx.owner, ctx.repo, ctx.token)
         return listOf(
             AiTools.ToolDef(
@@ -307,14 +336,7 @@ object CodeTools {
                 listOf("function_name")
             ) { args ->
                 withContext(Dispatchers.IO) {
-                    val fn = args.optString("function_name").ifBlank { "targetFunction" }
-                    """
-                    @Test
-                    fun test_${fn}_execution() {
-                        val result = $fn()
-                        assertNotNull(result)
-                    }
-                    """.trimIndent()
+                    generateUnitTestSnippet(args.optString("function_name"))
                 }
             },
             AiTools.ToolDef(
@@ -331,39 +353,21 @@ object CodeTools {
         )
     }
 
-    fun toApiJson(ctx: CodeTools.Ctx): JSONArray = AiTools.toApiJson(definitions(ctx))
-
-    suspend fun triggerBuildDirect(ctx: CodeTools.Ctx): String = withContext(Dispatchers.IO) {
-        val body = JSONObject().put("ref", ctx.branch).toString()
-            .toRequestBody("application/json".toMediaType())
-        val req = Request.Builder()
-            .url("https://api.github.com/repos/${ctx.owner}/${ctx.repo}/actions/workflows/android-ci.yml/dispatches")
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "Qabas-Studio")
-            .header("Authorization", "Bearer ${ctx.token}")
-            .post(body)
-            .build()
-        val code = runCatching { client.newCall(req).execute().use { it.code } }.getOrDefault(-1)
-        if (code == 204) "أُرسل أمر البناء بنجاح إلى GitHub Actions ✅" else "تعذر التشغيل (كود $code) — تحقق من الصلاحيات أو ملف android-ci.yml."
-    }
-
-    suspend fun getBuildStatusDirect(ctx: CodeTools.Ctx): String = withContext(Dispatchers.IO) {
-        val req = Request.Builder()
-            .url("https://api.github.com/repos/${ctx.owner}/${ctx.repo}/actions/runs?per_page=5")
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "Qabas-Studio")
-            .header("Authorization", "Bearer ${ctx.token}")
-            .get()
-            .build()
-        val body = runCatching { client.newCall(req).execute().use { it.body?.string().orEmpty() } }.getOrDefault("")
-        if (body.isBlank()) return@withContext "تعذر جلب حالة البناء."
-        val arr = JSONObject(body).optJSONArray("workflow_runs") ?: return@withContext "لا تشغيلات بعد."
-        if (arr.length() == 0) return@withContext "لا توجد تشغيلات مسجلة."
-        buildString {
-            for (i in 0 until arr.length()) {
-                val r = arr.getJSONObject(i)
-                append("#${r.optString("name")} [${r.optString("status")}/${r.optString("conclusion", "—")}] فرع ${r.optString("head_branch")}\n")
+    /**
+     * نص اختبار وحدة مولّد لدالة (12.13): توليد نص فقط — لا يشغّل
+     * الاختبار. التشغيل عبر CI البعيد في تبويب المعاينة.
+     */
+    fun generateUnitTestSnippet(functionName: String): String {
+        val fn = functionName.ifBlank { "targetFunction" }
+        return """
+            @Test
+            fun test_${fn}_execution() {
+                val result = $fn()
+                assertNotNull(result)
             }
-        }.trim()
+        """.trimIndent()
     }
+
+    fun toApiJson(context: Context, ctx: CodeTools.Ctx): JSONArray = AiTools.toApiJson(definitions(context, ctx))
+
 }

@@ -19,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -77,15 +76,15 @@ fun BRollSelectionModal(
                     Box(
                         modifier = Modifier
                             .size(36.dp)
-                            .background(GoldPrimary.copy(alpha = 0.15f), CircleShape)
-                            .border(1.dp, GoldPrimary, CircleShape),
+                            .background(PresetPrimary.copy(alpha = 0.15f), CircleShape)
+                            .border(1.dp, PresetPrimary, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Movie, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Movie, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
-                        Text("محرك B-Roll الذكي 🎬", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("محرك B-Roll الذكي 🎬", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("اختر المقطع المرئي الأنسب لمشهد: $sceneTitle", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                 }
@@ -99,10 +98,10 @@ fun BRollSelectionModal(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("ابحث في مكتبة B-Roll الإسلامية...", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
+                    focusedBorderColor = PresetPrimary,
                     unfocusedBorderColor = Color(0xFF1E293B),
                     focusedContainerColor = CardSurface,
                     unfocusedContainerColor = CardSurface,
@@ -124,7 +123,7 @@ fun BRollSelectionModal(
                         onClick = { selectedCategory = category },
                         label = { Text(category, fontFamily = NotoSansFont, fontSize = 12.sp) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = GoldPrimary,
+                            selectedContainerColor = PresetPrimary,
                             selectedLabelColor = Color.Black,
                             containerColor = CardSurface,
                             labelColor = Color.White
@@ -133,7 +132,7 @@ fun BRollSelectionModal(
                             enabled = true,
                             selected = isSelected,
                             borderColor = Color(0xFF1E293B),
-                            selectedBorderColor = GoldPrimary
+                            selectedBorderColor = PresetPrimary
                         )
                     )
                 }
@@ -159,7 +158,7 @@ fun BRollSelectionModal(
                             },
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = CardSurface),
-                        border = BorderStroke(1.5.dp, if (isChosen) GoldPrimary else Color(0xFF1E293B))
+                        border = BorderStroke(1.5.dp, if (isChosen) PresetPrimary else Color(0xFF1E293B))
                     ) {
                         Column {
                             Box(
@@ -186,7 +185,7 @@ fun BRollSelectionModal(
                                         )
                                 )
                                 Surface(
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     shape = RoundedCornerShape(bottomEnd = 8.dp),
                                     modifier = Modifier.align(Alignment.TopStart)
                                 ) {
@@ -234,9 +233,9 @@ fun LiveTemplateCustomizerDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Palette, contentDescription = null, tint = GoldPrimary)
+                Icon(Icons.Default.Palette, contentDescription = null, tint = PresetPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("تخصيص القالب التفاعلي والانتقالات 🎨", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("تخصيص القالب التفاعلي والانتقالات 🎨", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         },
         text = {
@@ -255,7 +254,7 @@ fun LiveTemplateCustomizerDialog(
                                 .clickable { selectedTemplate = tmpl },
                             shape = RoundedCornerShape(10.dp),
                             colors = CardDefaults.cardColors(containerColor = if (isSelected) DeepSlate else CardSurface),
-                            border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B))
+                            border = BorderStroke(1.dp, if (isSelected) PresetPrimary else Color(0xFF1E293B))
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -264,11 +263,11 @@ fun LiveTemplateCustomizerDialog(
                                 RadioButton(
                                     selected = isSelected,
                                     onClick = { selectedTemplate = tmpl },
-                                    colors = RadioButtonDefaults.colors(selectedColor = GoldPrimary)
+                                    colors = RadioButtonDefaults.colors(selectedColor = PresetPrimary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
-                                    Text(tmpl.name, color = if (isSelected) GoldPrimary else Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(tmpl.name, color = if (isSelected) PresetPrimary else Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     Text("الألوان: ${tmpl.colors} | الانتقال: ${tmpl.transitions}", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                 }
                             }
@@ -287,7 +286,7 @@ fun LiveTemplateCustomizerDialog(
                             onClick = { selectedTransition = trans.id },
                             label = { Text(trans.nameAr.split(" ")[0], fontFamily = NotoSansFont, fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldPrimary,
+                                selectedContainerColor = PresetPrimary,
                                 selectedLabelColor = Color.Black,
                                 containerColor = DeepSlate,
                                 labelColor = Color.White
@@ -302,13 +301,13 @@ fun LiveTemplateCustomizerDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("سرعة الانتقال السينمائي:", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        Text("${String.format("%.1f", transitionSpeed)} ثانية", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("${String.format("%.1f", transitionSpeed)} ثانية", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
                         value = transitionSpeed,
                         onValueChange = { transitionSpeed = it },
                         valueRange = 0.3f..1.8f,
-                        colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                        colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                     )
                 }
 
@@ -318,13 +317,13 @@ fun LiveTemplateCustomizerDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("كثافة إدراج B-Roll الذكي:", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
-                        Text("${(brollDensity * 100).toInt()}%", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("${(brollDensity * 100).toInt()}%", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
                         value = brollDensity,
                         onValueChange = { brollDensity = it },
                         valueRange = 0.25f..1.0f,
-                        colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                        colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                     )
                 }
             }
@@ -334,7 +333,7 @@ fun LiveTemplateCustomizerDialog(
                 onClick = {
                     onApplyTemplate(selectedTemplate, selectedTransition, String.format("%.1f", transitionSpeed))
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
                 Text("تطبيق القالب والانتقالات ✦", color = Color.Black, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             }
@@ -372,7 +371,7 @@ fun SceneBRollAndTransitionBadge(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.MovieFilter, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("الانتقال: ", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
                 Text(transitionType, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -381,13 +380,13 @@ fun SceneBRollAndTransitionBadge(
             OutlinedButton(
                 onClick = onOpenBRollSelector,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, GoldPrimary),
+                border = BorderStroke(1.dp, PresetPrimary),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.height(32.dp)
             ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(if (mediaUrl.isNullOrBlank()) "اختيار B-Roll ذكي 🎬" else "تغيير B-Roll 🎬", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (mediaUrl.isNullOrBlank()) "اختيار B-Roll ذكي 🎬" else "تغيير B-Roll 🎬", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

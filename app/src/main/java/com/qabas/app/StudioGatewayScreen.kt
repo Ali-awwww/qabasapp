@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -9,8 +8,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,13 +24,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -71,13 +65,14 @@ fun StudioGatewayScreen(
     onNavigateToStudioLibrary: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     BackHandler { onBack() }
 
     val context = LocalContext.current
     val primaryColor = qabasPrimary()
     val accentColor = qabasAccent()
 
-    var showApiKeyDialog by remember { mutableStateOf(false) }
+    // (12.3) أُزيل حوار ApiKeyManagerDialog من البوابة — زر المفتاح يوجّه إلى «مفاتيحي».
 
     // فئات الاستوديو الموحدة (3 فئات)
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
@@ -90,7 +85,7 @@ fun StudioGatewayScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF030712),
+        containerColor = theme.background,
         bottomBar = bottomBar,
         topBar = {
             TopAppBar(
@@ -110,7 +105,7 @@ fun StudioGatewayScreen(
                         Column {
                             Text(
                                 "استوديو خادم المسلم الموحّد",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp
@@ -128,15 +123,17 @@ fun StudioGatewayScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = theme.textPrimary)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showApiKeyDialog = true }) {
-                        Icon(Icons.Default.VpnKey, contentDescription = "مفاتيح الـ API", tint = primaryColor)
+                    // (12.3) حُذف ApiKeyManagerDialog المكرر (Leonardo/Higgsfield فقط)
+                    // من البوابة؛ زر المفتاح يوجّه إلى «مفاتيحي» (MY_KEYS) المدخل الوحيد.
+                    IconButton(onClick = onNavigateToMyKeys) {
+                        Icon(Icons.Default.VpnKey, contentDescription = "مفاتيحي", tint = primaryColor)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF030712).copy(alpha = 0.95f))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = theme.background.copy(alpha = 0.95f))
             )
         }
     ) { paddingValues ->
@@ -146,7 +143,7 @@ fun StudioGatewayScreen(
                 .padding(paddingValues)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xFF080D1A), Color(0xFF030712))
+                        listOf(theme.cardSurface, theme.background)
                     )
                 )
                 .verticalScroll(rememberScrollState())
@@ -174,8 +171,8 @@ fun StudioGatewayScreen(
                         onClick = { selectedCategoryIndex = index },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) primaryColor else Color(0xFF1E293B).copy(alpha = 0.4f),
-                        border = BorderStroke(1.dp, if (isSelected) primaryColor else Color(0xFF1E293B))
+                        color = if (isSelected) primaryColor else theme.secondarySurface.copy(alpha = 0.4f),
+                        border = BorderStroke(1.dp, if (isSelected) primaryColor else theme.secondarySurface)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
@@ -184,7 +181,7 @@ fun StudioGatewayScreen(
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(horizontal = 4.dp),
-                                color = if (isSelected) DeepSlate else Color.White.copy(alpha = 0.8f),
+                                color = if (isSelected) DeepSlate else theme.textPrimary.copy(alpha = 0.8f),
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 11.sp
@@ -207,7 +204,7 @@ fun StudioGatewayScreen(
                         title = "توليد وتحريك الفيديو (Higgsfield AI) 🛸",
                         description = "حوّل نصوصك وصورك إلى مقاطع سينمائية دعوية بلمسة احترافية.",
                         badge = "CINEMATIC AI",
-                        badgeColor = Color(0xFF00F2FE),
+                        badgeColor = theme.primary,
                         icon = Icons.Default.MovieFilter,
                         onClick = onNavigateToAiStudio
                     )
@@ -216,7 +213,7 @@ fun StudioGatewayScreen(
                         title = "أدوات دخل المبدعين ⚡",
                         description = "أتمتة إنتاج الريلز والشورتس بضغطة زر واحدة (سكربت + صوت + لقطات).",
                         badge = "AUTOMATION",
-                        badgeColor = Color(0xFF10B981),
+                        badgeColor = theme.success,
                         icon = Icons.Default.Bolt,
                         onClick = onNavigateToMoneyPrinter
                     )
@@ -225,7 +222,7 @@ fun StudioGatewayScreen(
                         title = "المحرر الاحترافي (Pro Editor) ✂️",
                         description = "تحكم كامل في التايم لاين، المونتاج، وإضافة التأثيرات السينمائية.",
                         badge = "PRO TOOLS",
-                        badgeColor = Color(0xFF38BDF8),
+                        badgeColor = theme.primary,
                         icon = Icons.Default.ContentCut,
                         onClick = onNavigateToProEditor
                     )
@@ -234,7 +231,7 @@ fun StudioGatewayScreen(
                         title = "استوديو يوتيوب والانتشار 📺",
                         description = "إدارة السلاسل، عناوين SEO، وإحصائيات الوصول لجمهورك.",
                         badge = "GROWTH",
-                        badgeColor = Color(0xFFEF4444),
+                        badgeColor = theme.destructive,
                         icon = Icons.Default.SmartDisplay,
                         onClick = onNavigateToYouTubeStudio
                     )
@@ -246,7 +243,7 @@ fun StudioGatewayScreen(
                         title = "توليد الصور الاحترافية (Leonardo.ai) 🖼️",
                         description = "توليد صور فائقة الجودة وبوسترات دعوية باستخدام محرك Leonardo Vision.",
                         badge = "LEONARDO VISION",
-                        badgeColor = Color(0xFFF59E0B),
+                        badgeColor = theme.warning,
                         icon = Icons.Default.Image,
                         onClick = onNavigateToPhotoStudio
                     )
@@ -264,7 +261,7 @@ fun StudioGatewayScreen(
                         title = "مستودع الوسائط المركزي 📦",
                         description = "إدارة وعرض جميع الصور والفيديوهات المولدة والمحفوظة.",
                         badge = "STORAGE",
-                        badgeColor = Color(0xFF10B981),
+                        badgeColor = theme.success,
                         icon = Icons.Default.PermMedia,
                         onClick = onNavigateToMediaBrowser
                     )
@@ -276,7 +273,7 @@ fun StudioGatewayScreen(
                         title = "استوديو الأصوات والدبلجة (VoiceStudio) 🎙️",
                         description = "توليد تعليق صوتي فخم واستنساخ النبرات بدقة عالية.",
                         badge = "VOICE ENGINE",
-                        badgeColor = Color(0xFFEC4899),
+                        badgeColor = theme.accent,
                         icon = Icons.Default.GraphicEq,
                         onClick = onNavigateToVoiceStudio
                     )
@@ -285,7 +282,7 @@ fun StudioGatewayScreen(
                         title = "ملقن الكاميرا الذكي (Teleprompter) 📹",
                         description = "تصوير فيديوهاتك مع قراءة النصوص المتزامنة تلقائياً.",
                         badge = "VIDEO PRODUCTION",
-                        badgeColor = Color(0xFF10B981),
+                        badgeColor = theme.success,
                         icon = Icons.Default.Videocam,
                         onClick = onNavigateToTeleprompter
                     )
@@ -300,7 +297,7 @@ fun StudioGatewayScreen(
                 title = "وكيل الاستوديو 💬",
                 description = "محادثة واحدة تصنع الريلز: فكرة ← خطة ← سكربت ← صور ← صوت ← فيديو ← نشر.",
                 badge = "STUDIO AGENT",
-                badgeColor = Color(0xFF00F2FE),
+                badgeColor = theme.primary,
                 icon = Icons.Default.Chat,
                 onClick = onNavigateToStudioAgent
             )
@@ -309,7 +306,7 @@ fun StudioGatewayScreen(
                 title = "مفاتيحي 🔑",
                 description = "كل مفاتيح المزودين في شاشة واحدة — فحص حي قبل الحفظ وعرض مقنّع دائماً.",
                 badge = "BYOK KEYS",
-                badgeColor = Color(0xFFF59E0B),
+                badgeColor = theme.warning,
                 icon = Icons.Default.VpnKey,
                 onClick = onNavigateToMyKeys
             )
@@ -318,7 +315,7 @@ fun StudioGatewayScreen(
                 title = "مكتبة المشاريع 📚",
                 description = "مشاريعك وطابور مهام الفيديو وسجل التوليدات — تابع من حيث توقفت.",
                 badge = "LIBRARY",
-                badgeColor = Color(0xFF10B981),
+                badgeColor = theme.success,
                 icon = Icons.Default.VideoLibrary,
                 onClick = onNavigateToStudioLibrary
             )
@@ -328,7 +325,7 @@ fun StudioGatewayScreen(
             // Wisdom Note
             GlassmorphicSurface(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF0F172A).copy(alpha = 0.6f),
+                backgroundColor = theme.cardSurface.copy(alpha = 0.6f),
                 borderColor = primaryColor.copy(alpha = 0.25f),
                 shape = CutCornerShape(12.dp)
             ) {
@@ -344,23 +341,18 @@ fun StudioGatewayScreen(
             
             Spacer(modifier = Modifier.height(40.dp))
         }
-
-        if (showApiKeyDialog) {
-            ApiKeyManagerDialog(
-                onDismiss = { showApiKeyDialog = false }
-            )
-        }
     }
 }
 
 @Composable
 fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
     val primaryColor = qabasPrimary()
-    val textMutedColor = Color(0xFF94A3B8)
-    val cyanInfoColor = Color(0xFF06B6D4)
+    val textMutedColor = theme.textSecondary
+    val cyanInfoColor = theme.primary
 
     var leonardoKey by remember { mutableStateOf(ApiKeyManager.getLeonardoKey(context)) }
     var showLeonardoKey by remember { mutableStateOf(false) }
@@ -406,7 +398,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                 .fillMaxWidth(0.94f)
                 .fillMaxHeight(0.90f)
                 .padding(vertical = 16.dp),
-            backgroundColor = Color(0xFF0B132B).copy(alpha = 0.98f),
+            backgroundColor = theme.cardSurface.copy(alpha = 0.98f),
             borderColor = primaryColor.copy(alpha = 0.45f),
             shape = RoundedCornerShape(24.dp)
         ) {
@@ -438,7 +430,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                         Column {
                             Text(
                                 "إدارة مفاتيح الـ API",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -455,14 +447,14 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                         onClick = onDismiss,
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textTertiary, modifier = Modifier.size(18.dp))
                     }
                 }
 
                 // Educational / Honesty Explainer Card
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF1E293B).copy(alpha = 0.7f),
+                    backgroundColor = theme.secondarySurface.copy(alpha = 0.7f),
                     borderColor = cyanInfoColor.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(14.dp)
                 ) {
@@ -480,7 +472,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 "لماذا يتطلب المفتاح خطوات ربط مباشرة؟",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp
@@ -499,8 +491,8 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                 // ── 1. Leonardo.ai Section ──
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF131D38).copy(alpha = 0.85f),
-                    borderColor = if (leonardoKey.isNotBlank()) primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
+                    backgroundColor = theme.cardSurface.copy(alpha = 0.85f),
+                    borderColor = if (leonardoKey.isNotBlank()) primaryColor.copy(alpha = 0.5f) else theme.textPrimary.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(18.dp)
                 ) {
                     Column(
@@ -518,7 +510,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 Column {
                                     Text(
                                         "Leonardo.ai (Vision XL)",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
@@ -571,7 +563,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                             ) {
                                 Icon(Icons.Default.ContentPaste, contentDescription = null, tint = primaryColor, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("📋 لصق تلقائي", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("📋 لصق تلقائي", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                             }
 
                             // Live Connection Test Button
@@ -581,7 +573,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                         isTestingLeonardo = true
                                         try {
                                             leonardoTestResult = LeonardoImageService.testConnection(context, leonardoKey)
-                                        } catch (_: Exception) {
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                                             leonardoTestResult = false to "تعذر فحص الاتصال، حاول مرة أخرى"
                                         } finally {
                                             isTestingLeonardo = false
@@ -601,7 +593,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     Icon(Icons.Default.Bolt, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("⚡ فحص الاتصال", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("⚡ فحص الاتصال", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                             }
 
                             // Clear button
@@ -613,7 +605,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "مسح", tint = theme.textTertiary, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -633,17 +625,17 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     Icon(
                                         if (showLeonardoKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                         contentDescription = null,
-                                        tint = Color.Gray,
+                                        tint = theme.textTertiary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
                             },
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary,
                                 focusedBorderColor = primaryColor,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f)
+                                unfocusedBorderColor = theme.textPrimary.copy(alpha = 0.15f)
                             )
                         )
 
@@ -654,20 +646,20 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isOk) EmeraldGreen.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f))
+                                    .background(if (isOk) EmeraldGreen.copy(alpha = 0.15f) else theme.destructive.copy(alpha = 0.15f))
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     if (isOk) Icons.Default.CheckCircle else Icons.Default.Error,
                                     contentDescription = null,
-                                    tint = if (isOk) EmeraldGreen else Color.Red,
+                                    tint = if (isOk) EmeraldGreen else theme.destructive,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     result.second,
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.5.sp
                                 )
@@ -679,8 +671,8 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                 // ── 2. Higgsfield AI Section ──
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF131D38).copy(alpha = 0.85f),
-                    borderColor = if (higgsfieldKey.isNotBlank() || isHiggsfieldConfigured) primaryColor.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
+                    backgroundColor = theme.cardSurface.copy(alpha = 0.85f),
+                    borderColor = if (higgsfieldKey.isNotBlank() || isHiggsfieldConfigured) primaryColor.copy(alpha = 0.5f) else theme.textPrimary.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(18.dp)
                 ) {
                     Column(
@@ -698,7 +690,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 Column {
                                     Text(
                                         "Higgsfield AI Studio",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
@@ -751,7 +743,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                             ) {
                                 Icon(Icons.Default.ContentPaste, contentDescription = null, tint = primaryColor, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("📋 لصق تلقائي", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("📋 لصق تلقائي", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                             }
 
                             // Live Connection Test Button
@@ -761,7 +753,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                         isTestingHiggsfield = true
                                         try {
                                             higgsfieldTestResult = HiggsfieldVideoService.testConnection(context)
-                                        } catch (_: Exception) {
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                                             higgsfieldTestResult = false to "تعذر فحص تسجيل البوابة، حاول مرة أخرى"
                                         } finally {
                                             isTestingHiggsfield = false
@@ -781,7 +773,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     Icon(Icons.Default.Bolt, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("⚡ حالة الربط", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("⚡ حالة الربط", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                             }
 
                             // Clear button
@@ -803,7 +795,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "مسح", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "مسح", tint = theme.textTertiary, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -823,17 +815,17 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                     Icon(
                                         if (showHiggsfieldKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                         contentDescription = null,
-                                        tint = Color.Gray,
+                                        tint = theme.textTertiary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
                             },
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary,
                                 focusedBorderColor = primaryColor,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f)
+                                unfocusedBorderColor = theme.textPrimary.copy(alpha = 0.15f)
                             )
                         )
 
@@ -852,20 +844,20 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isOk) EmeraldGreen.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f))
+                                    .background(if (isOk) EmeraldGreen.copy(alpha = 0.15f) else theme.destructive.copy(alpha = 0.15f))
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     if (isOk) Icons.Default.CheckCircle else Icons.Default.Error,
                                     contentDescription = null,
-                                    tint = if (isOk) EmeraldGreen else Color.Red,
+                                    tint = if (isOk) EmeraldGreen else theme.destructive,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     result.second,
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.5.sp
                                 )
@@ -880,13 +872,41 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                     onClick = {
                         coroutineScope.launch {
                             isSavingHiggsfield = true
+                            // (r17) حفظ بعد فحص حي فقط: زر الحفظ السابق كان
+                            // يكتب مفتاح Leonardo دون أي فحص، وزر «فحص
+                            // الاتصال» اختياري لا يمنع الحفظ. الفحص المعروض
+                            // الناجح لنفس القيمة يُقبل دون إعادة فحص.
+                            val leonardoClean = sanitizeKey(leonardoKey)
+                            val leonardoOk = if (leonardoClean.isBlank()) {
+                                true
+                            } else if (leonardoTestResult?.first == true) {
+                                true
+                            } else {
+                                val res = ApiKeyValidator.validateKey(context, "leonardo", leonardoClean)
+                                leonardoTestResult = res.isValid to res.summary
+                                res.isValid
+                            }
+                            if (!leonardoOk) {
+                                Toast.makeText(context, "لم يُحفظ مفتاح Leonardo: ${leonardoTestResult?.second ?: "فشل الفحص الحي"}", Toast.LENGTH_LONG).show()
+                                isSavingHiggsfield = false
+                                return@launch
+                            }
                             val keyToSave = sanitizeKey(higgsfieldKey)
                             val higgsfieldSaved = keyToSave.isBlank() || PlatformGatewayClient.saveProviderKeySuspend("higgsfield", keyToSave)
                             if (higgsfieldSaved) {
                                 ApiKeyManager.saveLeonardoKey(context, leonardoKey)
                                 if (keyToSave.isNotBlank()) isHiggsfieldConfigured = true
                                 higgsfieldKey = ""
-                                Toast.makeText(context, "تم حفظ إعدادات Leonardo ومفتاح Higgsfield على الخادم الآمن ✓", Toast.LENGTH_LONG).show()
+                                // (r17) الرسالة السابقة كانت تدّعي أن مفتاح
+                                // Leonardo حُفظ «على الخادم الآمن» بينما هو
+                                // محلي مشفّر فقط؛ مفتاح Higgsfield وحده هو
+                                // ما يذهب إلى البوابة.
+                                Toast.makeText(
+                                    context,
+                                    "تم حفظ مفتاح Leonardo محلياً (مشفّر)" +
+                                        if (keyToSave.isNotBlank()) " ومفتاح Higgsfield على الخادم الآمن ✓" else " ✓",
+                                    Toast.LENGTH_LONG
+                                ).show()
                                 onDismiss()
                             } else {
                                 Toast.makeText(context, "تعذر حفظ مفتاح Higgsfield. تحقق من صلاحية حساب المطور واتصال بوابة خادم المسلم.", Toast.LENGTH_LONG).show()
@@ -907,7 +927,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             }
         }
@@ -916,6 +936,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦") {
+    val theme = QabasTheme.current
     val primaryColor = qabasPrimary()
     Row(
         modifier = Modifier
@@ -930,7 +951,7 @@ private fun SectionHeader(title: String, codeTag: String, emoji: String = "✦")
             Column {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 14.sp
@@ -955,16 +976,17 @@ private fun UnifiedHeroStudioCard(
     primaryColor: Color,
     accentColor: Color
 ) {
+    val theme = QabasTheme.current
     GlassmorphicSurface(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = Color(0xFF030712).copy(alpha = 0.85f),
+        backgroundColor = theme.background.copy(alpha = 0.85f),
         borderColor = primaryColor.copy(alpha = 0.35f),
         shape = CutCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 text = "صناعة عمل دعوي متقن وشامل ✦",
-                color = Color.White,
+                color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 18.sp
@@ -974,7 +996,7 @@ private fun UnifiedHeroStudioCard(
 
             Text(
                 text = "نظام متكامل لإنتاج المحتوى الدعوي بضغطة زر واحدة (سيناريو + صوت + صور + SEO).",
-                color = Color(0xFF94A3B8),
+                color = theme.textSecondary,
                 fontFamily = CairoFont,
                 fontSize = 12.sp,
                 lineHeight = 18.sp
@@ -1011,11 +1033,12 @@ private fun StudioFeatureCard(
     icon: ImageVector,
     onClick: () -> Unit
 ) {
+    val theme = QabasTheme.current
     GlassmorphicSurface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        backgroundColor = Color(0xFF0B132B).copy(alpha = 0.45f),
+        backgroundColor = theme.cardSurface.copy(alpha = 0.45f),
         borderColor = badgeColor.copy(alpha = 0.25f),
         shape = CutCornerShape(12.dp)
     ) {
@@ -1051,7 +1074,7 @@ private fun StudioFeatureCard(
                 ) {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
@@ -1064,7 +1087,7 @@ private fun StudioFeatureCard(
 
                 Text(
                     text = description,
-                    color = Color(0xFF64748B),
+                    color = theme.textTertiary,
                     fontFamily = CairoFont,
                     fontSize = 10.5.sp,
                     lineHeight = 15.sp,
@@ -1076,7 +1099,7 @@ private fun StudioFeatureCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.15f),
+                tint = theme.textPrimary.copy(alpha = 0.15f),
                 modifier = Modifier.size(16.dp)
             )
         }

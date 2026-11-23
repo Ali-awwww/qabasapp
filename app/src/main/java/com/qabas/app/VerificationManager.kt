@@ -70,8 +70,6 @@ object VerificationManager {
 
     fun completedTasks(context: Context): Int = TASKS.count { progressFor(context, it) >= it.target }
 
-    fun areTasksComplete(context: Context): Boolean = completedTasks(context) >= TASKS.size
-
     /** يُسجّل نشر مقطع جديد ضمن عدّاد التوثيق. */
     fun recordReelPublished(context: Context) {
         val qp = context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)
@@ -123,7 +121,7 @@ object VerificationManager {
             runCatching {
                 if (verified) SupabaseServices.VerifiedCreators.addVerified(clean)
                 else SupabaseServices.VerifiedCreators.removeVerified(clean)
-            }.onFailure { Log.w(TAG, "cloud verify sync failed: ${it.message}") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "cloud verify sync failed: ${it.message}") }
         }
         return true
     }
@@ -137,6 +135,6 @@ object VerificationManager {
                 context.getSharedPreferences(QABAS_PREFS, Context.MODE_PRIVATE)
                     .edit().putStringSet(VERIFIED_IDS_KEY, ids.toSet()).apply()
             }
-        }.onFailure { Log.w(TAG, "refreshFromCloud failed: ${it.message}") }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.w(TAG, "refreshFromCloud failed: ${it.message}") }
     }
 }

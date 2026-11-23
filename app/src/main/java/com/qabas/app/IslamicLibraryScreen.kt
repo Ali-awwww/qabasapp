@@ -1446,7 +1446,7 @@ fun IslamicBookCard(
                     Icon(Icons.Default.Timer, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        "~ ${book.totalEstimatedMinutes} دقيقة",
+                        "~ ${IslamicLibraryRepository.displayReadMinutes(book)} دقيقة",
                         color = theme.textSecondary,
                         fontFamily = NotoSansFont,
                         fontSize = 11.5.sp

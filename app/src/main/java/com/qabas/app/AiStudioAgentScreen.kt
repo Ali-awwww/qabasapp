@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -42,8 +41,6 @@ import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.agent.AgentNeonButton
 import com.qabas.app.ui.agent.AgentStatusChip
 import com.qabas.app.ui.agent.AgentStatusKind
-import com.qabas.app.ui.agent.AgentNeonCard
-import com.qabas.app.ui.agent.AgentSectionHeader
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.agent.*
 import com.qabas.app.ui.theme.*
@@ -56,19 +53,8 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
 
-/** قائمة النماذج المتاحة لكل مزود — مصدر واحد يمنع إرسال نموذج مزودٍ إلى مزود آخر */
-private fun agentModelsFor(provider: DetectedProvider): List<String> = when (provider) {
-    DetectedProvider.GEMINI -> listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-pro")
-    DetectedProvider.GROQ -> listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b")
-    DetectedProvider.OPENAI -> listOf("gpt-4o", "gpt-4o-mini", "o1-preview")
-    DetectedProvider.OPENROUTER -> listOf("anthropic/claude-sonnet-4.5", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", "meta-llama/llama-3.3-70b")
-    DetectedProvider.ANTHROPIC -> listOf("claude-sonnet-4.5", "claude-3.5-sonnet", "claude-3.5-haiku")
-    DetectedProvider.HUGGINGFACE -> listOf("meta-llama/Llama-3.3-70B-Instruct")
-    DetectedProvider.OPENCODE -> listOf("opencode/grok-code")
-    else -> emptyList()
-}
+/** قائمة النماذج لكل مزود مصدرها الوحيد [DetectedProvider.models] — لا قائمة متوازية هنا. */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +62,9 @@ fun AiStudioAgentScreen(
     onBack: () -> Unit,
     onOpenTeamConfig: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
-    initialTab: Int = 0
+    initialTab: Int = 0,
+    /** يفتح المحادثة مباشرة بدل Hub — يستخدمه تبويب «المحادثة» في قسم فايب كودينج. */
+    startInChat: Boolean = false
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -84,7 +72,7 @@ fun AiStudioAgentScreen(
 
     var showExitConfirmation by remember { mutableStateOf(false) }
     var topTab by remember { mutableStateOf(initialTab.coerceIn(0, 5)) }
-    var showHub by remember { mutableStateOf(true) }
+    var showHub by remember { mutableStateOf(!startInChat) }
     var showSidePanel by remember { mutableStateOf(false) }
     val sessions by AgentChatSessionManager.sessions.collectAsState()
     val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
@@ -127,6 +115,11 @@ fun AiStudioAgentScreen(
     }
 
     var promptInput by remember { mutableStateOf("") }
+    // (12.15) أوامر محفوظة يضيفها المستخدم — تُحفظ في SharedPreferences.
+    var savedCommands by remember { mutableStateOf(VibeSavedCommands.list(context)) }
+    var newCommandLabel by remember { mutableStateOf("") }
+    var newCommandPrompt by remember { mutableStateOf("") }
+    var commandMessage by remember { mutableStateOf("") }
     var selectedSpec by remember { mutableStateOf(AgentSpecialization.TURBO) }
     var isExecuting by remember { mutableStateOf(false) }
     var currentMission by remember { mutableStateOf<AgentMissionSession?>(null) }
@@ -152,114 +145,35 @@ fun AiStudioAgentScreen(
 
     var missionAutoSwitched by remember { mutableStateOf(false) }
 
+    // حفظ/استعادة/تصدير/استيراد المهمة عبر مرمّز AgentMission الموحد
+    // (12.12): الخطوات تُحفظ كاملة (عنوان + وصف + أداة + مخرجات) لا
+    // معرفات فقط كما كان — فالاستعادة كانت تعيد عناوين وأوصافاً فارغة.
     fun saveMissionState() {
         currentMission?.let { mission ->
-            val json = org.json.JSONObject().apply {
-                put("missionId", mission.id)
-                put("userPrompt", mission.userPrompt)
-                put("specialization", mission.specialization.name)
-                val stepsArray = org.json.JSONArray()
-                mission.steps.forEach { step -> stepsArray.put(step.id) }
-                put("steps", stepsArray)
-                val modifiedArray = org.json.JSONArray()
-                mission.modifiedFiles.forEach { modifiedArray.put(it) }
-                put("modifiedFiles", modifiedArray)
-                put("buildTriggered", mission.buildTriggered)
-                put("apkUrl", mission.apkUrl)
-                put("timestamp", mission.timestamp)
-            }
-            prefs.edit().putString("active_mission_json", json.toString()).apply()
+            prefs.edit().putString("active_mission_json", encodeMissionSession(mission)).apply()
         }
     }
 
     fun restoreMissionState(): AgentMissionSession? {
         val json = prefs.getString("active_mission_json", null)
         if (json.isNullOrBlank()) return null
-        return try {
-            val obj = org.json.JSONObject(json)
-            val stepsList = obj.getJSONArray("steps")
-            val steps = (0 until stepsList.length()).map { idx ->
-                AgentExecutionStep(
-                    id = stepsList.getString(idx),
-                    title = "",
-                    description = "",
-                    toolName = "",
-                    outputSnippet = ""
-                )
-            }
-            AgentMissionSession(
-                id = obj.getString("missionId"),
-                userPrompt = obj.getString("userPrompt"),
-                specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
-                status = AgentTaskStatus.PLANNING,
-                steps = steps,
-                modifiedFiles = if (obj.has("modifiedFiles")) {
-                    val arr = obj.getJSONArray("modifiedFiles")
-                    (0 until arr.length()).map { arr.getString(it) }
-                } else emptyList(),
-                buildTriggered = obj.getBoolean("buildTriggered"),
-                apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
-                timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to restore mission state: ${e.message}")
+        val restored = decodeMissionSession(json)
+        if (restored == null) {
+            Log.e(TAG, "Failed to restore mission state: invalid JSON")
             prefs.edit().remove("active_mission_json").apply()
-            null
         }
+        return restored
     }
 
     fun exportMissionJson(): String {
-        return currentMission?.let { mission ->
-            org.json.JSONObject().apply {
-                put("missionId", mission.id)
-                put("userPrompt", mission.userPrompt)
-                put("specialization", mission.specialization.name)
-                val stepsArray = org.json.JSONArray()
-                mission.steps.forEach { step -> stepsArray.put(step.id) }
-                put("steps", stepsArray)
-                val modifiedArray = org.json.JSONArray()
-                mission.modifiedFiles.forEach { modifiedArray.put(it) }
-                put("modifiedFiles", modifiedArray)
-                put("buildTriggered", mission.buildTriggered)
-                put("apkUrl", mission.apkUrl)
-                put("timestamp", mission.timestamp)
-            }.toString()
-        } ?: ""
+        return currentMission?.let { encodeMissionSession(it) } ?: ""
     }
 
     fun importMissionFromJson(jsonString: String): Boolean {
-        return try {
-            val obj = org.json.JSONObject(jsonString)
-            val stepsList = obj.getJSONArray("steps")
-            val steps = (0 until stepsList.length()).map { idx ->
-                AgentExecutionStep(
-                    id = stepsList.getString(idx),
-                    title = "",
-                    description = "",
-                    toolName = "",
-                    outputSnippet = ""
-                )
-            }
-            currentMission = AgentMissionSession(
-                id = obj.optString("missionId", obj.optString("id", "")),
-                userPrompt = obj.getString("userPrompt"),
-                specialization = AgentSpecialization.valueOf(obj.getString("specialization")),
-                status = AgentTaskStatus.PLANNING,
-                steps = steps,
-                modifiedFiles = if (obj.has("modifiedFiles")) {
-                    val arr = obj.getJSONArray("modifiedFiles")
-                    (0 until arr.length()).map { arr.getString(it) }
-                } else emptyList(),
-                buildTriggered = obj.getBoolean("buildTriggered"),
-                apkUrl = if (obj.has("apkUrl")) obj.getString("apkUrl") else null,
-                timestamp = if (obj.has("timestamp")) obj.getLong("timestamp") else System.currentTimeMillis()
-            )
-            missionHistory = missionHistory + listOf(currentMission!!)
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to import mission: ${e.message}")
-            false
-        }
+        val decoded = decodeMissionSession(jsonString) ?: return false
+        currentMission = decoded
+        missionHistory = missionHistory + listOf(decoded)
+        return true
     }
 
     var keyResolution by remember { mutableStateOf(AgentConnectivityEngine.resolveKeyWithSource(context)) }
@@ -314,7 +228,7 @@ fun AiStudioAgentScreen(
 
     // 🔑 مزامنة النموذج المختار مع المزود النشط (يمنع إرسال نموذج Gemini لمزود OpenRouter مثلاً)
     LaunchedEffect(keyResolution.first) {
-        val models = agentModelsFor(keyResolution.first)
+        val models = keyResolution.first.models
         if (selectedModel.isBlank() || selectedModel !in models) {
             models.firstOrNull()?.let { selectedModel = it }
         }
@@ -353,7 +267,6 @@ fun AiStudioAgentScreen(
         }
     }
 
-    val activeEnginePair = remember { derivedStateOf { UniversalKeyBrain.getActiveEngine() } }
     val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
     val activeRepo = remember(context, vaultTrigger) { RepoVaultManager.getActiveRepo(context) }
     val savedRepositories = remember(context, vaultTrigger) { RepoVaultManager.getRepositories(context) }
@@ -504,7 +417,7 @@ fun AiStudioAgentScreen(
                                 currentMission = finalMission
                             }
                         )
-                    } catch (e: Exception) {
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                         missionFailure = e.message
                         Log.e(TAG, "Execution error: ${e.message}")
                     }
@@ -580,7 +493,7 @@ fun AiStudioAgentScreen(
                     onUpdate = { currentMission = it },
                     onFinished = { finalMissionResult = it; currentMission = it }
                 )
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 missionFailure = e.message
                 Log.e(TAG, "Plan execution error: ${e.message}")
             }
@@ -607,25 +520,15 @@ fun AiStudioAgentScreen(
         executionJob = job
     }
 
-    val quickPrompts = remember {
-        listOf(
-            "أضف شاشة جديدة لمواقيت الصلاة وبوصلة القبلة",
-            "افحص أخطاء البناء والـ CI وصلح ملفات سير العمل",
-            "حسن أداء مشغل الصوت واستهلاك الذاكرة في الخلفية",
-            "ابدأ تشغيل بناء حزمة APK جديدة على GitHub Actions",
-            "تدقيق معماري شامل لملفات التطبيق وحذف الأكواد المهملة"
-        )
-    }
-
     Scaffold(
         bottomBar = bottomBar,
-        containerColor = Color(0xFF05070F),
+        containerColor = QabasTheme.current.background,
         topBar = {
             if (showHub) {
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth().statusBarsPadding(),
-                    backgroundColor = Color(0xFF0B1220).copy(alpha = 0.85f),
-                    borderColor = Color(0xFF22D3EE).copy(alpha = 0.25f)
+                    backgroundColor = QabasTheme.current.cardSurface.copy(alpha = 0.85f),
+                    borderColor = QabasTheme.current.primary.copy(alpha = 0.25f)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                         Row(
@@ -634,14 +537,14 @@ fun AiStudioAgentScreen(
                         ) {
                             IconButton(
                                 onClick = onBack,
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1626)).testTag("agent_hub_back")
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.secondarySurface).testTag("agent_hub_back")
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
                             }
                             Text(
                                 "مركز التطوير الذكي",
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontSize = 15.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -649,15 +552,15 @@ fun AiStudioAgentScreen(
                             )
                             IconButton(
                                 onClick = { showHub = false },
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF10B981).copy(alpha = 0.14f)).testTag("agent_return_chat")
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.success.copy(alpha = 0.14f)).testTag("agent_return_chat")
                             ) {
-                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "فتح المحادثة", tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "فتح المحادثة", tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                             }
                             IconButton(
                                 onClick = { showSettings = true },
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1B2F)).border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape).testTag("agent_open_settings")
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.secondarySurface).border(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f), CircleShape).testTag("agent_open_settings")
                             ) {
-                                Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -666,8 +569,8 @@ fun AiStudioAgentScreen(
                 // Top Bar شاشة المحادثة الرئيسية الذكية
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth().statusBarsPadding(),
-                    backgroundColor = Color(0xFF0B1220).copy(alpha = 0.92f),
-                    borderColor = Color(0xFF22D3EE).copy(alpha = 0.35f)
+                    backgroundColor = QabasTheme.current.cardSurface.copy(alpha = 0.92f),
+                    borderColor = QabasTheme.current.primary.copy(alpha = 0.35f)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                         Row(
@@ -676,9 +579,9 @@ fun AiStudioAgentScreen(
                         ) {
                             IconButton(
                                 onClick = onBack,
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(Color(0xFF0F1626))
+                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.secondarySurface)
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
                             }
 
                             Spacer(Modifier.width(6.dp))
@@ -689,14 +592,14 @@ fun AiStudioAgentScreen(
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(if (showSidePanel) Color(0xFF10B981).copy(alpha = 0.25f) else Color(0xFF0F1B2F))
-                                    .border(1.dp, if (showSidePanel) Color(0xFF10B981) else Color(0xFF22D3EE).copy(alpha = 0.45f), CircleShape)
+                                    .background(if (showSidePanel) QabasTheme.current.success.copy(alpha = 0.25f) else QabasTheme.current.secondarySurface)
+                                    .border(1.dp, if (showSidePanel) QabasTheme.current.success else QabasTheme.current.primary.copy(alpha = 0.45f), CircleShape)
                                     .testTag("agent_toggle_side_panel")
                             ) {
                                 Icon(
                                     imageVector = if (showSidePanel) Icons.Default.MenuOpen else Icons.Default.Menu,
                                     contentDescription = "قائمة المحادثات",
-                                    tint = if (showSidePanel) Color(0xFF10B981) else Color(0xFF22D3EE),
+                                    tint = if (showSidePanel) QabasTheme.current.success else QabasTheme.current.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -713,7 +616,7 @@ fun AiStudioAgentScreen(
                                 Text(
                                     text = currentSessionTitle,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = QabasTheme.current.textPrimary,
                                     fontSize = 13.5.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -760,12 +663,12 @@ fun AiStudioAgentScreen(
                                             Toast.makeText(context, "تم إيقاف الوكيل مؤقتاً ⏸️", Toast.LENGTH_SHORT).show()
                                         }
                                     },
-                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF15263F))
+                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(QabasTheme.current.cardSurface)
                                 ) {
                                     Icon(
                                         imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                                         contentDescription = "Pause/Resume",
-                                        tint = if (isPaused) Color(0xFF10B981) else Color(0xFF38BDF8),
+                                        tint = if (isPaused) QabasTheme.current.success else QabasTheme.current.primary,
                                         modifier = Modifier.size(17.dp)
                                     )
                                 }
@@ -778,12 +681,12 @@ fun AiStudioAgentScreen(
                                         isThinking = false
                                         Toast.makeText(context, "تم إيقاف المهمة ⏹️", Toast.LENGTH_SHORT).show()
                                     },
-                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(QabasTheme.current.destructive.copy(alpha = 0.15f))
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Stop,
                                         contentDescription = "Stop",
-                                        tint = Color(0xFFEF4444),
+                                        tint = QabasTheme.current.destructive,
                                         modifier = Modifier.size(17.dp)
                                     )
                                 }
@@ -796,11 +699,11 @@ fun AiStudioAgentScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF0F1B2F))
-                                    .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f), CircleShape)
+                                    .background(QabasTheme.current.secondarySurface)
+                                    .border(1.dp, QabasTheme.current.accent.copy(alpha = 0.5f), CircleShape)
                                     .testTag("agent_open_hub")
                             ) {
-                                Icon(Icons.Default.Dashboard, contentDescription = "مركز التطوير", tint = Color(0xFF8B5CF6), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Dashboard, contentDescription = "مركز التطوير", tint = QabasTheme.current.accent, modifier = Modifier.size(18.dp))
                             }
 
                             IconButton(
@@ -808,14 +711,14 @@ fun AiStudioAgentScreen(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF0F1B2F))
-                                    .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape)
+                                    .background(QabasTheme.current.secondarySurface)
+                                    .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f), CircleShape)
                                     .testTag("agent_open_settings")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Tune,
                                     contentDescription = "إعدادات الوكيل",
-                                    tint = Color(0xFF22D3EE),
+                                    tint = QabasTheme.current.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -827,7 +730,7 @@ fun AiStudioAgentScreen(
     ) { innerPadding ->
         if (showHub) {
             Column(
-                Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF05070F))
+                Modifier.fillMaxSize().padding(innerPadding).background(QabasTheme.current.background)
             ) {
             // Live telemetry is sourced from the actual GitHub health check and device runtime.
             LiveTelemetryHudStrip(
@@ -899,51 +802,51 @@ fun AiStudioAgentScreen(
 
                         // Container 1: Mode & Team
                         item {
-                        AgentContainer(index = "01", title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = Color(0xFF22D3EE)) {
+                        AgentContainer(index = "01", title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = QabasTheme.current.primary) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.22f) else Color(0xFF0F1626),
-                                        border = BorderStroke(1.dp, if (isTeamMode) Color(0xFF10B981).copy(alpha = 0.7f) else Color(0xFF1E2D4A)),
+                                        color = if (isTeamMode) QabasTheme.current.success.copy(alpha = 0.22f) else QabasTheme.current.secondarySurface,
+                                        border = BorderStroke(1.dp, if (isTeamMode) QabasTheme.current.success.copy(alpha = 0.7f) else QabasTheme.current.separator),
                                         modifier = Modifier.clickable { isTeamMode = !isTeamMode }.testTag("agent_toggle_team_mode")
                                     ) {
                                         Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Groups, contentDescription = null, tint = if (isTeamMode) Color(0xFF10B981) else Color(0xFF8A94A6), modifier = Modifier.size(13.dp))
+                                            Icon(Icons.Default.Groups, contentDescription = null, tint = if (isTeamMode) QabasTheme.current.success else QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(4.dp))
                                             Text(
                                                 text = if (isTeamMode) "فريق متعدد" else "وضع فردي",
                                                 fontSize = 12.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold,
-                                                color = if (isTeamMode) Color(0xFF10B981) else Color(0xFF8A94A6)
+                                                color = if (isTeamMode) QabasTheme.current.success else QabasTheme.current.textSecondary
                                             )
                                         }
                                     }
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth().background(Color(0xFF05070F), RoundedCornerShape(8.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(Modifier.fillMaxWidth().background(QabasTheme.current.background, RoundedCornerShape(8.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (!isOfflineMode) Color(0xFF22D3EE).copy(alpha = 0.25f) else Color.Transparent,
-                                    border = if (!isOfflineMode) BorderStroke(1.dp, Color(0xFF22D3EE)) else null,
+                                    color = if (!isOfflineMode) QabasTheme.current.primary.copy(alpha = 0.25f) else QabasTheme.current.background,
+                                    border = if (!isOfflineMode) BorderStroke(1.dp, QabasTheme.current.primary) else null,
                                     modifier = Modifier.weight(1f).clickable { isOfflineMode = false; OnDeviceModelManager.setOfflineModeActive(context, false) }
                                 ) {
                                     Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("سحابي", fontSize = 12.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6))
+                                        Text("سحابي", fontSize = 12.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary)
                                     }
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (isOfflineMode) Color(0xFF22D3EE).copy(alpha = 0.25f) else Color.Transparent,
-                                    border = if (isOfflineMode) BorderStroke(1.dp, Color(0xFF22D3EE)) else null,
+                                    color = if (isOfflineMode) QabasTheme.current.primary.copy(alpha = 0.25f) else QabasTheme.current.background,
+                                    border = if (isOfflineMode) BorderStroke(1.dp, QabasTheme.current.primary) else null,
                                     modifier = Modifier.weight(1f).clickable { isOfflineMode = true; OnDeviceModelManager.setOfflineModeActive(context, true) }
                                 ) {
                                     Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("محلي", fontSize = 12.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) Color(0xFF22D3EE) else Color(0xFF8A94A6))
+                                        Text("محلي", fontSize = 12.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary)
                                     }
                                 }
                             }
@@ -952,19 +855,19 @@ fun AiStudioAgentScreen(
                                 val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                                    color = if (isLocalInstalled) QabasTheme.current.success.copy(alpha = 0.12f) else QabasTheme.current.warning.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, if (isLocalInstalled) QabasTheme.current.success.copy(alpha = 0.5f) else QabasTheme.current.warning.copy(alpha = 0.5f)),
                                     modifier = Modifier.fillMaxWidth().clickable { showOnDeviceDialog = true }
                                 ) {
                                     Column(Modifier.padding(10.dp)) {
                                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("النموذج: ${activeLocalModel.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Text("النموذج: ${activeLocalModel.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
                                             Text(
                                                 text = if (isLocalInstalled) "جاهز" else "يلزم التنزيل",
                                                 fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                                                color = if (isLocalInstalled) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                                color = if (isLocalInstalled) QabasTheme.current.success else QabasTheme.current.warning,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).background(
-                                                    if (isLocalInstalled) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f),
+                                                    if (isLocalInstalled) QabasTheme.current.success.copy(alpha = 0.2f) else QabasTheme.current.warning.copy(alpha = 0.2f),
                                                     RoundedCornerShape(4.dp)
                                                 )
                                             )
@@ -997,14 +900,14 @@ fun AiStudioAgentScreen(
 
                         // Container 2: Specialization
                         item {
-                        AgentContainer(index = "02", title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = Color(0xFF8B5CF6)) {
+                        AgentContainer(index = "02", title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = QabasTheme.current.accent) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                 items(AgentSpecialization.entries.toTypedArray()) { spec ->
                                     val isSelected = selectedSpec == spec
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) spec.color.copy(alpha = 0.2f) else Color(0xFF070B16),
-                                        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) spec.color else Color(0xFF1E2D4A)),
+                                        color = if (isSelected) spec.color.copy(alpha = 0.2f) else QabasTheme.current.secondarySurface,
+                                        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) spec.color else QabasTheme.current.separator),
                                         modifier = Modifier.heightIn(min = 48.dp).clickable { selectedSpec = spec }.wrapContentWidth()
                                     ) {
                                         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1013,7 +916,7 @@ fun AiStudioAgentScreen(
                                             Text(
                                                 text = spec.title, fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) Color.White else Color(0xFF8A94A6), maxLines = 1
+                                                color = if (isSelected) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary, maxLines = 1
                                             )
                                         }
                                     }
@@ -1024,46 +927,97 @@ fun AiStudioAgentScreen(
 
                         // Container 3: Prompt & Execute
                         item {
-                            AgentContainer(index = "03", title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = Color(0xFF10B981)) {
-                                // مكتبة الأوامر المحفوظة والمفضلة (Saved Prompts Hub)
-                                Text("الأوامر المحفوظة والمفضلة ⭐:", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(4.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                            ) {
-                                val savedFavorites = listOf(
-                                    "تحليل معماري شامل 🏛️" to "قم بتحليل بنية التطبيق المعمارية وتقديم تقرير بالتحسينات الممكنة",
-                                    "فحص أمني وثغرات 🛡️" to "افحص الكود بحثاً عن أي تسريبات للبيانات أو ثغرات أمنية",
-                                    "تحسين سرعة الأداء ⚡" to "اقترح تحسينات لتقليل وقت التجميع واستهلاك الذاكرة",
-                                    "إصلاح أخطاء التجميع 🩺" to "قم بتشغيل الفحص التلقائي وإصلاح أي استدعاءات مفقودة"
+                            AgentContainer(index = "03", title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = QabasTheme.current.success) {
+                                // أوامر محفوظة (12.15): تُحفظ في SharedPreferences —
+                                // إضافة/حذف حقيقية؛ الأوامر الأربعة السابقة مزروعة أول مرة.
+                                Text(
+                                    "أوامر محفوظة (${savedCommands.size}):",
+                                    color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold
                                 )
-                                items(savedFavorites) { (label, fullPrompt) ->
-                                    Surface(
-                                        onClick = { promptInput = fullPrompt },
-                                        color = Color(0xFF0F1B2E),
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(4.dp))
+                                if (savedCommands.isEmpty()) {
+                                    Text(
+                                        "لا أوامر محفوظة بعد — أضف أمراً أدناه.",
+                                        color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 11.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                } else {
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                                     ) {
-                                        Text(
-                                            text = label,
-                                            color = Color(0xFFBAE6FD),
-                                            fontFamily = CairoFont,
-                                            fontSize = 11.sp,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                                        )
+                                        items(savedCommands, key = { it.id }) { command ->
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    onClick = { promptInput = command.prompt },
+                                                    color = QabasTheme.current.secondarySurface,
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    border = BorderStroke(0.8.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
+                                                ) {
+                                                    Text(
+                                                        text = command.label,
+                                                        color = QabasTheme.current.primary,
+                                                        fontFamily = CairoFont,
+                                                        fontSize = 11.sp,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = " ✕",
+                                                    color = QabasTheme.current.destructive,
+                                                    fontFamily = CairoFont,
+                                                    fontSize = 12.sp,
+                                                    modifier = Modifier.clickable {
+                                                        VibeSavedCommands.delete(context, command.id)
+                                                        savedCommands = VibeSavedCommands.list(context)
+                                                    }.padding(horizontal = 2.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                                OutlinedTextField(
+                                    value = newCommandLabel,
+                                    onValueChange = { newCommandLabel = it },
+                                    label = { Text("تسمية الأمر الجديد", fontFamily = CairoFont, fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = newCommandPrompt,
+                                    onValueChange = { newCommandPrompt = it },
+                                    label = { Text("نص الأمر الجديد", fontFamily = CairoFont, fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = {
+                                        val added = VibeSavedCommands.add(context, newCommandLabel, newCommandPrompt)
+                                        if (added != null) {
+                                            savedCommands = VibeSavedCommands.list(context)
+                                            newCommandLabel = ""
+                                            newCommandPrompt = ""
+                                            commandMessage = "تم حفظ الأمر «${added.label}»."
+                                        } else {
+                                            commandMessage = "أدخل تسمية ونصاً للأمر أولاً."
+                                        }
+                                    }) {
+                                        Text("حفظ الأمر", fontFamily = CairoFont, fontSize = 11.sp)
+                                    }
+                                    if (commandMessage.isNotBlank()) {
+                                        Text(commandMessage, color = QabasTheme.current.success, fontFamily = CairoFont, fontSize = 11.sp)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
 
                             OutlinedTextField(
                                 value = promptInput,
                                 onValueChange = { promptInput = it },
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 140.dp).testTag("agent_studio_prompt_input"),
-                                placeholder = { Text("اكتب أمرك هنا...", color = Color(0xFF64748B), fontSize = 12.sp) },
+                                placeholder = { Text("اكتب أمرك هنا...", color = QabasTheme.current.textTertiary, fontSize = 12.sp) },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF22D3EE), unfocusedBorderColor = Color(0xFF1E2D4A),
-                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Color(0xFF22D3EE)
+                                    focusedBorderColor = QabasTheme.current.primary, unfocusedBorderColor = QabasTheme.current.separator,
+                                    focusedTextColor = QabasTheme.current.textPrimary, unfocusedTextColor = QabasTheme.current.textPrimary, cursorColor = QabasTheme.current.primary
                                 ),
                                 shape = RoundedCornerShape(10.dp),
                                 enabled = !isExecuting,
@@ -1079,18 +1033,18 @@ fun AiStudioAgentScreen(
                                         onClick = { showModelPicker = true },
                                         modifier = Modifier.weight(1f).height(46.dp),
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF22D3EE).copy(alpha = 0.08f),
-                                        border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.3f))
+                                        color = QabasTheme.current.primary.copy(alpha = 0.08f),
+                                        border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.3f))
                                     ) {
                                         Row(
                                             Modifier.padding(horizontal = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Icon(Icons.Default.Tune, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.Tune, null, tint = QabasTheme.current.primary, modifier = Modifier.size(16.dp))
                                             Text(
                                                 text = selectedModel.take(22).ifBlank { "اختر النموذج" },
-                                                color = Color.White,
+                                                color = QabasTheme.current.textPrimary,
                                                 fontSize = 11.sp,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
@@ -1104,18 +1058,18 @@ fun AiStudioAgentScreen(
                                         onClick = onOpenTeamConfig,
                                         modifier = Modifier.weight(0.7f).height(46.dp),
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF8B5CF6).copy(alpha = 0.08f),
-                                        border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.3f))
+                                        color = QabasTheme.current.accent.copy(alpha = 0.08f),
+                                        border = BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.3f))
                                     ) {
                                         Row(
                                             Modifier.padding(horizontal = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Icon(Icons.Default.Groups, null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.Groups, null, tint = QabasTheme.current.accent, modifier = Modifier.size(16.dp))
                                             Text(
                                                 text = "الفريق",
-                                                color = Color.White,
+                                                color = QabasTheme.current.textPrimary,
                                                 fontSize = 11.sp,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold
@@ -1127,7 +1081,7 @@ fun AiStudioAgentScreen(
                             }
                             Text(
                                 text = "أوامر ذكية جاهزة:",
-                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B),
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textTertiary,
                                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
                             )
                             LazyRow(
@@ -1146,8 +1100,8 @@ fun AiStudioAgentScreen(
                                     Surface(
                                         onClick = { if (!isExecuting) promptInput = qp },
                                         shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF0F172A),
-                                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                        color = QabasTheme.current.secondarySurface,
+                                        border = BorderStroke(1.dp, QabasTheme.current.separator),
                                         modifier = Modifier.height(38.dp)
                                     ) {
                                         Row(
@@ -1155,8 +1109,8 @@ fun AiStudioAgentScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
-                                            Icon(icon, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
-                                            Text(qp, fontSize = 11.sp, color = Color(0xFFE2E8F0), fontFamily = CairoFont)
+                                            Icon(icon, null, tint = QabasTheme.current.textSecondary, modifier = Modifier.size(14.dp))
+                                            Text(qp, fontSize = 11.sp, color = QabasTheme.current.textPrimary, fontFamily = CairoFont)
                                         }
                                     }
                                 }
@@ -1170,7 +1124,7 @@ fun AiStudioAgentScreen(
                                     Button(
                                         onClick = { executionJob?.cancel(); executionJob = null; isExecuting = false; Toast.makeText(context, "تم إلغاء المهمة", Toast.LENGTH_SHORT).show() },
                                         modifier = Modifier.weight(1f).height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White),
+                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive, contentColor = QabasTheme.current.textPrimary),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
                                         Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(15.dp))
@@ -1213,8 +1167,8 @@ fun AiStudioAgentScreen(
                                         enabled = !isExecuting,
                                         modifier = Modifier.weight(1f).height(48.dp).testTag("agent_studio_execute_btn"),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (!canExecute) Color(0xFFEF4444) else if (isOfflineMode) Color(0xFF22D3EE) else Color(0xFF22D3EE),
-                                            contentColor = if (!canExecute) Color.White else Color(0xFF05070F)
+                                            containerColor = if (!canExecute) QabasTheme.current.destructive else if (isOfflineMode) QabasTheme.current.primary else QabasTheme.current.primary,
+                                            contentColor = if (!canExecute) QabasTheme.current.textPrimary else QabasTheme.current.background
                                         ),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
@@ -1258,11 +1212,11 @@ fun AiStudioAgentScreen(
                                         },
                                         modifier = Modifier.height(46.dp),
                                         shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                        border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.5f))
                                     ) {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("إعادة", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("إعادة", color = QabasTheme.current.success, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -1272,7 +1226,7 @@ fun AiStudioAgentScreen(
                         // Container 4: Active Mission
                         currentMission?.let { mission ->
                             item {
-                                AgentContainer(title = "المهمة الحالية", icon = Icons.Default.Rocket, accent = Color(0xFF8B5CF6)) {
+                                AgentContainer(title = "المهمة الحالية", icon = Icons.Default.Rocket, accent = QabasTheme.current.accent) {
                                     LiveMissionExecutionCard(
                                         mission = mission,
                                         teamProgress = teamProgressText,
@@ -1343,7 +1297,7 @@ fun AiStudioAgentScreen(
                         // Container 5: History
                         if (missionHistory.isNotEmpty()) {
                             item {
-                                AgentContainer(index = "05", title = "سجل العمليات", icon = Icons.Default.History, accent = Color(0xFF8A94A6)) {
+                                AgentContainer(index = "05", title = "سجل العمليات", icon = Icons.Default.History, accent = QabasTheme.current.textSecondary) {
                                     missionHistory.take(5).forEach { itemMission ->
                                         HistoricalMissionCard(itemMission)
                                         Spacer(Modifier.height(6.dp))
@@ -1385,7 +1339,7 @@ fun AiStudioAgentScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .background(Color(0xFF05070F))
+                    .background(QabasTheme.current.background)
             ) {
                 Column(
                     Modifier.fillMaxSize()
@@ -1403,8 +1357,8 @@ fun AiStudioAgentScreen(
                             item {
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = Color(0xFF0B1424),
-                                    border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.35f)),
+                                    color = QabasTheme.current.cardSurface,
+                                    border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.35f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 16.dp)
@@ -1418,20 +1372,20 @@ fun AiStudioAgentScreen(
                                             modifier = Modifier
                                                 .size(52.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF22D3EE).copy(alpha = 0.12f))
-                                                .border(1.5.dp, Color(0xFF22D3EE).copy(alpha = 0.5f), CircleShape),
+                                                .background(QabasTheme.current.primary.copy(alpha = 0.12f))
+                                                .border(1.5.dp, QabasTheme.current.primary.copy(alpha = 0.5f), CircleShape),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.SmartToy,
                                                 contentDescription = null,
-                                                tint = Color(0xFF22D3EE),
+                                                tint = QabasTheme.current.primary,
                                                 modifier = Modifier.size(28.dp)
                                             )
                                         }
                                         Text(
                                             text = "مرحباً بك في غرفة الوكيل البرمجي الذكي 🤖",
-                                            color = Color.White,
+                                            color = QabasTheme.current.textPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp,
@@ -1439,7 +1393,7 @@ fun AiStudioAgentScreen(
                                         )
                                         Text(
                                             text = "تستطيع إرسال أي طلب تعديل، فحص الكود، إصلاح أخطاء، أو بناء ميزات جديدة مباشرة. استخدم الأوامر السريعة أدناه أو اكتب طلبك باللغة العربية.",
-                                            color = Color(0xFF94A3B8),
+                                            color = QabasTheme.current.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
                                             textAlign = TextAlign.Center,
@@ -1462,9 +1416,9 @@ fun AiStudioAgentScreen(
                         if (isThinking || (isRunning && !isPaused)) {
                             item {
                                 Surface(
-                                    color = Color(0xFF0F2038),
+                                    color = QabasTheme.current.secondarySurface,
                                     shape = RoundedCornerShape(14.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                                    border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp)
@@ -1476,12 +1430,12 @@ fun AiStudioAgentScreen(
                                     ) {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(18.dp),
-                                            color = Color(0xFF38BDF8),
+                                            color = QabasTheme.current.primary,
                                             strokeWidth = 2.dp
                                         )
                                         Text(
                                             text = "الوكيل يفكر ويولّد التعديلات البرمجية... 🧠⚡",
-                                            color = Color(0xFF7DD3FC),
+                                            color = QabasTheme.current.primary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium
@@ -1492,7 +1446,7 @@ fun AiStudioAgentScreen(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E293B))
+                    HorizontalDivider(color = QabasTheme.current.separator)
 
                     // شريط الأوامر السريعة
                     LazyRow(
@@ -1518,19 +1472,19 @@ fun AiStudioAgentScreen(
                                         chatInputText = prompt
                                     }
                                 },
-                                color = Color(0xFF22D3EE).copy(alpha = 0.08f),
+                                color = QabasTheme.current.primary.copy(alpha = 0.08f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.35f))
+                                border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.35f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Icon(icon, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(13.dp))
+                                    Icon(icon, null, tint = QabasTheme.current.primary, modifier = Modifier.size(13.dp))
                                     Text(
                                         text = prompt,
-                                        color = Color(0xFFE2E8F0),
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
@@ -1542,7 +1496,7 @@ fun AiStudioAgentScreen(
 
                     // شريط الإدخال
                     Surface(
-                        color = Color(0xFF0A1220),
+                        color = QabasTheme.current.cardSurface,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1570,18 +1524,18 @@ fun AiStudioAgentScreen(
                                 placeholder = {
                                     Text(
                                         "أرسل توجيهاً أو تعديلاً للوكيل...",
-                                        color = Color(0xFF64748B),
+                                        color = QabasTheme.current.textTertiary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp
                                     )
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = Color(0xFF0F1B2E),
-                                    unfocusedContainerColor = Color(0xFF0D1829),
-                                    focusedBorderColor = Color(0xFF10B981),
-                                    unfocusedBorderColor = Color(0xFF1E293B),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    focusedContainerColor = QabasTheme.current.secondarySurface,
+                                    unfocusedContainerColor = QabasTheme.current.cardSurface,
+                                    focusedBorderColor = QabasTheme.current.success,
+                                    unfocusedBorderColor = QabasTheme.current.separator,
+                                    focusedTextColor = QabasTheme.current.textPrimary,
+                                    unfocusedTextColor = QabasTheme.current.textPrimary
                                 ),
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
@@ -1607,10 +1561,10 @@ fun AiStudioAgentScreen(
                                             .padding(end = 4.dp)
                                             .size(34.dp)
                                             .clip(CircleShape)
-                                            .background(if (isTeamMode) Color(0xFFD4AF37).copy(alpha = 0.15f) else Color.Transparent)
+                                            .background(if (isTeamMode) QabasTheme.current.warning.copy(alpha = 0.15f) else QabasTheme.current.background)
                                             .border(
                                                 width = if (isTeamMode) 1.5.dp else 1.dp,
-                                                color = if (isTeamMode) Color(0xFFD4AF37).copy(alpha = teamGlowAlpha) else Color(0xFF22D3EE).copy(alpha = 0.4f),
+                                                color = if (isTeamMode) QabasTheme.current.warning.copy(alpha = teamGlowAlpha) else QabasTheme.current.primary.copy(alpha = 0.4f),
                                                 shape = CircleShape
                                             )
                                             .testTag("agent_chat_toggle_team")
@@ -1618,7 +1572,7 @@ fun AiStudioAgentScreen(
                                         Icon(
                                             imageVector = if (isTeamMode) Icons.Default.Groups else Icons.Default.SmartToy,
                                             contentDescription = "تبديل وضع الفريق",
-                                            tint = if (isTeamMode) Color(0xFFD4AF37).copy(alpha = teamGlowAlpha.coerceAtLeast(0.7f)) else Color(0xFF22D3EE),
+                                            tint = if (isTeamMode) QabasTheme.current.warning.copy(alpha = teamGlowAlpha.coerceAtLeast(0.7f)) else QabasTheme.current.primary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -1635,8 +1589,8 @@ fun AiStudioAgentScreen(
                                 },
                                 enabled = chatInputText.isNotBlank() && !isThinking,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF059669),
-                                    disabledContainerColor = Color(0xFF1E293B)
+                                    containerColor = QabasTheme.current.success,
+                                    disabledContainerColor = QabasTheme.current.separator
                                 ),
                                 shape = RoundedCornerShape(12.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
@@ -1645,7 +1599,7 @@ fun AiStudioAgentScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
                                     contentDescription = "إرسال",
-                                    tint = if (chatInputText.isNotBlank()) Color.White else Color(0xFF64748B),
+                                    tint = if (chatInputText.isNotBlank()) QabasTheme.current.textPrimary else QabasTheme.current.textTertiary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1661,7 +1615,7 @@ fun AiStudioAgentScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.55f))
+                            .background(QabasTheme.current.background.copy(alpha = 0.55f))
                             .clickable { showSidePanel = false }
                     )
 
@@ -1672,8 +1626,8 @@ fun AiStudioAgentScreen(
                             .fillMaxWidth(0.84f)
                             .align(Alignment.CenterStart)
                             .clickable(enabled = false) {},
-                        color = Color(0xF80B1528),
-                        border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.45f)),
+                        color = QabasTheme.current.cardSurface,
+                        border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.45f)),
                         shape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
                         shadowElevation = 24.dp
                     ) {
@@ -1696,20 +1650,20 @@ fun AiStudioAgentScreen(
                                         modifier = Modifier
                                             .size(34.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFF22D3EE).copy(alpha = 0.15f))
-                                            .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f), CircleShape),
+                                            .background(QabasTheme.current.primary.copy(alpha = 0.15f))
+                                            .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             Icons.Default.ChatBubbleOutline,
                                             contentDescription = null,
-                                            tint = Color(0xFF22D3EE),
+                                            tint = QabasTheme.current.primary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
                                     Text(
                                         text = "جلسات المحادثة 💬",
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
@@ -1718,12 +1672,12 @@ fun AiStudioAgentScreen(
 
                                 IconButton(
                                     onClick = { showSidePanel = false },
-                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF131D2E))
+                                    modifier = Modifier.size(34.dp).clip(CircleShape).background(QabasTheme.current.cardSurface)
                                 ) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "إغلاق اللوحة",
-                                        tint = Color(0xFF22D3EE),
+                                        tint = QabasTheme.current.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -1740,8 +1694,8 @@ fun AiStudioAgentScreen(
                                     Toast.makeText(context, "تم بدء محادثة جديدة 💬", Toast.LENGTH_SHORT).show()
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.18f),
-                                border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.8f)),
+                                color = QabasTheme.current.success.copy(alpha = 0.18f),
+                                border = BorderStroke(1.5.dp, QabasTheme.current.success.copy(alpha = 0.8f)),
                                 modifier = Modifier.fillMaxWidth().height(46.dp).testTag("agent_new_chat_btn")
                             ) {
                                 Row(
@@ -1749,11 +1703,11 @@ fun AiStudioAgentScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(Icons.Default.AddComment, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.AddComment, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         text = "+ محادثة جديدة 💬",
-                                        color = Color.White,
+                                        color = QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.5.sp
@@ -1765,7 +1719,7 @@ fun AiStudioAgentScreen(
 
                             Text(
                                 text = "المحادثات السابقة:",
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold
@@ -1778,7 +1732,7 @@ fun AiStudioAgentScreen(
                                     modifier = Modifier.weight(1f).fillMaxWidth(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("لا توجد محادثات سابقة", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 12.sp)
+                                    Text("لا توجد محادثات سابقة", color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 12.sp)
                                 }
                             } else {
                                 LazyColumn(
@@ -1801,10 +1755,10 @@ fun AiStudioAgentScreen(
                                                 Toast.makeText(context, "تم استرجاع المحادثة 💬", Toast.LENGTH_SHORT).show()
                                             },
                                             shape = RoundedCornerShape(10.dp),
-                                            color = if (isCurrent) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFF08101E),
+                                            color = if (isCurrent) QabasTheme.current.success.copy(alpha = 0.12f) else QabasTheme.current.background,
                                             border = BorderStroke(
                                                 1.dp,
-                                                if (isCurrent) Color(0xFF10B981).copy(alpha = 0.65f) else Color(0xFF1E2D4A)
+                                                if (isCurrent) QabasTheme.current.success.copy(alpha = 0.65f) else QabasTheme.current.separator
                                             ),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
@@ -1815,14 +1769,14 @@ fun AiStudioAgentScreen(
                                                 Icon(
                                                     imageVector = if (isCurrent) Icons.Default.CheckCircle else Icons.Default.ChatBubbleOutline,
                                                     contentDescription = null,
-                                                    tint = if (isCurrent) Color(0xFF10B981) else Color(0xFF64748B),
+                                                    tint = if (isCurrent) QabasTheme.current.success else QabasTheme.current.textTertiary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(Modifier.width(8.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
                                                         text = session.title,
-                                                        color = if (isCurrent) Color(0xFF10B981) else Color.White,
+                                                        color = if (isCurrent) QabasTheme.current.success else QabasTheme.current.textPrimary,
                                                         fontSize = 12.sp,
                                                         fontFamily = CairoFont,
                                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
@@ -1835,12 +1789,12 @@ fun AiStudioAgentScreen(
                                                     ) {
                                                         Text(
                                                             text = "${session.messageCount} رسائل",
-                                                            color = Color(0xFF64748B),
+                                                            color = QabasTheme.current.textTertiary,
                                                             fontSize = 10.sp
                                                         )
                                                         Text(
                                                             text = "• $dateStr",
-                                                            color = Color(0xFF475569),
+                                                            color = QabasTheme.current.textTertiary,
                                                             fontSize = 9.5.sp
                                                         )
                                                     }
@@ -1859,7 +1813,7 @@ fun AiStudioAgentScreen(
                                                     Icon(
                                                         Icons.Default.DeleteOutline,
                                                         contentDescription = "حذف الجلسة",
-                                                        tint = Color(0xFFEF4444).copy(alpha = 0.7f),
+                                                        tint = QabasTheme.current.destructive.copy(alpha = 0.7f),
                                                         modifier = Modifier.size(16.dp)
                                                     )
                                                 }
@@ -1922,13 +1876,13 @@ fun AiStudioAgentScreen(
             Surface(
                 modifier = Modifier.fillMaxWidth(0.92f).padding(16.dp),
                 shape = RoundedCornerShape(18.dp),
-                color = Color(0xFF0B1424),
-                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.5f))
+                color = QabasTheme.current.cardSurface,
+                border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "اختر تخصص الوكيل البرمجي 🧠",
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
@@ -1943,8 +1897,8 @@ fun AiStudioAgentScreen(
                                     showSpecChooser = false
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) spec.color.copy(alpha = 0.18f) else Color(0xFF070E1A),
-                                border = BorderStroke(1.dp, if (isSelected) spec.color else Color(0xFF1E2D4A)),
+                                color = if (isSelected) spec.color.copy(alpha = 0.18f) else QabasTheme.current.secondarySurface,
+                                border = BorderStroke(1.dp, if (isSelected) spec.color else QabasTheme.current.separator),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -1954,8 +1908,8 @@ fun AiStudioAgentScreen(
                                 ) {
                                     Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(20.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(spec.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                        Text(spec.description, color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                                        Text(spec.title, color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                        Text(spec.description, color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
                                     }
                                     if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, tint = spec.color, modifier = Modifier.size(16.dp))
@@ -1977,33 +1931,33 @@ fun AiStudioAgentScreen(
     }
     if (showModelPicker) {
         val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
-        val models = agentModelsFor(provider)
+        val models = provider.models
         Dialog(
             onDismissRequest = { showModelPicker = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(0.88f).padding(16.dp),
-                color = Color(0xFF0B1220),
+                color = QabasTheme.current.cardSurface,
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f))
+                border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF22D3EE).copy(alpha = 0.1f)),
+                            Modifier.size(36.dp).clip(CircleShape).background(QabasTheme.current.primary.copy(alpha = 0.1f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.AutoAwesome, null, tint = QabasTheme.current.primary, modifier = Modifier.size(20.dp))
                         }
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text("محرك الذكاء", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = CairoFont)
-                            Text(provider.name, color = Color(0xFF22D3EE), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("محرك الذكاء", color = QabasTheme.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = CairoFont)
+                            Text(provider.name, color = QabasTheme.current.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { showModelPicker = false }) {
-                            Icon(Icons.Default.Close, null, tint = Color(0xFF64748B))
+                            Icon(Icons.Default.Close, null, tint = QabasTheme.current.textTertiary)
                         }
                     }
                     
@@ -2024,8 +1978,8 @@ fun AiStudioAgentScreen(
                             Surface(
                                 onClick = { selectedModel = m; showModelPicker = false },
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) Color(0xFF22D3EE).copy(alpha = 0.12f) else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (isSelected) Color(0xFF22D3EE).copy(alpha = 0.6f) else Color(0xFF1E293B)),
+                                color = if (isSelected) QabasTheme.current.primary.copy(alpha = 0.12f) else QabasTheme.current.secondarySurface,
+                                border = BorderStroke(1.dp, if (isSelected) QabasTheme.current.primary.copy(alpha = 0.6f) else QabasTheme.current.separator),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -2034,20 +1988,20 @@ fun AiStudioAgentScreen(
                                 ) {
                                     Icon(
                                         modelIcon, null, 
-                                        tint = if (isSelected) Color(0xFF22D3EE) else Color(0xFF64748B),
+                                        tint = if (isSelected) QabasTheme.current.primary else QabasTheme.current.textTertiary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(Modifier.width(12.dp))
                                     Text(
                                         text = m,
-                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        color = if (isSelected) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 13.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         modifier = Modifier.weight(1f)
                                     )
                                     if (isSelected) {
-                                        Icon(Icons.Default.Check, null, tint = Color(0xFF22D3EE), modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Check, null, tint = QabasTheme.current.primary, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
@@ -2069,13 +2023,13 @@ fun AiStudioAgentScreen(
     if (showExitConfirmation) {
         AlertDialog(
             onDismissRequest = { showExitConfirmation = false },
-            title = { Text("تأكيد الخروج", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
-            text = { Text("هل تريد حقاً الخروج من التطبيق؟", color = Color(0xFFE2E8F0), fontFamily = NotoSansFont) },
+            title = { Text("تأكيد الخروج", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold) },
+            text = { Text("هل تريد حقاً الخروج من التطبيق؟", color = QabasTheme.current.textPrimary, fontFamily = NotoSansFont) },
             confirmButton = {
-                TextButton(onClick = { showExitConfirmation = false; onBack() }) { Text("نعم، خروج", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { showExitConfirmation = false; onBack() }) { Text("نعم، خروج", color = QabasTheme.current.destructive, fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showExitConfirmation = false }) { Text("إلغاء", color = Color(0xFF8A94A6), fontFamily = CairoFont) }
+                TextButton(onClick = { showExitConfirmation = false }) { Text("إلغاء", color = QabasTheme.current.textSecondary, fontFamily = CairoFont) }
             },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         )
@@ -2093,7 +2047,7 @@ private fun AgentContainer(
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xEE0B1220),
+        color = QabasTheme.current.cardSurface,
         border = BorderStroke(1.dp, accent.copy(alpha = 0.22f)),
         modifier = modifier.fillMaxWidth()
     ) {
@@ -2111,12 +2065,12 @@ private fun AgentContainer(
                 }
                 Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE6EDF7), maxLines = 1)
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary, maxLines = 1)
             }
             Spacer(Modifier.height(4.dp))
             Box(
                 Modifier.fillMaxWidth().height(1.dp).background(
-                    Brush.horizontalGradient(listOf(accent.copy(alpha = 0.5f), accent.copy(alpha = 0.1f), Color.Transparent))
+                    Brush.horizontalGradient(listOf(accent.copy(alpha = 0.5f), accent.copy(alpha = 0.1f), accent.copy(alpha = 0f)))
                 )
             )
             Spacer(Modifier.height(12.dp))
@@ -2136,20 +2090,20 @@ private fun HealthPill(
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = if (isConnected) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, if (isConnected) Color(0xFF10B981).copy(alpha = 0.45f) else Color(0xFFF59E0B).copy(alpha = 0.45f)),
+        color = if (isConnected) QabasTheme.current.success.copy(alpha = 0.12f) else QabasTheme.current.warning.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, if (isConnected) QabasTheme.current.success.copy(alpha = 0.45f) else QabasTheme.current.warning.copy(alpha = 0.45f)),
         modifier = modifier.clickable(onClick = onClick)
     ) {
         Column(Modifier.padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B)))
+                Box(Modifier.size(7.dp).clip(CircleShape).background(if (isConnected) QabasTheme.current.success else QabasTheme.current.warning))
                 Spacer(Modifier.width(5.dp))
-                Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
                 Spacer(Modifier.weight(1f))
-                if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) Color(0xFF10B981) else Color(0xFFF59E0B))
+                if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) QabasTheme.current.success else QabasTheme.current.warning)
             }
             Spacer(Modifier.height(3.dp))
-            Text(detail.take(50), fontSize = 12.sp, color = Color(0xFFE6EDF7), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail.take(50), fontSize = 12.sp, color = QabasTheme.current.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -2167,7 +2121,7 @@ private fun UnifiedToolsAndReadinessSection(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF05070F))
+            .background(QabasTheme.current.background)
     ) {
         AgentHubPageIntro(
             index = "06",
@@ -2181,14 +2135,14 @@ private fun UnifiedToolsAndReadinessSection(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF0A101E))
+                .background(QabasTheme.current.background)
                 .border(
                     BorderStroke(
                         1.dp,
                         Brush.horizontalGradient(
                             listOf(
-                                Color(0xFF22D3EE).copy(alpha = 0.4f),
-                                Color(0xFF10B981).copy(alpha = 0.4f)
+                                QabasTheme.current.primary.copy(alpha = 0.4f),
+                                QabasTheme.current.success.copy(alpha = 0.4f)
                             )
                         )
                     ),
@@ -2199,8 +2153,8 @@ private fun UnifiedToolsAndReadinessSection(
         ) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 0) Color(0xFF22D3EE).copy(alpha = 0.22f) else Color.Transparent,
-                border = if (subTab == 0) BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.7f)) else null,
+                color = if (subTab == 0) QabasTheme.current.primary.copy(alpha = 0.22f) else QabasTheme.current.background,
+                border = if (subTab == 0) BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.7f)) else null,
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minHeight = 48.dp)
@@ -2215,7 +2169,7 @@ private fun UnifiedToolsAndReadinessSection(
                     Icon(
                         imageVector = Icons.Default.Shield,
                         contentDescription = null,
-                        tint = if (subTab == 0) Color(0xFF22D3EE) else Color(0xFF8A94A6),
+                        tint = if (subTab == 0) QabasTheme.current.primary else QabasTheme.current.textSecondary,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -2224,7 +2178,7 @@ private fun UnifiedToolsAndReadinessSection(
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (subTab == 0) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 0) Color.White else Color(0xFF8A94A6),
+                        color = if (subTab == 0) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -2233,8 +2187,8 @@ private fun UnifiedToolsAndReadinessSection(
 
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 1) Color(0xFF10B981).copy(alpha = 0.22f) else Color.Transparent,
-                border = if (subTab == 1) BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.7f)) else null,
+                color = if (subTab == 1) QabasTheme.current.success.copy(alpha = 0.22f) else QabasTheme.current.background,
+                border = if (subTab == 1) BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.7f)) else null,
                 modifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minHeight = 48.dp)
@@ -2249,7 +2203,7 @@ private fun UnifiedToolsAndReadinessSection(
                     Icon(
                         imageVector = Icons.Default.Handyman,
                         contentDescription = null,
-                        tint = if (subTab == 1) Color(0xFF10B981) else Color(0xFF8A94A6),
+                        tint = if (subTab == 1) QabasTheme.current.success else QabasTheme.current.textSecondary,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -2258,7 +2212,7 @@ private fun UnifiedToolsAndReadinessSection(
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (subTab == 1) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 1) Color.White else Color(0xFF8A94A6),
+                        color = if (subTab == 1) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -2301,7 +2255,8 @@ private fun AgentCyberSettingsBottomSheet(
     var maxTurns by remember { mutableStateOf(AgentPrefs.maxTurns(context).coerceIn(3, 25)) }
     var isAutoFix by remember { mutableStateOf(AgentPrefs.isAutoFix(context)) }
     var isAutonomousMode by remember {
-        mutableStateOf(AgentPrefs.getBoolean(context, "agent_autonomous_mode", true))
+        // (12.9) الافتراضي متوقف — كان true (تنفيذ بلا تأكيد لكل خطوة).
+        mutableStateOf(AgentPrefs.isAutonomousMode(context))
     }
     var isPlanningMode by remember {
         mutableStateOf(AgentPrefs.isPlanningMode(context))
@@ -2312,9 +2267,9 @@ private fun AgentCyberSettingsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF070D18),
-        scrimColor = Color.Black.copy(alpha = 0.65f),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF1E2D4A)) }
+        containerColor = QabasTheme.current.background,
+        scrimColor = QabasTheme.current.background.copy(alpha = 0.65f),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = QabasTheme.current.separator) }
     ) {
         Column(
             modifier = Modifier
@@ -2338,28 +2293,28 @@ private fun AgentCyberSettingsBottomSheet(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF22D3EE).copy(alpha = 0.15f))
-                            .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f), CircleShape),
+                            .background(QabasTheme.current.primary.copy(alpha = 0.15f))
+                            .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = null,
-                            tint = Color(0xFF22D3EE),
+                            tint = QabasTheme.current.primary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                     Column {
                         Text(
                             text = "مركز إعدادات وتحكم الوكيل ⚙️",
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
                             text = "تخصيص نماذج الذكاء، ضبط النواة، والمستودع",
-                            color = Color(0xFF94A3B8),
+                            color = QabasTheme.current.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp
                         )
@@ -2373,7 +2328,7 @@ private fun AgentCyberSettingsBottomSheet(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "إغلاق",
-                        tint = Color(0xFF94A3B8)
+                        tint = QabasTheme.current.textSecondary
                     )
                 }
             }
@@ -2385,8 +2340,8 @@ private fun AgentCyberSettingsBottomSheet(
                     onOpenDevTools()
                 },
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF0F2038),
-                border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.7f)),
+                color = QabasTheme.current.secondarySurface,
+                border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.7f)),
                 modifier = Modifier.fillMaxWidth().testTag("agent_settings_open_dev_console")
             ) {
                 Row(
@@ -2398,23 +2353,23 @@ private fun AgentCyberSettingsBottomSheet(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF22D3EE).copy(alpha = 0.15f))
-                            .border(1.dp, Color(0xFF22D3EE).copy(alpha = 0.4f), CircleShape),
+                            .background(QabasTheme.current.primary.copy(alpha = 0.15f))
+                            .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Terminal, contentDescription = null, tint = Color(0xFF22D3EE), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Terminal, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "الكونسول المباشر وأدوات المطور 🛠️⚡",
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
                             text = "تشخيص المحرك الحي، سجل العمليات، وإعدادات الوكيل",
-                            color = Color(0xFF94A3B8),
+                            color = QabasTheme.current.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 10.5.sp
                         )
@@ -2422,7 +2377,7 @@ private fun AgentCyberSettingsBottomSheet(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = Color(0xFF22D3EE),
+                        tint = QabasTheme.current.primary,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -2433,10 +2388,10 @@ private fun AgentCyberSettingsBottomSheet(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF0D1527),
+                color = QabasTheme.current.cardSurface,
                 border = BorderStroke(
                     1.dp,
-                    if (activeTasksCount > 0) Color(0xFFA855F7).copy(alpha = 0.8f) else Color(0xFF1E2D4A)
+                    if (activeTasksCount > 0) QabasTheme.current.accent.copy(alpha = 0.8f) else QabasTheme.current.separator
                 )
             ) {
                 Row(
@@ -2454,19 +2409,19 @@ private fun AgentCyberSettingsBottomSheet(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(if (activeTasksCount > 0) Color(0xFFA855F7) else Color(0xFF64748B))
+                                .background(if (activeTasksCount > 0) QabasTheme.current.accent else QabasTheme.current.textTertiary)
                         )
                         Column {
                             Text(
                                 text = "مهام التخطيط النشطة (Active Planning Tasks)",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )
                             Text(
                                 text = if (activeTasksCount > 0) "يوجد $activeTasksCount مهمة تخطيط معلقة في وضع Planning Mode" else "لا توجد مهام تخطيط معلقة حالياً",
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp
                             )
@@ -2475,15 +2430,15 @@ private fun AgentCyberSettingsBottomSheet(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (activeTasksCount > 0) Color(0xFFA855F7).copy(alpha = 0.2f) else Color(0xFF1E2D4A),
+                        color = if (activeTasksCount > 0) QabasTheme.current.accent.copy(alpha = 0.2f) else QabasTheme.current.separator,
                         border = BorderStroke(
                             1.dp,
-                            if (activeTasksCount > 0) Color(0xFFA855F7) else Color(0xFF334155)
+                            if (activeTasksCount > 0) QabasTheme.current.accent else QabasTheme.current.separator
                         )
                     ) {
                         Text(
                             text = "🧠 $activeTasksCount",
-                            color = if (activeTasksCount > 0) Color(0xFFE9D5FF) else Color(0xFF94A3B8),
+                            color = if (activeTasksCount > 0) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
@@ -2498,8 +2453,8 @@ private fun AgentCyberSettingsBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0C192E))
-                    .border(1.dp, Color(0xFF1E2D4A), RoundedCornerShape(12.dp))
+                    .background(QabasTheme.current.cardSurface)
+                    .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2510,7 +2465,7 @@ private fun AgentCyberSettingsBottomSheet(
                     ) {
                         Text(
                             text = "01 | نموذج الذكاء الاصطناعي والاستدلال",
-                            color = Color(0xFF38BDF8),
+                            color = QabasTheme.current.primary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -2518,13 +2473,13 @@ private fun AgentCyberSettingsBottomSheet(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                                .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .background(QabasTheme.current.success.copy(alpha = 0.15f))
+                                .border(1.dp, QabasTheme.current.success.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = "المزود: ${activeEnginePair.first.name}",
-                                color = Color(0xFF10B981),
+                                color = QabasTheme.current.success,
                                 fontFamily = CairoFont,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
@@ -2534,7 +2489,7 @@ private fun AgentCyberSettingsBottomSheet(
 
                     Text(
                         text = "اختر النموذج الذي يقود خطوات التفكير البرمجي وتوليد الكود:",
-                        color = Color(0xFFCBD5E1),
+                        color = QabasTheme.current.textPrimary,
                         fontFamily = CairoFont,
                         fontSize = 10.sp
                     )
@@ -2555,10 +2510,10 @@ private fun AgentCyberSettingsBottomSheet(
                                     AgentPrefs.putModel(context, id)
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF091220),
+                                color = if (isSelected) QabasTheme.current.success.copy(alpha = 0.15f) else QabasTheme.current.secondarySurface,
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) Color(0xFF10B981) else Color(0xFF1E2D4A)
+                                    if (isSelected) QabasTheme.current.success else QabasTheme.current.separator
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -2569,7 +2524,7 @@ private fun AgentCyberSettingsBottomSheet(
                                 ) {
                                     Text(
                                         text = label,
-                                        color = if (isSelected) Color(0xFF10B981) else Color.White,
+                                        color = if (isSelected) QabasTheme.current.success else QabasTheme.current.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -2577,7 +2532,7 @@ private fun AgentCyberSettingsBottomSheet(
                                     if (isSelected) {
                                         Text(
                                             text = "✓ نشط",
-                                            color = Color(0xFF10B981),
+                                            color = QabasTheme.current.success,
                                             fontFamily = CairoFont,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
@@ -2595,14 +2550,14 @@ private fun AgentCyberSettingsBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0C192E))
-                    .border(1.dp, Color(0xFF1E2D4A), RoundedCornerShape(12.dp))
+                    .background(QabasTheme.current.cardSurface)
+                    .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text = "02 | معاملات النواة والجولات البرمجية",
-                        color = Color(0xFFE5B842),
+                        color = QabasTheme.current.warning,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -2617,13 +2572,13 @@ private fun AgentCyberSettingsBottomSheet(
                         ) {
                             Text(
                                 text = "حد جولات تفكير الوكيل (Max Turns):",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp
                             )
                             Text(
                                 text = "$maxTurns جولة",
-                                color = Color(0xFFE5B842),
+                                color = QabasTheme.current.warning,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -2640,14 +2595,14 @@ private fun AgentCyberSettingsBottomSheet(
                             valueRange = 3f..25f,
                             steps = 21,
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFFE5B842),
-                                activeTrackColor = Color(0xFFE5B842),
-                                inactiveTrackColor = Color(0xFF1E2D4A)
+                                thumbColor = QabasTheme.current.warning,
+                                activeTrackColor = QabasTheme.current.warning,
+                                inactiveTrackColor = QabasTheme.current.separator
                             )
                         )
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E2D4A))
+                    HorizontalDivider(color = QabasTheme.current.separator)
 
                     // Self-Repair Toggle
                     Row(
@@ -2658,14 +2613,14 @@ private fun AgentCyberSettingsBottomSheet(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "الإصلاح الذاتي للأخطاء البرمجية (Self-Repair)",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )
                             Text(
                                 text = "يفحص أخطاء البناء والـ Lint ويصلحها تلقائياً قبل تسليم الكود.",
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp
                             )
@@ -2677,13 +2632,13 @@ private fun AgentCyberSettingsBottomSheet(
                                 AgentPrefs.putAutoFix(context, it)
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF050B14),
-                                checkedTrackColor = Color(0xFF10B981)
+                                checkedThumbColor = QabasTheme.current.onPrimary,
+                                checkedTrackColor = QabasTheme.current.success
                             )
                         )
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E2D4A))
+                    HorizontalDivider(color = QabasTheme.current.separator)
 
                     // Autonomous Execution Toggle
                     Row(
@@ -2694,14 +2649,14 @@ private fun AgentCyberSettingsBottomSheet(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "النمط المستقل التلقائي (Autonomous Mode)",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )
                             Text(
                                 text = "متابعة تنفيذ مراحل المهمة المتتالية دون طلب تأكيد لكل خطوة.",
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp
                             )
@@ -2710,16 +2665,16 @@ private fun AgentCyberSettingsBottomSheet(
                             checked = isAutonomousMode,
                             onCheckedChange = {
                                 isAutonomousMode = it
-                                AgentPrefs.putBoolean(context, "agent_autonomous_mode", it)
+                                AgentPrefs.putAutonomousMode(context, it)
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF050B14),
-                                checkedTrackColor = Color(0xFF38BDF8)
+                                checkedThumbColor = QabasTheme.current.onPrimary,
+                                checkedTrackColor = QabasTheme.current.primary
                             )
                         )
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E2D4A))
+                    HorizontalDivider(color = QabasTheme.current.separator)
 
                     // Planning / Architect Mode Toggle
                     Row(
@@ -2730,14 +2685,14 @@ private fun AgentCyberSettingsBottomSheet(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "وضع التخطيط الهيكلي (Architect / Planning Mode) 🧠",
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )
                             Text(
                                 text = "إنشاء بطاقة خطة تفاعلية والموافقة عليها قبل البدء بكتابة وتطبيق الكود.",
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp
                             )
@@ -2749,8 +2704,8 @@ private fun AgentCyberSettingsBottomSheet(
                                 AgentPrefs.putPlanningMode(context, it)
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF050B14),
-                                checkedTrackColor = Color(0xFFA855F7)
+                                checkedThumbColor = QabasTheme.current.onPrimary,
+                                checkedTrackColor = QabasTheme.current.accent
                             )
                         )
                     }
@@ -2762,14 +2717,14 @@ private fun AgentCyberSettingsBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0C192E))
-                    .border(1.dp, Color(0xFF1E2D4A), RoundedCornerShape(12.dp))
+                    .background(QabasTheme.current.cardSurface)
+                    .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "03 | مفاتيح API ومستودع GitHub",
-                        color = Color(0xFFA855F7),
+                        color = QabasTheme.current.accent,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -2785,11 +2740,11 @@ private fun AgentCyberSettingsBottomSheet(
                                 onOpenApiKeys()
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF8B5CF6).copy(alpha = 0.2f),
-                                contentColor = Color(0xFFA78BFA)
+                                containerColor = QabasTheme.current.accent.copy(alpha = 0.2f),
+                                contentColor = QabasTheme.current.accent
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(40.dp)
@@ -2805,11 +2760,11 @@ private fun AgentCyberSettingsBottomSheet(
                                 onOpenRepoSetup()
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF10B981).copy(alpha = 0.2f),
-                                contentColor = Color(0xFF34D399)
+                                containerColor = QabasTheme.current.success.copy(alpha = 0.2f),
+                                contentColor = QabasTheme.current.success
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(40.dp)
@@ -2825,20 +2780,20 @@ private fun AgentCyberSettingsBottomSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF08101E))
+                            .background(QabasTheme.current.background)
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = "المستودع المتصل:",
-                            color = Color(0xFF94A3B8),
+                            color = QabasTheme.current.textSecondary,
                             fontFamily = CairoFont,
                             fontSize = 10.sp
                         )
                         Text(
                             text = activeRepo?.fullName ?: "Ali-awwww/qabasapp",
-                            color = Color(0xFF38BDF8),
+                            color = QabasTheme.current.primary,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp
@@ -2854,8 +2809,8 @@ private fun AgentCyberSettingsBottomSheet(
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF22D3EE),
-                    contentColor = Color(0xFF050B14)
+                    containerColor = QabasTheme.current.primary,
+                    contentColor = QabasTheme.current.onPrimary
                 ),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier

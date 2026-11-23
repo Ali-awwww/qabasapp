@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.components.GlassmorphicSurface
@@ -77,6 +76,7 @@ fun AIAssistantScreen(
     }
 ) {
     BackHandler { onBack() }
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -198,10 +198,8 @@ fun AIAssistantScreen(
     var isTyping by remember { mutableStateOf(false) }
     var lastFailedPrompt by remember { mutableStateOf<String?>(null) }
 
-    var hasGeminiKey by remember {
-        // Connected via Firebase AI Logic (Gemini 3.8 Flash)
-        mutableStateOf(true)
-    }
+    // (R49) لا شارة «متصل» هنا: لا يوجد فحص حي للاتصال في هذه الشاشة،
+    // فالشريحة أدناه تسمية محرك فقط لا حالة اتصال.
 
     // انيميشن النبض السيبراني وشعاع المسح الفضائي
     val infiniteTransition = rememberInfiniteTransition(label = "hud_cyber_matrix")
@@ -279,7 +277,9 @@ fun AIAssistantScreen(
                 val response = if (toolsMode && orKey.isNotBlank()) {
                     val (text, used) = OpenRouterService.chatWithToolsPooled(
                         fullSystemInstruction, contextHistory,
-                        AiTools.definitions(context), selectedOrModel
+                        AiTools.definitions(context), selectedOrModel,
+                        // (12.6) تمرير السياق ليُفرض تفعيل الأدوات وبوابة المدمر في الحلقة.
+                        context = context
                     )
                     val finalText = text.ifBlank { "تعذر التنفيذ بالأدوات — أُعيد التوجيه للمسار العادي." }
                     if (text.isBlank()) {
@@ -292,7 +292,7 @@ fun AIAssistantScreen(
                 }
                 isTyping = false
                 messages.add(Pair(true, response))
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 isTyping = false
                 lastFailedPrompt = textToSend
                 val errorMsg = "⚠️ حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: ${e.localizedMessage ?: "يرجى التحقق من الاتصال بالإنترنت ومفاتيح الـ API في الإعدادات."}"
@@ -304,7 +304,7 @@ fun AIAssistantScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF030712))
+            .background(theme.background)
     ) {
         // ── شبكة القيادة الفضائية الكوانتية (Spatial HUD Grid Canvas) ──
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -359,8 +359,8 @@ fun AIAssistantScreen(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color(0xFF090D1A).copy(alpha = 0.95f),
-                                    Color(0xFF030712).copy(alpha = 0.85f)
+                                    theme.background.copy(alpha = 0.95f),
+                                    theme.background.copy(alpha = 0.85f)
                                 )
                             )
                         )
@@ -415,7 +415,7 @@ fun AIAssistantScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "المساعد الدعوي والإنتاجي الذكي",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
@@ -442,7 +442,7 @@ fun AIAssistantScreen(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CutCornerShape(6.dp))
-                                    .background(Color(0xFF111827))
+                                    .background(theme.cardSurface)
                                     .border(0.8.dp, primaryColor.copy(alpha = 0.4f), CutCornerShape(6.dp))
                             ) {
                                 Icon(
@@ -462,13 +462,13 @@ fun AIAssistantScreen(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CutCornerShape(6.dp))
-                                    .background(Color(0xFF111827))
-                                    .border(0.8.dp, Color(0xFFEF4444).copy(alpha = 0.35f), CutCornerShape(6.dp))
+                                    .background(theme.cardSurface)
+                                    .border(0.8.dp, theme.destructive.copy(alpha = 0.35f), CutCornerShape(6.dp))
                             ) {
                                 Icon(
                                     Icons.Default.DeleteOutline,
                                     contentDescription = "مسح المحادثة",
-                                    tint = Color(0xFFF87171),
+                                    tint = theme.destructive,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -493,8 +493,8 @@ fun AIAssistantScreen(
                 ) {
                     GlassmorphicSurface(
                         shape = CutCornerShape(6.dp),
-                        backgroundColor = if (hasGeminiKey) Color(0xFF064E3B).copy(alpha = 0.35f) else Color(0xFF78350F).copy(alpha = 0.35f),
-                        borderColor = if (hasGeminiKey) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFF59E0B).copy(alpha = 0.5f),
+                        backgroundColor = theme.success.copy(alpha = 0.35f),
+                        borderColor = theme.success.copy(alpha = 0.5f),
                         borderWidth = 0.8.dp,
                         modifier = Modifier.wrapContentWidth()
                     ) {
@@ -506,12 +506,15 @@ fun AIAssistantScreen(
                                 modifier = Modifier
                                     .size(7.dp)
                                     .clip(CircleShape)
-                                    .background(if (hasGeminiKey) Color(0xFF10B981) else Color(0xFFF59E0B))
+                                    .background(theme.success)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "محرك Gemini 3.8 Flash متصل سحابياً (Firebase AI Logic) ✦",
-                                color = Color(0xFF6EE7B7),
+                                // (R49) كانت «متصل سحابياً» بادعاء ثابت: hasGeminiKey
+                                // مثبَّتة true ولا فحص حي وراءها — نفس فئة شارة
+                                // الجولة 24. الشريحة الآن تسمية محرك فقط.
+                                text = "محرك Gemini 3.8 Flash (Firebase AI Logic) ✦",
+                                color = theme.success,
                                 fontSize = 10.5.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold
@@ -520,7 +523,7 @@ fun AIAssistantScreen(
                     }
 
                     Surface(
-                        color = Color(0xFF111827).copy(alpha = 0.7f),
+                        color = theme.cardSurface.copy(alpha = 0.7f),
                         shape = CutCornerShape(6.dp),
                         border = BorderStroke(0.6.dp, primaryColor.copy(alpha = 0.3f))
                     ) {
@@ -551,8 +554,8 @@ fun AIAssistantScreen(
 
                         GlassmorphicSurface(
                             shape = CutCornerShape(8.dp),
-                            backgroundColor = if (isSelected) primaryColor.copy(alpha = 0.22f) else Color(0xFF0F172A).copy(alpha = 0.65f),
-                            borderColor = if (isSelected) primaryColor else Color(0xFF1E293B),
+                            backgroundColor = if (isSelected) primaryColor.copy(alpha = 0.22f) else theme.cardSurface.copy(alpha = 0.65f),
+                            borderColor = if (isSelected) primaryColor else theme.secondarySurface,
                             borderWidth = if (isSelected) 1.2.dp else 0.7.dp,
                             modifier = Modifier.clickable {
                                 if (selectedPresetIndex != index) {
@@ -578,7 +581,7 @@ fun AIAssistantScreen(
                                     fontFamily = CairoFont,
                                     fontSize = 11.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else TextSecondary
+                                    color = if (isSelected) theme.textPrimary else TextSecondary
                                 )
                             }
                         }
@@ -596,8 +599,8 @@ fun AIAssistantScreen(
                         item {
                             GlassmorphicSurface(
                                 shape = CutCornerShape(6.dp),
-                                backgroundColor = if (toolsMode) primaryColor.copy(alpha = 0.2f) else Color(0xFF0B1120),
-                                borderColor = if (toolsMode) primaryColor else Color(0xFF1E293B),
+                                backgroundColor = if (toolsMode) primaryColor.copy(alpha = 0.2f) else theme.background,
+                                borderColor = if (toolsMode) primaryColor else theme.secondarySurface,
                                 borderWidth = 0.8.dp,
                                 modifier = Modifier.clickable { toolsMode = !toolsMode }
                             ) {
@@ -614,8 +617,8 @@ fun AIAssistantScreen(
                         item {
                             GlassmorphicSurface(
                                 shape = CutCornerShape(6.dp),
-                                backgroundColor = if (selectedOrModel == null) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF0B1120),
-                                borderColor = if (selectedOrModel == null) Color(0xFF10B981) else Color(0xFF1E293B),
+                                backgroundColor = if (selectedOrModel == null) theme.success.copy(alpha = 0.2f) else theme.background,
+                                borderColor = if (selectedOrModel == null) theme.success else theme.secondarySurface,
                                 borderWidth = 0.8.dp,
                                 modifier = Modifier.clickable { selectedOrModel = null }
                             ) {
@@ -623,7 +626,7 @@ fun AIAssistantScreen(
                                     "⚡ نموذج تلقائي",
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
-                                    color = if (selectedOrModel == null) Color(0xFF6EE7B7) else TextSecondary,
+                                    color = if (selectedOrModel == null) theme.success else TextSecondary,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                 )
                             }
@@ -636,8 +639,8 @@ fun AIAssistantScreen(
                             val isChosen = selectedOrModel == modelId
                             GlassmorphicSurface(
                                 shape = CutCornerShape(6.dp),
-                                backgroundColor = if (isChosen) Color(0xFF38BDF8).copy(alpha = 0.2f) else Color(0xFF0B1120),
-                                borderColor = if (isChosen) Color(0xFF38BDF8) else Color(0xFF1E293B),
+                                backgroundColor = if (isChosen) theme.primary.copy(alpha = 0.2f) else theme.background,
+                                borderColor = if (isChosen) theme.primary else theme.secondarySurface,
                                 borderWidth = 0.8.dp,
                                 modifier = Modifier.clickable {
                                     selectedOrModel = if (isChosen) null else modelId
@@ -647,7 +650,7 @@ fun AIAssistantScreen(
                                     orModelLabels[modelId] ?: modelId,
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
-                                    color = if (isChosen) Color(0xFF7DD3FC) else TextSecondary,
+                                    color = if (isChosen) theme.primary else TextSecondary,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                 )
                             }
@@ -672,7 +675,7 @@ fun AIAssistantScreen(
                             ) {
                                 GlassmorphicSurface(
                                     shape = CutCornerShape(12.dp),
-                                    backgroundColor = Color(0xFF0A0F1D).copy(alpha = 0.85f),
+                                    backgroundColor = theme.background.copy(alpha = 0.85f),
                                     borderColor = primaryColor.copy(alpha = 0.6f),
                                     borderWidth = 1.dp,
                                     modifier = Modifier.fillMaxWidth(0.92f)
@@ -741,7 +744,7 @@ fun AIAssistantScreen(
                                             bottomStart = if (isAi) 2.dp else 12.dp,
                                             bottomEnd = if (isAi) 12.dp else 2.dp
                                         ),
-                                        backgroundColor = if (isAi) Color(0xFF090E1C).copy(alpha = 0.92f) else primaryColor.copy(alpha = 0.16f),
+                                        backgroundColor = if (isAi) theme.background.copy(alpha = 0.92f) else primaryColor.copy(alpha = 0.16f),
                                         borderColor = if (isAi) primaryColor.copy(alpha = 0.35f) else primaryColor.copy(alpha = 0.7f),
                                         borderWidth = 1.dp,
                                         modifier = Modifier.fillMaxWidth()
@@ -755,7 +758,7 @@ fun AIAssistantScreen(
                                             }
                                             Text(
                                                 text = msg.second,
-                                                color = if (isAi) Color(0xFFF8FAFC) else primaryColor,
+                                                color = if (isAi) theme.textPrimary else primaryColor,
                                                 fontFamily = CairoFont,
                                                 fontSize = 13.5.sp,
                                                 lineHeight = 22.sp
@@ -774,17 +777,17 @@ fun AIAssistantScreen(
                                         if (msg.second.startsWith("⚠️") && lastFailedPrompt != null) {
                                             Surface(
                                                 onClick = { lastFailedPrompt?.let { sendMessage(it) } },
-                                                color = Color(0xFFEF4444).copy(alpha = 0.2f),
+                                                color = theme.destructive.copy(alpha = 0.2f),
                                                 shape = CutCornerShape(6.dp),
-                                                border = BorderStroke(0.6.dp, Color(0xFFEF4444))
+                                                border = BorderStroke(0.6.dp, theme.destructive)
                                             ) {
                                                 Row(
                                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Icon(Icons.Default.Refresh, contentDescription = "إعادة", tint = Color(0xFFFCA5A5), modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Default.Refresh, contentDescription = "إعادة", tint = theme.destructive, modifier = Modifier.size(12.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("إعادة المحاولة 🔄", color = Color(0xFFFCA5A5), fontSize = 11.sp, fontFamily = CairoFont)
+                                                    Text("إعادة المحاولة 🔄", color = theme.destructive, fontSize = 11.sp, fontFamily = CairoFont)
                                                 }
                                             }
                                         }
@@ -793,13 +796,13 @@ fun AIAssistantScreen(
                                         Surface(
                                             onClick = {
                                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                                val clip = ClipData.newPlainText("Qabas Script", msg.second)
+                                                val clip = ClipData.newPlainText("نص خادم المسلم", msg.second)
                                                 clipboard?.setPrimaryClip(clip)
                                                 Toast.makeText(context, "تم نسخ النص كاملاً إلى الحافظة 📋", Toast.LENGTH_SHORT).show()
                                             },
-                                            color = Color(0xFF111827),
+                                            color = theme.cardSurface,
                                             shape = CutCornerShape(6.dp),
-                                            border = BorderStroke(0.6.dp, Color(0xFF1E293B))
+                                            border = BorderStroke(0.6.dp, theme.secondarySurface)
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -807,7 +810,7 @@ fun AIAssistantScreen(
                                             ) {
                                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = primaryColor, modifier = Modifier.size(12.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("نسخ 📋", color = Color.White, fontSize = 11.sp, fontFamily = CairoFont)
+                                                Text("نسخ 📋", color = theme.textPrimary, fontSize = 11.sp, fontFamily = CairoFont)
                                             }
                                         }
 
@@ -825,21 +828,21 @@ fun AIAssistantScreen(
                                                         text
                                                     }
                                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                                    val clip = ClipData.newPlainText("Qabas Quote", quote)
+                                                    val clip = ClipData.newPlainText("اقتباس خادم المسلم", quote)
                                                     clipboard?.setPrimaryClip(clip)
                                                     Toast.makeText(context, "تم نسخ الشاهد بدقة 📖✨", Toast.LENGTH_SHORT).show()
                                                 },
-                                                color = Color(0xFF064E3B).copy(alpha = 0.35f),
+                                                color = theme.success.copy(alpha = 0.35f),
                                                 shape = CutCornerShape(6.dp),
-                                                border = BorderStroke(0.6.dp, Color(0xFF10B981))
+                                                border = BorderStroke(0.6.dp, theme.success)
                                             ) {
                                                 Row(
                                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Icon(Icons.Default.AutoStories, contentDescription = "الشاهد", tint = Color(0xFF34D399), modifier = Modifier.size(12.dp))
+                                                    Icon(Icons.Default.AutoStories, contentDescription = "الشاهد", tint = theme.success, modifier = Modifier.size(12.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("نسخ الشاهد 📖", color = Color(0xFF6EE7B7), fontSize = 11.sp, fontFamily = CairoFont)
+                                                    Text("نسخ الشاهد 📖", color = theme.success, fontSize = 11.sp, fontFamily = CairoFont)
                                                 }
                                             }
                                         }
@@ -848,7 +851,7 @@ fun AIAssistantScreen(
                                         Surface(
                                             onClick = {
                                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                                val clip = ClipData.newPlainText("Qabas Script", msg.second)
+                                                val clip = ClipData.newPlainText("نص خادم المسلم", msg.second)
                                                 clipboard?.setPrimaryClip(clip)
 
                                                 onCreateProjectFromScript(msg.second)
@@ -873,9 +876,9 @@ fun AIAssistantScreen(
                                             onClick = {
                                                 query = "طور هذا النص: ${msg.second.take(80)}..."
                                             },
-                                            color = Color(0xFF111827),
+                                            color = theme.cardSurface,
                                             shape = CutCornerShape(6.dp),
-                                            border = BorderStroke(0.6.dp, Color(0xFF1E293B))
+                                            border = BorderStroke(0.6.dp, theme.secondarySurface)
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -894,7 +897,7 @@ fun AIAssistantScreen(
                                             onCreateProjectFromScript(msg.second)
                                             Toast.makeText(context, "جاري تحويل فكرتك إلى مشروع مونتاج جديد 🎬", Toast.LENGTH_SHORT).show()
                                         },
-                                        color = Color(0xFF111827),
+                                        color = theme.cardSurface,
                                         shape = CutCornerShape(6.dp),
                                         border = BorderStroke(0.6.dp, primaryColor.copy(alpha = 0.4f))
                                     ) {
@@ -918,8 +921,8 @@ fun AIAssistantScreen(
                 // ── 3. مصفوفة الاقتراحات السريعة المصنفة (HUD Suggestions Matrix) ──
                 GlassmorphicSurface(
                     shape = CutCornerShape(10.dp),
-                    backgroundColor = Color(0xFF090E1A).copy(alpha = 0.88f),
-                    borderColor = Color(0xFF1E293B),
+                    backgroundColor = theme.background.copy(alpha = 0.88f),
+                    borderColor = theme.secondarySurface,
                     borderWidth = 0.8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -933,13 +936,13 @@ fun AIAssistantScreen(
                                 val isCatSelected = selectedSuggestionCategory == cat.id
                                 Surface(
                                     onClick = { selectedSuggestionCategory = cat.id },
-                                    color = if (isCatSelected) primaryColor else Color(0xFF111827),
+                                    color = if (isCatSelected) primaryColor else theme.cardSurface,
                                     shape = CutCornerShape(6.dp),
-                                    border = BorderStroke(0.8.dp, if (isCatSelected) primaryColor else Color(0xFF1E293B))
+                                    border = BorderStroke(0.8.dp, if (isCatSelected) primaryColor else theme.secondarySurface)
                                 ) {
                                     Text(
                                         text = cat.name,
-                                        color = if (isCatSelected) Color(0xFF030712) else TextPrimary,
+                                        color = if (isCatSelected) theme.onPrimary else TextPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Normal,
@@ -960,7 +963,7 @@ fun AIAssistantScreen(
                             items(activeCategory.suggestions) { suggestionText ->
                                 Surface(
                                     onClick = { sendMessage(suggestionText) },
-                                    color = Color(0xFF0D1424),
+                                    color = theme.background,
                                     shape = CutCornerShape(6.dp),
                                     border = BorderStroke(0.6.dp, primaryColor.copy(alpha = 0.35f))
                                 ) {
@@ -972,7 +975,7 @@ fun AIAssistantScreen(
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = suggestionText,
-                                            color = Color(0xFFF1F5F9),
+                                            color = theme.textPrimary,
                                             fontFamily = CairoFont,
                                             fontSize = 11.sp
                                         )
@@ -988,7 +991,7 @@ fun AIAssistantScreen(
                 // ── 4. كونسول الإدخال التكتيكي (Tactical HUD Input Console) ──
                 GlassmorphicSurface(
                     shape = CutCornerShape(12.dp),
-                    backgroundColor = Color(0xFF070B14).copy(alpha = 0.95f),
+                    backgroundColor = theme.background.copy(alpha = 0.95f),
                     borderColor = primaryColor.copy(alpha = 0.45f),
                     borderWidth = 1.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -1016,17 +1019,17 @@ fun AIAssistantScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CutCornerShape(8.dp))
-                                .background(if (isRecordingAudio) Color(0xFFEF4444).copy(alpha = 0.25f) else Color(0xFF111827))
+                                .background(if (isRecordingAudio) theme.destructive.copy(alpha = 0.25f) else theme.cardSurface)
                                 .border(
                                     1.dp,
-                                    if (isRecordingAudio) Color(0xFFEF4444) else primaryColor.copy(alpha = 0.3f),
+                                    if (isRecordingAudio) theme.destructive else primaryColor.copy(alpha = 0.3f),
                                     CutCornerShape(8.dp)
                                 )
                         ) {
                             Icon(
                                 if (isRecordingAudio) Icons.Default.Stop else Icons.Default.Mic,
                                 contentDescription = "تسجيل صوتي",
-                                tint = if (isRecordingAudio) Color(0xFFEF4444) else primaryColor,
+                                tint = if (isRecordingAudio) theme.destructive else primaryColor,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -1040,7 +1043,7 @@ fun AIAssistantScreen(
                             placeholder = {
                                 Text(
                                     "اطلب سكريبت، تدقيق حديث، أو خطافات ريلز...",
-                                    color = Color.Gray,
+                                    color = theme.textTertiary,
                                     fontFamily = CairoFont,
                                     fontSize = 12.sp
                                 )
@@ -1050,8 +1053,8 @@ fun AIAssistantScreen(
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
                                 focusedContainerColor = Color.Transparent,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedTextColor = theme.textPrimary,
+                                unfocusedTextColor = theme.textPrimary
                             ),
                             maxLines = 4
                         )
@@ -1073,20 +1076,20 @@ fun AIAssistantScreen(
                                         )
                                     } else {
                                         Brush.linearGradient(
-                                            listOf(Color(0xFF1F2937), Color(0xFF111827))
+                                            listOf(theme.secondarySurface, theme.cardSurface)
                                         )
                                     }
                                 )
                                 .border(
                                     1.dp,
-                                    if (isSendEnabled) primaryColor else Color(0xFF374151),
+                                    if (isSendEnabled) primaryColor else theme.separator,
                                     CutCornerShape(8.dp)
                                 )
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Send,
                                 contentDescription = "إرسال",
-                                tint = if (isSendEnabled) Color(0xFF030712) else Color.Gray,
+                                tint = if (isSendEnabled) theme.onPrimary else theme.textTertiary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -1127,8 +1130,8 @@ fun AIAssistantScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFF080C16), CutCornerShape(6.dp))
-                                    .border(0.8.dp, Color(0xFF1E293B), CutCornerShape(6.dp))
+                                    .background(theme.background, CutCornerShape(6.dp))
+                                    .border(0.8.dp, theme.secondarySurface, CutCornerShape(6.dp))
                                     .padding(10.dp)
                             ) {
                                 Text(currentPreset.systemInstruction, color = TextSecondary, fontSize = 11.5.sp, fontFamily = CairoFont)
@@ -1153,12 +1156,12 @@ fun AIAssistantScreen(
                                     )
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedBorderColor = Color(0xFF1E293B),
+                                    unfocusedBorderColor = theme.secondarySurface,
                                     focusedBorderColor = primaryColor,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedContainerColor = Color(0xFF080C16),
-                                    unfocusedContainerColor = Color(0xFF080C16)
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary,
+                                    focusedContainerColor = theme.background,
+                                    unfocusedContainerColor = theme.background
                                 ),
                                 shape = CutCornerShape(8.dp)
                             )
@@ -1173,7 +1176,7 @@ fun AIAssistantScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                             shape = CutCornerShape(8.dp)
                         ) {
-                            Text("حفظ وتطبيق", color = Color(0xFF030712), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Text("حفظ وتطبيق", color = theme.onPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     },
                     dismissButton = {
@@ -1181,10 +1184,10 @@ fun AIAssistantScreen(
                             customInstructionText = ""
                             showSystemInstructionDialog = false
                         }) {
-                            Text("إعادة الضبط", color = Color.Gray, fontFamily = CairoFont)
+                            Text("إعادة الضبط", color = theme.textTertiary, fontFamily = CairoFont)
                         }
                     },
-                    containerColor = Color(0xFF0F172A),
+                    containerColor = theme.cardSurface,
                     shape = CutCornerShape(12.dp)
                 )
             }

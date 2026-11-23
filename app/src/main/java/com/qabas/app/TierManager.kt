@@ -66,16 +66,5 @@ class TierStateManager(private val context: Context) {
         return accountService.canGenerateImage()
     }
 
-    fun recordVideoGeneration() {
-        if (currentTier == UserTier.FREE) {
-            accountService.incrementVideoUsage()
-        }
-    }
-
-    fun recordImageGeneration() {
-        if (currentTier == UserTier.FREE) {
-            accountService.incrementImageUsage()
-        }
-    }
 }
 
