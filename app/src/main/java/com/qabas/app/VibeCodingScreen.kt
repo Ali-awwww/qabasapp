@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,10 +33,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Preview
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,9 +49,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -71,6 +70,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,13 +83,12 @@ import kotlinx.coroutines.withContext
  * قسم «فايب كودينج» الموحد (البند 12).
  *
  * مدخل واحد بدل «الاستوديو» المشتت، والترتيب الملزم داخل القسم:
- * 1 المحادثة، 2 المشاريع، 3 المعاينة، 4 النماذج، 5 الأدوات، 6 الموصلات،
- * 7 التحكم، 8 الروابط.
+ * 1 المحادثة، 2 المشاريع، 3 المعاينة، 4 الأدوات، 5 الموصلات، 6 التحكم.
  *
  * القاعدة: لا يُعاد بناء ما هو موجود — كل تبويب يعرض مكوناً موجوداً كما هو
  * (محادثة AiStudioAgentScreen، وكيل محتوى StudioAgentScreen، …)، وتُضاف
  * التبويبات تباعاً مع كل بند فرعي. بوابة المحتوى (StudioGatewayScreen)
- * تبقى reachable من مسار المحتوى ومن تبويب الروابط، لا من التبويب السفلي.
+ * تبقى reachable من مسار المحتوى، لا من التبويب السفلي.
  */
 enum class VibeChatMode { CODING, CONTENT }
 
@@ -97,18 +96,15 @@ enum class VibeTab(val title: String, val icon: ImageVector) {
     CHAT("المحادثة", Icons.Default.Chat),
     PROJECTS("المشاريع", Icons.Default.Folder),
     PREVIEW("المعاينة", Icons.Default.Preview),
-    MODELS("النماذج", Icons.Default.Memory),
     TOOLS("الأدوات", Icons.Default.Build),
     CONNECTORS("الموصلات", Icons.Default.Link),
-    CONTROL("التحكم", Icons.Default.Tune),
-    LINKS("الروابط", Icons.Default.Public)
+    CONTROL("التحكم", Icons.Default.Tune)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VibeCodingScreen(
     onBack: () -> Unit,
-    onNavigateToGateway: () -> Unit = {},
     onOpenKeys: () -> Unit = {},
     onOpenLibrary: () -> Unit = {},
     onOpenTeamConfig: () -> Unit = {},
@@ -116,10 +112,13 @@ fun VibeCodingScreen(
     bottomBar: @Composable () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(VibeTab.CHAT) }
-    // التبويبات بالترتيب الملزم: محادثة، مشاريع، معاينة، نماذج، أدوات، موصلات، تحكم، روابط.
+    // حاوية الأقسام مغلقة افتراضياً — تُفتح بأيقونة الشبكة في الـTopAppBar،
+    // فتبقى شاشة المحادثة موسّعة بالكامل حين تكون مغلقة.
+    var showSectionsGrid by remember { mutableStateOf(false) }
+    // التبويبات بالترتيب الملزم: محادثة، مشاريع، معاينة، أدوات، موصلات، تحكم.
     val availableTabs = listOf(
-        VibeTab.CHAT, VibeTab.PROJECTS, VibeTab.PREVIEW, VibeTab.MODELS,
-        VibeTab.TOOLS, VibeTab.CONNECTORS, VibeTab.CONTROL, VibeTab.LINKS
+        VibeTab.CHAT, VibeTab.PROJECTS, VibeTab.PREVIEW,
+        VibeTab.TOOLS, VibeTab.CONNECTORS, VibeTab.CONTROL
     )
     val tabIndex = availableTabs.indexOf(selectedTab).coerceAtLeast(0)
 
@@ -147,37 +146,29 @@ fun VibeCodingScreen(
                             )
                         }
                     },
+                    actions = {
+                        // زر فتح/إغلاق حاوية الأقسام (شبكة 3×2) — بجانب العنوان.
+                        IconButton(onClick = { showSectionsGrid = !showSectionsGrid }) {
+                            Icon(
+                                Icons.Default.GridView,
+                                contentDescription = "الأقسام",
+                                tint = if (showSectionsGrid) QabasTheme.current.primary else QabasTheme.current.textSecondary
+                            )
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = QabasTheme.current.cardSurface
                     )
                 )
-                ScrollableTabRow(
-                    selectedTabIndex = tabIndex,
-                    containerColor = QabasTheme.current.cardSurface,
-                    contentColor = QabasTheme.current.primary
-                ) {
-                    availableTabs.forEachIndexed { index, tab ->
-                        Tab(
-                            selected = index == tabIndex,
-                            onClick = { selectedTab = tab },
-                            text = {
-                                Text(
-                                    tab.title,
-                                    fontFamily = CairoFont,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (index == tabIndex) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (index == tabIndex) QabasTheme.current.primary else QabasTheme.current.textSecondary
-                                )
-                            },
-                            icon = {
-                                Icon(
-                                    tab.icon,
-                                    contentDescription = null,
-                                    tint = if (index == tabIndex) QabasTheme.current.primary else QabasTheme.current.textSecondary
-                                )
-                            }
-                        )
-                    }
+                if (showSectionsGrid) {
+                    VibeSectionsGrid(
+                        availableTabs = availableTabs,
+                        selectedTab = selectedTab,
+                        onSelect = { tab ->
+                            selectedTab = tab
+                            showSectionsGrid = false
+                        }
+                    )
                 }
             }
         }
@@ -200,14 +191,83 @@ fun VibeCodingScreen(
                     onOpenChat = { selectedTab = VibeTab.CHAT }
                 )
                 VibeTab.PREVIEW -> VibePreviewTab()
-                VibeTab.MODELS -> VibeModelsTab()
                 VibeTab.TOOLS -> VibeToolsTab()
                 VibeTab.CONNECTORS -> VibeConnectorsTab(onOpenKeys = onOpenKeys)
                 VibeTab.CONTROL -> VibeControlTab()
-                VibeTab.LINKS -> VibeLinksTab(
-                    onOpenKeys = onOpenKeys,
-                    onNavigateToGateway = onNavigateToGateway
-                )
+            }
+        }
+    }
+}
+
+/**
+ * حاوية الأقسام (المرحلة 2، والمرحلة 7: 3×2 بعد حذف تبويبي الروابط والنماذج):
+ * شبكة 3×2 ببلاطات تحمل أيقونة + اسم كل قسم.
+ * - الترتيب الملزم نفسه (محادثة، مشاريع، معاينة، أدوات، موصلات، تحكم).
+ * - RTL: صف Row يضع أول بلاطة (المحادثة) أعلى اليمين تلقائياً.
+ * - اسم القسم على سطر واحد بلا التفاف حرفي (maxLines=1 + Ellipsis).
+ * - النقر على بلاطة يختار القسم ويغلق الحاوية (يتم في onSelect عند الاستدعاء).
+ */
+@Composable
+private fun VibeSectionsGrid(
+    availableTabs: List<VibeTab>,
+    selectedTab: VibeTab,
+    onSelect: (VibeTab) -> Unit
+) {
+    val theme = QabasTheme.current
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = theme.cardSurface,
+        tonalElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            availableTabs.chunked(3).forEach { rowTabs ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowTabs.forEach { tab ->
+                        val selected = tab == selectedTab
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) theme.primary.copy(alpha = 0.18f) else theme.background,
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) theme.primary else theme.textSecondary.copy(alpha = 0.25f)
+                            ),
+                            onClick = { onSelect(tab) }
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    tab.icon,
+                                    contentDescription = null,
+                                    tint = if (selected) theme.primary else theme.textSecondary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    tab.title,
+                                    fontFamily = CairoFont,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) theme.primary else theme.textSecondary
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -259,8 +319,8 @@ private fun VibeChatTab(
                 VibeChatMode.CODING -> AiStudioAgentScreen(
                     onBack = onBack,
                     onOpenTeamConfig = onOpenTeamConfig,
-                    bottomBar = {},
-                    startInChat = true
+                    onOpenKeys = onOpenKeys,
+                    bottomBar = {}
                 )
                 VibeChatMode.CONTENT -> StudioAgentScreen(
                     onBack = onBack,
@@ -276,21 +336,6 @@ private fun VibeChatTab(
     }
 }
 
-/**
- * تبويب «النماذج» (12.5، المرتبة 4): محتوى مركز النماذج المحلية كما هو
- * (OnDeviceModelsContent) — التنزيل المستأنف/الحذف/التبديل/التصدير/الاستيراد
- * في OnDeviceModelManager، وواجهة LlamaCppService كما هي. حالة المحرك
- * تُعرض بصدق داخل المحتوى نفسه (غير متاح في بناء CI → تفعيل معطّل).
- */
-@Composable
-private fun VibeModelsTab() {
-    val context = LocalContext.current
-    OnDeviceModelsContent(
-        context = context,
-        onDismiss = {},
-        showCloseButton = false
-    )
-}
 
 /**
  * تبويب «الأدوات» (12.6، المرتبة 5): ToolsTab كما هي — 20 أداة كود
@@ -392,7 +437,7 @@ private fun VibeConnectorsTab(onOpenKeys: () -> Unit) {
                     color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp
                 )
                 Text(
-                    "مشاريع محلية في Room: ${localProjectCount?.toString() ?: "—"}",
+                    "مشاريع محلية محفوظة: ${localProjectCount?.toString() ?: "—"}",
                     color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp
                 )
                 if (syncMessage.isNotBlank()) {
@@ -532,82 +577,6 @@ private fun VibeCard(
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             content()
-        }
-    }
-}
-
-/**
- * تبويب «الروابط» (12.8، المرتبة 8): دليل المنصات الست كما هو
- * (CodingPlatformDirectory + CodingPlatformCard) + روابط مزودي «مفاتيحي»
- * الأحد عشر + بطاقة بوابة المحتوى. بلا روابط جديدة من الصفر، وبلا درجات
- * قوة/سرعة غير موثقة (حُذفت من العرض في CodingPlatformCard).
- */
-@Composable
-private fun VibeLinksTab(
-    onOpenKeys: () -> Unit,
-    onNavigateToGateway: () -> Unit
-) {
-    val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        contentPadding = PaddingValues(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text(
-                "منصات مفاتيح البرمجة — روابط رسمية وخطوات، بلا أرقام قوة أو سرعة غير موثقة.",
-                color = QabasTheme.current.textSecondary,
-                fontFamily = CairoFont,
-                fontSize = 12.sp
-            )
-        }
-        items(CodingPlatformDirectory.platforms, key = { it.id }) { platform ->
-            CodingPlatformCard(
-                platform = platform,
-                onOpenUrl = { openVibeUrl(context, platform.apiKeyUrl) },
-                onCopyUrl = {
-                    clipboard.setText(AnnotatedString(platform.apiKeyUrl))
-                    Toast.makeText(context, "تم نسخ الرابط", Toast.LENGTH_SHORT).show()
-                },
-                onGoToInput = onOpenKeys
-            )
-        }
-        item {
-            VibeCard(title = "روابط مزودي «مفاتيحي»") {
-                MY_KEYS_PROVIDER_LINKS.forEach { (name, url) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(name, color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
-                        if (url.isNullOrBlank()) {
-                            Text("بلا رابط موثق", color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
-                        } else {
-                            OutlinedButton(onClick = { openVibeUrl(context, url) }) {
-                                Text("فتح الرابط", fontFamily = CairoFont, fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            VibeCard(title = "بوابة المحتوى") {
-                Text(
-                    "بوابة الاستوديو (فيديو/صور/صوت) تبقى reachable من هنا ومن مسار المحتوى في المحادثة.",
-                    color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = onNavigateToGateway,
-                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.onPrimary)
-                ) {
-                    Text("فتح بوابة المحتوى", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
 }
@@ -1452,6 +1421,18 @@ private fun VibePreviewTab() {
     var statusMessage by remember { mutableStateOf("") }
     var showRepoDialog by remember { mutableStateOf(false) }
     var failedLogs by remember { mutableStateOf("") }
+    // (المرحلة 6) التنزيل والتثبيت عبر مركز التنزيلات: يُقرأ سجل حزمة التحديث
+    // من DownloadsHubManager مباشرة — فتظهر حالة التنزيل وتقدمه هناك.
+    val updateItem by DownloadsHubManager.appUpdateDownload.collectAsState()
+    var downloadMessage by remember { mutableStateOf("") }
+    var downloadTone by remember { mutableStateOf(VibeMessageTone.SUCCESS) }
+    var downloadingBuild by remember { mutableStateOf(false) }
+    // ملف الـAPK الجاهز للتثبيت: سجل المركز أولاً، وإن غاب (إعادة تشغيل
+    // التطبيق مثلاً) فأحدث حزمة في مجلد التحديثات نفسه الذي يفحصه المركز.
+    val readyApkFile: java.io.File? = remember(updateItem) {
+        updateItem?.localApkPath?.let { java.io.File(it) }?.takeIf { it.exists() }
+            ?: UpdateManager.getLatestDownloadedUpdateApk(context)
+    }
     // نبرة كل رسالة حالة: لونها يطابق معناها (نجاح/خطأ/تحذير) — كانت
     // الرسائل الثلاث خضراء دائماً حتى الفشل والإلغاء.
     var previewTone by remember { mutableStateOf(VibeMessageTone.SUCCESS) }
@@ -1527,6 +1508,40 @@ private fun VibePreviewTab() {
         }
     }
 
+    // (المرحلة 6) تنزيل أحدث إصدار منشور من CI: المصدر الوحيد هو قناة التحديث
+    // المعتمدة (UpdateManager.checkForUpdate ← صف الإصدار في Supabase، الذي
+    // ينشره سير العمل تلقائياً بعد كل بناء ناجح) — لا مسار URL جديد.
+    // start() يسجّل التنزيل في مركز التنزيلات بنفسه ثم يشغّل خدمة التنزيل،
+    // فيظهر التنزيل وتقدمه في المركز.
+    fun downloadLatestApprovedBuild() {
+        downloadingBuild = true
+        downloadMessage = "يُفحص أحدث إصدار منشور…"
+        downloadTone = VibeMessageTone.SUCCESS
+        scope.launch {
+            val info = runCatching {
+                UpdateManager.checkForUpdate(context, force = true)
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
+            downloadingBuild = false
+            if (info == null) {
+                downloadMessage = "لا يوجد إصدار منشور للتنزيل بعد — تأكد أن البناء نجح وأن الإصدار نُشر."
+                downloadTone = VibeMessageTone.ERROR
+            } else {
+                UpdateDownloadService.start(context, info, forceFull = false)
+                downloadMessage = "بدأ تنزيل الإصدار ${info.versionName} — تقدّمه في مركز التنزيلات."
+                downloadTone = VibeMessageTone.SUCCESS
+            }
+        }
+    }
+
+    // (المرحلة 6) تثبيت الـAPK بقراءته من مركز التنزيلات — لا إعادة تنزيل.
+    fun installReadyApk() {
+        val file = readyApkFile ?: return
+        val ok = UpdateManager.launchInstaller(context, file)
+        downloadMessage = if (ok) "فُتح مثبّت النظام — أكمل التثبيت من هناك."
+        else "تعذّر فتح المثبّت — تأكد من صلاحية تثبيت التطبيقات من مصادر غير معروفة."
+        downloadTone = if (ok) VibeMessageTone.SUCCESS else VibeMessageTone.ERROR
+    }
+
     LaunchedEffect(activeRepo?.id) { refreshRuns() }
     LaunchedEffect(Unit) { loadMission() }
     LaunchedEffect(mission?.id, activeRepo?.id) {
@@ -1538,11 +1553,158 @@ private fun VibePreviewTab() {
         contentPadding = PaddingValues(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // (المرحلة 6) البطاقة العليا «نتيجة البناء»: أحدث تشغيل CI للمستودع
+        // النشط + تنزيل الـAPK + تثبيته من مركز التنزيلات.
+        item {
+            val latestRun = runs?.firstOrNull()
+            VibeCard(title = "نتيجة البناء") {
+                if (activeRepo == null) {
+                    Text(
+                        "لا يوجد مستودع نشط — اربط مستودع GitHub أولاً لعرض نتيجة أحدث بناء وتنزيل الـAPK وتثبيته.",
+                        color = QabasTheme.current.textSecondary,
+                        fontFamily = CairoFont,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(onClick = { showRepoDialog = true }) {
+                        Text("إعداد المستودع", fontFamily = CairoFont, fontSize = 12.sp)
+                    }
+                } else {
+                    if (loading && runs == null) {
+                        Text("يُجلب حالة البناء…", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                    } else if (latestRun == null) {
+                        Text("لا تشغيلات بعد لهذا المستودع — شغّل البناء أولاً.", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                    } else {
+                        Text(
+                            AgentBuildVerifier.describe(latestRun),
+                            color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "سير العمل: ${latestRun.name} • الحالة: ${latestRun.status} • النتيجة: ${latestRun.conclusion ?: "جارٍ"}",
+                            color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
+                        )
+                        Text(
+                            "الكوميت: ${latestRun.headSha.take(7)} • الوقت: ${latestRun.displayTime}",
+                            color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { openVibeUrl(context, latestRun.htmlUrl) }) {
+                                Text("فتح التشغيل", fontFamily = CairoFont, fontSize = 11.sp)
+                            }
+                            if (latestRun.outcome == BuildRunOutcome.FAILURE) {
+                                OutlinedButton(onClick = {
+                                    scope.launch {
+                                        failedLogs = AgentBuildVerifier.fetchFailedLogs(
+                                            activeRepo.owner, activeRepo.repo, activeRepo.token, latestRun.id
+                                        )
+                                        if (failedLogs.isBlank()) failedLogs = "تعذر جلب سجل الفشل."
+                                    }
+                                }) {
+                                    Text("سجل الفشل", fontFamily = CairoFont, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                        if (failedLogs.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                failedLogs,
+                                color = QabasTheme.current.textPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 220.dp)
+                                    .verticalScroll(rememberScrollState())
+                                    .background(QabasTheme.current.cardSurface, RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    // التنزيل والتثبيت: التنزيل عبر خدمة التحديث (تسجّل نفسها في
+                    // مركز التنزيلات)، والتثبيت يقرأ ملف المركز — لا مسار منفصل.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { downloadLatestApprovedBuild() },
+                            enabled = !downloadingBuild,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.onPrimary)
+                        ) {
+                            Text(if (downloadingBuild) "يُفحص…" else "تنزيل", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { installReadyApk() },
+                            enabled = readyApkFile != null,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.onPrimary)
+                        ) {
+                            Text("تثبيت", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (readyApkFile == null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "نزّل الـAPK أولاً ليُفعَّل زر التثبيت.",
+                            color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "حزمة جاهزة للتثبيت${updateItem?.takeIf { it.isCompleted }?.versionName?.let { ": $it" } ?: ""}.",
+                            color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { refreshRuns() }, enabled = !loading) {
+                            Text(if (loading) "يُحدَّث…" else "تحديث", fontFamily = CairoFont, fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = {
+                                triggering = true
+                                scope.launch {
+                                    val ok = AgentBuildVerifier.triggerWorkflow(
+                                        activeRepo.owner, activeRepo.repo, activeRepo.token,
+                                        activeRepo.defaultBranch
+                                    )
+                                    statusMessage = if (ok) "أُرسل أمر البناء إلى GitHub Actions." else "تعذر تشغيل البناء — تحقق من الصلاحيات وملف android-ci.yml."
+                                    statusTone = if (ok) VibeMessageTone.SUCCESS else VibeMessageTone.ERROR
+                                    triggering = false
+                                    refreshRuns()
+                                }
+                            },
+                            enabled = !triggering,
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.onPrimary)
+                        ) {
+                            Text(if (triggering) "يُرسل…" else "تشغيل البناء", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (downloadMessage.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(downloadMessage, color = downloadTone.color(), fontFamily = CairoFont, fontSize = 11.sp)
+                    }
+                    if (statusMessage.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(statusMessage, color = statusTone.color(), fontFamily = CairoFont, fontSize = 11.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "التنزيل يجلب أحدث إصدار منشور من سير العمل، ويظهر تقدّمه في مركز التنزيلات.",
+                        color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
+                    )
+                }
+            }
+        }
         item {
             Text(
-                "معاينة المقترحات جنباً إلى جنب مع الملف الحالي قبل التطبيق، " +
-                    "ومعاينة مخرجات HTML، واختبار الكود المولد عبر CI البعيد فقط — " +
-                    "لا تشغيل محلي لتطبيق أندرويد في التطبيق.",
+                "نتيجة أحدث بناء من CI أعلاه مع تنزيل الـAPK وتثبيته، وتحتها معاينة " +
+                    "المقترحات جنباً إلى جنب مع الملف الحالي قبل التطبيق، ومعاينة مخرجات HTML، " +
+                    "واختبار الكود المولد عبر CI البعيد فقط — لا تشغيل محلي لتطبيق أندرويد في التطبيق.",
                 color = QabasTheme.current.textSecondary,
                 fontFamily = CairoFont,
                 fontSize = 12.sp
@@ -1825,95 +1987,6 @@ private fun VibePreviewTab() {
                             .horizontalScroll(rememberScrollState())
                             .verticalScroll(rememberScrollState())
                     )
-                }
-            }
-        }
-        if (activeRepo == null) {
-            item {
-                VibeCard(title = "لا يوجد مستودع نشط") {
-                    Text("اربط مستودع GitHub أولاً لعرض حالة البناء وتشغيله.", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(onClick = { showRepoDialog = true }) {
-                        Text("إعداد المستودع", fontFamily = CairoFont, fontSize = 12.sp)
-                    }
-                }
-            }
-        } else {
-            item {
-                VibeCard(title = "المستودع النشط: ${activeRepo.fullName}") {
-                    Text("الفرع: ${activeRepo.defaultBranch}", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                triggering = true
-                                scope.launch {
-                                    val ok = AgentBuildVerifier.triggerWorkflow(
-                                        activeRepo.owner, activeRepo.repo, activeRepo.token,
-                                        activeRepo.defaultBranch
-                                    )
-                                    statusMessage = if (ok) "أُرسل أمر البناء إلى GitHub Actions." else "تعذر تشغيل البناء — تحقق من الصلاحيات وملف android-ci.yml."
-                                    statusTone = if (ok) VibeMessageTone.SUCCESS else VibeMessageTone.ERROR
-                                    triggering = false
-                                    refreshRuns()
-                                }
-                            },
-                            enabled = !triggering,
-                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.onPrimary)
-                        ) {
-                            Text(if (triggering) "يُرسل…" else "تشغيل البناء", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        OutlinedButton(onClick = { refreshRuns() }, enabled = !loading) {
-                            Text(if (loading) "يُحدَّث…" else "تحديث الحالة", fontFamily = CairoFont, fontSize = 12.sp)
-                        }
-                    }
-                    if (statusMessage.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(statusMessage, color = statusTone.color(), fontFamily = CairoFont, fontSize = 11.sp)
-                    }
-                }
-            }
-            if (loading && runs == null) {
-                item {
-                    Text("يُجلب حالة البناء…", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                }
-            } else if (runs.isNullOrEmpty()) {
-                item {
-                    Text("لا تشغيلات بعد — شغّل البناء أولاً.", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
-                }
-            } else {
-                items(runs!!, key = { it.id }) { run ->
-                    VibeCard(title = run.name) {
-                        Text(AgentBuildVerifier.describe(run), color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "الحالة: ${run.status} • النتيجة: ${run.conclusion ?: "—"} • الكوميت: ${run.headSha.take(7)}",
-                            color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { openVibeUrl(context, run.htmlUrl) }) {
-                                Text("فتح التشغيل", fontFamily = CairoFont, fontSize = 11.sp)
-                            }
-                            if (run.outcome == BuildRunOutcome.FAILURE) {
-                                OutlinedButton(onClick = {
-                                    scope.launch {
-                                        failedLogs = AgentBuildVerifier.fetchFailedLogs(
-                                            activeRepo.owner, activeRepo.repo, activeRepo.token, run.id
-                                        )
-                                        if (failedLogs.isBlank()) failedLogs = "تعذر جلب سجل الفشل."
-                                    }
-                                }) {
-                                    Text("سجل الفشل", fontFamily = CairoFont, fontSize = 11.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-                if (failedLogs.isNotBlank()) {
-                    item {
-                        VibeCard(title = "سجل الفشل") {
-                            Text(failedLogs, color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
-                        }
-                    }
                 }
             }
         }

@@ -17,19 +17,19 @@
 supabase db push
 ```
 
-## 2) تحميل بذرة مشكاة (29 صفاً)
+## 2) تحميل بذرة مشكاة — مُصفَّرة بأمر المالك (2026-11-23)
 
-بعد تطبيق ترحيل `mishkat_daily`، شغّل من SQL Editor نفسه:
-
-- `supabase/seed/mishkat_daily_seed.sql` (الأيام 2–30؛ اليوم 1 يعيش أصلاً
-  في `mishkat_reminder_content`).
+البذرة `supabase/seed/mishkat_daily_seed.sql` أُفرغت من كل صفوفها (كانت 29 صفاً،
+الأيام 2–30) وحُذفت الصفوف الحية من `mishkat_daily` ومن
+`mishkat_reminder_content`. الملف الآن بلا إدراج (no-op) — لا تُعِد تشغيله
+لاستعادة المحتوى إلا بأمر صريح جديد من المالك.
 
 لا بذرة لجدولي الاستوديو — يمتلئان من استخدام التطبيق نفسه.
 
 ## 3) استعلامات التحقق والأعداد المتوقعة
 
 ```sql
-select count(*) from public.mishkat_daily;      -- المتوقع: 29
+select count(*) from public.mishkat_daily;      -- المتوقع: 0 (مُصفَّرة بأمر المالك 2026-11-23)
 select count(*) from public.studio_jobs;        -- المتوقع: 0
 select count(*) from public.ai_generations;     -- المتوقع: 0
 select column_name from information_schema.columns

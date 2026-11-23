@@ -23,7 +23,7 @@ object VibeTemplates {
     val MUSHAF: VibeTemplate = VibeTemplate(
         id = "mushaf_starter",
         title = "تطبيق مصحف بسيط",
-        description = "شاشة رئيسية بقائمة سور + قارئ بتنقل صفحات. قائمة بادئة بأول 5 سور فقط — تُكمل إلى 114 سورة مع الوكيل، ومستودع السور واجهة تُربط بمصدر موثق.",
+        description = "شاشة رئيسية بقائمة سور وقارئ يتنقل بين الصفحات. تبدأ القائمة بأول 5 سور فقط، وتُكمل إلى 114 سورة مع الوكيل، ويرتبط مستودع السور بمصدر موثق.",
         files = mapOf(
             "Surah.kt" to """
                 package com.example.mushaf

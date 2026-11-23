@@ -591,7 +591,7 @@ fun CloudApiHubScreen(
         onNavigateSection = onNavigateSection
     ) {
         when (selectedTab) {
-            0 -> ApiKeysScreen(onBack = onBack)
+            0 -> StudioKeysScreen(onBack = onBack)
             1 -> DeveloperKeyStatusHub(onBack = onBack)
             2 -> ConnectorsSection(
                 onJumpBuildCenter = { selectedTab = 0 },

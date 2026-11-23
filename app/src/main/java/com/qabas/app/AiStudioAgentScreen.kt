@@ -28,8 +28,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,18 +63,15 @@ import java.util.Locale
 fun AiStudioAgentScreen(
     onBack: () -> Unit,
     onOpenTeamConfig: () -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
-    initialTab: Int = 0,
-    /** يفتح المحادثة مباشرة بدل Hub — يستخدمه تبويب «المحادثة» في قسم فايب كودينج. */
-    startInChat: Boolean = false
+    onOpenKeys: () -> Unit = {},
+    bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
     val prefs = AgentPrefs.instance(context)
 
     var showExitConfirmation by remember { mutableStateOf(false) }
-    var topTab by remember { mutableStateOf(initialTab.coerceIn(0, 5)) }
-    var showHub by remember { mutableStateOf(!startInChat) }
     var showSidePanel by remember { mutableStateOf(false) }
     val sessions by AgentChatSessionManager.sessions.collectAsState()
     val activeSessionId by AgentChatSessionManager.activeSessionId.collectAsState()
@@ -82,15 +81,10 @@ fun AiStudioAgentScreen(
     var isPaused by remember { mutableStateOf(false) }
     val chatListState = rememberLazyListState()
     var chatInputText by remember { mutableStateOf("") }
-    var showSpecChooser by remember { mutableStateOf(false) }
 
     BackHandler {
         if (showSidePanel) {
             showSidePanel = false
-            return@BackHandler
-        }
-        if (showHub) {
-            showHub = false
             return@BackHandler
         }
         if (showExitConfirmation) {
@@ -120,28 +114,30 @@ fun AiStudioAgentScreen(
     var newCommandLabel by remember { mutableStateOf("") }
     var newCommandPrompt by remember { mutableStateOf("") }
     var commandMessage by remember { mutableStateOf("") }
-    var selectedSpec by remember { mutableStateOf(AgentSpecialization.TURBO) }
+    // التخصص المكتشف تلقائياً من نص طلب المستخدم (المرحلة 3) — لا اختيار يدوي.
+    // يُحدَّث عند كل إرسال عبر detectSpecialization، ويُعرض كشريحة غير قابلة للنقر.
+    var detectedSpec by remember { mutableStateOf(AgentSpecialization.TURBO) }
     var isExecuting by remember { mutableStateOf(false) }
     var currentMission by remember { mutableStateOf<AgentMissionSession?>(null) }
     var missionHistory by remember { mutableStateOf<List<AgentMissionSession>>(emptyList()) }
-    var isTeamMode by remember { mutableStateOf(false) }
+    // (المرحلة 4) وضع الفريق محفوظ في AgentPrefs — يبقى كما تركه المستخدم.
+    var isTeamMode by remember { mutableStateOf(AgentPrefs.isTeamMode(context)) }
     var teamProgressText by remember { mutableStateOf("") }
+    // (المرحلة 4) حالة الفريق والنوع المكتشف.
+    var teamMembers by remember { mutableStateOf(MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)) }
+    val teamConfigured = isTeamConfigured(teamMembers)
+    var detectedModelType by remember { mutableStateOf<AgentModelType?>(null) }
+    var detectedModelReason by remember { mutableStateOf("") }
+    var effectiveModel by remember { mutableStateOf("") }
     var verifyingBuild by remember { mutableStateOf(false) }
-    var showKeyDialog by remember { mutableStateOf(false) }
-    var keyDialogInitialTab by remember { mutableStateOf(0) }
-    var showRepoDialog by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
     var isOfflineMode by remember { mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context)) }
     var activeLocalModel by remember { mutableStateOf(OnDeviceModelManager.getSelectedModel(context)) }
-    var showOnDeviceDialog by remember { mutableStateOf(false) }
     var executionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var lastExecutedPrompt by remember { mutableStateOf("") }
-    var showModelPicker by remember { mutableStateOf(false) }
     // ق93: مصدر الحقيقة الوحيد للنموذج هو AgentPrefs.model — كان
     // remember("") فيُنسى الاختيار بمغادرة الشاشة، بينما منتقي
     // الإعدادات يحفظ في AgentPrefs ولا يقرؤه أحد فكان زراً ميتاً.
     var selectedModel by remember { mutableStateOf(AgentPrefs.model(context) ?: "") }
-    var applyingDiffPath by remember { mutableStateOf<String?>(null) }
     var showRequirementDialog by remember { mutableStateOf(false) }
 
     val TAG = "AiStudioAgentScreen"
@@ -180,50 +176,12 @@ fun AiStudioAgentScreen(
     }
 
     var keyResolution by remember { mutableStateOf(AgentConnectivityEngine.resolveKeyWithSource(context)) }
-    var isPinging by remember { mutableStateOf(false) }
-    var geminiHealth by remember {
-        mutableStateOf(
-            LiveHealthStatus(
-                serviceName = "Google Gemini",
-                isConnected = false,
-                latencyMs = 0L,
-                statusDetail = "جاري الفحص المباشر...",
-                keySource = KeySource.NONE,
-                modelName = "gemini-3.8-flash"
-            )
-        )
-    }
-    var githubHealth by remember {
-        mutableStateOf(
-            LiveHealthStatus(
-                serviceName = "GitHub API",
-                isConnected = false,
-                latencyMs = 0L,
-                statusDetail = "جاري الفحص المباشر...",
-                keySource = KeySource.NONE,
-                modelName = "REST API v3"
-            )
-        )
-    }
 
-    val runtime = remember { Runtime.getRuntime() }
-    var liveUsedMemoryMb by remember {
-        mutableStateOf((runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024))
-    }
-    val liveMaxMemoryMb = remember { runtime.maxMemory() / (1024 * 1024) }
 
     val refreshDiagnostics: () -> Unit = {
         coroutineScope.launch {
-            isPinging = true
-            liveUsedMemoryMb = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024)
             val resolved = AgentConnectivityEngine.resolveKeyWithSource(context)
             keyResolution = resolved
-            val activeRepoItem = RepoVaultManager.getActiveRepo(context)
-            val ghToken = activeRepoItem?.token ?: ""
-            val ghRepo = activeRepoItem?.fullName ?: ""
-            geminiHealth = AgentConnectivityEngine.pingGeminiLive(resolved.second, resolved.third)
-            githubHealth = AgentConnectivityEngine.pingGitHubLive(ghToken, ghRepo)
-            isPinging = false
         }
     }
 
@@ -239,14 +197,78 @@ fun AiStudioAgentScreen(
         }
     }
 
+    // (المرحلة 4) تبديل وضع الفريق مع حفظ الاختيار وتحديث حالة الفريق.
+    fun setTeamMode(enabled: Boolean) {
+        isTeamMode = enabled
+        AgentPrefs.putTeamMode(context, enabled)
+        teamMembers = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
+    }
+
+    // (المرحلة 4) اختيار نوع النموذج للنص المُرسل وتحديث العرض؛
+    // يعيد معرّف النموذج الفعّال. يُستدعى من كل مسار إرسال.
+    // وضع الفريق المفعّل يفرض TEAM إن كان الفريق مهيأً، وإلا يرجع
+    // للقوي مع تنبيه؛ وفي الوضع الفردي يقرر الكشف التلقائي، وقد
+    // يختار TEAM لمهمة معقدة وفريق مهيأ (يُعرض ذلك في التسمية).
+    fun chooseModelForSend(prompt: String): String {
+        teamMembers = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
+        val configuredNow = isTeamConfigured(teamMembers)
+        val (autoType, autoReason) = detectModelType(prompt, isOfflineMode, configuredNow)
+        val (chosenType, chosenReason) = when {
+            isTeamMode && configuredNow -> AgentModelType.TEAM to
+                "وضع الفريق — القائد يقسّم والمُساعدون ينفذون بالتوازي"
+            isTeamMode -> AgentModelType.POWERFUL to
+                "لا يوجد فريق مهيأ — النموذج القوي بدلاً منه"
+            else -> autoType to autoReason
+        }
+        detectedModelType = chosenType
+        detectedModelReason = chosenReason
+        val resolved = resolveModelForType(
+            chosenType,
+            keyResolution.first,
+            selectedModel.ifBlank { keyResolution.first.defaultModel }
+        )
+        effectiveModel = resolved
+        if (isTeamMode && !configuredNow) {
+            Toast.makeText(
+                context,
+                "لا يوجد فريق مهيأ — سأعمل بالنموذج القوي. أعدّ الفريق من زر «إعداد الفريق».",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+        return resolved
+    }
+
+    // (المرحلة 4) «المزود • الاسم المقروء» للنموذج — لا معرّف خام أبداً.
+    fun modelNameWithProvider(modelId: String): String {
+        val providerLabel = providerShortName(keyResolution.first)
+        val name = readableModelName(modelId)
+        return if (providerLabel.isBlank()) name else "$providerLabel • $name"
+    }
+
+    // (المرحلة 4) تسمية النموذج النشط — تُحسب من الحالة الحية عند كل إعادة تركيب.
+    val modelLabel: String = when {
+        isOfflineMode -> "على الجهاز • ${activeLocalModel.name}"
+        isTeamMode && teamConfigured -> {
+            val assistants = teamMembers.count { it.enabled && it.role != AgentTeamRole.LEADER }
+            "فريق • القائد + $assistants مساعد"
+        }
+        isTeamMode -> "فريق (غير مهيأ) — سيُستخدم القوي"
+        else -> {
+            val type = detectedModelType
+            if (type != null) "${type.title} — ${modelNameWithProvider(effectiveModel)} · $detectedModelReason"
+            else modelNameWithProvider(selectedModel.ifBlank { keyResolution.first.defaultModel })
+        }
+    }
+
     LaunchedEffect(currentMission, isOfflineMode) {
         saveMissionState()
         if (isOfflineMode && currentMission != null && !OnDeviceModelManager.hasAnyInstalledModel(context)) {
             if (!missionAutoSwitched) {
                 missionAutoSwitched = true
                 saveMissionState()
-                showKeyDialog = true
-                keyDialogInitialTab = 1
+                // (المرحلة 5) نافذة المفاتيح حُذفت — الفتح التلقائي صار تنقلاً
+                // إلى القسم الموحد «مفاتيحي ونماذجي» حيث النماذج المحلية.
+                onOpenKeys()
             }
         } else if (missionAutoSwitched && OnDeviceModelManager.hasAnyInstalledModel(context)) {
             missionAutoSwitched = false
@@ -274,7 +296,11 @@ fun AiStudioAgentScreen(
 
     val vaultTrigger by RepoVaultManager.vaultUpdateTrigger.collectAsState()
     val activeRepo = remember(context, vaultTrigger) { RepoVaultManager.getActiveRepo(context) }
-    val savedRepositories = remember(context, vaultTrigger) { RepoVaultManager.getRepositories(context) }
+
+    // مصدر الحقيقة لحالة التهيئة: مفتاح + مستودع بمفتاح PAT.
+    // «جاهز» لا تظهر إلا عند توفرهما معاً — وإلا يظهر ما ينقص.
+    val agentHasKey = keyResolution.third != KeySource.NONE
+    val agentHasRepoWithPat = activeRepo != null && activeRepo.token.isNotBlank()
 
     fun handleSendMessage(text: String) {
         val clean = text.trim()
@@ -288,6 +314,11 @@ fun AiStudioAgentScreen(
             showRequirementDialog = true
             return
         }
+
+        // (المرحلة 3) كشف التخصص تلقائياً من نص الطلب — قبل بدء أي مسار تنفيذ.
+        detectedSpec = detectSpecialization(clean)
+        // (المرحلة 4) اختيار نوع النموذج للنص المُرسل.
+        val sendModel = chooseModelForSend(clean)
 
         val curId = AgentChatSessionManager.activeSessionId.value ?: AgentChatSessionManager.startNewSession(context)
         val userMsg = AgentChatMessage(sender = AgentChatSender.USER, text = clean)
@@ -336,18 +367,28 @@ fun AiStudioAgentScreen(
                         steps = planSteps,
                         isApproved = false
                     )
+                    // (المرحلة 8) الوضع المستقل: عند تشغيله تُعتمَد الخطة تلقائياً
+                    // ويبدأ التنفيذ بلا انتظار نقرة الاعتماد؛ وعند إيقافه (الافتراضي)
+                    // تبقى الخطة معلقة حتى يضغط المستخدم زر الاعتماد في البطاقة.
+                    val autonomous = AgentPrefs.isAutonomousMode(context)
                     withContext(Dispatchers.Main) {
                         val currentActive = AgentPrefs.activePlanningTasksCount(context)
                         AgentPrefs.putActivePlanningTasksCount(context, currentActive + 1)
                         val agentMsg = AgentChatMessage(
                             sender = AgentChatSender.AGENT,
-                            text = "تم تفعيل \"وضع التخطيط الهيكلي\". تم إعداد خطة العمل المعمارية التالية لطلبك. يرجى مراجعتها واضغط على زر الاعتماد للبدء بالتنفيذ المباشر:",
+                            text = if (autonomous) "تم تفعيل \"وضع التخطيط الهيكلي\". تم إعداد خطة العمل المعمارية التالية لطلبك. الوضع المستقل مفعّل — اعتُمدت الخطة تلقائياً وبدأ التنفيذ المباشر:"
+                            else "تم تفعيل \"وضع التخطيط الهيكلي\". تم إعداد خطة العمل المعمارية التالية لطلبك. يرجى مراجعتها واضغط على زر الاعتماد للبدء بالتنفيذ المباشر:",
                             planCard = planCardData
                         )
                         chatMessages.add(agentMsg)
                         AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
                         isThinking = false
                         isRunning = false
+                    }
+                    if (autonomous) {
+                        withContext(Dispatchers.Main) {
+                            handleApprovePlan(planCardData)
+                        }
                     }
                 } else if (isTeamMode) {
                     val team = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
@@ -416,11 +457,11 @@ fun AiStudioAgentScreen(
                         executeAgentMission(
                             context = context,
                             prompt = clean,
-                            spec = selectedSpec,
+                            spec = detectedSpec,
                             repo = activeRepo,
                             // ق93: الملاذ نموذج المزود النشط لا Gemini ثابتاً —
                             // كان مفتاح Groq بلا اختيار يرسل نموذج Gemini.
-                            selectedModel = selectedModel.ifBlank { keyResolution.first.defaultModel },
+                            selectedModel = sendModel,
                             // السجل السابق للطلب الحالي (أُضيفت رسالة المستخدم للتو فتُستثنى).
                             history = chatMessages.dropLast(1).toList(),
                             onUpdate = { partialMission ->
@@ -494,6 +535,11 @@ fun AiStudioAgentScreen(
         isRunning = true
         isPaused = false
 
+        // (المرحلة 3) إعادة كشف التخصص من نص الخطة المعتمدة.
+        detectedSpec = detectSpecialization(planCard.prompt)
+        // (المرحلة 4) اختيار نوع النموذج للخطة المعتمدة.
+        val sendModel = chooseModelForSend(planCard.prompt)
+
         val job = coroutineScope.launch(Dispatchers.IO) {
             var finalMissionResult: AgentMissionSession? = null
             var missionFailure: String? = null
@@ -501,10 +547,10 @@ fun AiStudioAgentScreen(
                 executeAgentMission(
                     context = context,
                     prompt = planCard.prompt,
-                    spec = selectedSpec,
+                    spec = detectedSpec,
                     repo = activeRepo,
                     // ق93: الملاذ نموذج المزود النشط لا Gemini ثابتاً (كما في مسار الإرسال).
-                    selectedModel = selectedModel.ifBlank { keyResolution.first.defaultModel },
+                    selectedModel = sendModel,
                     // السجل السابق لملاحظة الاعتماد (أُضيفت للتو فتُستثنى).
                     history = chatMessages.dropLast(1).toList(),
                     onUpdate = { currentMission = it },
@@ -541,48 +587,6 @@ fun AiStudioAgentScreen(
         bottomBar = bottomBar,
         containerColor = QabasTheme.current.background,
         topBar = {
-            if (showHub) {
-                GlassmorphicSurface(
-                    modifier = Modifier.fillMaxWidth().statusBarsPadding(),
-                    backgroundColor = QabasTheme.current.cardSurface.copy(alpha = 0.85f),
-                    borderColor = QabasTheme.current.primary.copy(alpha = 0.25f)
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.secondarySurface).testTag("agent_hub_back")
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
-                            }
-                            Text(
-                                "مركز التطوير الذكي",
-                                fontWeight = FontWeight.Bold,
-                                color = QabasTheme.current.textPrimary,
-                                fontSize = 15.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                            )
-                            IconButton(
-                                onClick = { showHub = false },
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.success.copy(alpha = 0.14f)).testTag("agent_return_chat")
-                            ) {
-                                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "فتح المحادثة", tint = QabasTheme.current.success, modifier = Modifier.size(18.dp))
-                            }
-                            IconButton(
-                                onClick = { showSettings = true },
-                                modifier = Modifier.size(38.dp).clip(CircleShape).background(QabasTheme.current.secondarySurface).border(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f), CircleShape).testTag("agent_open_settings")
-                            ) {
-                                Icon(Icons.Default.Tune, contentDescription = "إعدادات الوكيل", tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
-            } else {
                 // Top Bar شاشة المحادثة الرئيسية الذكية
                 GlassmorphicSurface(
                     modifier = Modifier.fillMaxWidth().statusBarsPadding(),
@@ -623,11 +627,9 @@ fun AiStudioAgentScreen(
 
                             Spacer(Modifier.width(8.dp))
 
-                            // عنوان الجلسة والتخصص
+                            // عنوان الجلسة والتخصص المكتشف تلقائياً (عرض فقط — بلا نقر)
                             Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { showSpecChooser = true }
+                                modifier = Modifier.weight(1f)
                             ) {
                                 val currentSessionTitle = sessions.find { it.id == activeSessionId }?.title ?: "محادثة جديدة 💬"
                                 Text(
@@ -640,10 +642,10 @@ fun AiStudioAgentScreen(
                                     fontFamily = CairoFont
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(selectedSpec.icon, contentDescription = null, tint = selectedSpec.color, modifier = Modifier.size(12.dp))
+                                    Icon(detectedSpec.icon, contentDescription = null, tint = detectedSpec.color, modifier = Modifier.size(12.dp))
                                     Text(
-                                        text = selectedSpec.title,
-                                        color = selectedSpec.color,
+                                        text = "التخصص المكتشف: ${detectedSpec.title}",
+                                        color = detectedSpec.color,
                                         fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Medium,
                                         fontFamily = CairoFont
@@ -651,17 +653,22 @@ fun AiStudioAgentScreen(
                                 }
                             }
 
-                            // مؤشر الحالة المباشر
+                            // مؤشر الحالة المباشر — «جاهز» فقط عند مفتاح
+                            // + مستودع بمفتاح PAT؛ وإلا يظهر ما ينقص.
                             AgentStatusChip(
                                 kind = when {
                                     isThinking || (isRunning && !isPaused) -> AgentStatusKind.RUNNING
                                     isPaused -> AgentStatusKind.NEEDS_ACTION
+                                    !agentHasKey || !agentHasRepoWithPat -> AgentStatusKind.NEEDS_ACTION
                                     else -> AgentStatusKind.READY
                                 },
                                 text = when {
                                     isThinking -> "يفكر..."
                                     isRunning && !isPaused -> "يعمل"
                                     isPaused -> "موقف"
+                                    !agentHasKey -> "ينقصه مفتاح"
+                                    activeRepo == null -> "بلا مستودع"
+                                    !agentHasRepoWithPat -> "بلا مفتاح PAT"
                                     else -> "جاهز"
                                 },
                                 modifier = Modifier.height(26.dp)
@@ -709,648 +716,13 @@ fun AiStudioAgentScreen(
                                 }
                             }
 
-                            Spacer(Modifier.width(4.dp))
 
-                            IconButton(
-                                onClick = { showHub = true },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(QabasTheme.current.secondarySurface)
-                                    .border(1.dp, QabasTheme.current.accent.copy(alpha = 0.5f), CircleShape)
-                                    .testTag("agent_open_hub")
-                            ) {
-                                Icon(Icons.Default.Dashboard, contentDescription = "مركز التطوير", tint = QabasTheme.current.accent, modifier = Modifier.size(18.dp))
-                            }
-
-                            IconButton(
-                                onClick = { showSettings = true },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(QabasTheme.current.secondarySurface)
-                                    .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f), CircleShape)
-                                    .testTag("agent_open_settings")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = "إعدادات الوكيل",
-                                    tint = QabasTheme.current.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
                         }
                     }
                 }
             }
         }
     ) { innerPadding ->
-        if (showHub) {
-            Column(
-                Modifier.fillMaxSize().padding(innerPadding).background(QabasTheme.current.background)
-            ) {
-            // Live telemetry is sourced from the actual GitHub health check and device runtime.
-            LiveTelemetryHudStrip(
-                latencyMs = githubHealth.latencyMs,
-                isConnected = githubHealth.isConnected,
-                isPinging = isPinging,
-                activeModelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
-                isOfflineMode = isOfflineMode,
-                usedMemoryMb = liveUsedMemoryMb,
-                maxMemoryMb = liveMaxMemoryMb,
-                onRefresh = { refreshDiagnostics() },
-                onModelClick = { showModelPicker = true },
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-            )
-
-            // Cyber Reasoning Flow HUD (Active when executing or idle)
-            CyberReasoningFlowHud(
-                currentPhase = when {
-                    isExecuting && teamProgressText.contains("تخطيط", ignoreCase = true) -> "PLAN"
-                    isExecuting && teamProgressText.contains("بناء", ignoreCase = true) -> "VERIFY"
-                    isExecuting -> "CODE"
-                    isThinking || (isRunning && !isPaused) -> "ANALYZE"
-                    else -> "IDLE"
-                },
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-            )
-
-            AgentGeometricControlDeck(
-                selectedIndex = topTab,
-                onSelect = { topTab = it },
-                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
-            )
-
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (topTab) {
-                    0 -> AgentHubOverview(
-                        repositoryName = activeRepo?.fullName,
-                        repositoryBranch = activeRepo?.defaultBranch,
-                        providerName = keyResolution.first.displayName,
-                        modelName = if (isOfflineMode) activeLocalModel.name else selectedModel,
-                        isOfflineMode = isOfflineMode,
-                        isOfflineModelReady = OnDeviceModelManager.isModelInstalled(context, activeLocalModel),
-                        isProviderReady = keyResolution.third != KeySource.NONE,
-                        isGitHubReady = githubHealth.isConnected,
-                        isChecking = isPinging,
-                        isExecuting = isExecuting,
-                        isChatRunning = isRunning,
-                        activeMissionTitle = currentMission?.userPrompt,
-                        activeMissionStatus = currentMission?.status?.name,
-                        historyCount = AgentRunLog.load(context).size,
-                        onSelectTab = { topTab = it },
-                        onOpenRepository = { showRepoDialog = true },
-                        onOpenKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onRefresh = { refreshDiagnostics() }
-                    )
-                    1 -> LazyColumn(
-                        Modifier.fillMaxSize().cyberGridBackground().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            AgentHubPageIntro(
-                                index = "02",
-                                title = "مساحة العمل",
-                                description = "تهيئة المهمة والتخصص والتنفيذ ومراجعة التغييرات المقترحة",
-                                icon = Icons.Default.Code
-                            )
-                        }
-                        item { Spacer(Modifier.height(4.dp)) }
-
-                        // Container 1: Mode & Team
-                        item {
-                        AgentContainer(index = "01", title = "وضع التشغيل", icon = Icons.Default.Sensors, accent = QabasTheme.current.primary) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = if (isTeamMode) QabasTheme.current.success.copy(alpha = 0.22f) else QabasTheme.current.secondarySurface,
-                                        border = BorderStroke(1.dp, if (isTeamMode) QabasTheme.current.success.copy(alpha = 0.7f) else QabasTheme.current.separator),
-                                        modifier = Modifier.clickable { isTeamMode = !isTeamMode }.testTag("agent_toggle_team_mode")
-                                    ) {
-                                        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Groups, contentDescription = null, tint = if (isTeamMode) QabasTheme.current.success else QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(
-                                                text = if (isTeamMode) "فريق متعدد" else "وضع فردي",
-                                                fontSize = 12.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold,
-                                                color = if (isTeamMode) QabasTheme.current.success else QabasTheme.current.textSecondary
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth().background(QabasTheme.current.background, RoundedCornerShape(8.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = if (!isOfflineMode) QabasTheme.current.primary.copy(alpha = 0.25f) else QabasTheme.current.background,
-                                    border = if (!isOfflineMode) BorderStroke(1.dp, QabasTheme.current.primary) else null,
-                                    modifier = Modifier.weight(1f).clickable { isOfflineMode = false; OnDeviceModelManager.setOfflineModeActive(context, false) }
-                                ) {
-                                    Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = if (!isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("سحابي", fontSize = 12.sp, fontWeight = if (!isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (!isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary)
-                                    }
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = if (isOfflineMode) QabasTheme.current.primary.copy(alpha = 0.25f) else QabasTheme.current.background,
-                                    border = if (isOfflineMode) BorderStroke(1.dp, QabasTheme.current.primary) else null,
-                                    modifier = Modifier.weight(1f).clickable { isOfflineMode = true; OnDeviceModelManager.setOfflineModeActive(context, true) }
-                                ) {
-                                    Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Memory, contentDescription = null, tint = if (isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("محلي", fontSize = 12.sp, fontWeight = if (isOfflineMode) FontWeight.Bold else FontWeight.Normal, color = if (isOfflineMode) QabasTheme.current.primary else QabasTheme.current.textSecondary)
-                                    }
-                                }
-                            }
-                            if (isOfflineMode) {
-                                Spacer(Modifier.height(8.dp))
-                                val isLocalInstalled = OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (isLocalInstalled) QabasTheme.current.success.copy(alpha = 0.12f) else QabasTheme.current.warning.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, if (isLocalInstalled) QabasTheme.current.success.copy(alpha = 0.5f) else QabasTheme.current.warning.copy(alpha = 0.5f)),
-                                    modifier = Modifier.fillMaxWidth().clickable { showOnDeviceDialog = true }
-                                ) {
-                                    Column(Modifier.padding(10.dp)) {
-                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("النموذج: ${activeLocalModel.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
-                                            Text(
-                                                text = if (isLocalInstalled) "جاهز" else "يلزم التنزيل",
-                                                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                                                color = if (isLocalInstalled) QabasTheme.current.success else QabasTheme.current.warning,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp).background(
-                                                    if (isLocalInstalled) QabasTheme.current.success.copy(alpha = 0.2f) else QabasTheme.current.warning.copy(alpha = 0.2f),
-                                                    RoundedCornerShape(4.dp)
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                Spacer(Modifier.height(8.dp))
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    HealthPill(
-                                        name = "Gemini",
-                                        isConnected = geminiHealth.isConnected,
-                                        latencyMs = geminiHealth.latencyMs,
-                                        detail = geminiHealth.statusDetail,
-                                        onClick = { keyDialogInitialTab = 0; showKeyDialog = true },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    HealthPill(
-                                        name = "GitHub",
-                                        isConnected = githubHealth.isConnected,
-                                        latencyMs = githubHealth.latencyMs,
-                                        detail = githubHealth.statusDetail,
-                                        onClick = { showRepoDialog = true },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                        }
-
-                        // Container 2: Specialization
-                        item {
-                        AgentContainer(index = "02", title = "تخصص الوكيل", icon = Icons.Default.Psychology, accent = QabasTheme.current.accent) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                items(AgentSpecialization.entries.toTypedArray()) { spec ->
-                                    val isSelected = selectedSpec == spec
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) spec.color.copy(alpha = 0.2f) else QabasTheme.current.secondarySurface,
-                                        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) spec.color else QabasTheme.current.separator),
-                                        modifier = Modifier.heightIn(min = 48.dp).clickable { selectedSpec = spec }.wrapContentWidth()
-                                    ) {
-                                        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(15.dp))
-                                            Spacer(Modifier.width(5.dp))
-                                            Text(
-                                                text = spec.title, fontSize = 12.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary, maxLines = 1
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        }
-
-                        // Container 3: Prompt & Execute
-                        item {
-                            AgentContainer(index = "03", title = "أمر الوكيل", icon = Icons.Default.Terminal, accent = QabasTheme.current.success) {
-                                // أوامر محفوظة (12.15): تُحفظ في SharedPreferences —
-                                // إضافة/حذف حقيقية؛ الأوامر الأربعة السابقة مزروعة أول مرة.
-                                Text(
-                                    "أوامر محفوظة (${savedCommands.size}):",
-                                    color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (savedCommands.isEmpty()) {
-                                    Text(
-                                        "لا أوامر محفوظة بعد — أضف أمراً أدناه.",
-                                        color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 11.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                } else {
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                                    ) {
-                                        items(savedCommands, key = { it.id }) { command ->
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Surface(
-                                                    onClick = { promptInput = command.prompt },
-                                                    color = QabasTheme.current.secondarySurface,
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    border = BorderStroke(0.8.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
-                                                ) {
-                                                    Text(
-                                                        text = command.label,
-                                                        color = QabasTheme.current.primary,
-                                                        fontFamily = CairoFont,
-                                                        fontSize = 11.sp,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                                                    )
-                                                }
-                                                Text(
-                                                    text = " ✕",
-                                                    color = QabasTheme.current.destructive,
-                                                    fontFamily = CairoFont,
-                                                    fontSize = 12.sp,
-                                                    modifier = Modifier.clickable {
-                                                        VibeSavedCommands.delete(context, command.id)
-                                                        savedCommands = VibeSavedCommands.list(context)
-                                                    }.padding(horizontal = 2.dp, vertical = 6.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                OutlinedTextField(
-                                    value = newCommandLabel,
-                                    onValueChange = { newCommandLabel = it },
-                                    label = { Text("تسمية الأمر الجديد", fontFamily = CairoFont, fontSize = 11.sp) },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                OutlinedTextField(
-                                    value = newCommandPrompt,
-                                    onValueChange = { newCommandPrompt = it },
-                                    label = { Text("نص الأمر الجديد", fontFamily = CairoFont, fontSize = 11.sp) },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(onClick = {
-                                        val added = VibeSavedCommands.add(context, newCommandLabel, newCommandPrompt)
-                                        if (added != null) {
-                                            savedCommands = VibeSavedCommands.list(context)
-                                            newCommandLabel = ""
-                                            newCommandPrompt = ""
-                                            commandMessage = "تم حفظ الأمر «${added.label}»."
-                                        } else {
-                                            commandMessage = "أدخل تسمية ونصاً للأمر أولاً."
-                                        }
-                                    }) {
-                                        Text("حفظ الأمر", fontFamily = CairoFont, fontSize = 11.sp)
-                                    }
-                                    if (commandMessage.isNotBlank()) {
-                                        Text(commandMessage, color = QabasTheme.current.success, fontFamily = CairoFont, fontSize = 11.sp)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedTextField(
-                                value = promptInput,
-                                onValueChange = { promptInput = it },
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 140.dp).testTag("agent_studio_prompt_input"),
-                                placeholder = { Text("اكتب أمرك هنا...", color = QabasTheme.current.textTertiary, fontSize = 12.sp) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = QabasTheme.current.primary, unfocusedBorderColor = QabasTheme.current.separator,
-                                    focusedTextColor = QabasTheme.current.textPrimary, unfocusedTextColor = QabasTheme.current.textPrimary, cursorColor = QabasTheme.current.primary
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                enabled = !isExecuting,
-                                maxLines = 6
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            if (!isOfflineMode) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Surface(
-                                        onClick = { showModelPicker = true },
-                                        modifier = Modifier.weight(1f).height(46.dp),
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = QabasTheme.current.primary.copy(alpha = 0.08f),
-                                        border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.3f))
-                                    ) {
-                                        Row(
-                                            Modifier.padding(horizontal = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Tune, null, tint = QabasTheme.current.primary, modifier = Modifier.size(16.dp))
-                                            Text(
-                                                text = selectedModel.take(22).ifBlank { "اختر النموذج" },
-                                                color = QabasTheme.current.textPrimary,
-                                                fontSize = 11.sp,
-                                                fontFamily = CairoFont,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                    
-                                    Surface(
-                                        onClick = onOpenTeamConfig,
-                                        modifier = Modifier.weight(0.7f).height(46.dp),
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = QabasTheme.current.accent.copy(alpha = 0.08f),
-                                        border = BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.3f))
-                                    ) {
-                                        Row(
-                                            Modifier.padding(horizontal = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Groups, null, tint = QabasTheme.current.accent, modifier = Modifier.size(16.dp))
-                                            Text(
-                                                text = "الفريق",
-                                                color = QabasTheme.current.textPrimary,
-                                                fontSize = 11.sp,
-                                                fontFamily = CairoFont,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(4.dp))
-                            }
-                            Text(
-                                text = "أوامر ذكية جاهزة:",
-                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textTertiary,
-                                modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
-                            )
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(end = 12.dp)
-                            ) {
-                                val promptsWithIcons = listOf(
-                                    "مواقيت الصلاة" to Icons.Default.Schedule,
-                                    "تدقيق الكود" to Icons.Default.FactCheck,
-                                    "بناء APK" to Icons.Default.Android,
-                                    "تحسين الأداء" to Icons.Default.Speed,
-                                    "حذف مهمل" to Icons.Default.DeleteSweep
-                                )
-                                items(promptsWithIcons) { (qp, icon) ->
-                                    Surface(
-                                        onClick = { if (!isExecuting) promptInput = qp },
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = QabasTheme.current.secondarySurface,
-                                        border = BorderStroke(1.dp, QabasTheme.current.separator),
-                                        modifier = Modifier.height(38.dp)
-                                    ) {
-                                        Row(
-                                            Modifier.padding(horizontal = 10.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Icon(icon, null, tint = QabasTheme.current.textSecondary, modifier = Modifier.size(14.dp))
-                                            Text(qp, fontSize = 11.sp, color = QabasTheme.current.textPrimary, fontFamily = CairoFont)
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            val isLocalReady = isOfflineMode && OnDeviceModelManager.isModelInstalled(context, activeLocalModel)
-                            val isCloudReady = !isOfflineMode && keyResolution.third != KeySource.NONE
-                            val canExecute = if (isOfflineMode) isLocalReady else isCloudReady
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (isExecuting) {
-                                    Button(
-                                        onClick = { executionJob?.cancel(); executionJob = null; isExecuting = false; Toast.makeText(context, "تم إلغاء المهمة", Toast.LENGTH_SHORT).show() },
-                                        modifier = Modifier.weight(1f).height(48.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive, contentColor = QabasTheme.current.textPrimary),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(15.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("إيقاف", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    }
-                                } else {
-                                    Button(
-                                        onClick = {
-                                            if (isOfflineMode && !isLocalReady) { showOnDeviceDialog = true; return@Button }
-                                            if (!isOfflineMode && !isCloudReady) { showKeyDialog = true; return@Button }
-                                            if (isTeamMode && isOfflineMode) { Toast.makeText(context, "وضع الفريق يتطلب اتصالاً سحابياً", Toast.LENGTH_LONG).show(); return@Button }
-                                            if (isTeamMode && RepoVaultManager.getActiveRepo(context) == null) { showRepoDialog = true; Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show(); return@Button }
-                                            val prompt = promptInput.trim()
-                                            if (prompt.isBlank()) { Toast.makeText(context, "اكتب أمراً أولاً", Toast.LENGTH_SHORT).show(); return@Button }
-                                            lastExecutedPrompt = prompt
-                                            isExecuting = true
-                                            val job = coroutineScope.launch {
-                                                try {
-                                                    if (isTeamMode) {
-                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, history = chatMessages.toList(), onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
-                                                        currentMission = mission
-                                                        missionHistory = listOf(mission) + missionHistory
-                                                    } else {
-                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, history = chatMessages.toList(), onUpdate = { currentMission = it }, onFinished = { finalMission ->
-                                                            currentMission = finalMission
-                                                            missionHistory = listOf(finalMission) + missionHistory
-                                                        })
-                                                    }
-                                                } catch (_: kotlinx.coroutines.CancellationException) {
-                                                } finally {
-                                                    isExecuting = false
-                                                    executionJob = null
-                                                    promptInput = ""
-                                                    teamProgressText = ""
-                                                }
-                                            }
-                                            executionJob = job
-                                        },
-                                        enabled = !isExecuting,
-                                        modifier = Modifier.weight(1f).height(48.dp).testTag("agent_studio_execute_btn"),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (!canExecute) QabasTheme.current.destructive else if (isOfflineMode) QabasTheme.current.primary else QabasTheme.current.primary,
-                                            contentColor = if (!canExecute) QabasTheme.current.textPrimary else QabasTheme.current.background
-                                        ),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (!canExecute) Icons.Default.Key else if (isOfflineMode) Icons.Default.Memory else Icons.AutoMirrored.Filled.Send,
-                                            contentDescription = null, modifier = Modifier.size(15.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(
-                                            text = if (!canExecute) "يلزم مفتاح" else if (isOfflineMode) "تنفيذ محلي" else "تنفيذ المهمة",
-                                            fontWeight = FontWeight.Bold, fontSize = 12.sp
-                                        )
-                                    }
-                                }
-                                if (lastExecutedPrompt.isNotBlank() && !isExecuting) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            val prompt = lastExecutedPrompt
-                                            promptInput = prompt
-                                            isExecuting = true
-                                            val job = coroutineScope.launch {
-                                                try {
-                                                    if (isTeamMode) {
-                                                        val mission = executeAgentMissionMultiModel(context, prompt, selectedSpec, history = chatMessages.toList(), onUpdate = { currentMission = it }, onTeamProgress = { teamProgressText = it })
-                                                        currentMission = mission
-                                                        missionHistory = listOf(mission) + missionHistory
-                                                    } else {
-                                                        executeAgentMission(context, prompt, selectedSpec, activeRepo, selectedModel, history = chatMessages.toList(), onUpdate = { currentMission = it }, onFinished = { finalMission ->
-                                                            currentMission = finalMission
-                                                            missionHistory = listOf(finalMission) + missionHistory
-                                                        })
-                                                    }
-                                                } catch (_: kotlinx.coroutines.CancellationException) {
-                                                } finally {
-                                                    isExecuting = false
-                                                    executionJob = null
-                                                    teamProgressText = ""
-                                                }
-                                            }
-                                            executionJob = job
-                                        },
-                                        modifier = Modifier.height(46.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.5f))
-                                    ) {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("إعادة", color = QabasTheme.current.success, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        }
-                        }
-
-                        // Container 4: Active Mission
-                        currentMission?.let { mission ->
-                            item {
-                                AgentContainer(title = "المهمة الحالية", icon = Icons.Default.Rocket, accent = QabasTheme.current.accent) {
-                                    LiveMissionExecutionCard(
-                                        mission = mission,
-                                        teamProgress = teamProgressText,
-                                        isTeamMode = isTeamMode,
-                                        verifyingBuild = verifyingBuild,
-                                        onVerifyBuild = {
-                                            if (activeRepo == null || activeRepo.token.isBlank()) {
-                                                Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show()
-                                            } else if (!verifyingBuild) {
-                                                verifyingBuild = true
-                                                coroutineScope.launch {
-                                                    try {
-                                                        val gate = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { fetchTeamBuildFeedback(context) }
-                                                        when (gate.state) {
-                                                            BuildVerificationEngine.BuildGateState.PASSED -> {
-                                                                currentMission = mission.copy(buildTriggered = true, status = AgentTaskStatus.COMPLETED)
-                                                                Toast.makeText(context, "البناء ناجح", Toast.LENGTH_LONG).show()
-                                                            }
-                                                            BuildVerificationEngine.BuildGateState.PENDING -> Toast.makeText(context, "البناء قيد التشغيل — انتظر", Toast.LENGTH_LONG).show()
-                                                            BuildVerificationEngine.BuildGateState.FAILED -> Toast.makeText(context, "فشل البناء — يعيد الفريق الإصلاح", Toast.LENGTH_LONG).show()
-                                                            else -> Toast.makeText(context, "تعذر تحديد حالة البناء", Toast.LENGTH_LONG).show()
-                                                        }
-                                                    } catch (_: kotlinx.coroutines.CancellationException) {
-                                                    } finally { verifyingBuild = false }
-                                                }
-                                            }
-                                        },
-                                        onTriggerBuild = {
-                                            val base = currentMission ?: mission
-                                            coroutineScope.launch { runBuildVerification(context, base) { currentMission = it } }
-                                        },
-                                        onApplyDiff = { diff ->
-                                            if (activeRepo == null || activeRepo.token.isBlank()) {
-                                                Toast.makeText(context, "اربط مستودع GitHub أولاً", Toast.LENGTH_LONG).show()
-                                            } else if (activeRepo.defaultBranch.isBlank()) {
-                                                Toast.makeText(context, "تعذر حفظ المقترح: الفرع الافتراضي غير محدد.", Toast.LENGTH_LONG).show()
-                                            } else {
-                                                applyingDiffPath = diff.filePath
-                                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                                    val client = GitHubRepoClient(activeRepo.owner, activeRepo.repo, activeRepo.token)
-                                                    // 🔑 نكتب المقترح في مجلد منفصل — لا نستبدل ملف الكود الأصلي بمقتطف جزئي
-                                                    val safePath = AgentPatchKit.proposalPath(diff.filePath)
-                                                    val ok = client.updateFile(safePath, activeRepo.defaultBranch, "chore(agent): save proposal for ${diff.filePath.substringAfterLast('/')}", diff.diffText)
-                                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                        applyingDiffPath = null
-                                                        if (ok) {
-                                                            val pushed = (currentMission ?: mission).copy(appliedPaths = (currentMission ?: mission).appliedPaths + safePath)
-                                                            currentMission = pushed
-                                                            Toast.makeText(context, "تم حفظ المقترح في المستودع (مجلد qabas-agent-proposals)", Toast.LENGTH_LONG).show()
-                                                        } else {
-                                                            Toast.makeText(context, "تعذر الحفظ — تأكد من الصلاحيات والفرع", Toast.LENGTH_LONG).show()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        onDiscardDiff = { diff ->
-                                            val base = currentMission ?: mission
-                                            currentMission = base.copy(proposedDiffs = base.proposedDiffs.filterNot { it.filePath == diff.filePath })
-                                            Toast.makeText(context, "تم التجاهل", Toast.LENGTH_SHORT).show()
-                                        },
-                                        applyingPath = applyingDiffPath
-                                    )
-                                }
-                            }
-                        }
-
-                        // Container 5: History
-                        if (missionHistory.isNotEmpty()) {
-                            item {
-                                AgentContainer(index = "05", title = "سجل العمليات", icon = Icons.Default.History, accent = QabasTheme.current.textSecondary) {
-                                    missionHistory.take(5).forEach { itemMission ->
-                                        HistoricalMissionCard(itemMission)
-                                        Spacer(Modifier.height(6.dp))
-                                    }
-                                }
-                            }
-                        }
-
-                        item { Spacer(Modifier.height(24.dp)) }
-                    }
-                    2 -> AgentLiveConsoleTab(
-                        context = context,
-                        scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onJumpBuildCenter = { showRepoDialog = true }
-                    )
-                    3 -> AgentHubProjectsSection(
-                        repositories = savedRepositories,
-                        activeRepositoryId = activeRepo?.id,
-                        onSelectRepository = { repository ->
-                            RepoVaultManager.setActiveRepo(context, repository.id)
-                            Toast.makeText(context, "تم تحديد ${repository.fullName} كمستودع نشط", Toast.LENGTH_SHORT).show()
-                        },
-                        onAddRepository = { showRepoDialog = true }
-                    )
-                    4 -> TaskHistoryLogTab(context)
-                    5 -> UnifiedToolsAndReadinessSection(
-                        context = context,
-                        scope = coroutineScope,
-                        onJumpKeys = { keyDialogInitialTab = 0; showKeyDialog = true },
-                        onOpenRepoSetup = { showRepoDialog = true }
-                    )
-                }
-            }
-        }
-    } else {
             // شاشة المحادثة الأساسية والمباشرة مع اللوحة الجانبية الجزئية
             Box(
                 Modifier
@@ -1409,7 +781,15 @@ fun AiStudioAgentScreen(
                                             textAlign = TextAlign.Center
                                         )
                                         Text(
-                                            text = "تستطيع إرسال أي طلب تعديل، فحص الكود، إصلاح أخطاء، أو بناء ميزات جديدة مباشرة. استخدم الأوامر السريعة أدناه أو اكتب طلبك باللغة العربية.",
+                                            // لا وعد ببناء ميزات قبل التهيئة:
+                                            // النص يسرد ما ينقص حتى يبدأ الوكيل.
+                                            text = when {
+                                                agentHasKey && agentHasRepoWithPat -> "تستطيع إرسال أي طلب تعديل، فحص الكود، إصلاح أخطاء، أو بناء ميزات جديدة مباشرة. استخدم الأوامر السريعة أدناه أو اكتب طلبك باللغة العربية."
+                                                !agentHasKey && activeRepo == null -> "قبل أن يبدأ الوكيل، يلزمك: حفظ مفتاح API من «مفاتيحي»، وربط مستودع GitHub. بعدها تستطيع إرسال أي طلب تعديل أو إصلاح بالعربية."
+                                                !agentHasKey -> "قبل أن يبدأ الوكيل، يلزمك: حفظ مفتاح API من «مفاتيحي». بعدها تستطيع إرسال أي طلب تعديل أو إصلاح بالعربية."
+                                                activeRepo == null -> "قبل أن يبدأ الوكيل، يلزمك: ربط مستودع GitHub. بعدها تستطيع إرسال أي طلب تعديل أو إصلاح بالعربية."
+                                                else -> "قبل أن يبدأ الوكيل، يلزمك: حفظ مفتاح PAT للمستودع المربوط. بعدها تستطيع إرسال أي طلب تعديل أو إصلاح بالعربية."
+                                            },
                                             color = QabasTheme.current.textSecondary,
                                             fontFamily = CairoFont,
                                             fontSize = 12.sp,
@@ -1511,6 +891,61 @@ fun AiStudioAgentScreen(
                         }
                     }
 
+                    // شريط الوضع والنموذج (المرحلة 4) — فوق شريط الإدخال مباشرة:
+                    // محدد فردي/فريق موسوم + تسمية النموذج النشط + إعداد الفريق.
+                    // التسمية سطر واحد ellipsis ومربوطة بالحالة الحية، والضغط عليها
+                    // ينقّل إلى «مفاتيحي» حيث تُدار المفاتيح والنماذج من مصدر واحد.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // محدد موسوم فردي/فريق (بدل أيقونة الروبوت المجردة)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        ) {
+                            ModeSegmentChip(
+                                label = "فردي",
+                                icon = Icons.Default.SmartToy,
+                                selected = !isTeamMode,
+                                selectedColor = QabasTheme.current.primary,
+                                onClick = { setTeamMode(false) }
+                            )
+                            ModeSegmentChip(
+                                label = "فريق",
+                                icon = Icons.Default.Groups,
+                                selected = isTeamMode,
+                                selectedColor = QabasTheme.current.warning,
+                                onClick = { setTeamMode(true) },
+                                modifier = Modifier.testTag("agent_chat_toggle_team")
+                            )
+                        }
+                        Text(
+                            text = modelLabel,
+                            color = QabasTheme.current.textSecondary,
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onOpenKeys() }
+                        )
+                        if (isTeamMode) {
+                            TextButton(onClick = onOpenTeamConfig) {
+                                Text(
+                                    "إعداد الفريق",
+                                    color = QabasTheme.current.primary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
                     // شريط الإدخال
                     Surface(
                         color = QabasTheme.current.cardSurface,
@@ -1523,18 +958,6 @@ fun AiStudioAgentScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // زر التخصص
-                            IconButton(
-                                onClick = { showSpecChooser = true },
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(selectedSpec.color.copy(alpha = 0.12f))
-                                    .border(1.dp, selectedSpec.color.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                            ) {
-                                Icon(selectedSpec.icon, contentDescription = "تخصص", tint = selectedSpec.color, modifier = Modifier.size(20.dp))
-                            }
-
                             OutlinedTextField(
                                 value = chatInputText,
                                 onValueChange = { chatInputText = it },
@@ -1559,41 +982,7 @@ fun AiStudioAgentScreen(
                                     .weight(1f)
                                     .heightIn(min = 46.dp, max = 100.dp)
                                     .testTag("agent_chat_input"),
-                                maxLines = 3,
-                                trailingIcon = {
-                                    val infiniteTransition = rememberInfiniteTransition(label = "team_glow")
-                                    val teamGlowAlpha by infiniteTransition.animateFloat(
-                                        initialValue = 0.4f,
-                                        targetValue = 1f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(1500, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Reverse
-                                        ),
-                                        label = "glow"
-                                    )
-
-                                    IconButton(
-                                        onClick = { isTeamMode = !isTeamMode },
-                                        modifier = Modifier
-                                            .padding(end = 4.dp)
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isTeamMode) QabasTheme.current.warning.copy(alpha = 0.15f) else QabasTheme.current.background)
-                                            .border(
-                                                width = if (isTeamMode) 1.5.dp else 1.dp,
-                                                color = if (isTeamMode) QabasTheme.current.warning.copy(alpha = teamGlowAlpha) else QabasTheme.current.primary.copy(alpha = 0.4f),
-                                                shape = CircleShape
-                                            )
-                                            .testTag("agent_chat_toggle_team")
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isTeamMode) Icons.Default.Groups else Icons.Default.SmartToy,
-                                            contentDescription = "تبديل وضع الفريق",
-                                            tint = if (isTeamMode) QabasTheme.current.warning.copy(alpha = teamGlowAlpha.coerceAtLeast(0.7f)) else QabasTheme.current.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
+                                maxLines = 3
                             )
 
                             Button(
@@ -1734,6 +1123,57 @@ fun AiStudioAgentScreen(
 
                             Spacer(Modifier.height(14.dp))
 
+                            // (المرحلة 5) إدارة المهمة — نُقلت من نافذة المفاتيح
+                            // المحذوفة إلى اللوحة الجانبية: تصدير/استيراد المهمة.
+                            Text(
+                                text = "إدارة المهمة:",
+                                color = QabasTheme.current.textSecondary,
+                                fontFamily = CairoFont,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Spacer(Modifier.height(6.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val json = exportMissionJson()
+                                        if (json.isNotBlank()) {
+                                            clipboardManager.setText(AnnotatedString(json))
+                                            Toast.makeText(context, "تم نسخ المهمة إلى الحافظة", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "لا توجد مهمة للتصدير", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("تصدير المهمة", fontSize = 11.sp)
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        val json = prefs.getString("active_mission_json", "") ?: ""
+                                        if (json.isNotBlank() && importMissionFromJson(json)) {
+                                            Toast.makeText(context, "تم استيراد المهمة من الحالة المحفوظة", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "لا توجد مهمة محفوظة للاستيراد", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("استيراد مهمة", fontSize = 11.sp)
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
                             Text(
                                 text = "المحادثات السابقة:",
                                 color = QabasTheme.current.textSecondary,
@@ -1846,18 +1286,6 @@ fun AiStudioAgentScreen(
         }
     }
 
-    if (showKeyDialog) {
-        ApiKeySetupDialog(
-            context = context, initialTab = keyDialogInitialTab,
-            onKeySaved = { refreshDiagnostics() },
-            onOpenOnDeviceModels = { showOnDeviceDialog = true },
-            onExportMission = { exportMissionJson() },
-            onImportMission = { val json = prefs.getString("active_mission_json", "") ?: ""; if (json.isNotBlank()) importMissionFromJson(json) },
-            onDismiss = { showKeyDialog = false }
-        )
-    }
-    if (showRepoDialog) { RepoSetupDialog(context = context, activeRepo = activeRepo, onDismiss = { showRepoDialog = false }) }
-    
     if (showRequirementDialog) {
         AgentRequirementDialog(
             context = context,
@@ -1867,177 +1295,6 @@ fun AiStudioAgentScreen(
                 Toast.makeText(context, "تم تفعيل المتطلبات! يمكنك الآن إرسال طلبك 🚀", Toast.LENGTH_LONG).show()
             }
         )
-    }
-    if (showSettings) {
-        AgentCyberSettingsBottomSheet(
-            context = context,
-            activeRepo = activeRepo,
-            onDismiss = { showSettings = false },
-            onOpenApiKeys = {
-                keyDialogInitialTab = 0
-                showKeyDialog = true
-            },
-            onOpenRepoSetup = {
-                showRepoDialog = true
-            },
-            onOpenOnDeviceModels = {
-                showOnDeviceDialog = true
-            },
-            onOpenDevTools = {
-                showHub = true
-            }
-        )
-    }
-    if (showSpecChooser) {
-        Dialog(onDismissRequest = { showSpecChooser = false }) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(0.92f).padding(16.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = QabasTheme.current.cardSurface,
-                border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.5f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "اختر تخصص الوكيل البرمجي 🧠",
-                        color = QabasTheme.current.textPrimary,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(AgentSpecialization.entries.toTypedArray()) { spec ->
-                            val isSelected = selectedSpec == spec
-                            Surface(
-                                onClick = {
-                                    selectedSpec = spec
-                                    showSpecChooser = false
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) spec.color.copy(alpha = 0.18f) else QabasTheme.current.secondarySurface,
-                                border = BorderStroke(1.dp, if (isSelected) spec.color else QabasTheme.current.separator),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(spec.icon, contentDescription = null, tint = spec.color, modifier = Modifier.size(20.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(spec.title, color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                        Text(spec.description, color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 10.5.sp)
-                                    }
-                                    if (isSelected) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = spec.color, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if (showOnDeviceDialog) {
-        OnDeviceModelDownloadDialog(
-            context = context,
-            onModelActivated = { isOfflineMode = OnDeviceModelManager.isOfflineModeActive(context); activeLocalModel = OnDeviceModelManager.getSelectedModel(context) },
-            onDismiss = { showOnDeviceDialog = false }
-        )
-    }
-    if (showModelPicker) {
-        val provider = AgentConnectivityEngine.resolveKeyWithSource(context).first
-        val models = provider.models
-        Dialog(
-            onDismissRequest = { showModelPicker = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(0.88f).padding(16.dp),
-                color = QabasTheme.current.cardSurface,
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(36.dp).clip(CircleShape).background(QabasTheme.current.primary.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, null, tint = QabasTheme.current.primary, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text("محرك الذكاء", color = QabasTheme.current.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = CairoFont)
-                            Text(provider.name, color = QabasTheme.current.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { showModelPicker = false }) {
-                            Icon(Icons.Default.Close, null, tint = QabasTheme.current.textTertiary)
-                        }
-                    }
-                    
-                    Spacer(Modifier.height(16.dp))
-                    
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(models) { m ->
-                            val isSelected = selectedModel == m
-                            val modelIcon = when {
-                                m.contains("flash") -> Icons.Default.Bolt
-                                m.contains("pro") -> Icons.Default.Star
-                                m.contains("o1") -> Icons.Default.Psychology
-                                m.contains("gpt-4") -> Icons.Default.AutoAwesome
-                                m.contains("llama") -> Icons.Default.Architecture
-                                else -> Icons.Default.SmartToy
-                            }
-                            
-                            Surface(
-                                // ق93: اختيار المنتقي يُحفظ في AgentPrefs (مصدر
-                                // الحقيقة الوحيد) — كان يُنسى بمغادرة الشاشة.
-                                onClick = { selectedModel = m; AgentPrefs.putModel(context, m); showModelPicker = false },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) QabasTheme.current.primary.copy(alpha = 0.12f) else QabasTheme.current.secondarySurface,
-                                border = BorderStroke(1.dp, if (isSelected) QabasTheme.current.primary.copy(alpha = 0.6f) else QabasTheme.current.separator),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        modelIcon, null, 
-                                        tint = if (isSelected) QabasTheme.current.primary else QabasTheme.current.textTertiary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(
-                                        text = m,
-                                        color = if (isSelected) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (isSelected) {
-                                        Icon(Icons.Default.Check, null, tint = QabasTheme.current.primary, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    Spacer(Modifier.height(16.dp))
-                    AgentNeonButton(
-                        text = "إغلاق",
-                        onClick = { showModelPicker = false },
-                        accent = AgentDesign.Secondary,
-                        icon = Icons.Default.Close,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
     }
     if (showExitConfirmation) {
         AlertDialog(
@@ -2055,794 +1312,38 @@ fun AiStudioAgentScreen(
     }
 }
 
+/**
+ * شريحة خيار في محدد الوضع (المرحلة 4): «فردي» / «فريق».
+ */
 @Composable
-private fun AgentContainer(
-    title: String,
+private fun ModeSegmentChip(
+    label: String,
     icon: ImageVector,
-    accent: Color,
-    modifier: Modifier = Modifier,
-    index: String? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = QabasTheme.current.cardSurface,
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.22f)),
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (index != null) {
-                    Text(
-                        "[$index]",
-                        color = accent,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary, maxLines = 1)
-            }
-            Spacer(Modifier.height(4.dp))
-            Box(
-                Modifier.fillMaxWidth().height(1.dp).background(
-                    Brush.horizontalGradient(listOf(accent.copy(alpha = 0.5f), accent.copy(alpha = 0.1f), accent.copy(alpha = 0f)))
-                )
-            )
-            Spacer(Modifier.height(12.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun HealthPill(
-    name: String,
-    isConnected: Boolean,
-    latencyMs: Long,
-    detail: String,
+    selected: Boolean,
+    selectedColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = if (isConnected) QabasTheme.current.success.copy(alpha = 0.12f) else QabasTheme.current.warning.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, if (isConnected) QabasTheme.current.success.copy(alpha = 0.45f) else QabasTheme.current.warning.copy(alpha = 0.45f)),
-        modifier = modifier.clickable(onClick = onClick)
-    ) {
-        Column(Modifier.padding(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(if (isConnected) QabasTheme.current.success else QabasTheme.current.warning))
-                Spacer(Modifier.width(5.dp))
-                Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = QabasTheme.current.textPrimary)
-                Spacer(Modifier.weight(1f))
-                if (latencyMs > 0) Text("${latencyMs}ms", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (isConnected) QabasTheme.current.success else QabasTheme.current.warning)
-            }
-            Spacer(Modifier.height(3.dp))
-            Text(detail.take(50), fontSize = 12.sp, color = QabasTheme.current.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun UnifiedToolsAndReadinessSection(
-    context: Context,
-    scope: CoroutineScope,
-    onJumpKeys: () -> Unit,
-    onOpenRepoSetup: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    var subTab by remember { mutableStateOf(0) }
-
-    Column(
+    Row(
         modifier = modifier
-            .fillMaxSize()
-            .background(QabasTheme.current.background)
+            .background(if (selected) selectedColor.copy(alpha = 0.18f) else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        AgentHubPageIntro(
-            index = "06",
-            title = "الأدوات والجاهزية",
-            description = "إدارة قدرات الوكيل والتحقق من الاتصالات قبل التنفيذ",
-            icon = Icons.Default.Build,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (selected) selectedColor else QabasTheme.current.textSecondary,
+            modifier = Modifier.size(14.dp)
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(QabasTheme.current.background)
-                .border(
-                    BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(
-                                QabasTheme.current.primary.copy(alpha = 0.4f),
-                                QabasTheme.current.success.copy(alpha = 0.4f)
-                            )
-                        )
-                    ),
-                    RoundedCornerShape(10.dp)
-                )
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 0) QabasTheme.current.primary.copy(alpha = 0.22f) else QabasTheme.current.background,
-                border = if (subTab == 0) BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.7f)) else null,
-                modifier = Modifier
-                    .weight(1f)
-                    .defaultMinSize(minHeight = 48.dp)
-                    .clickable { subTab = 0 }
-                    .testTag("sub_tab_readiness")
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = if (subTab == 0) QabasTheme.current.primary else QabasTheme.current.textSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "فحص الجاهزية والربط",
-                        fontSize = 12.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = if (subTab == 0) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 0) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (subTab == 1) QabasTheme.current.success.copy(alpha = 0.22f) else QabasTheme.current.background,
-                border = if (subTab == 1) BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.7f)) else null,
-                modifier = Modifier
-                    .weight(1f)
-                    .defaultMinSize(minHeight = 48.dp)
-                    .clickable { subTab = 1 }
-                    .testTag("sub_tab_tools")
-            ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Handyman,
-                        contentDescription = null,
-                        tint = if (subTab == 1) QabasTheme.current.success else QabasTheme.current.textSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "ترسانة الأدوات والـ Git",
-                        fontSize = 12.sp,
-                        fontFamily = CairoFont,
-                        fontWeight = if (subTab == 1) FontWeight.Bold else FontWeight.Medium,
-                        color = if (subTab == 1) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            }
-        }
-
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (subTab == 0) {
-                RequirementsTab(
-                    context = context,
-                    scope = scope,
-                    onOpenRepoSetup = onOpenRepoSetup,
-                    onJumpKeys = onJumpKeys
-                )
-            } else {
-                ToolsTab(context = context)
-            }
-        }
-    }
-}
-
-/**
- * لوحة التحكم والإعدادات السفلية بنمط السايبر (Cyber HUD Settings Bottom Sheet)
- * تتيح تخصيص النموذج، حد جولات التفكير، الإصلاح الذاتي، والربط مع المفاتيح والمستودع.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AgentCyberSettingsBottomSheet(
-    context: Context,
-    activeRepo: RepoVaultEntry?,
-    onDismiss: () -> Unit,
-    onOpenApiKeys: () -> Unit,
-    onOpenRepoSetup: () -> Unit,
-    onOpenOnDeviceModels: () -> Unit,
-    onOpenDevTools: () -> Unit = {}
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var selectedModel by remember { mutableStateOf(AgentPrefs.model(context)) }
-    var maxTurns by remember { mutableStateOf(AgentPrefs.maxTurns(context).coerceIn(3, 25)) }
-    var isAutoFix by remember { mutableStateOf(AgentPrefs.isAutoFix(context)) }
-    var isAutonomousMode by remember {
-        // (12.9) الافتراضي متوقف — كان true (تنفيذ بلا تأكيد لكل خطوة).
-        mutableStateOf(AgentPrefs.isAutonomousMode(context))
-    }
-    var isPlanningMode by remember {
-        mutableStateOf(AgentPrefs.isPlanningMode(context))
-    }
-
-    val activeEnginePair = UniversalKeyBrain.getActiveEngine()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = QabasTheme.current.background,
-        scrimColor = QabasTheme.current.background.copy(alpha = 0.65f),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = QabasTheme.current.separator) }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 28.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(QabasTheme.current.primary.copy(alpha = 0.15f))
-                            .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = QabasTheme.current.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = "مركز إعدادات وتحكم الوكيل ⚙️",
-                            color = QabasTheme.current.textPrimary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "تخصيص نماذج الذكاء، ضبط النواة، والمستودع",
-                            color = QabasTheme.current.textSecondary,
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "إغلاق",
-                        tint = QabasTheme.current.textSecondary
-                    )
-                }
-            }
-
-            // 🛠️ زر مخصص داخل نافذة الإعدادات يفتح الكونسول وأدوات المطور المتقدمة
-            Surface(
-                onClick = {
-                    onDismiss()
-                    onOpenDevTools()
-                },
-                shape = RoundedCornerShape(14.dp),
-                color = QabasTheme.current.secondarySurface,
-                border = BorderStroke(1.2.dp, QabasTheme.current.primary.copy(alpha = 0.7f)),
-                modifier = Modifier.fillMaxWidth().testTag("agent_settings_open_dev_console")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(QabasTheme.current.primary.copy(alpha = 0.15f))
-                            .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Terminal, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(18.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "الكونسول المباشر وأدوات المطور 🛠️⚡",
-                            color = QabasTheme.current.textPrimary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "تشخيص المحرك الحي، سجل العمليات، وإعدادات الوكيل",
-                            color = QabasTheme.current.textSecondary,
-                            fontFamily = CairoFont,
-                            fontSize = 10.5.sp
-                        )
-                    }
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = QabasTheme.current.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            // 🧠 Active Planning Tasks Counter Badge (عداد المهام المخططة النشطة)
-            val activeTasksCount = AgentPrefs.activePlanningTasksCount(context)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = QabasTheme.current.cardSurface,
-                border = BorderStroke(
-                    1.dp,
-                    if (activeTasksCount > 0) QabasTheme.current.accent.copy(alpha = 0.8f) else QabasTheme.current.separator
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(if (activeTasksCount > 0) QabasTheme.current.accent else QabasTheme.current.textTertiary)
-                        )
-                        Column {
-                            Text(
-                                text = "مهام التخطيط النشطة (Active Planning Tasks)",
-                                color = QabasTheme.current.textPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = if (activeTasksCount > 0) "يوجد $activeTasksCount مهمة تخطيط معلقة في وضع Planning Mode" else "لا توجد مهام تخطيط معلقة حالياً",
-                                color = QabasTheme.current.textSecondary,
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (activeTasksCount > 0) QabasTheme.current.accent.copy(alpha = 0.2f) else QabasTheme.current.separator,
-                        border = BorderStroke(
-                            1.dp,
-                            if (activeTasksCount > 0) QabasTheme.current.accent else QabasTheme.current.separator
-                        )
-                    ) {
-                        Text(
-                            text = "🧠 $activeTasksCount",
-                            color = if (activeTasksCount > 0) QabasTheme.current.textPrimary else QabasTheme.current.textSecondary,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            // Category 1: AI Model & Reasoning Engine
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(QabasTheme.current.cardSurface)
-                    .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
-                    .padding(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "01 | نموذج الذكاء الاصطناعي والاستدلال",
-                            color = QabasTheme.current.primary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(QabasTheme.current.success.copy(alpha = 0.15f))
-                                .border(1.dp, QabasTheme.current.success.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "المزود: ${activeEnginePair.first.name}",
-                                color = QabasTheme.current.success,
-                                fontFamily = CairoFont,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "اختر النموذج الذي يقود خطوات التفكير البرمجي وتوليد الكود:",
-                        color = QabasTheme.current.textPrimary,
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp
-                    )
-
-                    val modelOptions = listOf(
-                        null to "⚡ تلقائي الذكي (Auto Engine)",
-                        "gemini-3.8-flash" to "💎 Gemini 3.8 Flash (سريع ودقيق)",
-                        "llama-3.3-70b-versatile" to "🚀 Groq Llama 3.3 70B (فائق السرعة)",
-                        "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free (مجاني ومفتوح)"
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        modelOptions.forEach { (id, label) ->
-                            val isSelected = selectedModel == id
-                            Surface(
-                                onClick = {
-                                    selectedModel = id
-                                    AgentPrefs.putModel(context, id)
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) QabasTheme.current.success.copy(alpha = 0.15f) else QabasTheme.current.secondarySurface,
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isSelected) QabasTheme.current.success else QabasTheme.current.separator
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) QabasTheme.current.success else QabasTheme.current.textPrimary,
-                                        fontFamily = CairoFont,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                    if (isSelected) {
-                                        Text(
-                                            text = "✓ نشط",
-                                            color = QabasTheme.current.success,
-                                            fontFamily = CairoFont,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Category 2: Kernel Parameters, Turns, & Automation
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(QabasTheme.current.cardSurface)
-                    .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
-                    .padding(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "02 | معاملات النواة والجولات البرمجية",
-                        color = QabasTheme.current.warning,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-
-                    // Max Turns Slider
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "حد جولات تفكير الوكيل (Max Turns):",
-                                color = QabasTheme.current.textPrimary,
-                                fontFamily = CairoFont,
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "$maxTurns جولة",
-                                color = QabasTheme.current.warning,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-
-                        Slider(
-                            value = maxTurns.toFloat(),
-                            onValueChange = {
-                                val intVal = it.toInt()
-                                maxTurns = intVal
-                                AgentPrefs.putMaxTurns(context, intVal)
-                            },
-                            valueRange = 3f..25f,
-                            steps = 21,
-                            colors = SliderDefaults.colors(
-                                thumbColor = QabasTheme.current.warning,
-                                activeTrackColor = QabasTheme.current.warning,
-                                inactiveTrackColor = QabasTheme.current.separator
-                            )
-                        )
-                    }
-
-                    HorizontalDivider(color = QabasTheme.current.separator)
-
-                    // Self-Repair Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "الإصلاح الذاتي للأخطاء البرمجية (Self-Repair)",
-                                color = QabasTheme.current.textPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "يفحص أخطاء البناء والـ Lint ويصلحها تلقائياً قبل تسليم الكود.",
-                                color = QabasTheme.current.textSecondary,
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
-                            )
-                        }
-                        Switch(
-                            checked = isAutoFix,
-                            onCheckedChange = {
-                                isAutoFix = it
-                                AgentPrefs.putAutoFix(context, it)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = QabasTheme.current.onPrimary,
-                                checkedTrackColor = QabasTheme.current.success
-                            )
-                        )
-                    }
-
-                    HorizontalDivider(color = QabasTheme.current.separator)
-
-                    // Autonomous Execution Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "النمط المستقل التلقائي (Autonomous Mode)",
-                                color = QabasTheme.current.textPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "متابعة تنفيذ مراحل المهمة المتتالية دون طلب تأكيد لكل خطوة.",
-                                color = QabasTheme.current.textSecondary,
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
-                            )
-                        }
-                        Switch(
-                            checked = isAutonomousMode,
-                            onCheckedChange = {
-                                isAutonomousMode = it
-                                AgentPrefs.putAutonomousMode(context, it)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = QabasTheme.current.onPrimary,
-                                checkedTrackColor = QabasTheme.current.primary
-                            )
-                        )
-                    }
-
-                    HorizontalDivider(color = QabasTheme.current.separator)
-
-                    // Planning / Architect Mode Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "وضع التخطيط الهيكلي (Architect / Planning Mode) 🧠",
-                                color = QabasTheme.current.textPrimary,
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = "إنشاء بطاقة خطة تفاعلية والموافقة عليها قبل البدء بكتابة وتطبيق الكود.",
-                                color = QabasTheme.current.textSecondary,
-                                fontFamily = CairoFont,
-                                fontSize = 10.sp
-                            )
-                        }
-                        Switch(
-                            checked = isPlanningMode,
-                            onCheckedChange = {
-                                isPlanningMode = it
-                                AgentPrefs.putPlanningMode(context, it)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = QabasTheme.current.onPrimary,
-                                checkedTrackColor = QabasTheme.current.accent
-                            )
-                        )
-                    }
-                }
-            }
-
-            // Category 3: Keys & GitHub Integration
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(QabasTheme.current.cardSurface)
-                    .border(1.dp, QabasTheme.current.separator, RoundedCornerShape(12.dp))
-                    .padding(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "03 | مفاتيح API ومستودع GitHub",
-                        color = QabasTheme.current.accent,
-                        fontFamily = CairoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                onDismiss()
-                                onOpenApiKeys()
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = QabasTheme.current.accent.copy(alpha = 0.2f),
-                                contentColor = QabasTheme.current.accent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, QabasTheme.current.accent.copy(alpha = 0.5f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                        ) {
-                            Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("مفاتيح API", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-
-                        Button(
-                            onClick = {
-                                onDismiss()
-                                onOpenRepoSetup()
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = QabasTheme.current.success.copy(alpha = 0.2f),
-                                contentColor = QabasTheme.current.success
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.5f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                        ) {
-                            Icon(Icons.Default.Source, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("ربط المستودع", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
-
-                    // Status readout
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(QabasTheme.current.background)
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "المستودع المتصل:",
-                            color = QabasTheme.current.textSecondary,
-                            fontFamily = CairoFont,
-                            fontSize = 10.sp
-                        )
-                        Text(
-                            text = activeRepo?.fullName ?: "Ali-awwww/qabasapp",
-                            color = QabasTheme.current.primary,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-            }
-
-            // Close & Confirm Button
-            Button(
-                onClick = {
-                    Toast.makeText(context, "تم حفظ إعدادات الوكيل بنجاح ✓", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = QabasTheme.current.primary,
-                    contentColor = QabasTheme.current.onPrimary
-                ),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            ) {
-                Text(
-                    text = "تأكيد وحفظ الإعدادات ✓",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    fontFamily = CairoFont
-                )
-            }
-        }
+        Text(
+            label,
+            color = if (selected) selectedColor else QabasTheme.current.textSecondary,
+            fontFamily = CairoFont,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }

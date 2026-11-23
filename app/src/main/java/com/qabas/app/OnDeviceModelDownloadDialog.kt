@@ -23,34 +23,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * مركز تنزيل وإدارة النماذج المحلية للعمل بدون إنترنت (حوار — كما كان).
- * المحتوى نفسه في [OnDeviceModelsContent] ليُعاد في تبويب «النماذج» (12.5).
- */
-@Composable
-fun OnDeviceModelDownloadDialog(
-    context: Context,
-    onModelActivated: () -> Unit = {},
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        OnDeviceModelsContent(
-            context = context,
-            onModelActivated = onModelActivated,
-            onDismiss = onDismiss,
-            modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp)
-        )
-    }
-}
-
-/**
- * محتوى مركز النماذج المحلية — يُستعمل كحوار (أعلاه) وكتبويب «النماذج»
- * (المرتبة 4) في قسم فايب كودينج. منطق التنزيل/الحذف/التبديل/التصدير/
+ * محتوى مركز النماذج المحلية — يُستعمل في جزء «النماذج» من قسم
+ * «مفاتيحي ونماذجي» في الإعدادات. منطق التنزيل/الحذف/التبديل/التصدير/
  * الاستيراد كاملاً في [OnDeviceModelManager] كما هو — لا إعادة كتابة هنا.
  *
  * قيد صدق ملزم: المحرك المحلي لا يعمل في بناء CI الافتراضي
@@ -197,7 +176,7 @@ fun OnDeviceModelsContent(
                         )
                         Text(
                             text = "التخزين: ${formatDeviceBytes(deviceCapability.freeStorageBytes)} حر من أصل " +
-                                "${formatDeviceBytes(deviceCapability.totalStorageBytes)} • النوى: ${deviceCapability.cpuCores}",
+                                "${formatDeviceBytes(deviceCapability.totalStorageBytes)} • المعالج: ${deviceCapability.cpuCores} أنوية",
                             fontSize = 11.sp,
                             color = theme.textPrimary
                         )

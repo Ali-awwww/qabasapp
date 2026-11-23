@@ -855,7 +855,10 @@ internal fun TeamStepCard(
                                 color = theme.primary,
                                 fontSize = 10.sp,
                                 fontFamily = RobotoMonoFont,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = false
                             )
                         }
                     }

@@ -189,7 +189,7 @@ private suspend fun executeAgentMissionInner(
         // تخطيط حقيقي من النموذج — لا نص جاهز مسبقاً.
         val planText = LlamaCppService.chatLocal(
             context, readyModel.fileName,
-            "حلل هذا الأمر واكتب خطة عمل معمارية موجزة: $prompt (التخصص: ${spec.title})" +
+            "حلل هذا الأمر واكتب خطة عمل معمارية موجزة: $prompt\n\nتخصص الوكيل:\n${spec.systemPrompt}" +
                 if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else "" +
                 if (historyBlock.isNotBlank()) "\n\n$historyBlock" else "",
             maxTokens = 400
@@ -350,7 +350,7 @@ private suspend fun executeAgentMissionInner(
     val sysInstruction = """
         أنت مهندس وكيل ذكي مستقل لتطبيق «استوديو خادم المسلم» لنظام Android (Kotlin + Jetpack Compose + Material 3).
         المهمة المطلوبة من المستخدم: $prompt
-        نمط تخصص الوكيل: ${spec.title}
+        تخصص الوكيل: ${spec.systemPrompt}
         
         قم بصياغة خطة عمل برمجية تفصيلية، وحدد الملفات المستهدفة بالتعديل أو الإنشاء، واشرح الخطوات الهندسية اللازمة.
     """.trimIndent() + if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else "" +

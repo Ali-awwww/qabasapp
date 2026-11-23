@@ -397,7 +397,9 @@ private fun MishkatDailyReminderCard(
                             fontFamily = AmiriFont,
                             fontWeight = FontWeight.Medium,
                             fontSize = 23.sp,
-                            lineHeight = 36.sp,
+                            // (تضييق عمودي) آية مشكَّلة بالكامل: التشكيل المتراكم كان
+                            // يتداخل مع السطر أعلاه عند 36sp، فارتفاع السطر هنا سخي.
+                            lineHeight = 50.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         )
