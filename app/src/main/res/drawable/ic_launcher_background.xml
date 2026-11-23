@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <!-- Deep emerald background of the خادم المسلم brand (#004E37, sampled from the icon artwork). -->
-    <solid android:color="#004E37" />
-</shape>
