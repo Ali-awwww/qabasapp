@@ -304,8 +304,8 @@ fun OnDeviceModelsContent(
                                 else VibeDeviceCapability.fitReason(deviceCapability, model)
                             // (ق62) تنزيل واحد فقط في كل مرة: أثناء تنزيل نموذج
                             // تُعطَّل أزرار التنزيل/الاستئناف/الاستيراد للنماذج الأخرى.
-                            val isAnotherDownloading = downloadState is ModelDownloadState.Downloading &&
-                                downloadState.modelId != model.id
+                            val isAnotherDownloading = downloadState.let { state -> state is ModelDownloadState.Downloading && state.modelId != model.id }
+                                 
                             OnDeviceModelCard(
                                 context = context,
                                 model = model,
