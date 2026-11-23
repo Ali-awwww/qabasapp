@@ -205,5 +205,6 @@ QABAS_KEY_VAULT_SECRET
 - [x] نقل `handleApprovePlan` قبل استخدامها وتصحيح `Modifier.padding` في `AiStudioAgentScreen`.
 - [x] تحديث `AgentQualityTest.kt` من عقدة Studio Agent القديمة (`initialTab` و`deck_module_*`) إلى testTags الواجهة الحالية (`agent_chat_*` و`agent_new_chat_btn`).
 - [x] إصلاح الاختبار ليكشف لوحة الجلسات قبل التحقق من زر `agent_new_chat_btn` بعد ظهور فشل اختبار واحد في Build للرأس `37910dd8`.
-- [ ] إنشاء commit الجولة الرابعة ودفعه باستخدام `--force-with-lease` على الرأس البعيد الحالي.
+- [x] إزالة التحقق المكرر من زر `agent_new_chat_btn` في اختبار الشاشة الأساسية بعد فشل اختبار واحد في Build للرأس `483e1f8a`.
+- [ ] إنشاء commit الجولة الخامسة ودفعه باستخدام `--force-with-lease` على الرأس البعيد الحالي.
 - [ ] انتظار Build وCodeQL الجديدين وتسجيل نتيجتهما الفعلية.
