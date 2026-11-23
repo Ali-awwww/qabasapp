@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -38,25 +37,55 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.qabas.app.ui.components.GlassmorphicSurface
-import com.qabas.app.ui.components.glassmorphicBackground
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
- * أنماط الكابشنز مع هوية Cybernetic HUD
+ * أنماط الكابشنز مع هوية Cybernetic HUD.
+ * الألوان مفاتيح دلالية (CaptionTint) تُحلّ إلى رموز QabasTheme عند
+ * الاستخدام داخل التركيب — مدخلات التعداد تُبنى خارج التركيب فلا
+ * يجوز أن تقرأ QabasTheme.current (الجولة 62، درس الجولة 58).
+ * الذهبي يُحلّ إلى warning (كهرماني) لا إلى PresetPrimary: ذاك يحلّ
+ * إلى لون السمة الأساسي (تركوازي في السمة الداكنة) فيقلب الذهبي.
  */
+enum class CaptionTint { GOLD, CYBER, WHITE, EMERALD }
+
 enum class CaptionStyle(
     val label: String,
-    val textColor: Color,
-    val borderColor: Color,
-    val bgColor: Color,
+    val tint: CaptionTint,
     val tag: String
 ) {
-    GOLD_KUFI("كوفي ذهبي فاخر", Color(0xFFE8C547), Color(0xFFE8C547), Color(0xE6080D1A), "KUFI-HUD"),
-    CYBER_NEON("نيون سايبر مشع", Color(0xFF38BDF8), Color(0xFF0284C7), Color(0xE6060A14), "NEON-CYBER"),
-    UTHMANI_WHITE("عثماني ناصع", Color.White, Color(0xFFE2E8F0), Color(0xD90F172A), "UTHMANI-P"),
-    EMERALD_MATRIX("أخضر روحاني ماتريكس", Color(0xFF34D399), Color(0xFF10B981), Color(0xE604130D), "EMERALD-FX")
+    GOLD_KUFI("كوفي ذهبي فاخر", CaptionTint.GOLD, "KUFI-HUD"),
+    CYBER_NEON("نيون سايبر مشع", CaptionTint.CYBER, "NEON-CYBER"),
+    UTHMANI_WHITE("عثماني ناصع", CaptionTint.WHITE, "UTHMANI-P"),
+    EMERALD_MATRIX("أخضر روحاني ماتريكس", CaptionTint.EMERALD, "EMERALD-FX")
+}
+
+/** لون نص الكابشن من مفتاح النمط. */
+@Composable
+fun CaptionStyle.textColor(): Color = when (tint) {
+    CaptionTint.GOLD -> QabasTheme.current.warning
+    CaptionTint.CYBER -> QabasTheme.current.primary
+    CaptionTint.WHITE -> QabasTheme.current.textPrimary
+    CaptionTint.EMERALD -> QabasTheme.current.success
+}
+
+/** لون حدّ الكابشن من مفتاح النمط. */
+@Composable
+fun CaptionStyle.borderColor(): Color = when (tint) {
+    CaptionTint.GOLD -> QabasTheme.current.warning
+    CaptionTint.CYBER -> QabasTheme.current.primary
+    CaptionTint.WHITE -> QabasTheme.current.textPrimary
+    CaptionTint.EMERALD -> QabasTheme.current.success
+}
+
+/** لون خلفية الكابشن من مفتاح النمط (داكنة شبه معتمة كما كانت). */
+@Composable
+fun CaptionStyle.bgColor(): Color = when (tint) {
+    CaptionTint.GOLD -> QabasTheme.current.background.copy(alpha = 0.9f)
+    CaptionTint.CYBER -> QabasTheme.current.background.copy(alpha = 0.9f)
+    CaptionTint.WHITE -> QabasTheme.current.secondarySurface.copy(alpha = 0.85f)
+    CaptionTint.EMERALD -> QabasTheme.current.background.copy(alpha = 0.9f)
 }
 
 /**
@@ -80,6 +109,7 @@ fun AdvancedEditScreen(
     onUpdateScenes: (List<Scene>) -> Unit,
     onBack: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
 
     var editableScenes by remember(scenes) {
@@ -109,7 +139,7 @@ fun AdvancedEditScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var showSafeZones by remember { mutableStateOf(true) }
     var showGridOverlay by remember { mutableStateOf(false) }
-    var aspectRatio by remember { mutableStateOf("9:16") }
+    var aspectRatio by remember { mutableStateOf(UserPreferencesManager.defaultAspectRatio.value) }
     var timelineZoomScale by remember { mutableFloatStateOf(48f) } // px per second
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
 
@@ -175,14 +205,14 @@ fun AdvancedEditScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFF050811),
+        containerColor = theme.background,
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             Translator.tr("استوديو المونتاج المتقدم"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -191,8 +221,8 @@ fun AdvancedEditScreen(
                         // Cyber HUD Tech Badge
                         Surface(
                             shape = CutCornerShape(4.dp),
-                            color = Color(0xFF10192A),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                            color = theme.cardSurface,
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
                             Row(
@@ -202,12 +232,12 @@ fun AdvancedEditScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(6.dp)
-                                        .background(if (isPlaying) Color(0xFF10B981) else GoldPrimary, CircleShape)
+                                        .background(if (isPlaying) theme.success else PresetPrimary, CircleShape)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     "HUD-PRO v3.2",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = RobotoMonoFont
@@ -225,7 +255,7 @@ fun AdvancedEditScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = Translator.tr("رجوع"),
-                            tint = GoldPrimary
+                            tint = PresetPrimary
                         )
                     }
                 },
@@ -252,7 +282,7 @@ fun AdvancedEditScreen(
                         Icon(
                             if (showSafeZones || showGridOverlay) Icons.Default.GridOn else Icons.Default.GridOff,
                             contentDescription = Translator.tr("الشبكة"),
-                            tint = if (showSafeZones) GoldPrimary else Color.Gray,
+                            tint = if (showSafeZones) PresetPrimary else theme.textTertiary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -260,8 +290,8 @@ fun AdvancedEditScreen(
                     // Aspect Ratio Switcher with Monospace Badge
                     Surface(
                         shape = CutCornerShape(4.dp),
-                        color = Color(0xFF111A2E),
-                        border = BorderStroke(1.dp, Color(0xFF243354)),
+                        color = theme.cardSurface,
+                        border = BorderStroke(1.dp, theme.separator),
                         modifier = Modifier
                             .clickable {
                                 aspectRatio = when (aspectRatio) {
@@ -280,13 +310,13 @@ fun AdvancedEditScreen(
                             Icon(
                                 Icons.Default.AspectRatio,
                                 contentDescription = Translator.tr("الأبعاد"),
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 aspectRatio,
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = RobotoMonoFont,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -299,7 +329,7 @@ fun AdvancedEditScreen(
                     // Cyber Export Button
                     Surface(
                         shape = CutCornerShape(6.dp),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         modifier = Modifier
                             .bouncingClickable { showExportDialog = true }
                             .padding(end = 8.dp)
@@ -325,7 +355,7 @@ fun AdvancedEditScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF070B16))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = theme.background)
             )
         }
     ) { paddingValues ->
@@ -341,7 +371,7 @@ fun AdvancedEditScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1.08f)
-                    .background(Color(0xFF03050B)),
+                    .background(theme.background),
                 contentAlignment = Alignment.Center
             ) {
                 val ratioModifier = when (aspectRatio) {
@@ -354,15 +384,15 @@ fun AdvancedEditScreen(
                 Box(
                     modifier = ratioModifier
                         .clip(CutCornerShape(10.dp))
-                        .background(Color(0xFF080D19))
+                        .background(theme.background)
                         .border(
                             BorderStroke(
                                 1.5.dp,
                                 Brush.linearGradient(
                                     listOf(
-                                        GoldPrimary.copy(alpha = 0.8f),
-                                        Color(0xFF38BDF8).copy(alpha = 0.4f),
-                                        GoldPrimary.copy(alpha = 0.6f)
+                                        PresetPrimary.copy(alpha = 0.8f),
+                                        theme.primary.copy(alpha = 0.4f),
+                                        PresetPrimary.copy(alpha = 0.6f)
                                     )
                                 )
                             ),
@@ -406,7 +436,7 @@ fun AdvancedEditScreen(
                         // Precision Corner Reticles (Linear Minimalist HUD)
                         HudCornerDecor(
                             modifier = Modifier.fillMaxSize(),
-                            color = GoldPrimary.copy(alpha = 0.65f)
+                            color = PresetPrimary.copy(alpha = 0.65f)
                         )
 
                         // Center Precision Crosshair (Subtle Tech HUD)
@@ -415,7 +445,7 @@ fun AdvancedEditScreen(
                             val cy = size.height / 2f
                             val crossLen = 14.dp.toPx()
                             val strokeW = 1.dp.toPx()
-                            val chColor = GoldPrimary.copy(alpha = 0.35f)
+                            val chColor = PresetPrimary.copy(alpha = 0.35f)
 
                             // Horizontal line
                             drawLine(chColor, Offset(cx - crossLen, cy), Offset(cx + crossLen, cy), strokeW)
@@ -428,7 +458,7 @@ fun AdvancedEditScreen(
                         // Rule of Thirds Composition Grid Overlay (If toggled)
                         if (showGridOverlay) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                val gridColor = Color(0xFF38BDF8).copy(alpha = 0.25f)
+                                val gridColor = theme.primary.copy(alpha = 0.25f)
                                 val strokeW = 1.dp.toPx()
                                 // Vertical lines
                                 drawLine(gridColor, Offset(size.width / 3f, 0f), Offset(size.width / 3f, size.height), strokeW)
@@ -449,21 +479,21 @@ fun AdvancedEditScreen(
 
                                 // Top Social UI Danger Zone (Story/Header buttons)
                                 drawRect(
-                                    color = Color(0x28EF4444),
+                                    color = theme.destructive.copy(alpha = 0.16f),
                                     topLeft = Offset.Zero,
                                     size = Size(size.width, topUnsafeH)
                                 )
 
                                 // Bottom Social UI Danger Zone (Caption/Profile bar)
                                 drawRect(
-                                    color = Color(0x28EF4444),
+                                    color = theme.destructive.copy(alpha = 0.16f),
                                     topLeft = Offset(0f, size.height - bottomUnsafeH),
                                     size = Size(size.width, bottomUnsafeH)
                                 )
 
                                 // Right Side Social Action Zone (Like, Comment, Share)
                                 drawRect(
-                                    color = Color(0x20F59E0B),
+                                    color = theme.warning.copy(alpha = 0.12f),
                                     topLeft = Offset(size.width - rightUnsafeW, topUnsafeH),
                                     size = Size(rightUnsafeW, size.height - topUnsafeH - bottomUnsafeH)
                                 )
@@ -479,7 +509,7 @@ fun AdvancedEditScreen(
                                     pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
                                 )
                                 drawRect(
-                                    color = Color(0xFFE8C547).copy(alpha = 0.8f),
+                                    color = theme.warning.copy(alpha = 0.8f),
                                     topLeft = Offset(safeLeft, safeTop),
                                     size = Size(safeW, safeH),
                                     style = dashedStroke
@@ -491,20 +521,20 @@ fun AdvancedEditScreen(
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
                                     .padding(top = 8.dp)
-                                    .background(Color(0xDF070C18), CutCornerShape(4.dp))
-                                    .border(0.8.dp, GoldPrimary.copy(alpha = 0.7f), CutCornerShape(4.dp))
+                                    .background(theme.background.copy(alpha = 0.87f), CutCornerShape(4.dp))
+                                    .border(0.8.dp, PresetPrimary.copy(alpha = 0.7f), CutCornerShape(4.dp))
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
                                             .size(5.dp)
-                                            .background(GoldPrimary, CircleShape)
+                                            .background(PresetPrimary, CircleShape)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         "SAFE AREA 9:16 // REELS & SHORTS",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontSize = 10.sp,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold
@@ -525,8 +555,8 @@ fun AdvancedEditScreen(
                             // Left Status Badge
                             Surface(
                                 shape = CutCornerShape(4.dp),
-                                color = Color(0xCC070B16),
-                                border = BorderStroke(0.7.dp, if (isPlaying) Color(0xFF10B981) else Color(0xFFEF4444))
+                                color = theme.background.copy(alpha = 0.8f),
+                                border = BorderStroke(0.7.dp, if (isPlaying) theme.success else theme.destructive)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -536,14 +566,14 @@ fun AdvancedEditScreen(
                                         modifier = Modifier
                                             .size(6.dp)
                                             .background(
-                                                (if (isPlaying) Color(0xFF10B981) else Color(0xFFEF4444)).copy(alpha = hudPulseAlpha),
+                                                (if (isPlaying) theme.success else theme.destructive).copy(alpha = hudPulseAlpha),
                                                 CircleShape
                                             )
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         if (isPlaying) "PLAY 60FPS" else "PAUSE // HUD",
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontSize = 9.sp,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold
@@ -554,12 +584,12 @@ fun AdvancedEditScreen(
                             // Right Telemetry Badge
                             Surface(
                                 shape = CutCornerShape(4.dp),
-                                color = Color(0xCC070B16),
-                                border = BorderStroke(0.7.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                                color = theme.background.copy(alpha = 0.8f),
+                                border = BorderStroke(0.7.dp, theme.primary.copy(alpha = 0.5f))
                             ) {
                                 Text(
                                     "SCN [${activeSceneIndex + 1}/${editableScenes.size}]",
-                                    color = Color(0xFF38BDF8),
+                                    color = theme.primary,
                                     fontSize = 9.sp,
                                     fontFamily = RobotoMonoFont,
                                     fontWeight = FontWeight.Bold,
@@ -589,8 +619,8 @@ fun AdvancedEditScreen(
                                 // High-Tech Glassmorphic Caption Surface
                                 Surface(
                                     shape = CutCornerShape(8.dp),
-                                    color = selectedCaptionStyle.bgColor,
-                                    border = BorderStroke(1.5.dp, selectedCaptionStyle.borderColor.copy(alpha = 0.85f)),
+                                    color = selectedCaptionStyle.bgColor(),
+                                    border = BorderStroke(1.5.dp, selectedCaptionStyle.borderColor().copy(alpha = 0.85f)),
                                     shadowElevation = 8.dp
                                 ) {
                                     Column(
@@ -601,7 +631,7 @@ fun AdvancedEditScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 "// ${selectedCaptionStyle.tag}",
-                                                color = selectedCaptionStyle.textColor.copy(alpha = 0.7f),
+                                                color = selectedCaptionStyle.textColor().copy(alpha = 0.7f),
                                                 fontSize = 8.sp,
                                                 fontFamily = RobotoMonoFont
                                             )
@@ -609,7 +639,7 @@ fun AdvancedEditScreen(
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = activeScene.title,
-                                            color = selectedCaptionStyle.textColor,
+                                            color = selectedCaptionStyle.textColor(),
                                             fontSize = 15.sp,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
@@ -619,7 +649,7 @@ fun AdvancedEditScreen(
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = activeScene.description,
-                                                color = Color.White.copy(alpha = 0.95f),
+                                                color = theme.textPrimary.copy(alpha = 0.95f),
                                                 fontSize = 11.sp,
                                                 fontFamily = CairoFont,
                                                 lineHeight = 16.sp,
@@ -638,13 +668,13 @@ fun AdvancedEditScreen(
                                     .size(56.dp)
                                     .align(Alignment.Center)
                                     .background(Color.Black.copy(alpha = 0.65f), CutCornerShape(12.dp))
-                                    .border(1.5.dp, GoldPrimary, CutCornerShape(12.dp)),
+                                    .border(1.5.dp, PresetPrimary, CutCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Default.PlayArrow,
                                     contentDescription = "Play",
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
@@ -661,7 +691,7 @@ fun AdvancedEditScreen(
                         .fillMaxWidth()
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color.Transparent, Color(0xF0070B16))
+                                listOf(Color.Transparent, theme.background.copy(alpha = 0.94f))
                             )
                         )
                         .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -673,7 +703,7 @@ fun AdvancedEditScreen(
                     val curMs = ((currentPlaybackTime - curSec) * 100).toInt()
                     Text(
                         String.format("%02d:%02d.%02d", curSec / 60, curSec % 60, curMs),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 13.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold
@@ -694,7 +724,7 @@ fun AdvancedEditScreen(
                             Icon(
                                 Icons.Default.Replay5,
                                 contentDescription = "Back 3s",
-                                tint = Color.LightGray,
+                                tint = theme.textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -702,7 +732,7 @@ fun AdvancedEditScreen(
                         // Play / Pause Master Button
                         Surface(
                             shape = CutCornerShape(8.dp),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             modifier = Modifier
                                 .size(38.dp)
                                 .bouncingClickable { isPlaying = !isPlaying }
@@ -727,7 +757,7 @@ fun AdvancedEditScreen(
                             Icon(
                                 Icons.Default.Forward5,
                                 contentDescription = "Fwd 3s",
-                                tint = Color.LightGray,
+                                tint = theme.textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -735,8 +765,8 @@ fun AdvancedEditScreen(
                         // Speed Cycle Pill
                         Surface(
                             shape = CutCornerShape(4.dp),
-                            color = Color(0xFF131D33),
-                            border = BorderStroke(1.dp, Color(0xFF283A61)),
+                            color = theme.cardSurface,
+                            border = BorderStroke(1.dp, theme.separator),
                             modifier = Modifier
                                 .clickable {
                                     playbackSpeed = when (playbackSpeed) {
@@ -750,7 +780,7 @@ fun AdvancedEditScreen(
                         ) {
                             Text(
                                 "${playbackSpeed}x",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 10.sp,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
@@ -763,7 +793,7 @@ fun AdvancedEditScreen(
                     val totalSec = totalDuration.toInt()
                     Text(
                         String.format("%02d:%02d.00", totalSec / 60, totalSec % 60),
-                        color = Color.Gray,
+                        color = theme.textTertiary,
                         fontSize = 13.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Medium
@@ -777,9 +807,9 @@ fun AdvancedEditScreen(
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF070B16))
+                    .background(theme.background)
                     .border(
-                        BorderStroke(0.6.dp, Color(0xFF16233B))
+                        BorderStroke(0.6.dp, theme.separator)
                     )
                     .padding(vertical = 8.dp, horizontal = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -798,10 +828,10 @@ fun AdvancedEditScreen(
                     val isSelected = activeTool == key
                     Surface(
                         shape = CutCornerShape(6.dp),
-                        color = if (isSelected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF0F172A),
+                        color = if (isSelected) PresetPrimary.copy(alpha = 0.18f) else theme.secondarySurface,
                         border = BorderStroke(
                             1.dp,
-                            if (isSelected) GoldPrimary else Color(0xFF1E293B)
+                            if (isSelected) PresetPrimary else theme.separator
                         ),
                         modifier = Modifier
                             .bouncingClickable {
@@ -815,13 +845,13 @@ fun AdvancedEditScreen(
                             Icon(
                                 icon,
                                 contentDescription = label,
-                                tint = if (isSelected) GoldPrimary else Color(0xFF94A3B8),
+                                tint = if (isSelected) PresetPrimary else theme.textSecondary,
                                 modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 label,
-                                color = if (isSelected) GoldPrimary else Color.White,
+                                color = if (isSelected) PresetPrimary else theme.textPrimary,
                                 fontSize = 11.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -831,7 +861,7 @@ fun AdvancedEditScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(4.dp)
-                                        .background(GoldPrimary, CircleShape)
+                                        .background(PresetPrimary, CircleShape)
                                 )
                             }
                         }
@@ -849,8 +879,8 @@ fun AdvancedEditScreen(
             ) {
                 GlassmorphicSurface(
                     shape = CutCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
-                    backgroundColor = Color(0xF5080E1C),
-                    borderColor = GoldPrimary.copy(alpha = 0.4f),
+                    backgroundColor = theme.background.copy(alpha = 0.96f),
+                    borderColor = PresetPrimary.copy(alpha = 0.4f),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(185.dp)
@@ -970,14 +1000,14 @@ fun AdvancedEditScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.96f)
-                    .background(Color(0xFF060912))
+                    .background(theme.background)
             ) {
                 // Timeline HUD Quick Bar (Zoom scale, Split at playhead, Snap)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF090E1B))
-                        .border(BorderStroke(0.5.dp, Color(0xFF141E33)))
+                        .background(theme.background)
+                        .border(BorderStroke(0.5.dp, theme.separator))
                         .padding(horizontal = 10.dp, vertical = 3.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -991,12 +1021,12 @@ fun AdvancedEditScreen(
                             onClick = { timelineZoomScale = (timelineZoomScale - 8f).coerceAtLeast(26f) },
                             modifier = Modifier.size(24.dp)
                         ) {
-                            Icon(Icons.Default.ZoomOut, contentDescription = "Zoom Out", tint = Color.Gray, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ZoomOut, contentDescription = "Zoom Out", tint = theme.textTertiary, modifier = Modifier.size(14.dp))
                         }
                         Surface(
                             shape = CutCornerShape(3.dp),
-                            color = Color(0xFF0F172A),
-                            border = BorderStroke(0.6.dp, Color(0xFF1E293B))
+                            color = theme.secondarySurface,
+                            border = BorderStroke(0.6.dp, theme.separator)
                         ) {
                             Text(
                                 "${timelineZoomScale.toInt()} PX/S",
@@ -1010,15 +1040,15 @@ fun AdvancedEditScreen(
                             onClick = { timelineZoomScale = (timelineZoomScale + 8f).coerceAtMost(96f) },
                             modifier = Modifier.size(24.dp)
                         ) {
-                            Icon(Icons.Default.ZoomIn, contentDescription = "Zoom In", tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ZoomIn, contentDescription = "Zoom In", tint = PresetPrimary, modifier = Modifier.size(14.dp))
                         }
                     }
 
                     // Tactical Split Action
                     Surface(
                         shape = CutCornerShape(4.dp),
-                        color = Color(0xFF131D33),
-                        border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f)),
+                        color = theme.cardSurface,
+                        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f)),
                         modifier = Modifier.bouncingClickable {
                             val curScene = editableScenes[activeSceneIndex]
                             if (curScene.durationInSeconds > 2) {
@@ -1038,9 +1068,9 @@ fun AdvancedEditScreen(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ContentCut, contentDescription = "Split", tint = GoldPrimary, modifier = Modifier.size(11.dp))
+                            Icon(Icons.Default.ContentCut, contentDescription = "Split", tint = PresetPrimary, modifier = Modifier.size(11.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("قص المشهد ✂️", color = GoldPrimary, fontSize = 11.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
+                            Text("قص المشهد ✂️", color = PresetPrimary, fontSize = 11.sp, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1061,8 +1091,8 @@ fun AdvancedEditScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(24.dp)
-                                .background(Color(0xFF0A0F1F))
-                                .border(BorderStroke(0.5.dp, Color(0xFF172238)))
+                                .background(theme.background)
+                                .border(BorderStroke(0.5.dp, theme.separator))
                                 .pointerInput(totalDuration, timelineZoomScale) {
                                     detectTapGestures { offset ->
                                         val tappedSeconds = (offset.x / timelineZoomScale).coerceIn(0f, totalDuration)
@@ -1075,7 +1105,7 @@ fun AdvancedEditScreen(
                                     val x = sec * timelineZoomScale
                                     val isMajor = sec % 5 == 0
                                     drawLine(
-                                        color = if (isMajor) GoldPrimary else Color(0xFF475569),
+                                        color = if (isMajor) PresetPrimary else theme.textTertiary,
                                         start = Offset(x, if (isMajor) 4f else 14f),
                                         end = Offset(x, size.height),
                                         strokeWidth = if (isMajor) 1.5f else 0.8f
@@ -1089,8 +1119,8 @@ fun AdvancedEditScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp)
-                                .background(Color(0xFF070B16))
-                                .border(BorderStroke(0.5.dp, Color(0xFF141E33))),
+                                .background(theme.background)
+                                .border(BorderStroke(0.5.dp, theme.separator)),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             editableScenes.forEachIndexed { index, scene ->
@@ -1103,11 +1133,11 @@ fun AdvancedEditScreen(
                                         .fillMaxHeight()
                                         .padding(2.dp)
                                         .clip(CutCornerShape(6.dp))
-                                        .background(if (isSelected) Color(0xFF1E3A8A).copy(alpha = 0.9f) else Color(0xFF0F172A))
+                                        .background(if (isSelected) theme.primary.copy(alpha = 0.25f) else theme.secondarySurface)
                                         .border(
                                             BorderStroke(
                                                 width = if (isSelected) 1.8.dp else 1.dp,
-                                                color = if (isSelected) GoldPrimary else Color(0xFF243354)
+                                                color = if (isSelected) PresetPrimary else theme.separator
                                             ),
                                             CutCornerShape(6.dp)
                                         )
@@ -1128,7 +1158,7 @@ fun AdvancedEditScreen(
                                         ) {
                                             Text(
                                                 text = "${index + 1}. ${scene.title}",
-                                                color = if (isSelected) GoldPrimary else Color.White,
+                                                color = if (isSelected) PresetPrimary else theme.textPrimary,
                                                 fontSize = 11.sp,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
@@ -1136,7 +1166,7 @@ fun AdvancedEditScreen(
                                             )
                                             Text(
                                                 text = "${scene.durationInSeconds}s",
-                                                color = Color(0xFF94A3B8),
+                                                color = theme.textSecondary,
                                                 fontSize = 9.sp,
                                                 fontFamily = RobotoMonoFont
                                             )
@@ -1148,14 +1178,14 @@ fun AdvancedEditScreen(
                                         ) {
                                             Text(
                                                 text = scene.transitionType ?: "Dissolve",
-                                                color = Color(0xFF38BDF8),
+                                                color = theme.primary,
                                                 fontSize = 9.sp,
                                                 fontFamily = RobotoMonoFont
                                             )
                                             Icon(
                                                 Icons.Default.Videocam,
                                                 contentDescription = null,
-                                                tint = if (isSelected) GoldPrimary else Color.Gray,
+                                                tint = if (isSelected) PresetPrimary else theme.textTertiary,
                                                 modifier = Modifier.size(11.dp)
                                             )
                                         }
@@ -1170,8 +1200,8 @@ fun AdvancedEditScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(36.dp)
-                                    .background(Color(0xFF041E18).copy(alpha = 0.5f))
-                                    .border(BorderStroke(0.5.dp, Color(0xFF065F46)))
+                                    .background(theme.success.copy(alpha = 0.15f))
+                                    .border(BorderStroke(0.5.dp, theme.success.copy(alpha = 0.6f)))
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                 contentAlignment = Alignment.CenterStart
                             ) {
@@ -1182,7 +1212,7 @@ fun AdvancedEditScreen(
                                     while (x < totalWidth) {
                                         val waveH = kotlin.math.sin(x.toDouble() / 12.0).toFloat() * 10f + 12f
                                         drawLine(
-                                            color = Color(0xFF10B981).copy(alpha = 0.85f),
+                                            color = theme.success.copy(alpha = 0.85f),
                                             start = Offset(x, (size.height - waveH) / 2),
                                             end = Offset(x, (size.height + waveH) / 2),
                                             strokeWidth = 2f,
@@ -1198,13 +1228,13 @@ fun AdvancedEditScreen(
                                     Icon(
                                         Icons.Default.Audiotrack,
                                         contentDescription = null,
-                                        tint = Color(0xFF34D399),
+                                        tint = theme.success,
                                         modifier = Modifier.size(11.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         "مسار الصوت الذكي // AI SOUND FX",
-                                        color = Color(0xFF34D399),
+                                        color = theme.success,
                                         fontSize = 10.sp,
                                         fontFamily = RobotoMonoFont,
                                         fontWeight = FontWeight.Bold
@@ -1219,8 +1249,8 @@ fun AdvancedEditScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(32.dp)
-                                    .background(Color(0xFF1F1305).copy(alpha = 0.4f))
-                                    .border(BorderStroke(0.5.dp, Color(0xFF78350F))),
+                                    .background(theme.warning.copy(alpha = 0.15f))
+                                    .border(BorderStroke(0.5.dp, theme.warning.copy(alpha = 0.6f))),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 editableScenes.forEachIndexed { _, scene ->
@@ -1231,14 +1261,14 @@ fun AdvancedEditScreen(
                                             .fillMaxHeight()
                                             .padding(1.dp)
                                             .clip(CutCornerShape(4.dp))
-                                            .background(Color(0xFFD97706).copy(alpha = 0.35f))
-                                            .border(BorderStroke(0.8.dp, Color(0xFFF5D76E).copy(alpha = 0.7f)), CutCornerShape(4.dp))
+                                            .background(theme.warning.copy(alpha = 0.35f))
+                                            .border(BorderStroke(0.8.dp, theme.warning.copy(alpha = 0.7f)), CutCornerShape(4.dp))
                                             .padding(horizontal = 4.dp),
                                         contentAlignment = Alignment.CenterStart
                                     ) {
                                         Text(
                                             text = "💬 ${scene.title}",
-                                            color = Color(0xFFFEF3C7),
+                                            color = theme.textPrimary,
                                             fontSize = 9.sp,
                                             fontFamily = CairoFont,
                                             maxLines = 1
@@ -1270,9 +1300,9 @@ fun AdvancedEditScreen(
                             drawLine(
                                 brush = Brush.verticalGradient(
                                     listOf(
-                                        Color(0xFFE8C547),
-                                        Color(0xFF38BDF8),
-                                        Color(0xFFE8C547).copy(alpha = 0.5f)
+                                        theme.warning,
+                                        theme.primary,
+                                        theme.warning.copy(alpha = 0.5f)
                                     )
                                 ),
                                 start = Offset(centerX, 0f),
@@ -1288,7 +1318,7 @@ fun AdvancedEditScreen(
                                 lineTo(centerX - 8f, 10f)
                                 close()
                             }
-                            drawPath(notchPath, color = Color(0xFFE8C547))
+                            drawPath(notchPath, color = theme.warning)
                         }
                     }
                 }
@@ -1346,6 +1376,7 @@ fun AnimatedCaptionsToolPanel(
     showLayer: Boolean,
     onToggleLayer: (Boolean) -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1359,17 +1390,17 @@ fun AnimatedCaptionsToolPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Subtitles, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Subtitles, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("قوالب الكابشنز والنصوص الحركية", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("قوالب الكابشنز والنصوص الحركية", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("تفعيل الطبقة", color = Color.Gray, fontSize = 11.sp, fontFamily = NotoSansFont)
+                Text("تفعيل الطبقة", color = theme.textTertiary, fontSize = 11.sp, fontFamily = NotoSansFont)
                 Spacer(modifier = Modifier.width(6.dp))
                 Switch(
                     checked = showLayer,
                     onCheckedChange = onToggleLayer,
-                    colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldPrimary.copy(alpha = 0.5f))
+                    colors = SwitchDefaults.colors(checkedThumbColor = PresetPrimary, checkedTrackColor = PresetPrimary.copy(alpha = 0.5f))
                 )
             }
         }
@@ -1381,19 +1412,19 @@ fun AnimatedCaptionsToolPanel(
                 val isSelected = selectedStyle == style
                 Surface(
                     shape = CutCornerShape(6.dp),
-                    color = if (isSelected) GoldPrimary.copy(alpha = 0.22f) else Color(0xFF0F172A),
-                    border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                    color = if (isSelected) PresetPrimary.copy(alpha = 0.22f) else theme.secondarySurface,
+                    border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.separator),
                     modifier = Modifier.bouncingClickable { onSelectStyle(style) }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
                     ) {
-                        Box(modifier = Modifier.size(8.dp).background(style.textColor, CircleShape))
+                        Box(modifier = Modifier.size(8.dp).background(style.textColor(), CircleShape))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = style.label,
-                            color = style.textColor,
+                            color = style.textColor(),
                             fontSize = 11.sp,
                             fontFamily = CairoFont,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -1409,19 +1440,19 @@ fun AnimatedCaptionsToolPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("الحركة:", color = Color.LightGray, fontSize = 11.sp, fontFamily = NotoSansFont)
+            Text("الحركة:", color = theme.textSecondary, fontSize = 11.sp, fontFamily = NotoSansFont)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(CaptionAnimation.values().size) { i ->
                     val anim = CaptionAnimation.values()[i]
                     val isSelected = selectedAnim == anim
                     Surface(
                         shape = CutCornerShape(4.dp),
-                        color = if (isSelected) GoldPrimary else Color(0xFF131D33),
+                        color = if (isSelected) PresetPrimary else theme.cardSurface,
                         modifier = Modifier.bouncingClickable { onSelectAnim(anim) }
                     ) {
                         Text(
                             text = anim.label,
-                            color = if (isSelected) DeepSlate else Color.White,
+                            color = if (isSelected) DeepSlate else theme.textPrimary,
                             fontSize = 10.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -1438,18 +1469,18 @@ fun AnimatedCaptionsToolPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("الموضع:", color = Color.LightGray, fontSize = 11.sp, fontFamily = NotoSansFont)
+            Text("الموضع:", color = theme.textSecondary, fontSize = 11.sp, fontFamily = NotoSansFont)
             listOf("bottom" to "أسفل (Safe Zone)", "center" to "وسط الفيديو", "top" to "أعلى").forEach { (posKey, posLabel) ->
                 val isSelected = position == posKey
                 Surface(
                     shape = CutCornerShape(4.dp),
-                    color = if (isSelected) Color(0xFF1E3A8A) else Color(0xFF10192A),
-                    border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                    color = if (isSelected) theme.primary.copy(alpha = 0.25f) else theme.cardSurface,
+                    border = BorderStroke(1.dp, if (isSelected) PresetPrimary else theme.separator),
                     modifier = Modifier.bouncingClickable { onSelectPosition(posKey) }
                 ) {
                     Text(
                         text = posLabel,
-                        color = if (isSelected) GoldPrimary else Color.White,
+                        color = if (isSelected) PresetPrimary else theme.textPrimary,
                         fontSize = 10.sp,
                         fontFamily = CairoFont,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
@@ -1465,6 +1496,7 @@ fun JumpCutSilenceRemovalToolPanel(
     scenes: List<Scene>,
     onApplyJumpCut: (List<Scene>, Int) -> Unit
 ) {
+    val theme = QabasTheme.current
     var silenceThreshold by remember { mutableFloatStateOf(-32f) }
 
     Column(
@@ -1480,23 +1512,12 @@ fun JumpCutSilenceRemovalToolPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.ContentCut, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.ContentCut, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("قص الصمت الذكي (AI Jump Cut)", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("قص الصمت الذكي (AI Jump Cut)", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
-            Surface(
-                shape = CutCornerShape(4.dp),
-                color = Color(0xFF10B981).copy(alpha = 0.2f),
-                border = BorderStroke(1.dp, Color(0xFF10B981))
-            ) {
-                Text(
-                    "+32% RETENTION BOOST 📈",
-                    color = Color(0xFF34D399),
-                    fontSize = 10.sp,
-                    fontFamily = RobotoMonoFont,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
+            // حُذفت شارة «+32% RETENTION BOOST»: رقم بلا مصدر ولا قياس —
+            // لا يوجد أي تتبع احتفاظ يقيس أثر هذه الميزة.
         }
 
         Text(
@@ -1512,19 +1533,19 @@ fun JumpCutSilenceRemovalToolPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("عتبة كشف الصمت: ${silenceThreshold.toInt()} dBFS", color = Color.White, fontSize = 11.sp, fontFamily = RobotoMonoFont)
+            Text("عتبة كشف الصمت: ${silenceThreshold.toInt()} dBFS", color = theme.textPrimary, fontSize = 11.sp, fontFamily = RobotoMonoFont)
             Slider(
                 value = silenceThreshold,
                 onValueChange = { silenceThreshold = it },
                 valueRange = -45f..-20f,
-                colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary),
+                colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary),
                 modifier = Modifier.weight(1f).padding(horizontal = 10.dp)
             )
         }
 
         Surface(
             shape = CutCornerShape(6.dp),
-            color = GoldPrimary,
+            color = PresetPrimary,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(40.dp)
@@ -1565,14 +1586,15 @@ fun SceneManagementToolPanel(
     onDuplicateScene: (Int) -> Unit,
     onDeleteScene: (Int) -> Unit
 ) {
+    val theme = QabasTheme.current
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("إدارة المشاهد وترتيب المقاطع", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text("إجمالي المشاهد: ${scenes.size}", color = Color.Gray, fontSize = 11.sp, fontFamily = RobotoMonoFont)
+            Text("إدارة المشاهد وترتيب المقاطع", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("إجمالي المشاهد: ${scenes.size}", color = theme.textTertiary, fontSize = 11.sp, fontFamily = RobotoMonoFont)
         }
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1580,8 +1602,8 @@ fun SceneManagementToolPanel(
                 val isSelected = index == selectedIndex
                 Surface(
                     shape = CutCornerShape(8.dp),
-                    color = if (isSelected) Color(0xFF1E3A8A) else Color(0xFF0F172A),
-                    border = BorderStroke(1.2.dp, if (isSelected) GoldPrimary else Color(0xFF1E293B)),
+                    color = if (isSelected) theme.primary.copy(alpha = 0.25f) else theme.secondarySurface,
+                    border = BorderStroke(1.2.dp, if (isSelected) PresetPrimary else theme.separator),
                     modifier = Modifier
                         .width(135.dp)
                         .height(118.dp)
@@ -1593,7 +1615,7 @@ fun SceneManagementToolPanel(
                     ) {
                         Text(
                             "${index + 1}. ${scene.title}",
-                            color = if (isSelected) GoldPrimary else Color.White,
+                            color = if (isSelected) PresetPrimary else theme.textPrimary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -1601,19 +1623,19 @@ fun SceneManagementToolPanel(
                         )
                         Text(
                             "${scene.durationInSeconds} ثوانٍ",
-                            color = Color.LightGray,
+                            color = theme.textSecondary,
                             fontSize = 10.sp,
                             fontFamily = RobotoMonoFont
                         )
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             IconButton(onClick = { onEditScene(scene) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = PresetPrimary, modifier = Modifier.size(13.dp))
                             }
                             IconButton(onClick = { onDuplicateScene(index) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Duplicate", tint = Color.White, modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Duplicate", tint = theme.textPrimary, modifier = Modifier.size(13.dp))
                             }
                             IconButton(onClick = { onDeleteScene(index) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = theme.destructive, modifier = Modifier.size(13.dp))
                             }
                         }
                     }
@@ -1628,6 +1650,7 @@ fun TransitionsToolPanel(
     selectedTransition: String = "تلاشي سينمائي (Dissolve)",
     onSelectTransition: (String) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     var currentSelection by remember { mutableStateOf(selectedTransition) }
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         Row(
@@ -1635,8 +1658,8 @@ fun TransitionsToolPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(Translator.tr("الانتقالات السينمائية بين المشاهد"), color = GoldPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
-            Text(currentSelection, color = Color.LightGray, fontSize = 11.sp, fontFamily = RobotoMonoFont)
+            Text(Translator.tr("الانتقالات السينمائية بين المشاهد"), color = PresetPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
+            Text(currentSelection, color = theme.textSecondary, fontSize = 11.sp, fontFamily = RobotoMonoFont)
         }
         Spacer(modifier = Modifier.height(10.dp))
         val transitions = remember {
@@ -1657,10 +1680,10 @@ fun TransitionsToolPanel(
                 val isSelected = currentSelection.contains(label) || currentSelection.contains(code)
                 Surface(
                     shape = CutCornerShape(8.dp),
-                    color = if (isSelected) Color(0xFF131F38) else Color(0xFF0F172A),
+                    color = if (isSelected) theme.primary.copy(alpha = 0.2f) else theme.secondarySurface,
                     border = BorderStroke(
                         1.2.dp,
-                        if (isSelected) GoldPrimary else Color(0xFF243354)
+                        if (isSelected) PresetPrimary else theme.separator
                     ),
                     modifier = Modifier
                         .size(105.dp, 75.dp)
@@ -1677,7 +1700,7 @@ fun TransitionsToolPanel(
                     ) {
                         Text(
                             if (isSelected) "✨ $label" else label,
-                            color = if (isSelected) GoldPrimary else Color.White,
+                            color = if (isSelected) PresetPrimary else theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 11.sp,
@@ -1686,7 +1709,7 @@ fun TransitionsToolPanel(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "0.8s HUD",
-                            color = Color.Gray,
+                            color = theme.textTertiary,
                             fontFamily = RobotoMonoFont,
                             fontSize = 9.sp
                         )
@@ -1702,6 +1725,7 @@ fun FiltersToolPanel(
     currentFilter: String = "طبيعي",
     onSelectFilter: (String) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     var intensity by remember { mutableFloatStateOf(0.85f) }
     var selectedFilter by remember(currentFilter) { mutableStateOf(currentFilter) }
 
@@ -1711,16 +1735,16 @@ fun FiltersToolPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(Translator.tr("الفلاتر وتصحيح الألوان LUT"), color = GoldPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
-            Text("${(intensity * 100).toInt()}% INTENSITY", color = GoldPrimary, fontFamily = RobotoMonoFont, fontSize = 10.sp)
+            Text(Translator.tr("الفلاتر وتصحيح الألوان LUT"), color = PresetPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
+            Text("${(intensity * 100).toInt()}% INTENSITY", color = PresetPrimary, fontFamily = RobotoMonoFont, fontSize = 10.sp)
         }
         Spacer(modifier = Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(Translator.tr("الشدة:"), color = Color.White, fontFamily = CairoFont, fontSize = 11.sp)
+            Text(Translator.tr("الشدة:"), color = theme.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
             Slider(
                 value = intensity,
                 onValueChange = { intensity = it },
-                colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary),
+                colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary),
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
             )
         }
@@ -1735,10 +1759,10 @@ fun FiltersToolPanel(
                     (name == "طبيعي" && (selectedFilter.isBlank() || selectedFilter == "بدون" || selectedFilter == "cinematic"))
                 Surface(
                     shape = CutCornerShape(6.dp),
-                    color = if (isSelected) GoldPrimary.copy(alpha = 0.22f) else Color(0xFF0F172A),
+                    color = if (isSelected) PresetPrimary.copy(alpha = 0.22f) else theme.secondarySurface,
                     border = BorderStroke(
                         1.2.dp,
-                        if (isSelected) GoldPrimary else Color(0xFF243354)
+                        if (isSelected) PresetPrimary else theme.separator
                     ),
                     modifier = Modifier
                         .width(82.dp)
@@ -1751,7 +1775,7 @@ fun FiltersToolPanel(
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             name,
-                            color = if (isSelected) GoldPrimary else Color.White,
+                            color = if (isSelected) PresetPrimary else theme.textPrimary,
                             fontSize = 11.sp,
                             fontFamily = CairoFont,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -1765,34 +1789,35 @@ fun FiltersToolPanel(
 
 @Composable
 fun AudioToolPanel(showAudioLayer: Boolean, onToggle: (Boolean) -> Unit) {
+    val theme = QabasTheme.current
     var volume by remember { mutableFloatStateOf(0.8f) }
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Audiotrack, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Audiotrack, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(Translator.tr("الهندسة الصوتية الذكية"), color = GoldPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
+                Text(Translator.tr("الهندسة الصوتية الذكية"), color = PresetPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(Translator.tr("تفعيل الصوت"), color = Color.Gray, fontSize = 11.sp, fontFamily = NotoSansFont)
+                Text(Translator.tr("تفعيل الصوت"), color = theme.textTertiary, fontSize = 11.sp, fontFamily = NotoSansFont)
                 Spacer(modifier = Modifier.width(6.dp))
                 Switch(
                     checked = showAudioLayer,
                     onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(checkedThumbColor = GoldPrimary, checkedTrackColor = GoldPrimary.copy(alpha=0.5f))
+                    colors = SwitchDefaults.colors(checkedThumbColor = PresetPrimary, checkedTrackColor = PresetPrimary.copy(alpha=0.5f))
                 )
             }
         }
         Spacer(modifier = Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.VolumeUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.VolumeUp, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
             Slider(
                 value = volume,
                 onValueChange = { volume = it },
-                colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary),
+                colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary),
                 modifier = Modifier.weight(1f).padding(horizontal = 14.dp)
             )
-            Text("${(volume * 100).toInt()}%", color = Color.White, fontFamily = RobotoMonoFont, fontSize = 12.sp)
+            Text("${(volume * 100).toInt()}%", color = theme.textPrimary, fontFamily = RobotoMonoFont, fontSize = 12.sp)
         }
     }
 }
@@ -1802,6 +1827,7 @@ fun CutAndMergeToolPanel(
     currentTime: Float,
     totalDuration: Float
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     var selectedSpeed by remember { mutableFloatStateOf(1f) }
 
@@ -1811,8 +1837,8 @@ fun CutAndMergeToolPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(Translator.tr("أدوات القص والدمج الدقيق"), color = GoldPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
-            Text("المؤشر: ${currentTime.toInt()}s / ${totalDuration.toInt()}s", color = Color.Gray, fontSize = 11.sp, fontFamily = RobotoMonoFont)
+            Text(Translator.tr("أدوات القص والدمج الدقيق"), color = PresetPrimary, fontSize = 14.sp, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
+            Text("المؤشر: ${currentTime.toInt()}s / ${totalDuration.toInt()}s", color = theme.textTertiary, fontSize = 11.sp, fontFamily = RobotoMonoFont)
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -1824,8 +1850,8 @@ fun CutAndMergeToolPanel(
         ) {
             Surface(
                 shape = CutCornerShape(4.dp),
-                color = Color(0xFF131D33),
-                border = BorderStroke(1.dp, Color(0xFF243354)),
+                color = theme.cardSurface,
+                border = BorderStroke(1.dp, theme.separator),
                 modifier = Modifier
                     .weight(1f)
                     .clickable {
@@ -1837,16 +1863,16 @@ fun CutAndMergeToolPanel(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(Translator.tr("قص البداية"), fontSize = 11.sp, fontFamily = NotoSansFont, color = Color.White)
+                    Text(Translator.tr("قص البداية"), fontSize = 11.sp, fontFamily = NotoSansFont, color = theme.textPrimary)
                 }
             }
 
             Surface(
                 shape = CutCornerShape(4.dp),
-                color = Color(0xFF131D33),
-                border = BorderStroke(1.dp, Color(0xFF243354)),
+                color = theme.cardSurface,
+                border = BorderStroke(1.dp, theme.separator),
                 modifier = Modifier
                     .weight(1f)
                     .clickable {
@@ -1858,15 +1884,15 @@ fun CutAndMergeToolPanel(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(Translator.tr("قص النهاية"), fontSize = 11.sp, fontFamily = NotoSansFont, color = Color.White)
+                    Text(Translator.tr("قص النهاية"), fontSize = 11.sp, fontFamily = NotoSansFont, color = theme.textPrimary)
                 }
             }
 
             Surface(
                 shape = CutCornerShape(4.dp),
-                color = GoldPrimary,
+                color = PresetPrimary,
                 modifier = Modifier
                     .weight(1f)
                     .clickable {
@@ -1893,13 +1919,13 @@ fun CutAndMergeToolPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(Translator.tr("سرعة المقطع:"), color = Color.White, fontSize = 11.sp, fontFamily = NotoSansFont)
+            Text(Translator.tr("سرعة المقطع:"), color = theme.textPrimary, fontSize = 11.sp, fontFamily = NotoSansFont)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(0.5f, 1f, 1.25f, 1.5f, 2f).forEach { spd ->
                     val isSpdSelected = selectedSpeed == spd
                     Surface(
                         shape = CutCornerShape(4.dp),
-                        color = if (isSpdSelected) GoldPrimary else Color(0xFF131D33),
+                        color = if (isSpdSelected) PresetPrimary else theme.cardSurface,
                         modifier = Modifier.clickable {
                             selectedSpeed = spd
                             Toast.makeText(context, "السرعة: ${spd}x", Toast.LENGTH_SHORT).show()
@@ -1907,7 +1933,7 @@ fun CutAndMergeToolPanel(
                     ) {
                         Text(
                             text = "${spd}x",
-                            color = if (isSpdSelected) DeepSlate else Color.White,
+                            color = if (isSpdSelected) DeepSlate else theme.textPrimary,
                             fontFamily = RobotoMonoFont,
                             fontSize = 10.sp,
                             fontWeight = if (isSpdSelected) FontWeight.Bold else FontWeight.Normal,
@@ -1926,6 +1952,7 @@ fun CutAndMergeToolPanel(
 
 @Composable
 fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
+    val theme = QabasTheme.current
     var resolution by remember { mutableStateOf("1080p") }
     var fps by remember { mutableStateOf("60 FPS") }
 
@@ -1933,11 +1960,11 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Download, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Download, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     Translator.tr("إعدادات التصدير السينمائي"),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontWeight = FontWeight.Bold,
                     fontFamily = CairoFont,
                     fontSize = 17.sp
@@ -1950,7 +1977,7 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                 Column {
                     Text(
                         "دقة الإخراج // RESOLUTION",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold
@@ -1964,8 +1991,8 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                             val isSel = resolution == res
                             Surface(
                                 shape = CutCornerShape(4.dp),
-                                color = if (isSel) GoldPrimary.copy(alpha = 0.25f) else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (isSel) GoldPrimary else Color(0xFF243354)),
+                                color = if (isSel) PresetPrimary.copy(alpha = 0.25f) else theme.secondarySurface,
+                                border = BorderStroke(1.dp, if (isSel) PresetPrimary else theme.separator),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { resolution = res }
@@ -1973,7 +2000,7 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 8.dp)) {
                                     Text(
                                         res,
-                                        color = if (isSel) GoldPrimary else Color.White,
+                                        color = if (isSel) PresetPrimary else theme.textPrimary,
                                         fontFamily = RobotoMonoFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
@@ -1988,7 +2015,7 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                 Column {
                     Text(
                         "معدل الإطارات // FRAMERATE",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold
@@ -2002,8 +2029,8 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                             val isSel = fps == f
                             Surface(
                                 shape = CutCornerShape(4.dp),
-                                color = if (isSel) GoldPrimary.copy(alpha = 0.25f) else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (isSel) GoldPrimary else Color(0xFF243354)),
+                                color = if (isSel) PresetPrimary.copy(alpha = 0.25f) else theme.secondarySurface,
+                                border = BorderStroke(1.dp, if (isSel) PresetPrimary else theme.separator),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { fps = f }
@@ -2011,7 +2038,7 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 8.dp)) {
                                     Text(
                                         f,
-                                        color = if (isSel) GoldPrimary else Color.White,
+                                        color = if (isSel) PresetPrimary else theme.textPrimary,
                                         fontFamily = RobotoMonoFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
@@ -2025,22 +2052,22 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
                 // Bitrate HUD Readout
                 Surface(
                     shape = CutCornerShape(4.dp),
-                    color = Color(0xFF0A101D),
-                    border = BorderStroke(0.7.dp, Color(0xFF1E2D4A))
+                    color = theme.background,
+                    border = BorderStroke(0.7.dp, theme.separator)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("BITRATE ESTIMATE:", color = Color.Gray, fontSize = 10.sp, fontFamily = RobotoMonoFont)
+                        Text("BITRATE ESTIMATE:", color = theme.textTertiary, fontSize = 10.sp, fontFamily = RobotoMonoFont)
                         Text(
                             when (resolution) {
                                 "4K UHD" -> "45 Mbps // PRO-RES"
                                 "2K" -> "24 Mbps // H.265"
                                 else -> "14 Mbps // H.264"
                             },
-                            color = Color(0xFF38BDF8),
+                            color = theme.primary,
                             fontSize = 10.sp,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold
@@ -2052,7 +2079,7 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
         confirmButton = {
             Surface(
                 shape = CutCornerShape(6.dp),
-                color = GoldPrimary,
+                color = PresetPrimary,
                 modifier = Modifier.clickable { onExport() }
             ) {
                 Text(
@@ -2067,10 +2094,10 @@ fun CyberExportSettingsDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(Translator.tr("إلغاء"), color = Color.Gray, fontFamily = CairoFont)
+                Text(Translator.tr("إلغاء"), color = theme.textTertiary, fontFamily = CairoFont)
             }
         },
-        containerColor = Color(0xFF0D1424),
+        containerColor = theme.cardSurface,
         shape = CutCornerShape(10.dp)
     )
 }
@@ -2081,6 +2108,7 @@ fun CyberEditSceneDetailsDialog(
     onDismiss: () -> Unit,
     onSave: (Scene) -> Unit
 ) {
+    val theme = QabasTheme.current
     var title by remember { mutableStateOf(scene.title) }
     var description by remember { mutableStateOf(scene.description) }
     var duration by remember { mutableIntStateOf(scene.durationInSeconds) }
@@ -2090,7 +2118,7 @@ fun CyberEditSceneDetailsDialog(
         title = {
             Text(
                 "تعديل تفاصيل المشهد والكابشن",
-                color = GoldPrimary,
+                color = PresetPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp
@@ -2101,11 +2129,11 @@ fun CyberEditSceneDetailsDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("عنوان المشهد", color = Color.Gray, fontFamily = CairoFont) },
+                    label = { Text("عنوان المشهد", color = theme.textTertiary, fontFamily = CairoFont) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = PresetPrimary,
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary
                     ),
                     shape = CutCornerShape(4.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -2113,11 +2141,11 @@ fun CyberEditSceneDetailsDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("نص المشهد والكابشن", color = Color.Gray, fontFamily = CairoFont) },
+                    label = { Text("نص المشهد والكابشن", color = theme.textTertiary, fontFamily = CairoFont) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = PresetPrimary,
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary
                     ),
                     shape = CutCornerShape(4.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -2130,17 +2158,17 @@ fun CyberEditSceneDetailsDialog(
                 ) {
                     Text(
                         "مدة المشهد: $duration ثانية",
-                        color = Color.White,
+                        color = theme.textPrimary,
                         fontFamily = RobotoMonoFont,
                         fontSize = 12.sp
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (duration > 1) duration-- }) {
-                            Icon(Icons.Default.Remove, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.Default.Remove, contentDescription = null, tint = PresetPrimary)
                         }
-                        Text("$duration", color = GoldPrimary, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
+                        Text("$duration", color = PresetPrimary, fontFamily = RobotoMonoFont, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { duration++ }) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.Default.Add, contentDescription = null, tint = PresetPrimary)
                         }
                     }
                 }
@@ -2149,7 +2177,7 @@ fun CyberEditSceneDetailsDialog(
         confirmButton = {
             Surface(
                 shape = CutCornerShape(6.dp),
-                color = GoldPrimary,
+                color = PresetPrimary,
                 modifier = Modifier.clickable {
                     onSave(scene.copy(title = title, description = description, durationInSeconds = duration))
                 }
@@ -2166,10 +2194,10 @@ fun CyberEditSceneDetailsDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
             }
         },
-        containerColor = Color(0xFF0D1424),
+        containerColor = theme.cardSurface,
         shape = CutCornerShape(10.dp)
     )
 }

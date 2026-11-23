@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
 import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -879,7 +878,7 @@ object StyleBrain {
         try {
             val projects = try {
                 ProjectService(context).getLocalProjects()
-            } catch (_: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
                 emptyList()
             }
 
@@ -1797,10 +1796,6 @@ object StyleBrain {
         return _coreStyle.value.strengthScore
     }
 
-    fun getStyleStrength(): Int {
-        return getCoreStyleStrength()
-    }
-    
     /**
      * الدمج النهائي الذكي عند التوليد (Contextual & Semantic Style Selection & Blending):
      * 1. أولوية مطلقة: الأسلوب الأساسي المعتمد للاستوديو (primaryStyleId) إن وُجد.
@@ -1991,65 +1986,6 @@ object StyleBrain {
     
     fun getDefaultStyle(): AbsorbedStyle {
         return _coreStyle.value.toAbsorbedStyle()
-    }
-
-    /**
-     * دمج أسلوبين أو أكثر لصناعة أسلوب تصميم جديد (فكرة العقل الأصلية).
-     * - يحافظ على هوية خادم المسلم كأساس
-     * - يخلط السمات البصرية/الحركية/النصية من الأساليب المختارة
-     * - يحفظ النتيجة ضمن الأساليب الممتصة إن مُرر Context
-     */
-    fun fuseStyles(
-        styles: List<AbsorbedStyle>,
-        newName: String = "",
-        context: android.content.Context? = null
-    ): AbsorbedStyle {
-        val core = _coreStyle.value.toAbsorbedStyle()
-        val source = if (styles.isEmpty()) listOf(core) else styles
-
-        val visuals = (core.visualTraits + source.flatMap { it.visualTraits }).distinct().take(6)
-        val motions = (core.motionTraits + source.flatMap { it.motionTraits }).distinct().take(5)
-        val texts = (core.textTraits + source.flatMap { it.textTraits }).distinct().take(4)
-        val score = (
-            (core.overallScore * 0.4) +
-            source.map { it.overallScore }.average().let { if (it.isNaN()) 0.0 else it } * 0.6
-        ).toInt().coerceIn(0, 100)
-
-        val name = newName.ifBlank {
-            if (source.size == 1) "دمج خادم المسلم × ${source.first().name}"
-            else "أسلوب مدمج (${source.size})"
-        }
-
-        val fused = AbsorbedStyle(
-            id = "fused_${System.currentTimeMillis()}",
-            name = name,
-            sourceVideoPathOrUrl = source.firstOrNull()?.sourceVideoPathOrUrl ?: "",
-            analysis = "أسلوب جديد من دمج: ${source.joinToString(" + ") { it.name }} مع هوية خادم المسلم الأساسية.",
-            visualTraits = visuals,
-            motionTraits = motions,
-            textTraits = texts,
-            overallScore = score,
-            absorbedAt = System.currentTimeMillis()
-        )
-
-        if (context != null) {
-            val updated = _absorbedStyles.value + fused
-            saveStyles(context, updated)
-        }
-        return fused
-    }
-
-    /** ملخص قصير يستهلكه المخرج (MontageDirector) */
-    fun directorStyleBrief(style: AbsorbedStyle = getDefaultStyle()): String {
-        return buildString {
-            append(style.name)
-            append(" | بصري: ")
-            append(style.visualTraits.take(3).joinToString(", ").ifBlank { "Dark Slate & Gold" })
-            append(" | حركة: ")
-            append(style.motionTraits.take(2).joinToString(", ").ifBlank { "slow cinematic" })
-            append(" | نص: ")
-            append(style.textTraits.take(2).joinToString(", ").ifBlank { "Arabic captions" })
-        }
     }
 
     fun removeStyle(context: Context, id: String) {
@@ -2401,124 +2337,6 @@ object StyleBrain {
         }
 
         return@withContext styleObject
-    }
-
-    /**
-     * حفظ كائن الأسلوب مباشرة في Firestore
-     */
-    suspend fun storeStyleObjectInFirestore(styleObject: StyleObject): Boolean {
-        if (!CloudServices.isFirebaseInitialized) return false
-        return CloudServices.Database.saveStyleObjectToCloud(styleObject)
-    }
-
-    /**
-     * استدعاء وقراءة كافة كائنات الأساليب الفنية المخزنة للمستخدم في Firestore
-     */
-    suspend fun fetchCloudStyleObjects(userId: String? = null): List<StyleObject> {
-        if (!CloudServices.isFirebaseInitialized) return emptyList()
-        return CloudServices.Database.getCloudStyleObjects(userId)
-    }
-
-    /**
-     * دمج كائني نمط فني (Style Objects Fusion):
-     * دمج الخصائص البصرية وإيقاع الحركة ونبرة المحتوى بنسبة مرجحة (blendRatio)
-     * لإنتاج نمط فني هجين متطور.
-     */
-    fun fuseStyleObjects(
-        primary: StyleObject,
-        secondary: StyleObject,
-        blendRatio: Float = 0.5f,
-        customName: String? = null
-    ): StyleObject {
-        val clampedRatio = blendRatio.coerceIn(0.1f, 0.9f)
-        val primaryWeight = 1.0f - clampedRatio
-        val secondaryWeight = clampedRatio
-
-        // 1. دمج السمات البصرية
-        val primaryVisualCount = if (primaryWeight >= 0.5f) 4 else 2
-        val secondaryVisualCount = if (secondaryWeight >= 0.5f) 3 else 2
-        val combinedVisualTraits = (primary.visualStyle.visualTraits.take(primaryVisualCount) + 
-                                    secondary.visualStyle.visualTraits.take(secondaryVisualCount)).distinct()
-
-        val blendedDominantColors = "${primary.visualStyle.dominantColors} × ${secondary.visualStyle.dominantColors}"
-        val chosenPrimaryHex = if (primaryWeight >= 0.5f) primary.visualStyle.primaryColorHex else secondary.visualStyle.primaryColorHex
-        val chosenBgHex = if (primaryWeight >= 0.5f) primary.visualStyle.backgroundColorHex else secondary.visualStyle.backgroundColorHex
-
-        val fusedVisual = VisualStylePattern(
-            dominantColors = blendedDominantColors,
-            primaryColorHex = chosenPrimaryHex,
-            backgroundColorHex = chosenBgHex,
-            lightingAndContrast = "إضاءة هجينة متوازنة مع تباين سينمائي عالي",
-            visualTraits = combinedVisualTraits
-        )
-
-        // 2. دمج إيقاع الحركة
-        val combinedMotionTraits = (primary.motionRhythm.motionTraits.take(3) + 
-                                    secondary.motionRhythm.motionTraits.take(2)).distinct()
-        val fusedMotion = MotionRhythmPattern(
-            transitionSpeed = if (primaryWeight >= 0.5f) primary.motionRhythm.transitionSpeed else secondary.motionRhythm.transitionSpeed,
-            transitionType = if (primaryWeight >= 0.5f) primary.motionRhythm.transitionType else secondary.motionRhythm.transitionType,
-            movementPatterns = "${primary.motionRhythm.movementPatterns} + ${secondary.motionRhythm.movementPatterns}",
-            overallRhythm = "إيقاع مركب: ${primary.motionRhythm.overallRhythm} ممتزج مع ${secondary.motionRhythm.overallRhythm}",
-            motionTraits = combinedMotionTraits
-        )
-
-        // 3. دمج نبرة المحتوى والتيبوغرافيا
-        val combinedTextTraits = (primary.contentTone.textTraits.take(3) + 
-                                  secondary.contentTone.textTraits.take(2)).distinct()
-        val fusedTone = ContentTonePattern(
-            tone = "${primary.contentTone.tone} ممتزج مع ${secondary.contentTone.tone}",
-            targetAudience = primary.contentTone.targetAudience,
-            typographyStyle = primary.contentTone.typographyStyle,
-            captionAnimation = primary.contentTone.captionAnimation,
-            textTraits = combinedTextTraits
-        )
-
-        val fusedScore = ((primary.overallScore * primaryWeight) + (secondary.overallScore * secondaryWeight)).toInt().coerceIn(0, 100)
-        val defaultFusedName = customName?.ifBlank { null } ?: "دمج هجين (${primary.name} × ${secondary.name})"
-
-        return StyleObject(
-            id = "fused_${UUID.randomUUID().toString().take(8)}",
-            name = defaultFusedName,
-            userId = primary.userId,
-            sourceVideoPathOrUrl = "${primary.sourceVideoPathOrUrl} + ${secondary.sourceVideoPathOrUrl}",
-            visualStyle = fusedVisual,
-            motionRhythm = fusedMotion,
-            contentTone = fusedTone,
-            overallScore = fusedScore,
-            analysisSummary = "نمط فني مصهور يجمع بنسبة (${(primaryWeight * 100).toInt()}%) من [${primary.name}] و (${(secondaryWeight * 100).toInt()}%) من [${secondary.name}].",
-            tags = (primary.tags + secondary.tags + listOf("FusedStyle", "HybridPattern")).distinct(),
-            createdAt = System.currentTimeMillis(),
-            isCloudSynced = false
-        )
-    }
-
-    /**
-     * استدعاء نمط فني وتطبيقه على عقل الإنتاج فوراً
-     */
-    suspend fun recallStyleObject(context: Context, styleId: String): StyleObject? {
-        // 1. البحث في الذاكرة التراكمية المحلية
-        val localMatch = _absorbedStyles.value.find { it.id == styleId }
-        if (localMatch != null) {
-            val styleObj = StyleObject.fromAbsorbedStyle(localMatch)
-            return styleObj
-        }
-
-        // 2. البحث في سحابة Firestore إذا كانت مفعلة
-        if (CloudServices.isFirebaseInitialized) {
-            val cloudStyles = CloudServices.Database.getCloudStyleObjects()
-            val cloudMatch = cloudStyles.find { it.id == styleId }
-            if (cloudMatch != null) {
-                // حفظه في الذاكرة التراكمية المحلية وتطوير العقل
-                val absorbed = cloudMatch.toAbsorbedStyle()
-                val updated = _absorbedStyles.value + absorbed
-                saveStyles(context, updated)
-                evolveCoreStyleWithNewAbsorption(context, absorbed)
-                return cloudMatch
-            }
-        }
-
-        return null
     }
 
     /**

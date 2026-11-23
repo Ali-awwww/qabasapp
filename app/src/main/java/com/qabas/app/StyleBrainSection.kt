@@ -4,7 +4,6 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -47,6 +46,7 @@ fun StyleBrainSection(
         factory = QabasBrainViewModelFactory(context)
     )
 ) {
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -58,20 +58,12 @@ fun StyleBrainSection(
     var selectedVideoLabel by remember { mutableStateOf<String?>(null) }
     var selectedRequestId by remember { mutableStateOf<String?>(null) }
 
-    var showFusionDialog by remember { mutableStateOf(false) }
     var primaryStyleForFusion by remember { mutableStateOf<AbsorbedStyle?>(null) }
     var secondaryStyleForFusion by remember { mutableStateOf<AbsorbedStyle?>(null) }
     var blendRatio by remember { mutableFloatStateOf(0.5f) }
     var customFusedName by remember { mutableStateOf("") }
 
-    var showMasterSynthesisDialog by remember { mutableStateOf(false) }
-    var projectIdea by remember { mutableStateOf("") }
-    var projectDuration by remember { mutableIntStateOf(30) }
-    var projectTone by remember { mutableStateOf("حماسي ووقور") }
-    var projectPacing by remember { mutableStateOf("متوازن") }
-    var projectAudience by remember { mutableStateOf("الجمهور العام") }
     var customMasterName by remember { mutableStateOf("") }
-    var isSynthesizingMaster by remember { mutableStateOf(false) }
     var showHardResetConfirm by remember { mutableStateOf(false) }
 
     val styles by StyleBrain.absorbedStyles.collectAsState()
@@ -118,7 +110,7 @@ fun StyleBrainSection(
                 } else {
                     message = "تعذّر قراءة ملف الفيديو المختار"
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 message = "فشل اختيار الفيديو: ${e.localizedMessage ?: e.message}"
             }
         }
@@ -137,12 +129,12 @@ fun StyleBrainSection(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color(0xFF151B2B), DeepSlate)))
+                    .background(Brush.verticalGradient(listOf(theme.cardSurface, DeepSlate)))
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -152,21 +144,21 @@ fun StyleBrainSection(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = if (isFirebaseActive) Color(0xFF10B981).copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f),
+                        color = if (isFirebaseActive) theme.success.copy(alpha = 0.15f) else theme.textTertiary.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFirebaseActive) Color(0xFF10B981) else Color.Gray)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFirebaseActive) theme.success else theme.textTertiary)
                     ) {
                         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 if (isFirebaseActive) Icons.Default.CloudDone else Icons.Default.CloudOff,
                                 contentDescription = null,
-                                tint = if (isFirebaseActive) Color(0xFF10B981) else Color.Gray,
+                                tint = if (isFirebaseActive) theme.success else theme.textTertiary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 if (isFirebaseActive) "Firestore سحابي نشط" else "ذاكرة محلية فقط",
-                                color = if (isFirebaseActive) Color(0xFF10B981) else Color.Gray,
+                                color = if (isFirebaseActive) theme.success else theme.textTertiary,
                                 fontSize = 10.sp,
                                 fontFamily = TajawalFont
                             )
@@ -179,7 +171,7 @@ fun StyleBrainSection(
                             onClick = { showHardResetConfirm = true },
                             enabled = !absorptionState.isAbsorbing && !isSyncing
                         ) {
-                            Icon(Icons.Default.RestartAlt, contentDescription = "تصفير العقل", tint = Color(0xFFEF4444))
+                            Icon(Icons.Default.RestartAlt, contentDescription = "تصفير العقل", tint = theme.destructive)
                         }
                         IconButton(
                             onClick = {
@@ -198,9 +190,9 @@ fun StyleBrainSection(
                             enabled = !isSyncing
                         ) {
                             if (isSyncing) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = GoldPrimary)
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = PresetPrimary)
                             } else {
-                                Icon(Icons.Default.Sync, contentDescription = "مزامنة", tint = GoldPrimary)
+                                Icon(Icons.Default.Sync, contentDescription = "مزامنة", tint = PresetPrimary)
                             }
                         }
                     }
@@ -215,7 +207,7 @@ fun StyleBrainSection(
                 // عرض صريح LTR لتجنب قلب الأرقام في RTL
                 Text(
                     text = "$strength / 100",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
@@ -225,7 +217,7 @@ fun StyleBrainSection(
                     if (styles.isEmpty() && strength == 0) "عقل فارغ تماماً — لم يُمتص أي أسلوب بعد"
                     else if (styles.isEmpty()) "هوية أساسية — لم يُستخرج نمط من فيديو بعد"
                     else "تم تغذية العقل بـ ${styles.size} نمط | التقدم +0…+3 لكل امتصاص",
-                    color = if (styles.isEmpty() && strength == 0) Color(0xFFF59E0B) else Color(0xFF10B981),
+                    color = if (styles.isEmpty() && strength == 0) theme.warning else theme.success,
                     fontFamily = TajawalFont,
                     fontSize = 11.sp
                 )
@@ -234,7 +226,7 @@ fun StyleBrainSection(
                 LinearProgressIndicator(
                     progress = { strength / 100f },
                     modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     trackColor = DeepSlate
                 )
 
@@ -253,15 +245,15 @@ fun StyleBrainSection(
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🎨 سمات بصرية", color = GoldSecondary, fontSize = 11.sp, fontFamily = TajawalFont)
+                        Text("🎨 سمات بصرية", color = PresetAccent, fontSize = 11.sp, fontFamily = TajawalFont)
                         Text("${coreStyle.visualTraits.size} خصال", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🎬 سمات حركة", color = GoldSecondary, fontSize = 11.sp, fontFamily = TajawalFont)
+                        Text("🎬 سمات حركة", color = PresetAccent, fontSize = 11.sp, fontFamily = TajawalFont)
                         Text("${coreStyle.motionTraits.size} خصال", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("✍️ سمات نصوص", color = GoldSecondary, fontSize = 11.sp, fontFamily = TajawalFont)
+                        Text("✍️ سمات نصوص", color = PresetAccent, fontSize = 11.sp, fontFamily = TajawalFont)
                         Text("${coreStyle.textTraits.size} خصال", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -271,11 +263,11 @@ fun StyleBrainSection(
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = CardSurface,
-            contentColor = GoldPrimary,
+            contentColor = PresetPrimary,
             indicator = { tabPositions ->
                 TabRowDefaults.SecondaryIndicator(
                     Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                    color = GoldPrimary
+                    color = PresetPrimary
                 )
             }
         ) {
@@ -310,7 +302,7 @@ fun StyleBrainSection(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -330,11 +322,11 @@ fun StyleBrainSection(
                         )
                         // حالة توفر المفتاح
                         Surface(
-                            color = if (isApiKeyAvailable) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                            color = if (isApiKeyAvailable) theme.success.copy(alpha = 0.15f) else theme.destructive.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isApiKeyAvailable) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFEF4444).copy(alpha = 0.5f)
+                                if (isApiKeyAvailable) theme.success.copy(alpha = 0.5f) else theme.destructive.copy(alpha = 0.5f)
                             )
                         ) {
                             Row(
@@ -345,12 +337,12 @@ fun StyleBrainSection(
                                 Icon(
                                     imageVector = if (isApiKeyAvailable) Icons.Default.CheckCircle else Icons.Default.Lock,
                                     contentDescription = null,
-                                    tint = if (isApiKeyAvailable) Color(0xFF10B981) else Color(0xFFEF4444),
+                                    tint = if (isApiKeyAvailable) theme.success else theme.destructive,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Text(
                                     if (isApiKeyAvailable) "مفتاح API جاهز" else "مفتاح API غير متوفر",
-                                    color = if (isApiKeyAvailable) Color(0xFF10B981) else Color(0xFFEF4444),
+                                    color = if (isApiKeyAvailable) theme.success else theme.destructive,
                                     fontFamily = TajawalFont,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -363,8 +355,8 @@ fun StyleBrainSection(
                     if (!isApiKeyAvailable) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1515)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+                            colors = CardDefaults.cardColors(containerColor = theme.destructive.copy(alpha = 0.15f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.destructive.copy(alpha = 0.6f)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Row(
@@ -375,13 +367,13 @@ fun StyleBrainSection(
                                 Icon(
                                     imageVector = Icons.Default.Lock,
                                     contentDescription = null,
-                                    tint = Color(0xFFEF4444),
+                                    tint = theme.destructive,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         "مفتاح الذكاء الاصطناعي غير متوفر",
-                                        color = Color(0xFFEF4444),
+                                        color = theme.destructive,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
@@ -400,15 +392,15 @@ fun StyleBrainSection(
                     Button(
                         onClick = { videoPickerLauncher.launch("video/*") },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.separator),
                         enabled = !absorptionState.isAbsorbing,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f))
                     ) {
-                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             if (selectedVideoLabel != null) "تغيير الفيديو المرجعي" else "اختيار فيديو من الجهاز",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = TajawalFont,
                             fontWeight = FontWeight.Bold
                         )
@@ -417,7 +409,7 @@ fun StyleBrainSection(
                     if (selectedVideoLabel != null || videoPath.isNotBlank()) {
                         Text(
                             "الملف: ${selectedVideoLabel ?: videoPath.takeLast(40)}",
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             fontFamily = NotoSansFont,
                             fontSize = 12.sp
                         )
@@ -433,8 +425,8 @@ fun StyleBrainSection(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !absorptionState.isAbsorbing,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = theme.separator,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         )
@@ -447,8 +439,8 @@ fun StyleBrainSection(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !absorptionState.isAbsorbing,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary,
-                            unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedBorderColor = PresetPrimary,
+                            unfocusedBorderColor = theme.separator,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         )
@@ -463,8 +455,8 @@ fun StyleBrainSection(
                     if (absorptionState.errorMessage != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1515)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
+                            colors = CardDefaults.cardColors(containerColor = theme.destructive.copy(alpha = 0.15f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.destructive.copy(alpha = 0.7f)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Column(
@@ -473,7 +465,7 @@ fun StyleBrainSection(
                             ) {
                                 Text(
                                     "تعذر الاستخراج: ${absorptionState.errorMessage}",
-                                    color = Color(0xFFEF4444),
+                                    color = theme.destructive,
                                     fontFamily = TajawalFont,
                                     fontSize = 11.sp
                                 )
@@ -497,7 +489,7 @@ fun StyleBrainSection(
                             checked = saveToCloud,
                             onCheckedChange = { saveToCloud = it },
                             enabled = !absorptionState.isAbsorbing,
-                            colors = CheckboxDefaults.colors(checkedColor = GoldPrimary, checkmarkColor = DeepSlate)
+                            colors = CheckboxDefaults.colors(checkedColor = PresetPrimary, checkmarkColor = DeepSlate)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("حفظ في سحابة Firestore", color = TextSecondary, fontFamily = TajawalFont, fontSize = 12.sp)
@@ -524,9 +516,9 @@ fun StyleBrainSection(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isApiKeyAvailable) GoldPrimary else Color(0xFF334155),
-                            disabledContainerColor = Color(0xFF1E293B),
-                            disabledContentColor = Color(0xFF64748B)
+                            containerColor = if (isApiKeyAvailable) PresetPrimary else theme.separator,
+                            disabledContainerColor = theme.separator,
+                            disabledContentColor = theme.textTertiary
                         ),
                         enabled = canAbsorb
                     ) {
@@ -540,11 +532,11 @@ fun StyleBrainSection(
                                 fontWeight = FontWeight.Bold
                             )
                         } else if (!isApiKeyAvailable) {
-                            Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "🔒 الزر مجمّد (يتطلب مفتاح ذكاء اصطناعي)",
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = TajawalFont,
                                 fontWeight = FontWeight.Bold
                             )
@@ -561,7 +553,7 @@ fun StyleBrainSection(
                     }
 
                     message?.let {
-                        Text(it, color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                        Text(it, color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                     }
                 }
             }
@@ -572,14 +564,14 @@ fun StyleBrainSection(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("لا توجد أنماط مستخرجة بعد", color = GoldPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("لا توجد أنماط مستخرجة بعد", color = PresetPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Text(
                             "اختر فيديو ثم اضغط استخراج. التقدم لكل امتصاص بين 0 و 3 فقط حسب قوة الأسلوب.",
                             color = TextSecondary,
@@ -602,7 +594,7 @@ fun StyleBrainSection(
                         colors = CardDefaults.cardColors(containerColor = CardSurface),
                         border = androidx.compose.foundation.BorderStroke(
                             if (isPrimary) 1.5.dp else 1.dp,
-                            if (isPrimary) GoldPrimary else Color(0xFF1E293B)
+                            if (isPrimary) PresetPrimary else theme.separator
                         )
                     ) {
                         Column(
@@ -616,17 +608,17 @@ fun StyleBrainSection(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(style.name, color = GoldPrimary, fontFamily = TajawalFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                        Text(style.name, color = PresetPrimary, fontFamily = TajawalFont, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                         if (isPrimary) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
-                                                color = GoldPrimary.copy(alpha = 0.2f),
+                                                color = PresetPrimary.copy(alpha = 0.2f),
                                                 shape = RoundedCornerShape(4.dp),
-                                                border = androidx.compose.foundation.BorderStroke(0.5.dp, GoldPrimary)
+                                                border = androidx.compose.foundation.BorderStroke(0.5.dp, PresetPrimary)
                                             ) {
                                                 Text(
                                                     "الأساسي للاستوديو 🌟",
-                                                    color = GoldPrimary,
+                                                    color = PresetPrimary,
                                                     fontFamily = TajawalFont,
                                                     fontSize = 10.sp,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -648,14 +640,14 @@ fun StyleBrainSection(
                                         Icon(
                                             if (isPrimary) Icons.Default.Star else Icons.Default.StarBorder,
                                             contentDescription = if (isPrimary) "إلغاء الاعتماد كأساسي" else "تعيين كأساسي للاستوديو",
-                                            tint = if (isPrimary) GoldPrimary else TextSecondary
+                                            tint = if (isPrimary) PresetPrimary else TextSecondary
                                         )
                                     }
                                     IconButton(onClick = {
                                         if (primaryStyleId == style.id) StyleBrain.setPrimaryStudioStyle(context, null)
                                         StyleBrain.removeStyle(context, style.id)
                                     }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = Color.Red.copy(alpha = 0.7f))
+                                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = theme.destructive.copy(alpha = 0.7f))
                                     }
                                 }
                             }
@@ -668,12 +660,12 @@ fun StyleBrainSection(
                                 ) {
                                     style.visualTraits.take(2).forEach { trait ->
                                         Surface(
-                                            color = Color(0xFF1E293B),
+                                            color = theme.separator,
                                             shape = RoundedCornerShape(4.dp)
                                         ) {
                                             Text(
                                                 trait.take(25),
-                                                color = Color(0xFF94A3B8),
+                                                color = theme.textSecondary,
                                                 fontFamily = TajawalFont,
                                                 fontSize = 10.sp,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -683,12 +675,12 @@ fun StyleBrainSection(
                                     }
                                     style.motionTraits.take(1).forEach { trait ->
                                         Surface(
-                                            color = Color(0xFF0F2338),
+                                            color = theme.secondarySurface,
                                             shape = RoundedCornerShape(4.dp)
                                         ) {
                                             Text(
                                                 trait.take(25),
-                                                color = GoldPrimary.copy(alpha = 0.8f),
+                                                color = PresetPrimary.copy(alpha = 0.8f),
                                                 fontFamily = TajawalFont,
                                                 fontSize = 10.sp,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -709,15 +701,15 @@ fun StyleBrainSection(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = CardSurface),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.CompareArrows, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
-                            Text("يلزم وجود أسلوبين على الأقل للمقارنة والدمج", color = GoldPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.CompareArrows, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(32.dp))
+                            Text("يلزم وجود أسلوبين على الأقل للمقارنة والدمج", color = PresetPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 "قم باستخراج أسلوبين من فيديوهات مختلفة في تبويب «الأنماط» أولاً، لتتمكن من مقارنة سماتهما اللونية والحركية ودمجهما.",
                                 color = TextSecondary,
@@ -731,13 +723,13 @@ fun StyleBrainSection(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = CardSurface),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Text("1. اختيار النمطين للمقارنة", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("1. اختيار النمطين للمقارنة", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -750,12 +742,12 @@ fun StyleBrainSection(
                                         OutlinedButton(
                                             onClick = { expandedPrimary = true },
                                             modifier = Modifier.fillMaxWidth(),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (primaryStyleForFusion != null) GoldPrimary else Color(0xFF1E293B)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (primaryStyleForFusion != null) PresetPrimary else theme.separator),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                         ) {
                                             Text(
                                                 primaryStyleForFusion?.name?.take(18) ?: "اختر النمط الأول",
-                                                color = if (primaryStyleForFusion != null) GoldPrimary else TextSecondary,
+                                                color = if (primaryStyleForFusion != null) PresetPrimary else TextSecondary,
                                                 fontFamily = TajawalFont,
                                                 fontSize = 12.sp,
                                                 maxLines = 1
@@ -784,12 +776,12 @@ fun StyleBrainSection(
                                         OutlinedButton(
                                             onClick = { expandedSecondary = true },
                                             modifier = Modifier.fillMaxWidth(),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (secondaryStyleForFusion != null) Color(0xFF38BDF8) else Color(0xFF1E293B)),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (secondaryStyleForFusion != null) theme.primary else theme.separator),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                         ) {
                                             Text(
                                                 secondaryStyleForFusion?.name?.take(18) ?: "اختر النمط الثاني",
-                                                color = if (secondaryStyleForFusion != null) Color(0xFF38BDF8) else TextSecondary,
+                                                color = if (secondaryStyleForFusion != null) theme.primary else TextSecondary,
                                                 fontFamily = TajawalFont,
                                                 fontSize = 12.sp,
                                                 maxLines = 1
@@ -816,24 +808,24 @@ fun StyleBrainSection(
                             val s2 = secondaryStyleForFusion
 
                             if (s1 != null && s2 != null && s1.id != s2.id) {
-                                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                                HorizontalDivider(color = theme.separator, thickness = 1.dp)
 
-                                Text("2. جدول مقارنة الفروقات الفنية ⚖️", color = GoldPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Text("2. جدول مقارنة الفروقات الفنية ⚖️", color = PresetPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
 
                                 StyleComparisonCard(style1 = s1, style2 = s2)
 
-                                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                                HorizontalDivider(color = theme.separator, thickness = 1.dp)
 
-                                Text("3. موازنة نسبة الدمج والانصهار", color = GoldPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Text("3. موازنة نسبة الدمج والانصهار", color = PresetPrimary, fontFamily = CairoFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
 
                                 Slider(
                                     value = blendRatio,
                                     onValueChange = { blendRatio = it },
                                     valueRange = 0.1f..0.9f,
                                     colors = SliderDefaults.colors(
-                                        thumbColor = GoldPrimary,
-                                        activeTrackColor = GoldPrimary,
-                                        inactiveTrackColor = Color(0xFF38BDF8).copy(alpha = 0.4f)
+                                        thumbColor = PresetPrimary,
+                                        activeTrackColor = PresetPrimary,
+                                        inactiveTrackColor = theme.primary.copy(alpha = 0.4f)
                                     )
                                 )
 
@@ -843,14 +835,14 @@ fun StyleBrainSection(
                                 ) {
                                     Text(
                                         "وزن النمط الأول: ${((1f - blendRatio) * 100).toInt()}%",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = TajawalFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         "وزن النمط الثاني: ${(blendRatio * 100).toInt()}%",
-                                        color = Color(0xFF38BDF8),
+                                        color = theme.primary,
                                         fontFamily = TajawalFont,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
@@ -859,12 +851,12 @@ fun StyleBrainSection(
 
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    color = Color(0xFF0F172A),
+                                    color = theme.secondarySurface,
                                     shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
                                 ) {
                                     Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("معاينة النمط الهجين المتوقع:", color = GoldSecondary, fontFamily = TajawalFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("معاينة النمط الهجين المتوقع:", color = PresetAccent, fontFamily = TajawalFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         val expectedPrimaryColor = if ((1f - blendRatio) >= 0.5f) s1.resolvePrimaryColorHex() else s2.resolvePrimaryColorHex()
                                         val expectedFilter = if ((1f - blendRatio) >= 0.5f) s1.resolveFilterHint() else s2.resolveFilterHint()
                                         val expectedMotion = if ((1f - blendRatio) >= 0.5f) s1.resolveMotionType() else s2.resolveMotionType()
@@ -893,8 +885,8 @@ fun StyleBrainSection(
                                     label = { Text("اسم النمط المدموج (افتراضي: دمج ${s1.name.take(8)} + ${s2.name.take(8)})", fontFamily = TajawalFont) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = GoldPrimary,
-                                        unfocusedBorderColor = Color(0xFF1E293B),
+                                        focusedBorderColor = PresetPrimary,
+                                        unfocusedBorderColor = theme.separator,
                                         focusedTextColor = TextPrimary,
                                         unfocusedTextColor = TextPrimary
                                     )
@@ -918,20 +910,20 @@ fun StyleBrainSection(
                                                 secondaryStyleForFusion = null
                                                 customFusedName = ""
                                                 blendRatio = 0.5f
-                                            } catch (e: Exception) {
+                                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                                 message = "فشل الدمج: ${e.message}"
                                             }
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                                 ) {
                                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("تنفيذ وحفظ الأسلوب المدموج", color = DeepSlate, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
                                 }
                             } else if (s1 != null && s2 != null && s1.id == s2.id) {
-                                Text("⚠️ لا يمكن دمج النمط مع نفسه. يرجى اختيار نمط ثانٍ مختلف لمقارنة الفروقات ودمجها.", color = Color(0xFFEF4444), fontFamily = TajawalFont, fontSize = 12.sp)
+                                Text("⚠️ لا يمكن دمج النمط مع نفسه. يرجى اختيار نمط ثانٍ مختلف لمقارنة الفروقات ودمجها.", color = theme.destructive, fontFamily = TajawalFont, fontSize = 12.sp)
                             } else {
                                 Text("👆 اختر نمطين أعلاه لتفعيل جدول المقارنة والدمج المباشر.", color = TextSecondary, fontFamily = TajawalFont, fontSize = 12.sp)
                             }
@@ -950,7 +942,7 @@ fun StyleBrainSection(
                             it.status.contains("ناجح") ||
                             it.status.contains("تم")
                         }
-                    } catch (e: Exception) {
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                         hasCompletedProjects = false
                     }
                 }
@@ -982,7 +974,7 @@ fun StyleBrainSection(
                     colors = CardDefaults.cardColors(containerColor = CardSurface)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(master.name, color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
+                        Text(master.name, color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
                         Text(master.description.ifBlank { master.fusionSummary }, color = TextSecondary, fontSize = 12.sp, fontFamily = NotoSansFont)
                     }
                 }
@@ -995,7 +987,7 @@ fun StyleBrainSection(
         AlertDialog(
             onDismissRequest = { showHardResetConfirm = false },
             title = {
-                Text("تصفير العقل نهائياً؟", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                Text("تصفير العقل نهائياً؟", color = theme.destructive, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
@@ -1013,14 +1005,14 @@ fun StyleBrainSection(
                         message = "تم تصفير العقل: قوة = 0 | أنماط = 0"
                         Toast.makeText(context, "تم تصفير العقل نهائياً ✓", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.destructive)
                 ) {
-                    Text("تصفير الآن", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
+                    Text("تصفير الآن", color = theme.onPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showHardResetConfirm = false }) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = TajawalFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = TajawalFont)
                 }
             },
             containerColor = CardSurface
@@ -1030,11 +1022,12 @@ fun StyleBrainSection(
 
 @Composable
 fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
+    val theme = QabasTheme.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF0F172A),
+        color = theme.secondarySurface,
         shape = RoundedCornerShape(10.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
     ) {
         Column(
             modifier = Modifier
@@ -1052,26 +1045,26 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
                     modifier = Modifier.weight(1f),
                     color = CardSurface,
                     shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                 ) {
                     Column(modifier = Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("النمط الأول (أ)", color = GoldSecondary, fontFamily = TajawalFont, fontSize = 10.sp)
-                        Text(style1.name, color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                        Text("النمط الأول (أ)", color = PresetAccent, fontFamily = TajawalFont, fontSize = 10.sp)
+                        Text(style1.name, color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                         Text("تقييم: ${style1.overallScore}%", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                     }
                 }
 
-                Text(" ⚔️ ", color = GoldSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                Text(" ⚔️ ", color = PresetAccent, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp))
 
                 Surface(
                     modifier = Modifier.weight(1f),
                     color = CardSurface,
                     shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f))
                 ) {
                     Column(modifier = Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("النمط الثاني (ب)", color = Color(0xFF7DD3FC), fontFamily = TajawalFont, fontSize = 10.sp)
-                        Text(style2.name, color = Color(0xFF38BDF8), fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                        Text("النمط الثاني (ب)", color = theme.primary, fontFamily = TajawalFont, fontSize = 10.sp)
+                        Text(style2.name, color = theme.primary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                         Text("تقييم: ${style2.overallScore}%", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                     }
                 }
@@ -1081,11 +1074,11 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
             StyleRadarChart(
                 style1 = style1,
                 style2 = style2,
-                color1 = GoldPrimary,
-                color2 = Color(0xFF38BDF8)
+                color1 = PresetPrimary,
+                color2 = theme.primary
             )
 
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+            HorizontalDivider(color = theme.separator, thickness = 1.dp)
 
             // 1. الألوان
             val s1Primary = style1.resolvePrimaryColorHex()
@@ -1119,8 +1112,8 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
             val s2Filter = style2.resolveFilterHint()
             ComparisonRow(
                 traitTitle = "الفلتر والصبغة البصرية",
-                value1 = { TraitBadge(getFilterArabicLabel(s1Filter), GoldPrimary) },
-                value2 = { TraitBadge(getFilterArabicLabel(s2Filter), Color(0xFF38BDF8)) },
+                value1 = { TraitBadge(getFilterArabicLabel(s1Filter), PresetPrimary) },
+                value2 = { TraitBadge(getFilterArabicLabel(s2Filter), theme.primary) },
                 isDifferent = (s1Filter != s2Filter)
             )
 
@@ -1129,8 +1122,8 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
             val s2Motion = style2.resolveMotionType()
             ComparisonRow(
                 traitTitle = "حركة الكاميرا والمشهد",
-                value1 = { TraitBadge(getMotionArabicLabel(s1Motion), GoldPrimary) },
-                value2 = { TraitBadge(getMotionArabicLabel(s2Motion), Color(0xFF38BDF8)) },
+                value1 = { TraitBadge(getMotionArabicLabel(s1Motion), PresetPrimary) },
+                value2 = { TraitBadge(getMotionArabicLabel(s2Motion), theme.primary) },
                 isDifferent = (s1Motion != s2Motion)
             )
 
@@ -1139,8 +1132,8 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
             val s2Transition = style2.resolveTransitionType()
             ComparisonRow(
                 traitTitle = "الانتقالات السينمائية",
-                value1 = { TraitBadge(getTransitionArabicLabel(s1Transition), GoldPrimary) },
-                value2 = { TraitBadge(getTransitionArabicLabel(s2Transition), Color(0xFF38BDF8)) },
+                value1 = { TraitBadge(getTransitionArabicLabel(s1Transition), PresetPrimary) },
+                value2 = { TraitBadge(getTransitionArabicLabel(s2Transition), theme.primary) },
                 isDifferent = (s1Transition != s2Transition)
             )
 
@@ -1149,8 +1142,8 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
             val s2Tempo = style2.resolveTempo()
             ComparisonRow(
                 traitTitle = "إيقاع وسرعة الفيديو",
-                value1 = { TraitBadge(getTempoArabicLabel(s1Tempo), GoldPrimary) },
-                value2 = { TraitBadge(getTempoArabicLabel(s2Tempo), Color(0xFF38BDF8)) },
+                value1 = { TraitBadge(getTempoArabicLabel(s1Tempo), PresetPrimary) },
+                value2 = { TraitBadge(getTempoArabicLabel(s2Tempo), theme.primary) },
                 isDifferent = (s1Tempo != s2Tempo)
             )
 
@@ -1159,8 +1152,8 @@ fun StyleComparisonCard(style1: AbsorbedStyle, style2: AbsorbedStyle) {
             val s2Caption = style2.resolveTextAnimation()
             ComparisonRow(
                 traitTitle = "حركة ظهور النصوص",
-                value1 = { TraitBadge(getTextAnimArabicLabel(s1Caption), GoldPrimary) },
-                value2 = { TraitBadge(getTextAnimArabicLabel(s2Caption), Color(0xFF38BDF8)) },
+                value1 = { TraitBadge(getTextAnimArabicLabel(s1Caption), PresetPrimary) },
+                value2 = { TraitBadge(getTextAnimArabicLabel(s2Caption), theme.primary) },
                 isDifferent = (s1Caption != s2Caption)
             )
         }
@@ -1174,6 +1167,7 @@ fun ComparisonRow(
     value2: @Composable () -> Unit,
     isDifferent: Boolean
 ) {
+    val theme = QabasTheme.current
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1182,9 +1176,9 @@ fun ComparisonRow(
         ) {
             Text(traitTitle, color = TextSecondary, fontFamily = TajawalFont, fontSize = 11.sp)
             if (isDifferent) {
-                Text("مختلف ⚡", color = Color(0xFFF59E0B), fontFamily = TajawalFont, fontSize = 10.sp)
+                Text("مختلف ⚡", color = theme.warning, fontFamily = TajawalFont, fontSize = 10.sp)
             } else {
-                Text("متطابق ✓", color = Color(0xFF10B981), fontFamily = TajawalFont, fontSize = 10.sp)
+                Text("متطابق ✓", color = theme.success, fontFamily = TajawalFont, fontSize = 10.sp)
             }
         }
 
@@ -1201,17 +1195,18 @@ fun ComparisonRow(
                 value2()
             }
         }
-        HorizontalDivider(color = Color(0xFF1E293B).copy(alpha = 0.5f), thickness = 0.5.dp)
+        HorizontalDivider(color = theme.separator.copy(alpha = 0.5f), thickness = 0.5.dp)
     }
 }
 
 @Composable
 fun ColorSwatch(color: Color, tooltip: String) {
+    val theme = QabasTheme.current
     Box(
         modifier = Modifier
             .size(16.dp)
             .background(color, RoundedCornerShape(4.dp))
-            .border(0.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+            .border(0.5.dp, theme.textPrimary.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
     )
 }
 
@@ -1233,7 +1228,7 @@ fun TraitBadge(text: String, accentColor: Color) {
     }
 }
 
-fun parseHexColor(hex: String, fallback: Color = GoldPrimary): Color {
+fun parseHexColor(hex: String, fallback: Color = PresetPrimary): Color {
     return try {
         val clean = hex.trim().removePrefix("#")
         if (clean.length == 6) {
@@ -1291,10 +1286,11 @@ fun getTextAnimArabicLabel(anim: String): String = when (anim.lowercase()) {
 fun StyleRadarChart(
     style1: AbsorbedStyle,
     style2: AbsorbedStyle,
-    color1: Color = GoldPrimary,
-    color2: Color = Color(0xFF38BDF8),
+    color1: Color = PresetPrimary,
+    color2: Color = QabasTheme.current.primary,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val axisLabels = listOf(
         "عمق الألوان",
         "التباين والإضاءة",
@@ -1308,9 +1304,9 @@ fun StyleRadarChart(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color(0xFF070B14),
+        color = theme.background,
         shape = RoundedCornerShape(8.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+        border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
     ) {
         Column(
             modifier = Modifier
@@ -1326,7 +1322,7 @@ fun StyleRadarChart(
             ) {
                 Text(
                     "📊 الرسم البياني الراداري لتوزيع السمات",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
@@ -1391,7 +1387,7 @@ fun StyleRadarChart(
                     gridPath.close()
                     drawPath(
                         path = gridPath,
-                        color = Color(0xFF1E293B),
+                        color = theme.separator,
                         style = Stroke(width = if (level == levels) 1.5f else 1f)
                     )
                 }
@@ -1410,7 +1406,7 @@ fun StyleRadarChart(
                     val endY = center.y + radius * sin(angle)
 
                     drawLine(
-                        color = Color(0xFF1E293B),
+                        color = theme.separator,
                         start = center,
                         end = Offset(endX, endY),
                         strokeWidth = 1f
@@ -1556,6 +1552,7 @@ fun ContinuousLearningTab(
     coreStyle: QabasCoreStyle,
     hasData: Boolean
 ) {
+    val theme = QabasTheme.current
     val coroutineScope = rememberCoroutineScope()
     var actionToast by remember { mutableStateOf<String?>(null) }
 
@@ -1574,7 +1571,7 @@ fun ContinuousLearningTab(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
         ) {
             Column(
                 modifier = Modifier
@@ -1591,10 +1588,10 @@ fun ContinuousLearningTab(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(24.dp))
                         Text(
                             "محرك التعلم المستمر 🧠",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
@@ -1609,9 +1606,9 @@ fun ContinuousLearningTab(
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = DeepSlate,
-                            checkedTrackColor = GoldPrimary,
+                            checkedTrackColor = PresetPrimary,
                             uncheckedThumbColor = TextSecondary,
-                            uncheckedTrackColor = Color(0xFF1E293B)
+                            uncheckedTrackColor = theme.separator
                         )
                     )
                 }
@@ -1624,7 +1621,7 @@ fun ContinuousLearningTab(
                     lineHeight = 18.sp
                 )
 
-                Divider(color = Color(0xFF1E293B))
+                Divider(color = theme.separator)
 
                 // معلومات آخر تحليل وزر الفحص الفوري
                 Row(
@@ -1644,7 +1641,7 @@ fun ContinuousLearningTab(
                                 val diffMin = ((System.currentTimeMillis() - lastTimestamp) / (1000 * 60)).coerceAtLeast(0)
                                 if (diffMin < 2) "منذ لحظات" else "قبل $diffMin دقيقة"
                             } else "لم يتم إجراء تحليل بعد",
-                            color = if (lastTimestamp > 0L) Color(0xFF10B981) else TextSecondary,
+                            color = if (lastTimestamp > 0L) theme.success else TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = NotoSansFont
@@ -1657,13 +1654,13 @@ fun ContinuousLearningTab(
                                 try {
                                     val results = StyleBrain.runContinuousLearningAnalysis(context, force = true)
                                     actionToast = "تم فحص الفيديوهات وتوليد ${results.size} مقترحات فنية! ✨"
-                                } catch (e: Exception) {
+                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                     actionToast = "فشل التحليل: ${e.message}"
                                 }
                             }
                         },
                         enabled = !isAnalyzing,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         if (isAnalyzing) {
@@ -1683,8 +1680,8 @@ fun ContinuousLearningTab(
         // 2. كارت الأسلوب المستهدف بالتطوير
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF374151))
+            colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
         ) {
             Row(
                 modifier = Modifier
@@ -1695,14 +1692,14 @@ fun ContinuousLearningTab(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("🎯 الأسلوب المستهدف للترقية:", color = GoldSecondary, fontSize = 12.sp, fontFamily = TajawalFont)
+                        Text("🎯 الأسلوب المستهدف للترقية:", color = PresetAccent, fontSize = 12.sp, fontFamily = TajawalFont)
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = GoldPrimary.copy(alpha = 0.15f)
+                            color = PresetPrimary.copy(alpha = 0.15f)
                         ) {
                             Text(
                                 if (activePrimaryStyle != null) "أساسي للاستوديو 🌟" else "العقل التراكمي المباشر",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontSize = 10.sp,
                                 fontFamily = TajawalFont,
                                 fontWeight = FontWeight.Bold,
@@ -1721,8 +1718,8 @@ fun ContinuousLearningTab(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFF1E293B),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                    color = theme.separator,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -1731,7 +1728,7 @@ fun ContinuousLearningTab(
                         Text("القوة الحالية", color = TextSecondary, fontSize = 10.sp, fontFamily = TajawalFont)
                         Text(
                             "${activePrimaryStyle?.overallScore ?: coreStyle.strengthScore}%",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = NotoSansFont
@@ -1754,7 +1751,7 @@ fun ContinuousLearningTab(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
             ) {
                 Column(
                     modifier = Modifier
@@ -1785,7 +1782,7 @@ fun ContinuousLearningTab(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator)
             ) {
                 Column(
                     modifier = Modifier
@@ -1836,10 +1833,11 @@ fun ProposalCard(
     onApply: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
@@ -1856,11 +1854,11 @@ fun ProposalCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF1E293B)
+                    color = theme.separator
                 ) {
                     Text(
                         "🏷️ " + proposal.targetTraitCategory,
-                        color = GoldSecondary,
+                        color = PresetAccent,
                         fontSize = 11.sp,
                         fontFamily = TajawalFont,
                         fontWeight = FontWeight.Bold,
@@ -1874,11 +1872,11 @@ fun ProposalCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.15f)
+                        color = theme.success.copy(alpha = 0.15f)
                     ) {
                         Text(
                             "نجاح متوقع ${proposal.successRateBasedOn}% 📈",
-                            color = Color(0xFF10B981),
+                            color = theme.success,
                             fontSize = 11.sp,
                             fontFamily = TajawalFont,
                             fontWeight = FontWeight.Bold,
@@ -1888,11 +1886,11 @@ fun ProposalCard(
 
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = GoldPrimary.copy(alpha = 0.2f)
+                        color = PresetPrimary.copy(alpha = 0.2f)
                     ) {
                         Text(
                             "+${proposal.enhancementScore} نقاط",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 11.sp,
                             fontFamily = TajawalFont,
                             fontWeight = FontWeight.Bold,
@@ -1905,7 +1903,7 @@ fun ProposalCard(
             // العنوان والوصف
             Text(
                 proposal.title,
-                color = GoldPrimary,
+                color = PresetPrimary,
                 fontFamily = CairoFont,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
@@ -1921,13 +1919,13 @@ fun ProposalCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF0F172A), RoundedCornerShape(8.dp))
+                    .background(theme.secondarySurface, RoundedCornerShape(8.dp))
                     .padding(10.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         "🔍 الأساس التحليلي من إنتاجاتك السابقة:",
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = TajawalFont
@@ -1946,13 +1944,13 @@ fun ProposalCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                    .background(theme.separator, RoundedCornerShape(8.dp))
                     .padding(10.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         "⚙️ التعديل الفني المقترح:",
-                        color = GoldSecondary,
+                        color = PresetAccent,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = TajawalFont
@@ -1974,7 +1972,7 @@ fun ProposalCard(
                 Button(
                     onClick = onApply,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
@@ -1985,7 +1983,7 @@ fun ProposalCard(
                 OutlinedButton(
                     onClick = onDismiss,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF374151)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.separator),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("تجاهل ✕", color = TextSecondary, fontFamily = TajawalFont, fontSize = 12.sp)
@@ -2003,10 +2001,11 @@ fun StyleAbsorptionProgressCard(
     state: StyleAbsorptionUiState,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = theme.secondarySurface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
@@ -2023,7 +2022,7 @@ fun StyleAbsorptionProgressCard(
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -2036,13 +2035,13 @@ fun StyleAbsorptionProgressCard(
                     )
                 }
                 Surface(
-                    color = GoldPrimary.copy(alpha = 0.15f),
+                    color = PresetPrimary.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f))
                 ) {
                     Text(
                         "${state.overallPercentage}%",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -2055,7 +2054,7 @@ fun StyleAbsorptionProgressCard(
             LinearProgressIndicator(
                 progress = { state.overallProgress.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = GoldPrimary,
+                color = PresetPrimary,
                 trackColor = DeepSlate
             )
 
@@ -2119,13 +2118,13 @@ fun StyleAbsorptionProgressCard(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(12.dp),
                                 strokeWidth = 1.5.dp,
-                                color = GoldPrimary
+                                color = PresetPrimary
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                         }
                         Text(
                             state.statusMessage,
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontFamily = TajawalFont,
                             fontSize = 11.sp,
                             maxLines = 2
@@ -2148,19 +2147,20 @@ fun StageItem(
     isDone: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val borderColor = when {
-        isDone -> Color(0xFF10B981)
-        isActive -> GoldPrimary
-        else -> Color(0xFF1E293B)
+        isDone -> theme.success
+        isActive -> PresetPrimary
+        else -> theme.separator
     }
     val bgColor = when {
-        isDone -> Color(0xFF064E3B).copy(alpha = 0.3f)
-        isActive -> GoldPrimary.copy(alpha = 0.12f)
-        else -> Color(0xFF1E293B).copy(alpha = 0.3f)
+        isDone -> theme.success.copy(alpha = 0.3f)
+        isActive -> PresetPrimary.copy(alpha = 0.12f)
+        else -> theme.separator.copy(alpha = 0.3f)
     }
     val textColor = when {
-        isDone -> Color(0xFF10B981)
-        isActive -> GoldPrimary
+        isDone -> theme.success
+        isActive -> PresetPrimary
         else -> TextSecondary
     }
 
@@ -2185,7 +2185,7 @@ fun StageItem(
             )
             Text(
                 if (isDone) "100% ✓" else "$percentage%",
-                color = if (isDone) Color(0xFF10B981) else if (isActive) GoldPrimary else TextSecondary.copy(alpha = 0.7f),
+                color = if (isDone) theme.success else if (isActive) PresetPrimary else TextSecondary.copy(alpha = 0.7f),
                 fontFamily = CairoFont,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold

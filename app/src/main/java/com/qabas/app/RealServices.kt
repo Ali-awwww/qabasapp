@@ -1,14 +1,9 @@
 package com.qabas.app
 
 import kotlinx.coroutines.Dispatchers
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
 import android.util.Log
-import android.widget.Toast
-import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.withContext
+import com.qabas.app.ui.theme.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -16,7 +11,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -107,9 +101,9 @@ object RealGeminiService {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbResult = FirebaseAiService.analyzeIdea(idea)
-            SystemLogsManager.addLog("INFO", "تم تحليل الفكرة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+            SystemLogsManager.addLog("INFO", "تم تحليل الفكرة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
             return@withContext fbResult
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic idea analysis attempt, falling back: ${e.message}")
         }
 
@@ -117,7 +111,7 @@ object RealGeminiService {
         val fallbackResult = buildDefaultIdeaAnalysis(idea)
         
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
-            SystemLogsManager.addLog("WARN", "لم يتم العثور على مفتاح Gemini، سيتم استخدام التحليل المحلي.", androidx.compose.ui.graphics.Color(0xFFE8C547))
+            SystemLogsManager.addLog("WARN", "لم يتم العثور على مفتاح Gemini، سيتم استخدام التحليل المحلي.", QabasGold)
             return@withContext fallbackResult
         }
         
@@ -182,7 +176,7 @@ object RealGeminiService {
                         
                         val confidence = resultObj.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
                         if (confidence < 0.3) {
-                            SystemLogsManager.addLog("WARN", "مستوى الثقة ضعيف (\${(confidence * 100).toInt()}%)، سيتم استخدام التحليل المحلي.", androidx.compose.ui.graphics.Color(0xFFE8C547))
+                            SystemLogsManager.addLog("WARN", "مستوى الثقة ضعيف (\${(confidence * 100).toInt()}%)، سيتم استخدام التحليل المحلي.", QabasGold)
                             return@safeApiCallWithRetry fallbackResult
                         }
                         
@@ -226,69 +220,11 @@ object RealGeminiService {
         }
     }
 
-    suspend fun transcribeAudio(audioFile: File): String = withContext(Dispatchers.IO) {
-        var apiKey = KeyVault.gemini
-        if (apiKey.isBlank()) {
-            apiKey = KeyVault.groq
-        }
-        if (apiKey.isBlank() || !audioFile.exists() || audioFile.length() == 0L) {
-            return@withContext ""
-        }
-
-        return@withContext NetworkUtils.safeApiCall(
-            context = AppServices.appContext,
-            fallback = { "" }
-        ) {
-            val audioBytes = audioFile.readBytes()
-            val base64Audio = android.util.Base64.encodeToString(audioBytes, android.util.Base64.NO_WRAP)
-            val mimeType = when (audioFile.extension.lowercase()) {
-                "m4a" -> "audio/mp4"
-                "mp3" -> "audio/mp3"
-                "wav" -> "audio/wav"
-                "aac" -> "audio/aac"
-                else -> "audio/mp4"
-            }
-
-            val jsonBody = JSONObject().apply {
-                put("contents", JSONArray().put(JSONObject().apply {
-                    put("parts", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("inline_data", JSONObject().apply {
-                                put("mime_type", mimeType)
-                                put("data", base64Audio)
-                            })
-                        })
-                        put(JSONObject().apply {
-                            put("text", "استمع لهذا التسجيل الصوتي بدقة واستخرج النص العربي المنطوق حصراً كفكرة لمشروع فيديو دعوي، بدون أي مقدمات أو شروحات إضافية.")
-                        })
-                    })
-                }))
-            }
-
-            val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
-                .header("x-goog-api-key", apiKey)
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = ApiUsageTracker.track(AppServices.appContext, "Gemini") { client.newCall(request).execute() }
-            val responseBodyString = response.body?.string() ?: ""
-            if (response.isSuccessful) {
-                val jsonResponse = JSONObject(responseBodyString)
-                val text = extractGeminiText(jsonResponse)
-                if (!text.isNullOrBlank()) {
-                    return@safeApiCall text
-                }
-            }
-            ""
-        }
-    }
-
     suspend fun analyzeVideoStyle(url: String): VideoStyleAnalysis = withContext(Dispatchers.IO) {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbResult = FirebaseAiService.analyzeVideoStyle(url)
-            SystemLogsManager.addLog("INFO", "تم تحليل نمط الفيديو بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+            SystemLogsManager.addLog("INFO", "تم تحليل نمط الفيديو بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
             
             // Map FirebaseAiService.VideoStyleAnalysis to RealServices.VideoStyleAnalysis
             val analysisResult = VideoStyleAnalysis(
@@ -308,10 +244,10 @@ object RealGeminiService {
                 TasteManager.registerPreference(AppServices.appContext, "STYLE", analysisResult.dominantColors, 2)
                 TasteManager.registerPreference(AppServices.appContext, "PACING", analysisResult.transitionSpeed, 2)
                 TasteManager.registerPreference(AppServices.appContext, "AUDIO", analysisResult.audioStyle, 2)
-            } catch(e: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch(e: Exception) {}
 
             return@withContext analysisResult
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic video style analysis attempt, falling back: ${e.message}")
         }
 
@@ -392,7 +328,7 @@ object RealGeminiService {
                             TasteManager.registerPreference(AppServices.appContext, "STYLE", analysisResult.dominantColors, 2)
                             TasteManager.registerPreference(AppServices.appContext, "PACING", analysisResult.transitionSpeed, 2)
                             TasteManager.registerPreference(AppServices.appContext, "AUDIO", analysisResult.audioStyle, 2)
-                        } catch(e: Exception) {}
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch(e: Exception) {}
                         
                         return@safeApiCall analysisResult
                     }
@@ -409,19 +345,19 @@ object RealGeminiService {
             SystemLogsManager.addLog(
                 "WARN",
                 "تحذير فلتر المحتوى على الفكرة — سيتم المتابعة بالإنتاج",
-                androidx.compose.ui.graphics.Color(0xFFE8C547)
+                QabasGold
             )
         }
         if (!styleOk) {
             SystemLogsManager.addLog(
                 "WARN",
                 "تحذير فلتر المحتوى على الوصف الأسلوبي — سيتم المتابعة",
-                androidx.compose.ui.graphics.Color(0xFFE8C547)
+                QabasGold
             )
         }
 
         val fallbackScenes = buildDefaultFallbackScenes(idea)
-        val tasteContext = try { TasteManager.getTasteContext(AppServices.appContext) } catch (_: Exception) { "" }
+        val tasteContext = try { TasteManager.getTasteContext(AppServices.appContext) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { "" }
         val prompt = """
             أنت المخرج الفني وكبير مونتيري منصة «خادم المسلم» (QABAS AI Studio) - المتخصص الأول في صناعة المحتوى الإسلامي والقرآني القصير فائق الجودة والانتشار (Reels/Shorts/TikTok) بهوية بصرية وروحية فاخرة (Dark Slate & Gold Aesthetic).
             $tasteContext
@@ -451,11 +387,11 @@ object RealGeminiService {
         val preferredEngine = AiModelLatencyRouter.getEffectiveEngine()
 
         suspend fun tryGroq(): List<Scene>? {
-            val groqText = try { RealGroqService.chatOrGenerate("$prompt\n\nأخرج JSON فقط بلا أي شرح.") } catch (_: Exception) { null }
+            val groqText = try { RealGroqService.chatOrGenerate("$prompt\n\nأخرج JSON فقط بلا أي شرح.") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             val groqScenes = parseScenesJson(groqText)
             if (groqScenes.size >= 2) {
                 SceneEngineMonitor.report("Groq")
-                SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Groq أنتج ${groqScenes.size} مشاهد ⚡", androidx.compose.ui.graphics.Color(0xFF10B981))
+                SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Groq أنتج ${groqScenes.size} مشاهد ⚡", ThemeSuccess)
                 return groqScenes
             }
             return null
@@ -467,10 +403,10 @@ object RealGeminiService {
                 val fbScenes = FirebaseAiService.generateScriptScenes(idea, styleDescription, contentType, contentTone)
                 if (fbScenes.size >= 2) {
                     SceneEngineMonitor.report("Gemini 3.8 Flash")
-                    SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini 3.8 Flash (Firebase AI Logic) أنتج ${fbScenes.size} مشاهد ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+                    SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini 3.8 Flash (Firebase AI Logic) أنتج ${fbScenes.size} مشاهد ✨", PresetPrimary)
                     return fbScenes
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 android.util.Log.w("RealServices", "Firebase AI Logic scenes generation attempt, falling back: ${e.message}")
             }
 
@@ -479,7 +415,7 @@ object RealGeminiService {
                 val scenes = tryGeminiScenes(geminiKey, prompt)
                 if (scenes.size >= 2) {
                     SceneEngineMonitor.report("Gemini")
-                    SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini أنتج ${scenes.size} مشاهد ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+                    SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: Gemini أنتج ${scenes.size} مشاهد ✨", PresetPrimary)
                     return scenes
                 }
             }
@@ -487,11 +423,11 @@ object RealGeminiService {
         }
 
         suspend fun tryOpenAI(): List<Scene>? {
-            val openaiText = try { RealOpenAIService.chatOrGenerate("$prompt\n\nأخرج JSON فقط بلا أي شرح.") } catch (_: Exception) { null }
+            val openaiText = try { RealOpenAIService.chatOrGenerate("$prompt\n\nأخرج JSON فقط بلا أي شرح.") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             val openaiScenes = parseScenesJson(openaiText)
             if (openaiScenes.size >= 2) {
                 SceneEngineMonitor.report("OpenAI")
-                SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: OpenAI أنتج ${openaiScenes.size} مشاهد 🟢", androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                SystemLogsManager.addLog("DIRECTOR", "المحرك الموجه: OpenAI أنتج ${openaiScenes.size} مشاهد 🟢", ThemeSuccess)
                 return openaiScenes
             }
             return null
@@ -514,7 +450,7 @@ object RealGeminiService {
                 }
             }
             found ?: fallbackScenes
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
             fallbackScenes
         }
 
@@ -549,7 +485,7 @@ object RealGeminiService {
                 val textResponse = extractGeminiText(responseJson) ?: return@safeApiCall emptyList<Scene>()
                 parseScenesJson(textResponse)
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyList() }
     }
 
     private fun parseScenesJson(text: String?): List<Scene> {
@@ -764,9 +700,9 @@ object RealGeminiService {
         // 1. Proactively try official Firebase AI Logic (Gemini 3.8 Flash) via App Check attestation
         try {
             val fbPlan = FirebaseAiService.generateDeveloperPlan(if (description.isNotBlank()) description else title)
-            SystemLogsManager.addLog("INFO", "تم توليد خطة التطوير بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+            SystemLogsManager.addLog("INFO", "تم توليد خطة التطوير بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
             return@withContext fbPlan
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealGeminiService", "Firebase AI Logic developer plan attempt, falling back: ${e.message}")
         }
 
@@ -962,7 +898,7 @@ object RealMediaLibraryService {
                     val u = free.firstOrNull()?.videoUrl ?: ""
                     if (u.startsWith("http")) return@safeApiCall u
                 }
-            } catch (_: Exception) { }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
             try {
                 val free = FreeStockSources.searchFree(cleanQuery)
                 val pick = free.firstOrNull { it.videoUrl.startsWith("http") || it.thumbnailUrl.startsWith("http") }
@@ -970,7 +906,7 @@ object RealMediaLibraryService {
                     val u = if (type == "video") pick.videoUrl.ifBlank { pick.thumbnailUrl } else pick.thumbnailUrl.ifBlank { pick.videoUrl }
                     if (u.isNotBlank() && u.startsWith("http")) return@safeApiCall u
                 }
-            } catch (_: Exception) { }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
 
             // 4. High-Quality Curated B-Roll Library Fallback (Instant & Free)
             val matchedBRoll = BRollEngine.matchBRoll(cleanQuery)
@@ -998,10 +934,10 @@ object RealMediaLibraryService {
             val systemPrompt = customSystemInstruction ?: TasteManager.getTasteContext(AppServices.appContext)
             val fbReply = FirebaseAiService.chat(messages, systemPrompt)
             if (fbReply.isNotBlank()) {
-                SystemLogsManager.addLog("INFO", "رد المحادثة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", androidx.compose.ui.graphics.Color(0xFF38BDF8))
+                SystemLogsManager.addLog("INFO", "رد المحادثة بـ Gemini 3.8 Flash (Firebase AI Logic) ✨", PresetPrimary)
                 return@withContext fbReply
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             android.util.Log.w("RealServices", "Firebase AI chat attempt, trying fallback: ${e.message}")
         }
 
@@ -1009,9 +945,9 @@ object RealMediaLibraryService {
         if (apiKey.isBlank() || apiKey == "YOUR_GEMINI_API_KEY") {
             val lastUserPrompt = messages.lastOrNull()?.second.orEmpty()
             if (lastUserPrompt.isNotBlank()) {
-                val groqReply = try { RealGroqService.chatOrGenerate(lastUserPrompt) } catch (_: Exception) { null }
+                val groqReply = try { RealGroqService.chatOrGenerate(lastUserPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 if (!groqReply.isNullOrBlank()) return@withContext groqReply
-                val openaiReply = try { RealOpenAIService.chatOrGenerate(lastUserPrompt) } catch (_: Exception) { null }
+                val openaiReply = try { RealOpenAIService.chatOrGenerate(lastUserPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 if (!openaiReply.isNullOrBlank()) return@withContext openaiReply
             }
             return@withContext "يرجى إعداد مفتاح Gemini أو Groq أو OpenAI من شاشة مفاتيح API."
@@ -1109,7 +1045,7 @@ object RealGroqService {
                     return@withContext message?.optString("content")
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             e.printStackTrace()
         }
         return@withContext null
@@ -1154,7 +1090,7 @@ object RealOpenAIService {
                     return@withContext message?.optString("content")
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             e.printStackTrace()
         }
         return@withContext null
@@ -1188,7 +1124,7 @@ object RealHuggingFaceService {
                     return@withContext file.absolutePath
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             e.printStackTrace()
         }
         return@withContext null
@@ -1208,12 +1144,12 @@ object RealAzureSpeechService {
         var region = KeyVault.azureSpeechRegion.ifBlank { "eastus" }
 
         if (apiKey.isBlank()) {
-            SystemLogsManager.addLog("WARN", "مفتاح Azure Speech غير مضبوط في الإعدادات.", Color(0xFFE8C547))
+            SystemLogsManager.addLog("WARN", "مفتاح Azure Speech غير مضبوط في الإعدادات.", QabasGold)
             return@withContext null
         }
 
         try {
-            SystemLogsManager.addLog("INFO", "بدء توليد الصوت عبر Azure Neural Speech ($voiceName)...", Color(0xFF38BDF8))
+            SystemLogsManager.addLog("INFO", "بدء توليد الصوت عبر Azure Neural Speech ($voiceName)...", PresetPrimary)
             val escapedText = text
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
@@ -1249,17 +1185,17 @@ object RealAzureSpeechService {
                     if (!audioDir.exists()) audioDir.mkdirs()
                     val outFile = File(audioDir, "azure_tts_${System.currentTimeMillis()}.mp3")
                     outFile.writeBytes(bytes)
-                    SystemLogsManager.addLog("SUCCESS", "تم توليد الصوت بنجاح عبر Azure (${outFile.name}) ✅", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("SUCCESS", "تم توليد الصوت بنجاح عبر Azure (${outFile.name}) ✅", ThemeSuccess)
                     return@withContext outFile.absolutePath
                 }
             } else {
                 val errBody = response.body?.string() ?: ""
                 Log.e("AzureSpeech", "Azure TTS failed: ${response.code} $errBody")
-                SystemLogsManager.addLog("ERROR", "فشل توليد Azure: كود ${response.code}", Color(0xFFEF4444))
+                SystemLogsManager.addLog("ERROR", "فشل توليد Azure: كود ${response.code}", ThemeDestructive)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("AzureSpeech", "Error synthesizing with Azure", e)
-            SystemLogsManager.addLog("ERROR", "خطأ في اتصال Azure: ${e.message}", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "خطأ في اتصال Azure: ${e.message}", ThemeDestructive)
         }
         return@withContext null
     }
@@ -1277,12 +1213,12 @@ object RealElevenLabsService {
         val apiKey = KeyVault.elevenlabs
 
         if (apiKey.isBlank()) {
-            SystemLogsManager.addLog("WARN", "مفتاح ElevenLabs غير مضبوط في الإعدادات.", Color(0xFFE8C547))
+            SystemLogsManager.addLog("WARN", "مفتاح ElevenLabs غير مضبوط في الإعدادات.", QabasGold)
             return@withContext null
         }
 
         try {
-            SystemLogsManager.addLog("INFO", "بدء توليد الصوت عبر ElevenLabs Studio ($voiceId)...", Color(0xFF38BDF8))
+            SystemLogsManager.addLog("INFO", "بدء توليد الصوت عبر ElevenLabs Studio ($voiceId)...", PresetPrimary)
             val jsonBody = JSONObject().apply {
                 put("text", text)
                 put("model_id", "eleven_multilingual_v2")
@@ -1311,17 +1247,17 @@ object RealElevenLabsService {
                     if (!audioDir.exists()) audioDir.mkdirs()
                     val outFile = File(audioDir, "elevenlabs_${System.currentTimeMillis()}.mp3")
                     outFile.writeBytes(bytes)
-                    SystemLogsManager.addLog("SUCCESS", "تم توليد الصوت بنجاح عبر ElevenLabs (${outFile.name}) ✅", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("SUCCESS", "تم توليد الصوت بنجاح عبر ElevenLabs (${outFile.name}) ✅", ThemeSuccess)
                     return@withContext outFile.absolutePath
                 }
             } else {
                 val errBody = response.body?.string() ?: ""
                 Log.e("ElevenLabs", "ElevenLabs TTS failed: ${response.code} $errBody")
-                SystemLogsManager.addLog("ERROR", "فشل توليد ElevenLabs: كود ${response.code}", Color(0xFFEF4444))
+                SystemLogsManager.addLog("ERROR", "فشل توليد ElevenLabs: كود ${response.code}", ThemeDestructive)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("ElevenLabs", "Error synthesizing with ElevenLabs", e)
-            SystemLogsManager.addLog("ERROR", "خطأ في اتصال ElevenLabs: ${e.message}", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "خطأ في اتصال ElevenLabs: ${e.message}", ThemeDestructive)
         }
         return@withContext null
     }
@@ -1331,7 +1267,7 @@ object RealFFmpegService {
     suspend fun mergeVideo(segments: List<String>, outputPath: String, templateCommand: String): String = withContext(Dispatchers.IO) {
         val validSegments = segments.filter { it.isNotBlank() && File(it).exists() && File(it).length() > 0 }
         if (validSegments.isEmpty()) {
-            SystemLogsManager.addLog("ERROR", "لا توجد مقاطع صالحة للدمج — فشل إخراج الفيديو", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "لا توجد مقاطع صالحة للدمج — فشل إخراج الفيديو", ThemeDestructive)
             return@withContext ""
         }
         try {
@@ -1342,13 +1278,13 @@ object RealFFmpegService {
                 VideoProcessor.concatenateVideosWithTransitions(context, validSegments, "dissolve", outputPath)
             }
             if (ok && VideoProcessor.isValidVideoFile(outputPath, minSizeBytes = 8_000L)) {
-                SystemLogsManager.addLog("SUCCESS", "تم دمج ${validSegments.size} مقاطع في ملف MP4 صالح ✅", Color(0xFF4CAF50))
+                SystemLogsManager.addLog("SUCCESS", "تم دمج ${validSegments.size} مقاطع في ملف MP4 صالح ✅", ThemeSuccess)
                 return@withContext outputPath
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("RealFFmpegService", "mergeVideo failed: ${e.message}", e)
         }
-        SystemLogsManager.addLog("ERROR", "فشل دمج المقاطع في ملف فيديو صالح 🔴", Color(0xFFEF4444))
+        SystemLogsManager.addLog("ERROR", "فشل دمج المقاطع في ملف فيديو صالح 🔴", ThemeDestructive)
         return@withContext ""
     }
 }
@@ -1399,87 +1335,13 @@ object AndroidTTSService {
         try { tts?.shutdown() } catch (_: Exception) {}
 
         if (done && ready[0] && outFile.exists() && outFile.length() > 500) {
-            SystemLogsManager.addLog("SUCCESS", "تم توليد التعليق الصوتي عبر محرك النظام المجاني ✅", Color(0xFF4CAF50))
+            SystemLogsManager.addLog("SUCCESS", "تم توليد التعليق الصوتي عبر محرك النظام المجاني ✅", ThemeSuccess)
             return@withContext outFile.absolutePath
         }
         try { outFile.delete() } catch (_: Exception) {}
-        SystemLogsManager.addLog("WARN", "تعذر توليد التعليق الصوتي حتى بمحرك النظام — سيتابع بدون صوت", Color(0xFFE8C547))
+        SystemLogsManager.addLog("WARN", "تعذر توليد التعليق الصوتي حتى بمحرك النظام — سيتابع بدون صوت", QabasGold)
         null
     }
-}
-
-object QabasPrompts {
-    fun hookGenerator(topic: String): String =
-        """
-        أنت المخرج الإبداعي لمنصة «خادم المسلم» (QABAS Studio) - الاستوديو الرائد في صناعة المحتوى الدعوي والإسلامي واسع الانتشار (Viral & Dignified Islamic Media).
-        الموضوع: $topic
-        
-        المطلوب: اقترح 3 خطافات افتتاحية بصرية وصوتية قوية جداً (أول 3 ثوانٍ) لفيديو ريلز/شورتس تخطف الانتباه فوراً.
-        
-        معايير هوية خادم المسلم:
-        1. الوقار والصدق والأصالة الشرعية التامة (ممنوع التهويل الكاذب أو المبتذل).
-        2. زاوية طرح عميقة تلامس القلب والوجدان وتثير الفضول الإيماني بذكاء.
-        3. الصياغة بأسلوب عربي فصيح، مشوّق ومباشر.
-        
-        أخرج النتيجة كـ 3 أسطر فقط، كل خطاف يبدأ بنقطة • بدون مقدمات أو حشو.
-        """.trimIndent()
-
-    fun titlesGenerator(topic: String): String =
-        """
-        أنت خبير التسمية والانتشار الرقمي في منصة «خادم المسلم» لصناعة المحتوى الإسلامي الهادف.
-        الموضوع: $topic
-        
-        المطلوب: اقترح 5 عناوين رنانة ومحفزة للنقر والمشاهدة لفيديو ريلز أو حلقة بودكاست دعوية.
-        
-        معايير هوية خادم المسلم:
-        - الموازنة الدقيقة بين الجاذبية العالية والوقار الإسلامي الفاخر.
-        - استخدام كلمات مفتاحية دلالية (أثر، بركة، سكينة، سر، تحول، نور).
-        - أخرج 5 عناوين مرقمة فقط مباشرة.
-        """.trimIndent()
-
-    fun hashtagsGenerator(topic: String): String =
-        """
-        أنت خبير خوارزميات النشر والتفاعل في استوديو «خادم المسلم».
-        الموضوع: $topic
-        
-        المطلوب: اختر 10 وسوم (هاشتاغات) ذكية ومتخصصة تجمع بين الوسوم العامة واسعة الانتشار والوسوم الدعوية الدقيقة.
-        تتضمن دائماً: #خادم_المسلم #أثر_لا_ينقطع #صناعة_المحتوى_الهادف مع الوسوم الخاصة بالموضوع.
-        أخرجها في سطر واحد مفصولة بمسافات فقط.
-        """.trimIndent()
-
-    fun quickScript(topic: String, durationSec: Int = 30): String =
-        """
-        أنت كبير كُتّاب السيناريو في منصة «خادم المسلم» (QABAS AI Studio).
-        اكتب سيناريو ريلز إسلامي متكامل فائق التأثير مدته $durationSec ثانية حول موضوع: $topic.
-        
-        هيكل النص بأسلوب خادم المسلم:
-        1. [الخطاف - 3 ثوان]: عبارة تفتح القلب وتثير الانتباه والتدبر.
-        2. [صلب المحتوى الدعوي - 22 ثانية]: فكرة عميقة مدعومة بدليل شرعي (آية أو حديث مخرج) أو حكمة جليلة، مع لغة وجدانية سينمائية هادئة.
-        3. [الخاتمة والأثر - 5 ثوان]: رسالة عملية ملهمة ودعوة للتأمل والمشاركة (Call to Action: شارك الأثر).
-        
-        الصياغة: عربية فصيحة، رصينة، بليغة، ومشبعة بالوقار.
-        """.trimIndent()
-
-    fun dawahAssistantSystemInstruction(): String =
-        """
-        أنت «مساعد خادم المسلم الذكي» (Qabas AI Dawah Co-Director) — الشريك الإبداعي والدعوي لصناع المحتوى الإسلامي والقرآني.
-        
-        مبادئك وهوية إجاباتك:
-        1. الرصانة والأمانة العلمية: تحرّي صحة الأحاديث وعزو الآيات لسورها وتجنب الروايات الضعيفة أو المنكرة.
-        2. الإخراج المعاصر: مساعدة المستخدم في صياغة سيناريوهات بصرية، خطافات خاطفة (Hooks)، وتوجيهات إضاءة ومؤثرات صوتية هادئة (بدون معازف).
-        3. نبرة خادم المسلم: ناصحة، وقورة، ملهمة، واثقة، وداعمة لصانع المحتوى لترك أثر مبارك في الأمة.
-        """.trimIndent()
-
-    fun quickIdeas(category: String): String =
-        """
-        أنت المخطط الاستراتيجي لإنتاج المحتوى في منصة «خادم المسلم».
-        اقترح 5 أفكار ريلز إسلامية مبتكرة وغير تقليدية في مجال: $category.
-        
-        لكل فكرة وضح:
-        - العنوان المقترح
-        - زاوية التناول البصرية
-        - الرسالة الإيمانية المستفادة
-        """.trimIndent()
 }
 
 object AppServices {
@@ -1585,21 +1447,21 @@ object AppServices {
         // 1) Pollinations — نموذج نصي بلا مفتاح (يُجرَّب أولاً)
         val pollScript = try {
             PollinationsTextService.generateScript(idea, finalStyleDescription, contentType, contentTone)
-        } catch (e: Exception) { null }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
         if (pollScript != null && pollScript.size >= 2) {
-            SystemLogsManager.addLog("INFO", "تم توليد السكربت بـ Pollinations (بلا مفتاح) ✅", Color(0xFF10B981))
+            SystemLogsManager.addLog("INFO", "تم توليد السكربت بـ Pollinations (بلا مفتاح) ✅", ThemeSuccess)
             return pollScript
         }
 
         // 2) llama.cpp محلي (مجاني، offline) للسكربت
         val localScript = try {
             LlamaCppService.generateScriptLocal(idea, finalStyleDescription, contentType, contentTone)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w("AppServices", "Local LLM unavailable: ${e.message}")
             null
         }
         if (localScript != null && localScript.isNotEmpty()) {
-            SystemLogsManager.addLog("INFO", "تم توليد السكربت بـ llama.cpp محلياً ✅", Color(0xFF10B981))
+            SystemLogsManager.addLog("INFO", "تم توليد السكربت بـ llama.cpp محلياً ✅", ThemeSuccess)
             return localScript
         }
 
@@ -1618,9 +1480,9 @@ object AppServices {
     ): String {
         // 1) Pollinations — نموذج نصي بلا مفتاح (يُجرَّب أولاً)
         if (messages.size == 1) {
-            val pollResponse = try { PollinationsTextService.chat(messages[0].second) } catch (e: Exception) { null }
+            val pollResponse = try { PollinationsTextService.chat(messages[0].second) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
             if (!pollResponse.isNullOrBlank()) {
-                SystemLogsManager.addLog("INFO", "رد محادثة بـ Pollinations (بلا مفتاح) ✅", Color(0xFF10B981))
+                SystemLogsManager.addLog("INFO", "رد محادثة بـ Pollinations (بلا مفتاح) ✅", ThemeSuccess)
                 return pollResponse
             }
         }
@@ -1629,11 +1491,11 @@ object AppServices {
         if (messages.size == 1) {
             val localResponse = try {
                 LlamaCppService.generate(messages[0].second, maxTokens = 256)
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 null
             }
             if (!localResponse.isNullOrBlank()) {
-                SystemLogsManager.addLog("INFO", "رد محلي بـ llama.cpp ✅", Color(0xFF10B981))
+                SystemLogsManager.addLog("INFO", "رد محلي بـ llama.cpp ✅", ThemeSuccess)
                 return localResponse!!
             }
         }
@@ -1643,9 +1505,9 @@ object AppServices {
             val system = customSystemInstruction ?: TasteManager.getTasteContext(AppServices.appContext)
             val orResponse = try {
                 OpenRouterService.chatWithHistoryPooled(system, messages, preferredOpenRouterModel)
-            } catch (e: Exception) { null }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
             if (!orResponse.isNullOrBlank()) {
-                SystemLogsManager.addLog("INFO", "رد محادثة بـ OpenRouter ✅", Color(0xFF10B981))
+                SystemLogsManager.addLog("INFO", "رد محادثة بـ OpenRouter ✅", ThemeSuccess)
                 return orResponse
             }
         }
@@ -1662,27 +1524,27 @@ object AppServices {
 
     private suspend fun executeShortTaskWithFallback(prompt: String): String {
         // 1) Pollinations — نموذج نصي بلا مفتاح (يُجرَّب أولاً)
-        val pollResponse = try { PollinationsTextService.chat(prompt) } catch (e: Exception) { null }
+        val pollResponse = try { PollinationsTextService.chat(prompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
         if (!pollResponse.isNullOrBlank()) {
-            SystemLogsManager.addLog("INFO", "مهمة قصيرة بـ Pollinations (بلا مفتاح) ✅", Color(0xFF10B981))
+            SystemLogsManager.addLog("INFO", "مهمة قصيرة بـ Pollinations (بلا مفتاح) ✅", ThemeSuccess)
             return pollResponse
         }
 
         // 2) llama.cpp محلي للمهام القصيرة
         val localResponse = try {
             LlamaCppService.generate(prompt, maxTokens = 256, temperature = 0.5f)
-        } catch (e: Exception) { null }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
         if (!localResponse.isNullOrBlank()) {
-            SystemLogsManager.addLog("INFO", "مهمة قصيرة محلياً بـ llama.cpp ✅", Color(0xFF10B981))
+            SystemLogsManager.addLog("INFO", "مهمة قصيرة محلياً بـ llama.cpp ✅", ThemeSuccess)
             return localResponse!!
         }
 
         // 3) السحابي الذكي: التوجيه حسب المحرك الأسرع لحظياً (AiModelLatencyRouter)
         val preferred = AiModelLatencyRouter.getEffectiveEngine()
 
-        suspend fun callGroq(): String? = try { RealGroqService.chatOrGenerate(prompt) } catch (_: Exception) { null }
-        suspend fun callGemini(): String? = try { RealGeminiService.chatWithAssistant(listOf(Pair(true, prompt)), null) } catch (_: Exception) { null }
-        suspend fun callOpenAI(): String? = try { RealOpenAIService.chatOrGenerate(prompt) } catch (_: Exception) { null }
+        suspend fun callGroq(): String? = try { RealGroqService.chatOrGenerate(prompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+        suspend fun callGemini(): String? = try { RealGeminiService.chatWithAssistant(listOf(Pair(true, prompt)), null) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+        suspend fun callOpenAI(): String? = try { RealOpenAIService.chatOrGenerate(prompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
 
         val prioritizedCalls = when (preferred) {
             "Groq" -> listOf(::callGroq, ::callGemini, ::callOpenAI)
@@ -1696,26 +1558,6 @@ object AppServices {
         }
 
         return RealGeminiService.chatWithAssistant(listOf(Pair(true, prompt)), null)
-    }
-
-    suspend fun generateViralHooks(topic: String): String {
-        return executeShortTaskWithFallback(QabasPrompts.hookGenerator(topic))
-    }
-
-    suspend fun generateTitles(topic: String): String {
-        return executeShortTaskWithFallback(QabasPrompts.titlesGenerator(topic))
-    }
-
-    suspend fun generateHashtags(topic: String): String {
-        return executeShortTaskWithFallback(QabasPrompts.hashtagsGenerator(topic))
-    }
-
-    suspend fun generateQuickScript(topic: String, durationSec: Int = 30): String {
-        return executeShortTaskWithFallback(QabasPrompts.quickScript(topic, durationSec))
-    }
-
-    suspend fun generateQuickIdeas(category: String): String {
-        return executeShortTaskWithFallback(QabasPrompts.quickIdeas(category))
     }
 
     suspend fun analyzeVideoStyle(url: String): VideoStyleAnalysis {
@@ -1734,7 +1576,7 @@ object AppServices {
         try {
             // 0. أولاً: التحقق من وجود مفتاح Higgsfield AI لتوليد فيديو حقيقي فائق الواقعية
             if (HiggsfieldVideoService.isConfigured(appContext)) {
-                SystemLogsManager.addLog("INFO", "جاري توجيه المشهد لمحرك Higgsfield AI السينمائي 🎬...", Color(0xFF10B981))
+                SystemLogsManager.addLog("INFO", "جاري توجيه المشهد لمحرك Higgsfield AI السينمائي 🎬...", ThemeSuccess)
                 val higgsfieldClip = HiggsfieldVideoService.generateTextToVideo(
                     context = appContext,
                     prompt = sceneDescription,
@@ -1742,10 +1584,10 @@ object AppServices {
                     durationSeconds = durationInSeconds.coerceIn(3, 10)
                 )
                 if (higgsfieldClip != null && higgsfieldClip.exists() && higgsfieldClip.length() > 0) {
-                    SystemLogsManager.addLog("SUCCESS", "تم توليد الفيديو السينمائي بنجاح عبر Higgsfield AI (${higgsfieldClip.name}) ✨", Color(0xFF10B981))
+                    SystemLogsManager.addLog("SUCCESS", "تم توليد الفيديو السينمائي بنجاح عبر Higgsfield AI (${higgsfieldClip.name}) ✨", ThemeSuccess)
                     return@withContext higgsfieldClip.absolutePath
                 } else {
-                    SystemLogsManager.addLog("WARN", "تعذر إتمام التوليد السحابي عبر Higgsfield، الانتقال السلس للمحرك المحلي البديل", Color(0xFFF59E0B))
+                    SystemLogsManager.addLog("WARN", "تعذر إتمام التوليد السحابي عبر Higgsfield، الانتقال السلس للمحرك المحلي البديل", ThemeWarning)
                 }
             }
 
@@ -1757,12 +1599,12 @@ object AppServices {
             if (imageUrl.isNotBlank()) {
                 downloadedImage = downloadImageToCache(imageUrl)
                 if (downloadedImage != null && downloadedImage.exists() && downloadedImage.length() > 0) {
-                    SystemLogsManager.addLog("INFO", "تم جلب صورة مناسبة للمشهد من مكتبة الوسائط بنجاح ✅", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("INFO", "تم جلب صورة مناسبة للمشهد من مكتبة الوسائط بنجاح ✅", ThemeSuccess)
                 } else {
-                    SystemLogsManager.addLog("WARN", "تعذر تنزيل الصورة من الرابط، جاري الانتقال للمشهد الافتراضي الوقور", Color(0xFFE8C547))
+                    SystemLogsManager.addLog("WARN", "تعذر تنزيل الصورة من الرابط، جاري الانتقال للمشهد الافتراضي الوقور", QabasGold)
                 }
             } else {
-                SystemLogsManager.addLog("INFO", "لم يُعثر على صورة في المكتبة، سيتم إنشاء مشهد بتصميم وقور 🎨", Color(0xFFE8C547))
+                SystemLogsManager.addLog("INFO", "لم يُعثر على صورة في المكتبة، سيتم إنشاء مشهد بتصميم وقور 🎨", QabasGold)
             }
 
             // 2. Generate video clip from image
@@ -1775,10 +1617,10 @@ object AppServices {
                     outputPath = outVideoFile.absolutePath
                 )
                 if (genSuccess && outVideoFile.exists() && outVideoFile.length() > 0) {
-                    SystemLogsManager.addLog("SUCCESS", "تم تحويل المشهد إلى كليب محلي بنجاح (${outVideoFile.name}) ✅", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("SUCCESS", "تم تحويل المشهد إلى كليب محلي بنجاح (${outVideoFile.name}) ✅", ThemeSuccess)
                     return@withContext outVideoFile.absolutePath
                 } else {
-                    SystemLogsManager.addLog("WARN", "فشل تحويل الصورة بالمعالج، جاري المحاولة بالقالب الاحتياطي", Color(0xFFEF4444))
+                    SystemLogsManager.addLog("WARN", "فشل تحويل الصورة بالمعالج، جاري المحاولة بالقالب الاحتياطي", ThemeDestructive)
                 }
             }
 
@@ -1792,16 +1634,16 @@ object AppServices {
                     outputPath = outVideoFile.absolutePath
                 )
                 if (fallbackSuccess && outVideoFile.exists() && outVideoFile.length() > 0) {
-                    SystemLogsManager.addLog("SUCCESS", "تم توليد كليب المشهد بالخلفية الوقورة بنجاح ✅", Color(0xFF4CAF50))
+                    SystemLogsManager.addLog("SUCCESS", "تم توليد كليب المشهد بالخلفية الوقورة بنجاح ✅", ThemeSuccess)
                     return@withContext outVideoFile.absolutePath
                 }
             }
 
-            SystemLogsManager.addLog("ERROR", "تعذر توليد كليب المشهد المحلي 🔴", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "تعذر توليد كليب المشهد المحلي 🔴", ThemeDestructive)
             ""
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("AppServices", "Error generating scene video clip", e)
-            SystemLogsManager.addLog("ERROR", "فشل توليد كليب المشهد: ${e.localizedMessage ?: e.message} 🔴", Color(0xFFEF4444))
+            SystemLogsManager.addLog("ERROR", "فشل توليد كليب المشهد: ${e.localizedMessage ?: e.message} 🔴", ThemeDestructive)
             ""
         }
     }
@@ -1954,12 +1796,12 @@ object AppServices {
         // 1) Kokoro TTS المحلي (مجاني، 82M، CPU، عربي)
         val kokoroPath = try {
             KokoroTtsService.synthesizeSpeech(AppServices.appContext, text, "ar")
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w("AppServices", "Kokoro TTS unavailable: ${e.message}")
             null
         }
         if (!kokoroPath.isNullOrBlank() && File(kokoroPath).exists() && File(kokoroPath).length() > 500) {
-            SystemLogsManager.addLog("INFO", "تم توليد الصوت بـ Kokoro محلياً ✅", Color(0xFF10B981))
+            SystemLogsManager.addLog("INFO", "تم توليد الصوت بـ Kokoro محلياً ✅", ThemeSuccess)
             return@withContext kokoroPath
         }
 
@@ -1968,10 +1810,10 @@ object AppServices {
             val edgeVoice = if (voiceId.contains("Neural")) voiceId else "ar-SA-HamedNeural"
             val edgeFile = EdgeTtsService.synthesizeSpeech(AppServices.appContext, text, edgeVoice, rate, pitch)
             if (edgeFile != null && edgeFile.exists() && edgeFile.length() > 500) {
-                SystemLogsManager.addLog("INFO", "تم توليد الصوت العصبي فائق النقاء بـ Edge-TTS المجاني ✅", Color(0xFF10B981))
+                SystemLogsManager.addLog("INFO", "تم توليد الصوت العصبي فائق النقاء بـ Edge-TTS المجاني ✅", ThemeSuccess)
                 return@withContext edgeFile.absolutePath
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w("AppServices", "Edge-TTS attempt: ${e.message}")
         }
 
@@ -1995,14 +1837,14 @@ object AppServices {
             if (!systemTts.isNullOrBlank() && File(systemTts).exists() && File(systemTts).length() > 500) {
                 return@withContext systemTts
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w("AppServices", "Android TTS fallback failed: ${e.message}")
         }
 
         SystemLogsManager.addLog(
             "WARN",
             "تعذر توليد التعليق الصوتي (لا مفاتيح سحابية، ولا Kokoro، ولا محرك نظام) — المشهد بدون صوت",
-            Color(0xFFE8C547)
+            QabasGold
         )
         Log.w("AppServices", "generateVoiceover failed for text length=${text.length} — returning null (no fake narration)")
         return@withContext null

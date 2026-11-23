@@ -24,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -34,7 +33,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.qabas.app.R
 import com.qabas.app.ui.components.*
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -84,7 +82,7 @@ fun ScholarDetailScreen(
     }
 
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     Scaffold(
         containerColor = theme.background,
@@ -119,7 +117,7 @@ fun ScholarDetailScreen(
                         BadgedBox(
                             badge = {
                                 if (lecturesCount > 0) {
-                                    Badge(containerColor = goldAccent, contentColor = Color.White) {
+                                    Badge(containerColor = goldAccent, contentColor = DeepSlate) {
                                         Text("$lecturesCount", fontSize = 10.sp)
                                     }
                                 }
@@ -495,7 +493,7 @@ fun ScholarShareModal(
         isGeneratingImage = true
         try {
             renderedBitmap = ScholarCardImageGenerator.generateScholarBitmap(context, scholar, selectedStyle, selectedTheme)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(context, "حدث خطأ أثناء إعداد الصورة", Toast.LENGTH_SHORT).show()
         } finally {
@@ -508,7 +506,7 @@ fun ScholarShareModal(
     }
 
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -588,7 +586,7 @@ fun ScholarShareModal(
                                 containerColor = theme.secondarySurface,
                                 labelColor = theme.textPrimary,
                                 selectedContainerColor = goldAccent,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = DeepSlate
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -600,7 +598,7 @@ fun ScholarShareModal(
                                 containerColor = theme.secondarySurface,
                                 labelColor = theme.textPrimary,
                                 selectedContainerColor = goldAccent,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = DeepSlate
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -621,7 +619,7 @@ fun ScholarShareModal(
                                 containerColor = theme.secondarySurface,
                                 labelColor = theme.textPrimary,
                                 selectedContainerColor = goldAccent,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = DeepSlate
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -645,7 +643,7 @@ fun ScholarShareModal(
                                 containerColor = theme.secondarySurface,
                                 labelColor = theme.textPrimary,
                                 selectedContainerColor = theme.primary,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = theme.onPrimary
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -806,7 +804,7 @@ fun ScholarLecturesDetailSection(
     val userProposals = remember(scholar.id) { prefs.getUserProposals(scholar.id) }
 
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -960,9 +958,9 @@ fun ScholarLecturesDetailSection(
                                     colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(15.dp), tint = Color.White)
+                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(15.dp), tint = theme.onPrimary)
                                     Spacer(modifier = Modifier.width(5.dp))
-                                    Text("مشاركة", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("مشاركة", fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = theme.onPrimary)
                                 }
                             }
                         }
@@ -1023,11 +1021,11 @@ fun ScholarLecturesDetailSection(
                     colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.LibraryBooks, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.LibraryBooks, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "المكتبة والمقترحات",
-                        color = Color.White,
+                        color = theme.onPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -1106,7 +1104,7 @@ fun CharacterFacetsOverviewSection(
     onSelectFacet: (Int) -> Unit
 ) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1244,7 +1242,7 @@ fun CharacterFacetDetailSection(
     onNextFacet: (() -> Unit)?
 ) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     AppleCard(cornerRadius = 18.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1446,9 +1444,9 @@ fun CharacterFacetDetailSection(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                     ) {
-                        Text("المحور التالي", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("المحور التالي", color = theme.onPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -1459,7 +1457,7 @@ fun CharacterFacetDetailSection(
 @Composable
 fun ManuscriptIntroSection(scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1504,7 +1502,7 @@ fun ManuscriptIntroSection(scholar: ScholarBiography) {
 @Composable
 fun SpatialJourneySection(scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     AppleCard(cornerRadius = 16.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -1576,7 +1574,7 @@ fun SpatialJourneySection(scholar: ScholarBiography) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         text = "${index + 1}",
-                                        color = if (isEndpoint) Color.White else theme.textPrimary,
+                                        color = if (isEndpoint) DeepSlate else theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
@@ -1679,7 +1677,7 @@ fun HarmedAndPersecutionSection(context: Context, scholar: ScholarBiography) {
 @Composable
 fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // How he endured
@@ -1783,8 +1781,8 @@ fun EnduranceAndPurposeSection(context: Context, scholar: ScholarBiography) {
 @Composable
 fun DeathSceneAndFarewellSection(context: Context, scholar: ScholarBiography) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
-    val indigoAccent = GoldSecondary
+    val goldAccent = PresetPrimary
+    val indigoAccent = PresetAccent
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // The Death Scene
@@ -1898,7 +1896,7 @@ fun LegacyAndMessageSection(
     onToggleChallenge: () -> Unit = {}
 ) {
     val theme = QabasTheme.current
-    val goldAccent = GoldPrimary
+    val goldAccent = PresetPrimary
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Global Impact

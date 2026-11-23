@@ -2,11 +2,8 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.Uri
-import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -14,13 +11,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,12 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -46,21 +37,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.components.GlassmorphicSurface
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 
 /**
@@ -80,7 +63,6 @@ fun ApiKeySetupDialog(
     var rawKey by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
-    val contextLocal = LocalContext.current
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<LiveHealthStatus?>(null) }
     var smartSave by remember { mutableStateOf<UniversalKeyBrain.SmartSaveResult?>(null) }
@@ -95,8 +77,8 @@ fun ApiKeySetupDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 680.dp),
-            backgroundColor = Color(0xFF0B132B).copy(alpha = 0.95f),
-            borderColor = Color(0xFF00E5FF).copy(alpha = 0.5f)
+            backgroundColor = QabasTheme.current.cardSurface.copy(alpha = 0.95f),
+            borderColor = QabasTheme.current.primary.copy(alpha = 0.5f)
         ) {
             Column(
                 modifier = Modifier
@@ -113,11 +95,11 @@ fun ApiKeySetupDialog(
                         text = if (selectedTab == 0) "⚙️ إعداد وفحص مفتاح الوكيل الذكي" else "🎁 منصات مفاتيح البرمجة المجانية",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = QabasTheme.current.textPrimary
                     )
 
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق", tint = Color(0xFF94A3B8))
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "إغلاق", tint = QabasTheme.current.textSecondary)
                     }
                 }
 
@@ -127,14 +109,14 @@ fun ApiKeySetupDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF070B14), RoundedCornerShape(10.dp))
+                        .background(QabasTheme.current.background, RoundedCornerShape(10.dp))
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (selectedTab == 0) Color(0xFF00E5FF).copy(alpha = 0.25f) else Color.Transparent,
-                        border = if (selectedTab == 0) BorderStroke(1.dp, Color(0xFF00E5FF)) else null,
+                        color = if (selectedTab == 0) QabasTheme.current.primary.copy(alpha = 0.25f) else Color.Transparent,
+                        border = if (selectedTab == 0) BorderStroke(1.dp, QabasTheme.current.primary) else null,
                         modifier = Modifier
                             .weight(1f)
                             .clickable { selectedTab = 0 }
@@ -143,7 +125,7 @@ fun ApiKeySetupDialog(
                             text = "إدخال وفحص المفتاح ⚡",
                             fontSize = 11.sp,
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selectedTab == 0) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                            color = if (selectedTab == 0) QabasTheme.current.primary else QabasTheme.current.textSecondary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(vertical = 8.dp),
                             maxLines = 1
@@ -152,8 +134,8 @@ fun ApiKeySetupDialog(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (selectedTab == 1) Color(0xFFE5B842).copy(alpha = 0.25f) else Color.Transparent,
-                        border = if (selectedTab == 1) BorderStroke(1.dp, Color(0xFFE5B842)) else null,
+                        color = if (selectedTab == 1) QabasTheme.current.warning.copy(alpha = 0.25f) else Color.Transparent,
+                        border = if (selectedTab == 1) BorderStroke(1.dp, QabasTheme.current.warning) else null,
                         modifier = Modifier
                             .weight(1f)
                             .clickable { selectedTab = 1 }
@@ -162,7 +144,7 @@ fun ApiKeySetupDialog(
                             text = "منصات المفاتيح المجانية 🎁",
                             fontSize = 11.sp,
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selectedTab == 1) Color(0xFFE5B842) else Color(0xFF94A3B8),
+                            color = if (selectedTab == 1) QabasTheme.current.warning else QabasTheme.current.textSecondary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(vertical = 8.dp),
                             maxLines = 1
@@ -193,11 +175,11 @@ fun ApiKeySetupDialog(
                             placeholder = { Text("الصق مفتاحك (AIza... لـ Gemini أو gsk_... لـ Groq)", fontSize = 11.sp) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                cursorColor = Color(0xFF00E5FF),
-                                focusedBorderColor = Color(0xFF00E5FF),
-                                unfocusedBorderColor = Color(0xFF334155)
+                                focusedTextColor = QabasTheme.current.textPrimary,
+                                unfocusedTextColor = QabasTheme.current.textPrimary,
+                                cursorColor = QabasTheme.current.primary,
+                                focusedBorderColor = QabasTheme.current.primary,
+                                unfocusedBorderColor = QabasTheme.current.separator
                             )
                         )
 
@@ -214,7 +196,7 @@ fun ApiKeySetupDialog(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("تصحيح المزود:", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                                Text("تصحيح المزود:", fontSize = 10.sp, color = QabasTheme.current.textSecondary)
                                 FilterChip(
                                     selected = forcedProvider == null,
                                     onClick = { forcedProvider = null; smartSave = null },
@@ -234,7 +216,7 @@ fun ApiKeySetupDialog(
                                 Text(
                                     text = "لديك $existingPool مفتاح محفوظ لهذا المزود — الجديد سيُضاف احتياطياً ويُفعّل 🔑",
                                     fontSize = 10.sp,
-                                    color = Color(0xFFE5B842)
+                                    color = QabasTheme.current.warning
                                 )
                             }
                         }
@@ -264,16 +246,16 @@ fun ApiKeySetupDialog(
                                 .fillMaxWidth()
                                 .height(42.dp),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
+                            border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.6f))
                         ) {
                             if (isTesting) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00E5FF), strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = QabasTheme.current.primary, strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري فحص الاتصال الحي بالسيرفر...", fontSize = 11.sp, color = Color(0xFF00E5FF))
+                                Text("جاري فحص الاتصال الحي بالسيرفر...", fontSize = 11.sp, color = QabasTheme.current.primary)
                             } else {
-                                Icon(imageVector = Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF00E5FF))
+                                Icon(imageVector = Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(16.dp), tint = QabasTheme.current.primary)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("فحص الاتصال الحي بالسيرفر الآن ⚡", fontSize = 11.sp, color = Color(0xFF00E5FF), fontWeight = FontWeight.Bold)
+                                Text("فحص الاتصال الحي بالسيرفر الآن ⚡", fontSize = 11.sp, color = QabasTheme.current.primary, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -282,8 +264,8 @@ fun ApiKeySetupDialog(
                             Spacer(modifier = Modifier.height(10.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (res.isConnected) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, if (res.isConnected) Color(0xFF10B981) else Color(0xFFEF4444)),
+                                color = if (res.isConnected) QabasTheme.current.success.copy(alpha = 0.15f) else QabasTheme.current.destructive.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, if (res.isConnected) QabasTheme.current.success else QabasTheme.current.destructive),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -293,7 +275,7 @@ fun ApiKeySetupDialog(
                                     Icon(
                                         imageVector = if (res.isConnected) Icons.Default.CheckCircle else Icons.Default.Cancel,
                                         contentDescription = null,
-                                        tint = if (res.isConnected) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        tint = if (res.isConnected) QabasTheme.current.success else QabasTheme.current.destructive,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -302,20 +284,20 @@ fun ApiKeySetupDialog(
                                             text = if (res.isConnected) "تم التحقق من الاتصال الحي بنجاح (${res.latencyMs}ms) ✅" else "فشل الفحص الحي (${res.latencyMs}ms) ❌",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            color = QabasTheme.current.textPrimary
                                         )
                                         if (res.isConnected && res.modelName.isNotBlank()) {
                                             Text(
                                                 text = "النموذج/الهوية: ${res.modelName} 🤖",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.SemiBold,
-                                                color = Color(0xFF00E5FF)
+                                                color = QabasTheme.current.primary
                                             )
                                         }
                                         Text(
                                             text = res.statusDetail,
                                             fontSize = 10.sp,
-                                            color = if (res.isConnected) Color(0xFFCBD5E1) else Color(0xFFFCA5A5)
+                                            color = if (res.isConnected) QabasTheme.current.textPrimary else QabasTheme.current.destructive
                                         )
                                     }
                                 }
@@ -333,8 +315,8 @@ fun ApiKeySetupDialog(
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
-                                    border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                    color = QabasTheme.current.destructive.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, QabasTheme.current.destructive),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -344,7 +326,7 @@ fun ApiKeySetupDialog(
                                         Icon(
                                             imageVector = Icons.Default.Block,
                                             contentDescription = null,
-                                            tint = Color(0xFFEF4444),
+                                            tint = QabasTheme.current.destructive,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
@@ -352,7 +334,7 @@ fun ApiKeySetupDialog(
                                             text = "لم يُحفظ المفتاح ⛔ — $reason",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            color = QabasTheme.current.textPrimary
                                         )
                                     }
                                 }
@@ -369,23 +351,23 @@ fun ApiKeySetupDialog(
                         ) {
                             Column {
                                 TextButton(onClick = { selectedTab = 1 }) {
-                                    Icon(imageVector = Icons.Default.CardGiftcard, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFE5B842))
+                                    Icon(imageVector = Icons.Default.CardGiftcard, contentDescription = null, modifier = Modifier.size(14.dp), tint = QabasTheme.current.warning)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("تصفح المنصات المجانية 🎁", color = Color(0xFFE5B842), fontSize = 11.sp)
+                                    Text("تصفح المنصات المجانية 🎁", color = QabasTheme.current.warning, fontSize = 11.sp)
                                 }
                                 TextButton(onClick = {
                                     onDismiss()
                                     onOpenOnDeviceModels()
                                 }) {
-                                    Icon(imageVector = Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF00E5FF))
+                                    Icon(imageVector = Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(14.dp), tint = QabasTheme.current.primary)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("النماذج المحلية أوفلاين 📴", color = Color(0xFF00E5FF), fontSize = 11.sp)
+                                    Text("النماذج المحلية أوفلاين 📴", color = QabasTheme.current.primary, fontSize = 11.sp)
                                 }
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = onDismiss) {
-                                    Text("إلغاء", color = Color(0xFF94A3B8))
+                                    Text("إلغاء", color = QabasTheme.current.textSecondary)
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
@@ -423,10 +405,10 @@ fun ApiKeySetupDialog(
                                         }
                                     },
                                     enabled = !isTesting && rawKey.isNotBlank(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color(0xFF070B14))
+                                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.background)
                                 ) {
                                     if (isTesting) {
-                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color(0xFF070B14), strokeWidth = 2.dp)
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = QabasTheme.current.background, strokeWidth = 2.dp)
                                         Spacer(modifier = Modifier.width(6.dp))
                                     }
                                     Text(
@@ -449,7 +431,7 @@ fun ApiKeySetupDialog(
                             text = "منصات نماذج البرمجة المجانية مرتبة حسب القوة والسرعة:",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE5B842)
+                            color = QabasTheme.current.warning
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -488,7 +470,7 @@ fun ApiKeySetupDialog(
                         Button(
                             onClick = { selectedTab = 0 },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B), contentColor = Color(0xFF00E5FF))
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.separator, contentColor = QabasTheme.current.primary)
                         ) {
                             Icon(imageVector = Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -517,7 +499,7 @@ fun CodingPlatformCard(
     val clipboardManager = LocalClipboardManager.current
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFF0F172A).copy(alpha = 0.9f),
+        color = QabasTheme.current.secondarySurface.copy(alpha = 0.9f),
         border = BorderStroke(1.dp, platform.badgeColor.copy(alpha = 0.4f)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -550,7 +532,7 @@ fun CodingPlatformCard(
                         text = platform.name,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -558,7 +540,7 @@ fun CodingPlatformCard(
 
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF1E293B)
+                    color = QabasTheme.current.separator
                 ) {
                     Text(
                         text = platform.badge,
@@ -573,53 +555,9 @@ fun CodingPlatformCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Scores Row: Power & Speed
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF1E293B).copy(alpha = 0.7f),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFF38BDF8))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "قوة البرمجة: ${platform.powerScore}",
-                            fontSize = 10.sp,
-                            color = Color(0xFFCBD5E1),
-                            maxLines = 1
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF1E293B).copy(alpha = 0.7f),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFFF59E0B))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "السرعة: ${platform.speedScore}",
-                            fontSize = 10.sp,
-                            color = Color(0xFFCBD5E1),
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
+            // (12.8) حُذف صف درجات القوة/السرعة (powerScore/speedScore) من العرض:
+            // أرقام ذاتية غير موثقة بلا مصدر حي — الحقول باقية في البيانات
+            // للتوافق، لكنها لا تُعرض في قسم الروابط.
 
             // Key Models
             LazyRow(
@@ -629,14 +567,14 @@ fun CodingPlatformCard(
                 items(platform.keyModels) { modelName ->
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = Color(0xFF070B14),
-                        border = BorderStroke(0.6.dp, Color(0xFF334155))
+                        color = QabasTheme.current.background,
+                        border = BorderStroke(0.6.dp, QabasTheme.current.separator)
                     ) {
                         Text(
                             text = modelName,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF00E5FF),
+                            color = QabasTheme.current.primary,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                             maxLines = 1
                         )
@@ -650,7 +588,7 @@ fun CodingPlatformCard(
             Text(
                 text = platform.description,
                 fontSize = 10.sp,
-                color = Color(0xFF94A3B8),
+                color = QabasTheme.current.textSecondary,
                 lineHeight = 15.sp
             )
 
@@ -659,20 +597,20 @@ fun CodingPlatformCard(
             // Free Tier Box
             Surface(
                 shape = RoundedCornerShape(6.dp),
-                color = Color(0xFF10B981).copy(alpha = 0.1f),
-                border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+                color = QabasTheme.current.success.copy(alpha = 0.1f),
+                border = BorderStroke(0.6.dp, QabasTheme.current.success.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = platform.freeTierInfo,
                         fontSize = 10.sp,
-                        color = Color(0xFF6EE7B7),
+                        color = QabasTheme.current.success,
                         lineHeight = 14.sp
                     )
                 }
@@ -685,7 +623,7 @@ fun CodingPlatformCard(
                 text = "خطوات الحصول على المفتاح:",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFCBD5E1)
+                color = QabasTheme.current.textPrimary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -693,7 +631,7 @@ fun CodingPlatformCard(
                     Row(verticalAlignment = Alignment.Top) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF1E293B),
+                            color = QabasTheme.current.separator,
                             modifier = Modifier.size(14.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -701,7 +639,7 @@ fun CodingPlatformCard(
                                     text = "${idx + 1}",
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E5FF)
+                                    color = QabasTheme.current.primary
                                 )
                             }
                         }
@@ -709,7 +647,7 @@ fun CodingPlatformCard(
                         Text(
                             text = stepText,
                             fontSize = 10.sp,
-                            color = Color(0xFF94A3B8),
+                            color = QabasTheme.current.textSecondary,
                             lineHeight = 14.sp
                         )
                     }
@@ -734,24 +672,24 @@ fun CodingPlatformCard(
                             Toast.makeText(context, "لا توجد مهمة للتصدير", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary, contentColor = DeepSlate),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Export Mission", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                    Text("Export Mission", fontSize = 10.sp, color = QabasTheme.current.primary)
                 }
                 OutlinedButton(
                     onClick = {
                         onImportMission()
                         Toast.makeText(context, "تم استيراد المهمة من الحالة المحفوظة", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = DeepSlate),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary, contentColor = DeepSlate),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(14.dp))
+                    Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = QabasTheme.current.primary, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("استيراد مهمة", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                    Text("استيراد مهمة", fontSize = 10.sp, color = QabasTheme.current.primary)
                 }
             }
 
@@ -764,7 +702,7 @@ fun CodingPlatformCard(
             ) {
                 Button(
                     onClick = onOpenUrl,
-                    colors = ButtonDefaults.buttonColors(containerColor = platform.badgeColor, contentColor = Color(0xFF070B14)),
+                    colors = ButtonDefaults.buttonColors(containerColor = platform.badgeColor, contentColor = QabasTheme.current.background),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier
                         .weight(1.3f)
@@ -777,26 +715,26 @@ fun CodingPlatformCard(
 
                 OutlinedButton(
                     onClick = onCopyUrl,
-                    border = BorderStroke(1.dp, Color(0xFF64748B)),
+                    border = BorderStroke(1.dp, QabasTheme.current.textTertiary),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(36.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFFCBD5E1), modifier = Modifier.size(13.dp))
+                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = QabasTheme.current.textPrimary, modifier = Modifier.size(13.dp))
                     Spacer(modifier = Modifier.width(3.dp))
-                    Text("نسخ الرابط", fontSize = 10.sp, color = Color(0xFFCBD5E1))
+                    Text("نسخ الرابط", fontSize = 10.sp, color = QabasTheme.current.textPrimary)
                 }
 
                 OutlinedButton(
                     onClick = onGoToInput,
-                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f)),
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(36.dp)
                 ) {
-                    Text("لصق المفتاح", fontSize = 10.sp, color = Color(0xFF00E5FF))
+                    Text("لصق المفتاح", fontSize = 10.sp, color = QabasTheme.current.primary)
                 }
             }
         }
@@ -917,8 +855,8 @@ fun RepoSetupDialog(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.88f),
-            backgroundColor = Color(0xFF070D18),
-            borderColor = Color(0xFF10B981).copy(alpha = 0.5f)
+            backgroundColor = QabasTheme.current.background,
+            borderColor = QabasTheme.current.success.copy(alpha = 0.5f)
         ) {
             Column(
                 modifier = Modifier
@@ -939,8 +877,8 @@ fun RepoSetupDialog(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                                .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), CircleShape),
+                                .background(QabasTheme.current.success.copy(alpha = 0.15f))
+                                .border(1.dp, QabasTheme.current.success.copy(alpha = 0.4f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("🐙", fontSize = 16.sp)
@@ -950,13 +888,13 @@ fun RepoSetupDialog(
                                 text = "مستودعات GitHub المتصلة",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = QabasTheme.current.textPrimary,
                                 fontFamily = CairoFont
                             )
                             Text(
                                 text = "التبديل بين المشاريع وطلب صلاحيات البناء",
                                 fontSize = 10.sp,
-                                color = Color(0xFF94A3B8),
+                                color = QabasTheme.current.textSecondary,
                                 fontFamily = CairoFont
                             )
                         }
@@ -969,7 +907,7 @@ fun RepoSetupDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "إغلاق",
-                            tint = Color(0xFF94A3B8)
+                            tint = QabasTheme.current.textSecondary
                         )
                     }
                 }
@@ -991,12 +929,12 @@ fun RepoSetupDialog(
                             .background(
                                 Brush.linearGradient(
                                     colors = listOf(
-                                        Color(0xFF0F261C),
-                                        Color(0xFF091811)
+                                        QabasTheme.current.success.copy(alpha = 0.15f),
+                                        QabasTheme.current.success.copy(alpha = 0.08f)
                                     )
                                 )
                             )
-                            .border(1.dp, Color(0xFF10B981).copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                            .border(1.dp, QabasTheme.current.success.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1009,14 +947,14 @@ fun RepoSetupDialog(
                                     text = "توليد مفتاح الصلاحيات بنقرة واحدة (GitHub PAT)",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF10B981),
+                                    color = QabasTheme.current.success,
                                     fontFamily = CairoFont
                                 )
                             }
                             Text(
                                 text = "يفتح صفحة GitHub مع الصلاحيات المطلوبة للوكيل والبناء (repo, workflow, write:packages, read:user) محددة مسبقاً وتلقائياً دون الحاجة لتحديدها يدوياً.",
                                 fontSize = 10.sp,
-                                color = Color(0xFFCBD5E1),
+                                color = QabasTheme.current.textPrimary,
                                 lineHeight = 14.sp,
                                 fontFamily = CairoFont
                             )
@@ -1034,8 +972,8 @@ fun RepoSetupDialog(
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF10B981),
-                                    contentColor = Color(0xFF050B14)
+                                    containerColor = QabasTheme.current.success,
+                                    contentColor = QabasTheme.current.background
                                 ),
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -1068,8 +1006,8 @@ fun RepoSetupDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF0C192E))
-                            .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .background(QabasTheme.current.cardSurface)
+                            .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1081,21 +1019,21 @@ fun RepoSetupDialog(
                                 Text(
                                     text = "المستودع النشط حالياً",
                                     fontSize = 10.sp,
-                                    color = Color(0xFF94A3B8),
+                                    color = QabasTheme.current.textSecondary,
                                     fontFamily = CairoFont
                                 )
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                        .background(QabasTheme.current.success.copy(alpha = 0.15f))
+                                        .border(1.dp, QabasTheme.current.success.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = "نشط ⚡",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF10B981),
+                                        color = QabasTheme.current.success,
                                         fontFamily = CairoFont
                                     )
                                 }
@@ -1105,7 +1043,7 @@ fun RepoSetupDialog(
                                 text = currentActiveRepo?.fullName ?: "Ali-awwww/qabasapp",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF38BDF8),
+                                color = QabasTheme.current.primary,
                                 fontFamily = FontFamily.Monospace
                             )
 
@@ -1116,13 +1054,13 @@ fun RepoSetupDialog(
                                 Text(
                                     text = "الفرع: ${currentActiveRepo?.defaultBranch ?: "main"}",
                                     fontSize = 10.sp,
-                                    color = Color(0xFF94A3B8),
+                                    color = QabasTheme.current.textSecondary,
                                     fontFamily = CairoFont
                                 )
                                 Text(
                                     text = if (!currentActiveRepo?.token.isNullOrBlank()) "🔒 مفتاح PAT متصل" else "⚠️ بدون مفتاح PAT",
                                     fontSize = 10.sp,
-                                    color = if (!currentActiveRepo?.token.isNullOrBlank()) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    color = if (!currentActiveRepo?.token.isNullOrBlank()) QabasTheme.current.success else QabasTheme.current.warning,
                                     fontFamily = CairoFont
                                 )
                             }
@@ -1139,8 +1077,8 @@ fun RepoSetupDialog(
                                     },
                                     enabled = !isTestingConnection,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1E293B),
-                                        contentColor = Color(0xFF38BDF8)
+                                        containerColor = QabasTheme.current.separator,
+                                        contentColor = QabasTheme.current.primary
                                     ),
                                     shape = RoundedCornerShape(6.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -1150,7 +1088,7 @@ fun RepoSetupDialog(
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(14.dp),
                                             strokeWidth = 2.dp,
-                                            color = Color(0xFF38BDF8)
+                                            color = QabasTheme.current.primary
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                     }
@@ -1167,9 +1105,9 @@ fun RepoSetupDialog(
                                         text = testResult ?: "",
                                         fontSize = 9.sp,
                                         color = when (testSuccess) {
-                                            true -> Color(0xFF10B981)
-                                            false -> Color(0xFFEF4444)
-                                            else -> Color(0xFF94A3B8)
+                                            true -> QabasTheme.current.success
+                                            false -> QabasTheme.current.destructive
+                                            else -> QabasTheme.current.textSecondary
                                         },
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
@@ -1191,7 +1129,7 @@ fun RepoSetupDialog(
                             text = "المستودعات المحفوظة للتبديل السريع (${repos.size})",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont
                         )
                         TextButton(
@@ -1201,14 +1139,14 @@ fun RepoSetupDialog(
                             Icon(
                                 imageVector = if (showAddSection) Icons.Default.ExpandLess else Icons.Default.Add,
                                 contentDescription = null,
-                                tint = Color(0xFF38BDF8),
+                                tint = QabasTheme.current.primary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (showAddSection) "إلغاء" else "إضافة مستودع",
                                 fontSize = 10.sp,
-                                color = Color(0xFF38BDF8),
+                                color = QabasTheme.current.primary,
                                 fontFamily = CairoFont
                             )
                         }
@@ -1220,8 +1158,8 @@ fun RepoSetupDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F1B2F))
-                                .border(1.dp, Color(0xFF2563EB).copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                .background(QabasTheme.current.secondarySurface)
+                                .border(1.dp, QabasTheme.current.primary.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                                 .padding(10.dp)
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1229,7 +1167,7 @@ fun RepoSetupDialog(
                                     text = "إضافة مستودع جديد للخزانة",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF60A5FA),
+                                    color = QabasTheme.current.primary,
                                     fontFamily = CairoFont
                                 )
 
@@ -1241,10 +1179,10 @@ fun RepoSetupDialog(
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color(0xFF38BDF8),
-                                        unfocusedBorderColor = Color(0xFF1E2D4A),
-                                        focusedLabelColor = Color(0xFF38BDF8),
-                                        unfocusedLabelColor = Color(0xFF94A3B8)
+                                        focusedBorderColor = QabasTheme.current.primary,
+                                        unfocusedBorderColor = QabasTheme.current.separator,
+                                        focusedLabelColor = QabasTheme.current.primary,
+                                        unfocusedLabelColor = QabasTheme.current.textSecondary
                                     )
                                 )
 
@@ -1260,17 +1198,17 @@ fun RepoSetupDialog(
                                             Icon(
                                                 imageVector = if (showTokenText) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                                 contentDescription = null,
-                                                tint = Color(0xFF94A3B8),
+                                                tint = QabasTheme.current.textSecondary,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color(0xFF38BDF8),
-                                        unfocusedBorderColor = Color(0xFF1E2D4A),
-                                        focusedLabelColor = Color(0xFF38BDF8),
-                                        unfocusedLabelColor = Color(0xFF94A3B8)
+                                        focusedBorderColor = QabasTheme.current.primary,
+                                        unfocusedBorderColor = QabasTheme.current.separator,
+                                        focusedLabelColor = QabasTheme.current.primary,
+                                        unfocusedLabelColor = QabasTheme.current.textSecondary
                                     )
                                 )
 
@@ -1282,18 +1220,18 @@ fun RepoSetupDialog(
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color(0xFF38BDF8),
-                                        unfocusedBorderColor = Color(0xFF1E2D4A),
-                                        focusedLabelColor = Color(0xFF38BDF8),
-                                        unfocusedLabelColor = Color(0xFF94A3B8)
+                                        focusedBorderColor = QabasTheme.current.primary,
+                                        unfocusedBorderColor = QabasTheme.current.separator,
+                                        focusedLabelColor = QabasTheme.current.primary,
+                                        unfocusedLabelColor = QabasTheme.current.textSecondary
                                     )
                                 )
 
                                 Button(
                                     onClick = { handleAddRepo() },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF2563EB),
-                                        contentColor = Color.White
+                                        containerColor = QabasTheme.current.primary,
+                                        contentColor = QabasTheme.current.onPrimary
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
@@ -1322,7 +1260,7 @@ fun RepoSetupDialog(
                             Text(
                                 text = "لا توجد مستودعات إضافية محفوظة في الخزانة.",
                                 fontSize = 11.sp,
-                                color = Color(0xFF64748B),
+                                color = QabasTheme.current.textTertiary,
                                 fontFamily = CairoFont
                             )
                         }
@@ -1333,10 +1271,10 @@ fun RepoSetupDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isCurrent) Color(0xFF0C192E) else Color(0xFF090F1C))
+                                    .background(if (isCurrent) QabasTheme.current.cardSurface else QabasTheme.current.background)
                                     .border(
                                         1.dp,
-                                        if (isCurrent) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFF1E2D4A),
+                                        if (isCurrent) QabasTheme.current.success.copy(alpha = 0.5f) else QabasTheme.current.separator,
                                         RoundedCornerShape(8.dp)
                                     )
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
@@ -1355,7 +1293,7 @@ fun RepoSetupDialog(
                                                 text = entry.fullName,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isCurrent) Color(0xFF10B981) else Color.White,
+                                                color = if (isCurrent) QabasTheme.current.success else QabasTheme.current.textPrimary,
                                                 fontFamily = FontFamily.Monospace,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
@@ -1364,7 +1302,7 @@ fun RepoSetupDialog(
                                                 Text(
                                                     text = "● نشط",
                                                     fontSize = 9.sp,
-                                                    color = Color(0xFF10B981),
+                                                    color = QabasTheme.current.success,
                                                     fontWeight = FontWeight.Bold,
                                                     fontFamily = CairoFont
                                                 )
@@ -1373,7 +1311,7 @@ fun RepoSetupDialog(
                                         Text(
                                             text = "فرع: ${entry.defaultBranch} | ${if (entry.token.isNotBlank()) "PAT متوفر" else "بدون PAT"}",
                                             fontSize = 9.sp,
-                                            color = Color(0xFF94A3B8),
+                                            color = QabasTheme.current.textSecondary,
                                             fontFamily = CairoFont
                                         )
                                     }
@@ -1386,8 +1324,8 @@ fun RepoSetupDialog(
                                             FilledTonalButton(
                                                 onClick = { handleSwitchRepo(entry) },
                                                 colors = ButtonDefaults.filledTonalButtonColors(
-                                                    containerColor = Color(0xFF1E293B),
-                                                    contentColor = Color(0xFF38BDF8)
+                                                    containerColor = QabasTheme.current.separator,
+                                                    contentColor = QabasTheme.current.primary
                                                 ),
                                                 shape = RoundedCornerShape(6.dp),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
@@ -1409,7 +1347,7 @@ fun RepoSetupDialog(
                                             Icon(
                                                 imageVector = Icons.Default.DeleteOutline,
                                                 contentDescription = "حذف",
-                                                tint = Color(0xFF64748B),
+                                                tint = QabasTheme.current.textTertiary,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -1426,8 +1364,8 @@ fun RepoSetupDialog(
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981),
-                        contentColor = Color(0xFF050B14)
+                        containerColor = QabasTheme.current.success,
+                        contentColor = QabasTheme.current.background
                     ),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier
@@ -1468,7 +1406,6 @@ fun AgentRequirementDialog(
     
     // Repository selection
     var showRepoSelector by remember { mutableStateOf(false) }
-    var isFetchingRepos by remember { mutableStateOf(false) }
     
     val scope = rememberCoroutineScope()
 
@@ -1481,9 +1418,9 @@ fun AgentRequirementDialog(
                 .fillMaxWidth(0.92f)
                 .wrapContentHeight()
                 .padding(vertical = 24.dp),
-            color = Color(0xFF0B1220),
+            color = QabasTheme.current.cardSurface,
             shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.5.dp, Color(0xFFD4AF37).copy(alpha = 0.6f)) // Golden border
+            border = BorderStroke(1.5.dp, QabasTheme.current.warning.copy(alpha = 0.6f)) // Golden border
         ) {
             Column(
                 modifier = Modifier
@@ -1496,14 +1433,14 @@ fun AgentRequirementDialog(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFD4AF37).copy(alpha = 0.15f))
-                        .border(1.dp, Color(0xFFD4AF37).copy(alpha = 0.4f), CircleShape),
+                        .background(QabasTheme.current.warning.copy(alpha = 0.15f))
+                        .border(1.dp, QabasTheme.current.warning.copy(alpha = 0.4f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = null,
-                        tint = Color(0xFFD4AF37),
+                        tint = QabasTheme.current.warning,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -1513,7 +1450,7 @@ fun AgentRequirementDialog(
                 Text(
                     text = "متطلبات العمل النشط 🚀",
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
+                    color = QabasTheme.current.textPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold
                 )
@@ -1521,7 +1458,7 @@ fun AgentRequirementDialog(
                 Text(
                     text = "لبدء تنفيذ مهامك البرمجية، يحتاج الوكيل إلى مفتاح ذكاء اصطناعي ومستودع GitHub للعمل عليه.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF94A3B8),
+                    color = QabasTheme.current.textSecondary,
                     fontFamily = CairoFont,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -1587,7 +1524,7 @@ fun AgentRequirementDialog(
                             text = "2. مستودع GitHub 🐙",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = QabasTheme.current.textPrimary,
                             fontFamily = CairoFont
                         )
                         
@@ -1600,23 +1537,23 @@ fun AgentRequirementDialog(
                                 },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Login, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF38BDF8))
+                                Icon(imageVector = Icons.Default.Login, contentDescription = null, modifier = Modifier.size(14.dp), tint = QabasTheme.current.primary)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("ربط الحساب تلقائياً", fontSize = 10.sp, color = Color(0xFF38BDF8), fontFamily = CairoFont)
+                                Text("ربط الحساب تلقائياً", fontSize = 10.sp, color = QabasTheme.current.primary, fontFamily = CairoFont)
                             }
                         } else {
                             Surface(
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                color = QabasTheme.current.success.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                border = BorderStroke(1.dp, QabasTheme.current.success.copy(alpha = 0.4f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
-                                    Text("تم الربط 🐙", color = Color(0xFF10B981), fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    Icon(Icons.Default.Link, contentDescription = null, tint = QabasTheme.current.success, modifier = Modifier.size(12.dp))
+                                    Text("تم الربط 🐙", color = QabasTheme.current.success, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                                 }
                             }
                         }
@@ -1625,7 +1562,7 @@ fun AgentRequirementDialog(
                     Text(
                         text = "رابط المستودع (مثال: owner/repo) أو اختر من حسابك بعد الربط",
                         fontSize = 10.sp,
-                        color = Color(0xFF94A3B8),
+                        color = QabasTheme.current.textSecondary,
                         fontFamily = CairoFont,
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -1636,11 +1573,11 @@ fun AgentRequirementDialog(
                         placeholder = { Text("username/project-name", fontSize = 11.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            cursorColor = Color(0xFFD4AF37),
-                            focusedBorderColor = Color(0xFFD4AF37),
-                            unfocusedBorderColor = Color(0xFF334155)
+                            focusedTextColor = QabasTheme.current.textPrimary,
+                            unfocusedTextColor = QabasTheme.current.textPrimary,
+                            cursorColor = QabasTheme.current.warning,
+                            focusedBorderColor = QabasTheme.current.warning,
+                            unfocusedBorderColor = QabasTheme.current.separator
                         ),
                         trailingIcon = {
                             val oauthTokenStored = remember { GitHubAuthManager.getAccessToken(context) }
@@ -1654,7 +1591,7 @@ fun AgentRequirementDialog(
                                     Icon(
                                         imageVector = Icons.Default.List,
                                         contentDescription = "جلب المستودعات",
-                                        tint = Color(0xFFD4AF37)
+                                        tint = QabasTheme.current.warning
                                     )
                                 }
                             }
@@ -1671,7 +1608,7 @@ fun AgentRequirementDialog(
                         Button(
                             onClick = { showRepoSelector = true },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.success),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1697,17 +1634,17 @@ fun AgentRequirementDialog(
                     Spacer(modifier = Modifier.height(16.dp))
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)),
+                        colors = CardDefaults.cardColors(containerColor = QabasTheme.current.destructive.copy(alpha = 0.1f)),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f))
+                        border = BorderStroke(1.dp, QabasTheme.current.destructive.copy(alpha = 0.3f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Analytics, contentDescription = null, tint = Color(0xFFFCA5A5), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Analytics, contentDescription = null, tint = QabasTheme.current.destructive, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(10.dp))
                                 Text(
                                     text = "بطاقة تشخيص الخطأ 🔍",
-                                    color = Color.White,
+                                    color = QabasTheme.current.textPrimary,
                                     fontSize = 14.sp,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold
@@ -1716,7 +1653,7 @@ fun AgentRequirementDialog(
                             Spacer(Modifier.height(10.dp))
                             Text(
                                 text = errorMessage!!,
-                                color = Color(0xFFFCA5A5),
+                                color = QabasTheme.current.destructive,
                                 fontSize = 12.sp,
                                 fontFamily = CairoFont,
                                 lineHeight = 20.sp
@@ -1728,21 +1665,21 @@ fun AgentRequirementDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 TextButton(onClick = { errorMessage = null }) {
-                                    Text("تجاهل", color = Color(0xFF94A3B8), fontSize = 12.sp, fontFamily = CairoFont)
+                                    Text("تجاهل", color = QabasTheme.current.textSecondary, fontSize = 12.sp, fontFamily = CairoFont)
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Button(
                                     onClick = {
                                         errorMessage = null
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.2f)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.destructive.copy(alpha = 0.2f)),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp), tint = QabasTheme.current.textPrimary)
                                         Spacer(Modifier.width(6.dp))
-                                        Text("إعادة المحاولة", color = Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+                                        Text("إعادة المحاولة", color = QabasTheme.current.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                                     }
                                 }
                             }
@@ -1761,9 +1698,9 @@ fun AgentRequirementDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF334155))
+                        border = BorderStroke(1.dp, QabasTheme.current.separator)
                     ) {
-                        Text("إلغاء", color = Color.White, fontFamily = CairoFont)
+                        Text("إلغاء", color = QabasTheme.current.textPrimary, fontFamily = CairoFont)
                     }
                     
                     Button(
@@ -1820,7 +1757,7 @@ fun AgentRequirementDialog(
                                     onConfigComplete()
                                     onDismiss()
                                     
-                                } catch (e: Exception) {
+                                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                                     isVerifying = false
                                     errorMessage = "حدث خطأ غير متوقع: ${e.localizedMessage}"
                                 }
@@ -1828,13 +1765,13 @@ fun AgentRequirementDialog(
                         },
                         modifier = Modifier.weight(1.5f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37)),
+                        colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.warning),
                         enabled = !isVerifying
                     ) {
                         if (isVerifying) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF0B1220), strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = QabasTheme.current.cardSurface, strokeWidth = 2.dp)
                         } else {
-                            Text("حفظ وتفعيل ⚡", color = Color(0xFF0B1220), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Text("حفظ وتفعيل ⚡", color = QabasTheme.current.cardSurface, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1881,7 +1818,7 @@ fun RepositorySelectionDialog(
             try {
                 repos = GitHubRepoClient.listUserRepos(token)
                 isLoading = false
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 error = e.localizedMessage
                 isLoading = false
             }
@@ -1893,9 +1830,9 @@ fun RepositorySelectionDialog(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.85f),
-            color = Color(0xFF0B1220),
+            color = QabasTheme.current.cardSurface,
             shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.5.dp, Color(0xFFD4AF37).copy(alpha = 0.5f))
+            border = BorderStroke(1.5.dp, QabasTheme.current.warning.copy(alpha = 0.5f))
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
@@ -1906,12 +1843,12 @@ fun RepositorySelectionDialog(
                     Text(
                         text = "اختر مستودعاً 🐙",
                         style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
+                        color = QabasTheme.current.textPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, null, tint = Color.Gray)
+                        Icon(Icons.Default.Close, null, tint = QabasTheme.current.textTertiary)
                     }
                 }
                 
@@ -1919,7 +1856,7 @@ fun RepositorySelectionDialog(
                 
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFFD4AF37))
+                        CircularProgressIndicator(color = QabasTheme.current.warning)
                     }
                 } else if (error != null) {
                     Column(
@@ -1927,9 +1864,9 @@ fun RepositorySelectionDialog(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(Icons.Default.ErrorOutline, null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                        Icon(Icons.Default.ErrorOutline, null, tint = QabasTheme.current.destructive, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = "تعذر جلب المستودعات: $error", color = Color.Red, fontSize = 13.sp, textAlign = TextAlign.Center)
+                        Text(text = "تعذر جلب المستودعات: $error", color = QabasTheme.current.destructive, fontSize = 13.sp, textAlign = TextAlign.Center)
                     }
                 } else if (repos.isEmpty()) {
                     Column(
@@ -1937,9 +1874,9 @@ fun RepositorySelectionDialog(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(Icons.Default.FolderOpen, null, tint = Color.Gray, modifier = Modifier.size(48.dp))
+                        Icon(Icons.Default.FolderOpen, null, tint = QabasTheme.current.textTertiary, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = "لم يتم العثور على مستودعات في هذا الحساب.", color = Color.Gray, fontSize = 13.sp)
+                        Text(text = "لم يتم العثور على مستودعات في هذا الحساب.", color = QabasTheme.current.textTertiary, fontSize = 13.sp)
                     }
                 } else {
                     LazyColumn(
@@ -1951,9 +1888,9 @@ fun RepositorySelectionDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onRepoSelected(repo) },
-                                color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                                color = QabasTheme.current.separator.copy(alpha = 0.6f),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, Color(0xFF334155))
+                                border = BorderStroke(1.dp, QabasTheme.current.separator)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(14.dp),
@@ -1963,13 +1900,13 @@ fun RepositorySelectionDialog(
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(CircleShape)
-                                            .background(if (repo.isPrivate) Color(0xFFF59E0B).copy(alpha = 0.1f) else Color(0xFF10B981).copy(alpha = 0.1f)),
+                                            .background(if (repo.isPrivate) QabasTheme.current.warning.copy(alpha = 0.1f) else QabasTheme.current.success.copy(alpha = 0.1f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = if (repo.isPrivate) Icons.Default.Lock else Icons.Default.Public,
                                             contentDescription = null,
-                                            tint = if (repo.isPrivate) Color(0xFFF59E0B) else Color(0xFF10B981),
+                                            tint = if (repo.isPrivate) QabasTheme.current.warning else QabasTheme.current.success,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -1977,7 +1914,7 @@ fun RepositorySelectionDialog(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = repo.fullName,
-                                            color = Color.White,
+                                            color = QabasTheme.current.textPrimary,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = CairoFont
@@ -1985,7 +1922,7 @@ fun RepositorySelectionDialog(
                                         if (repo.description.isNotBlank()) {
                                             Text(
                                                 text = repo.description,
-                                                color = Color(0xFF94A3B8),
+                                                color = QabasTheme.current.textSecondary,
                                                 fontSize = 11.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -1994,12 +1931,12 @@ fun RepositorySelectionDialog(
                                         }
                                         Text(
                                             text = "تحديث: ${repo.updatedAt.take(10)}",
-                                            color = Color(0xFF64748B),
+                                            color = QabasTheme.current.textTertiary,
                                             fontSize = 9.sp,
                                             fontFamily = CairoFont
                                         )
                                     }
-                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color(0xFF475569), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = QabasTheme.current.textTertiary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -2012,9 +1949,9 @@ fun RepositorySelectionDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B))
+                    colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.separator)
                 ) {
-                    Text("إغلاق", color = Color.White, fontFamily = CairoFont)
+                    Text("إغلاق", color = QabasTheme.current.textPrimary, fontFamily = CairoFont)
                 }
             }
         }
@@ -2034,14 +1971,14 @@ private fun RequirementInputSection(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = title,
-            color = Color.White,
+            color = QabasTheme.current.textPrimary,
             fontSize = 13.sp,
             fontFamily = CairoFont,
             fontWeight = FontWeight.Bold
         )
         Text(
             text = description,
-            color = Color(0xFF94A3B8),
+            color = QabasTheme.current.textSecondary,
             fontSize = 11.sp,
             fontFamily = CairoFont,
             modifier = Modifier.padding(bottom = 6.dp)
@@ -2049,18 +1986,18 @@ private fun RequirementInputSection(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, fontSize = 12.sp, color = Color(0xFF475569)) },
+            placeholder = { Text(placeholder, fontSize = 12.sp, color = QabasTheme.current.textTertiary) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             visualTransformation = if (isSecret) PasswordVisualTransformation() else VisualTransformation.None,
             trailingIcon = trailingIcon,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = Color(0xFFD4AF37),
-                unfocusedBorderColor = Color(0xFF1E293B),
-                focusedContainerColor = Color(0xFF0F172A),
-                unfocusedContainerColor = Color(0xFF0F172A)
+                focusedTextColor = QabasTheme.current.textPrimary,
+                unfocusedTextColor = QabasTheme.current.textPrimary,
+                focusedBorderColor = QabasTheme.current.warning,
+                unfocusedBorderColor = QabasTheme.current.separator,
+                focusedContainerColor = QabasTheme.current.secondarySurface,
+                unfocusedContainerColor = QabasTheme.current.secondarySurface
             ),
             singleLine = true
         )

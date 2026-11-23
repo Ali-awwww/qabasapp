@@ -3,7 +3,6 @@ package com.qabas.app
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
-import com.qabas.app.ui.theme.GoldPrimary
 
 enum class SahihBookType(
     val id: String,

@@ -32,8 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -41,7 +39,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -67,6 +64,7 @@ fun StudioProEditorScreen(
     onBack: () -> Unit,
     onSave: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val transitionSlideDistancePx = with(LocalDensity.current) { 120.dp.toPx() }
     var projectState by remember { mutableStateOf(createBlankEditorProjectState()) }
@@ -356,32 +354,32 @@ fun StudioProEditorScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(projectState.title, color = Color.White, fontSize = 14.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        Text(projectState.title, color = theme.textPrimary, fontSize = 14.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (projectState.isPlaying) Color.Red else Color.Gray))
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (projectState.isPlaying) theme.destructive else theme.textTertiary))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 formatTime(projectState.currentTimeMs) + " / " + formatTime(projectState.totalDurationMs),
-                                color = GoldPrimary, fontSize = 10.sp, fontFamily = NotoSansFont
+                                color = PresetPrimary, fontSize = 10.sp, fontFamily = NotoSansFont
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (autoSaveStatus.isSaving) GoldPrimary.copy(alpha = 0.2f) else Color(0xFF10B981).copy(alpha = 0.15f))
+                                    .background(if (autoSaveStatus.isSaving) PresetPrimary.copy(alpha = 0.2f) else theme.success.copy(alpha = 0.15f))
                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                             ) {
                                 Icon(
                                     imageVector = if (autoSaveStatus.isSaving) Icons.Default.Sync else Icons.Default.Save,
                                     contentDescription = null,
-                                    tint = if (autoSaveStatus.isSaving) GoldPrimary else Color(0xFF10B981),
+                                    tint = if (autoSaveStatus.isSaving) PresetPrimary else theme.success,
                                     modifier = Modifier.size(10.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = if (autoSaveStatus.isSaving) "جاري الحفظ..." else "محفوظ Room",
-                                    color = if (autoSaveStatus.isSaving) GoldPrimary else Color(0xFF10B981),
+                                    color = if (autoSaveStatus.isSaving) PresetPrimary else theme.success,
                                     fontSize = 9.sp,
                                     fontFamily = NotoSansFont
                                 )
@@ -392,7 +390,7 @@ fun StudioProEditorScreen(
                 navigationIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = PresetPrimary)
                         }
                         
                         // Undo/Redo Actions
@@ -406,7 +404,7 @@ fun StudioProEditorScreen(
                             },
                             enabled = history.isNotEmpty()
                         ) {
-                            Icon(Icons.Default.Undo, null, tint = if (history.isNotEmpty()) GoldPrimary else Color.Gray)
+                            Icon(Icons.Default.Undo, null, tint = if (history.isNotEmpty()) PresetPrimary else theme.textTertiary)
                         }
                         
                         IconButton(
@@ -419,7 +417,7 @@ fun StudioProEditorScreen(
                             },
                             enabled = redoHistory.isNotEmpty()
                         ) {
-                            Icon(Icons.Default.Redo, null, tint = if (redoHistory.isNotEmpty()) GoldPrimary else Color.Gray)
+                            Icon(Icons.Default.Redo, null, tint = if (redoHistory.isNotEmpty()) PresetPrimary else theme.textTertiary)
                         }
                     }
                 },
@@ -442,14 +440,14 @@ fun StudioProEditorScreen(
                                 WorkspaceMode.AUDIO -> "الصوتيات 🔊"
                                 WorkspaceMode.EXPORT -> "التصدير 🚀"
                             },
-                            color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont
+                            color = PresetPrimary, fontSize = 12.sp, fontFamily = CairoFont
                         )
                     }
                     
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = onSave,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                         modifier = Modifier.height(36.dp).padding(end = 8.dp)
@@ -459,7 +457,7 @@ fun StudioProEditorScreen(
                         Text("المشاريع", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 13.sp)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = theme.background)
             )
         }
     ) { paddingValues ->
@@ -470,17 +468,17 @@ fun StudioProEditorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1.3f)
-                    .background(Color.Black),
+                    .background(theme.background),
                 contentAlignment = Alignment.Center
             ) {
                 // Background Pattern
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val step = 40.dp.toPx()
                     for (x in 0..(size.width / step).toInt()) {
-                        drawLine(Color.White.copy(alpha = 0.03f), Offset(x * step, 0f), Offset(x * step, size.height))
+                        drawLine(theme.textPrimary.copy(alpha = 0.03f), Offset(x * step, 0f), Offset(x * step, size.height))
                     }
                     for (y in 0..(size.height / step).toInt()) {
-                        drawLine(Color.White.copy(alpha = 0.03f), Offset(0f, y * step), Offset(size.width, y * step))
+                        drawLine(theme.textPrimary.copy(alpha = 0.03f), Offset(0f, y * step), Offset(size.width, y * step))
                     }
                 }
 
@@ -489,7 +487,7 @@ fun StudioProEditorScreen(
                     modifier = Modifier.fillMaxHeight(0.9f).aspectRatio(9f/16f),
                     color = CardSurface,
                     shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f))
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (activeVideoClip != null && activeVideoClip.resourceUri.isNotBlank()) {
@@ -525,7 +523,7 @@ fun StudioProEditorScreen(
                         if (previewPlaybackError != null) {
                             Text(
                                 "تعذر تشغيل المقطع: $previewPlaybackError",
-                                color = Color(0xFFFCA5A5),
+                                color = theme.destructive,
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.align(Alignment.TopCenter).padding(8.dp)
@@ -570,13 +568,13 @@ fun StudioProEditorScreen(
                             ) {
                                 Text(
                                     "لا توجد وسائط عند موضع التشغيل الحالي",
-                                    color = Color.White.copy(alpha = 0.75f),
+                                    color = theme.textPrimary.copy(alpha = 0.75f),
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp,
                                     textAlign = TextAlign.Center
                                 )
                                 TextButton(onClick = { showMediaBrowser = true }) {
-                                    Text("استيراد وسائط", color = GoldPrimary, fontFamily = CairoFont)
+                                    Text("استيراد وسائط", color = PresetPrimary, fontFamily = CairoFont)
                                 }
                             }
                         }
@@ -596,7 +594,7 @@ fun StudioProEditorScreen(
                                 ) * transitionAlpha
                                 Text(
                                     textClip.title,
-                                    color = Color.White.copy(alpha = currentOpacity),
+                                    color = theme.textPrimary.copy(alpha = currentOpacity),
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = (20 * currentScale).sp,
@@ -642,9 +640,9 @@ fun StudioProEditorScreen(
                             enabled = selectedEditorClip != null &&
                                 selectedEditorClip.type != TrackType.AUDIO &&
                                 selectedClipTrack?.isLocked != true,
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape).border(1.dp, GoldPrimary, CircleShape)
+                            modifier = Modifier.background(theme.background.copy(alpha = 0.6f), CircleShape).border(1.dp, PresetPrimary, CircleShape)
                         ) {
-                            Icon(Icons.Default.AddLocation, null, tint = GoldPrimary)
+                            Icon(Icons.Default.AddLocation, null, tint = PresetPrimary)
                         }
                     }
                 }
@@ -670,7 +668,7 @@ fun StudioProEditorScreen(
                         Icon(
                             Icons.Default.SkipPrevious,
                             contentDescription = "المقطع السابق",
-                            tint = if (findAdjacentEditorClip(projectState, forward = false) != null) Color.White else Color.Gray
+                            tint = if (findAdjacentEditorClip(projectState, forward = false) != null) theme.textPrimary else theme.textTertiary
                         )
                     }
                     
@@ -678,13 +676,13 @@ fun StudioProEditorScreen(
                         onClick = { projectState = projectState.copy(isPlaying = !projectState.isPlaying) },
                         modifier = Modifier.size(64.dp),
                         shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                        color = theme.textPrimary.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.2f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 if (projectState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                null, tint = Color.White, modifier = Modifier.size(36.dp)
+                                null, tint = theme.textPrimary, modifier = Modifier.size(36.dp)
                             )
                         }
                     }
@@ -704,7 +702,7 @@ fun StudioProEditorScreen(
                         Icon(
                             Icons.Default.SkipNext,
                             contentDescription = "المقطع التالي",
-                            tint = if (findAdjacentEditorClip(projectState, forward = true) != null) Color.White else Color.Gray
+                            tint = if (findAdjacentEditorClip(projectState, forward = true) != null) theme.textPrimary else theme.textTertiary
                         )
                     }
                 }
@@ -713,7 +711,7 @@ fun StudioProEditorScreen(
             // 2. Pro Timeline Section
             Surface(
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                color = Color(0xFF121212)
+                color = theme.cardSurface
             ) {
                 Column {
                     // Timeline Tools & Ruler
@@ -725,29 +723,29 @@ fun StudioProEditorScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
                             Icon(
                                 Icons.Default.Layers, null, 
-                                tint = if (showLayerManager) GoldPrimary else Color.Gray, 
+                                tint = if (showLayerManager) PresetPrimary else theme.textTertiary,
                                 modifier = Modifier.size(14.dp).clickable { showLayerManager = !showLayerManager }
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Icon(
                                 if (projectState.isMagneticTimeline) Icons.Default.Link else Icons.Default.LinkOff, 
                                 null, 
-                                tint = if (projectState.isMagneticTimeline) GoldPrimary else Color.Gray, 
+                                tint = if (projectState.isMagneticTimeline) PresetPrimary else theme.textTertiary,
                                 modifier = Modifier.size(14.dp).clickable { 
                                     projectState = projectState.copy(isMagneticTimeline = !projectState.isMagneticTimeline)
                                 }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("المغناطيسي", color = if (projectState.isMagneticTimeline) Color.White else Color.Gray, fontSize = 9.sp, fontFamily = CairoFont)
+                            Text("المغناطيسي", color = if (projectState.isMagneticTimeline) theme.textPrimary else theme.textTertiary, fontSize = 9.sp, fontFamily = CairoFont)
                             
                             Spacer(modifier = Modifier.width(16.dp))
                             // Zoom Control
-                            Icon(Icons.Default.ZoomOut, null, tint = Color.Gray, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 0.8f).coerceAtLeast(0.5f)) })
-                            Text("${(projectState.zoomLevel * 100).toInt()}%", color = Color.Gray, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp))
-                            Icon(Icons.Default.ZoomIn, null, tint = Color.Gray, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 1.2f).coerceAtMost(5f)) })
+                            Icon(Icons.Default.ZoomOut, null, tint = theme.textTertiary, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 0.8f).coerceAtLeast(0.5f)) })
+                            Text("${(projectState.zoomLevel * 100).toInt()}%", color = theme.textTertiary, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                            Icon(Icons.Default.ZoomIn, null, tint = theme.textTertiary, modifier = Modifier.size(12.dp).clickable { projectState = projectState.copy(zoomLevel = (projectState.zoomLevel * 1.2f).coerceAtMost(5f)) })
                         }
                         
-                        Text(formatTime(projectState.currentTimeMs), color = GoldPrimary, fontSize = 10.sp, modifier = Modifier.padding(end = 12.dp), fontFamily = NotoSansFont)
+                        Text(formatTime(projectState.currentTimeMs), color = PresetPrimary, fontSize = 10.sp, modifier = Modifier.padding(end = 12.dp), fontFamily = NotoSansFont)
                     }
 
                     Box(
@@ -824,9 +822,9 @@ fun StudioProEditorScreen(
                                     .fillMaxHeight()
                                     .width(2.dp)
                                     .offset(x = 40.dp + (projectState.currentTimeMs.toFloat() / 10f * projectState.zoomLevel).dp)
-                                    .background(GoldPrimary)
+                                    .background(PresetPrimary)
                             ) {
-                                Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(GoldPrimary).align(Alignment.TopCenter))
+                                Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(PresetPrimary).align(Alignment.TopCenter))
                             }
                         }
                     }
@@ -836,9 +834,9 @@ fun StudioProEditorScreen(
             // 3. Pro Toolbelt (Bottom)
             Surface(
                 modifier = Modifier.fillMaxWidth().height(90.dp),
-                color = Color.Black,
+                color = theme.background,
                 tonalElevation = 12.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.05f))
             ) {
                 Row(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
@@ -899,7 +897,7 @@ fun StudioProEditorScreen(
             title = {
                 Text(
                     if (editingTextClipId == null) "إضافة نص إلى الفيديو" else "تحرير النص",
-                    color = Color.White,
+                    color = theme.textPrimary,
                     fontFamily = CairoFont
                 )
             },
@@ -933,7 +931,7 @@ fun StudioProEditorScreen(
                         editingTextClipId = null
                     }
                 ) {
-                    Text("حفظ النص", color = GoldPrimary, fontFamily = CairoFont)
+                    Text("حفظ النص", color = PresetPrimary, fontFamily = CairoFont)
                 }
             },
             dismissButton = {
@@ -943,7 +941,7 @@ fun StudioProEditorScreen(
                         editingTextClipId = null
                     }
                 ) {
-                    Text("إلغاء", color = Color.Gray, fontFamily = CairoFont)
+                    Text("إلغاء", color = theme.textTertiary, fontFamily = CairoFont)
                 }
             }
         )
@@ -1016,7 +1014,7 @@ fun StudioProEditorScreen(
             containerColor = CardSurface
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-                Text("إدارة الطبقات (Layer Manager)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 18.sp)
+                Text("إدارة الطبقات (Layer Manager)", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 18.sp)
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 projectState.tracks.forEach { track ->
@@ -1033,10 +1031,10 @@ fun StudioProEditorScreen(
                                     TrackType.TEXT -> Icons.Default.Title
                                     else -> Icons.Default.Layers
                                 },
-                                null, tint = GoldPrimary, modifier = Modifier.size(20.dp)
+                                null, tint = PresetPrimary, modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(track.name, color = Color.White, fontFamily = CairoFont)
+                            Text(track.name, color = theme.textPrimary, fontFamily = CairoFont)
                         }
                         
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1049,7 +1047,7 @@ fun StudioProEditorScreen(
                                 Icon(
                                     if (track.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (track.isVisible) "إخفاء " + track.name else "إظهار " + track.name,
-                                    tint = if (track.isVisible) GoldPrimary else Color.Gray,
+                                    tint = if (track.isVisible) PresetPrimary else theme.textTertiary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1062,7 +1060,7 @@ fun StudioProEditorScreen(
                                 Icon(
                                     if (track.isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
                                     contentDescription = if (track.isMuted) "إلغاء كتم " + track.name else "كتم " + track.name,
-                                    tint = if (track.isMuted) Color.Gray else GoldPrimary,
+                                    tint = if (track.isMuted) theme.textTertiary else PresetPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1078,7 +1076,7 @@ fun StudioProEditorScreen(
                                 Icon(
                                     if (track.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
                                     contentDescription = if (track.isLocked) "إلغاء قفل " + track.name else "قفل " + track.name,
-                                    tint = if (track.isLocked) Color(0xFFF59E0B) else Color.Gray,
+                                    tint = if (track.isLocked) theme.warning else theme.textTertiary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1090,7 +1088,7 @@ fun StudioProEditorScreen(
                 Button(
                     onClick = { showLayerManager = false },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                 ) {
                     Text("إغلاق", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                 }
@@ -1209,7 +1207,7 @@ fun StudioProEditorScreen(
         ModalBottomSheet(
             onDismissRequest = { showMediaBrowser = false },
             containerColor = CardSurface,
-            dragHandle = { BottomSheetDefaults.DragHandle(color = Color.Gray) }
+            dragHandle = { BottomSheetDefaults.DragHandle(color = theme.textTertiary) }
         ) {
             MediaAssetBrowser(
                 onAssetSelected = { asset ->
@@ -1252,12 +1250,13 @@ fun StudioProEditorScreen(
 
 @Composable
 fun TimelineRuler(totalMs: Long, zoom: Float, modifier: Modifier = Modifier) {
+    val theme = QabasTheme.current
     Canvas(modifier = modifier.fillMaxWidth().height(24.dp).background(ThemeSecondarySurface)) {
         val step = 1000L // Use Long
         for (i in 0L..totalMs step step) {
             val x = (i.toFloat() / 10f) * zoom
             drawLine(
-                color = Color.Gray,
+                color = theme.textTertiary,
                 start = Offset(x, 0f),
                 end = Offset(x, if (i % 5000L == 0L) 15f else 8f),
                 strokeWidth = 1f
@@ -1279,9 +1278,10 @@ fun TimelineTrackRow(
     onClipTrimEnd: (String, Long) -> Unit = { _, _ -> },
     onTransitionClick: (String) -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     val density = LocalDensity.current.density
     Row(
-        modifier = Modifier.width(timelineWidth + 40.dp).height(48.dp).border(0.5.dp, Color.White.copy(alpha = 0.05f)),
+        modifier = Modifier.width(timelineWidth + 40.dp).height(48.dp).border(0.5.dp, theme.textPrimary.copy(alpha = 0.05f)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Track Icon/Label (Layer Info)
@@ -1296,7 +1296,7 @@ fun TimelineTrackRow(
                     TrackType.TEXT -> Icons.Default.Title
                     else -> Icons.Default.Layers
                 },
-                null, tint = if (selectedClipId != null && track.clips.any { it.id == selectedClipId }) GoldPrimary else Color.Gray, modifier = Modifier.size(16.dp)
+                null, tint = if (selectedClipId != null && track.clips.any { it.id == selectedClipId }) PresetPrimary else theme.textTertiary, modifier = Modifier.size(16.dp)
             )
         }
         
@@ -1339,7 +1339,7 @@ fun TimelineTrackRow(
                     shape = RoundedCornerShape(4.dp),
                     border = androidx.compose.foundation.BorderStroke(
                         if (isSelected) 2.dp else 1.dp, 
-                        if (isSelected) Color.White else clip.color
+                        if (isSelected) theme.textPrimary else clip.color
                     )
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -1347,18 +1347,18 @@ fun TimelineTrackRow(
                             Icon(
                                 Icons.Default.Audiotrack,
                                 contentDescription = "مسار صوتي",
-                                tint = Color.White.copy(alpha = 0.65f),
+                                tint = theme.textPrimary.copy(alpha = 0.65f),
                                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
                             )
                         }
                         
-                        Text(clip.title, fontSize = 8.sp, color = Color.White, modifier = Modifier.padding(4.dp), maxLines = 1)
+                        Text(clip.title, fontSize = 8.sp, color = theme.textPrimary, modifier = Modifier.padding(4.dp), maxLines = 1)
 
                         if (isSelected && !track.isLocked) {
                             Box(
                                 modifier = Modifier.align(Alignment.CenterStart)
                                     .width(8.dp).fillMaxHeight()
-                                    .background(Color.White.copy(alpha = 0.85f))
+                                    .background(theme.textPrimary.copy(alpha = 0.85f))
                                     .pointerInput(clip.id, zoom) {
                                         detectDragGestures(
                                             onDragStart = {
@@ -1377,7 +1377,7 @@ fun TimelineTrackRow(
                             Box(
                                 modifier = Modifier.align(Alignment.CenterEnd)
                                     .width(8.dp).fillMaxHeight()
-                                    .background(Color.White.copy(alpha = 0.85f))
+                                    .background(theme.textPrimary.copy(alpha = 0.85f))
                                     .pointerInput(clip.id, zoom) {
                                         detectDragGestures(
                                             onDragStart = {
@@ -1403,7 +1403,7 @@ fun TimelineTrackRow(
                                     .offset(x = (kf.timeMs.toFloat() / 10f * zoom).dp)
                                     .align(Alignment.BottomStart)
                                     .rotate(45f)
-                                    .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.5f))
+                                    .background(if (isSelected) theme.textPrimary else theme.textPrimary.copy(alpha = 0.5f))
                             )
                         }
                     }
@@ -1418,13 +1418,13 @@ fun TimelineTrackRow(
                             .size(14.dp)
                             .offset(x = ((clip.startOffsetMs + clip.durationMs).toFloat() / 10f * zoom - 7f).dp)
                             .clip(CircleShape)
-                            .background(if (nextClip.transitionIn != null) GoldPrimary.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.2f))
-                            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                            .background(if (nextClip.transitionIn != null) PresetPrimary.copy(alpha = 0.45f) else theme.textPrimary.copy(alpha = 0.2f))
+                            .border(1.dp, theme.textPrimary.copy(alpha = 0.4f), CircleShape)
                             .align(Alignment.CenterStart)
                             .clickable { onTransitionClick(nextClip.id) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(8.dp))
+                        Icon(Icons.Default.Add, null, tint = theme.textPrimary, modifier = Modifier.size(8.dp))
                     }
                 }
                 }
@@ -1439,6 +1439,7 @@ fun AnimationWorkspace(
     onTransformChanged: (TransformParams) -> Unit,
     onEditStarted: () -> Unit
 ) {
+    val theme = QabasTheme.current
     var editingControl by remember { mutableStateOf<String?>(null) }
 
     fun beginEdit(control: String) {
@@ -1449,13 +1450,13 @@ fun AnimationWorkspace(
     }
 
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("تحريك وتحويل المقطع", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
-        Text("تُطبّق القيم مباشرة على معاينة المقطع المحدد.", color = Color.Gray, fontFamily = CairoFont, fontSize = 11.sp)
+        Text("تحريك وتحويل المقطع", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text("تُطبّق القيم مباشرة على معاينة المقطع المحدد.", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
         Spacer(modifier = Modifier.height(20.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("الحجم", color = Color.White, fontFamily = CairoFont)
-            Text(String.format("%.2f×", clip.transform.scaleX), color = GoldPrimary, fontFamily = RobotoMonoFont)
+            Text("الحجم", color = theme.textPrimary, fontFamily = CairoFont)
+            Text(String.format("%.2f×", clip.transform.scaleX), color = PresetPrimary, fontFamily = RobotoMonoFont)
         }
         Slider(
             value = clip.transform.scaleX.coerceIn(0.25f, 3f),
@@ -1468,8 +1469,8 @@ fun AnimationWorkspace(
         )
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("الدوران", color = Color.White, fontFamily = CairoFont)
-            Text("${clip.transform.rotation.toInt()}°", color = GoldPrimary, fontFamily = RobotoMonoFont)
+            Text("الدوران", color = theme.textPrimary, fontFamily = CairoFont)
+            Text("${clip.transform.rotation.toInt()}°", color = PresetPrimary, fontFamily = RobotoMonoFont)
         }
         Slider(
             value = clip.transform.rotation.coerceIn(-180f, 180f),
@@ -1482,8 +1483,8 @@ fun AnimationWorkspace(
         )
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("الموضع الأفقي", color = Color.White, fontFamily = CairoFont)
-            Text("${clip.transform.posX.toInt()} px", color = GoldPrimary, fontFamily = RobotoMonoFont)
+            Text("الموضع الأفقي", color = theme.textPrimary, fontFamily = CairoFont)
+            Text("${clip.transform.posX.toInt()} px", color = PresetPrimary, fontFamily = RobotoMonoFont)
         }
         Slider(
             value = clip.transform.posX.coerceIn(-500f, 500f),
@@ -1496,8 +1497,8 @@ fun AnimationWorkspace(
         )
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("الموضع العمودي", color = Color.White, fontFamily = CairoFont)
-            Text("${clip.transform.posY.toInt()} px", color = GoldPrimary, fontFamily = RobotoMonoFont)
+            Text("الموضع العمودي", color = theme.textPrimary, fontFamily = CairoFont)
+            Text("${clip.transform.posY.toInt()} px", color = PresetPrimary, fontFamily = RobotoMonoFont)
         }
         Slider(
             value = clip.transform.posY.coerceIn(-500f, 500f),
@@ -1514,10 +1515,11 @@ fun AnimationWorkspace(
 
 @Composable
 fun AiMagicPanel() {
+    val theme = QabasTheme.current
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
         Text(
             "أدوات الذكاء الاصطناعي",
-            color = Color.White,
+            color = theme.textPrimary,
             fontWeight = FontWeight.Bold,
             fontFamily = CairoFont,
             fontSize = 20.sp
@@ -1525,7 +1527,7 @@ fun AiMagicPanel() {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             "التفريغ الصوتي وإزالة الخلفية وتحسين الصوت غير متاحة في هذا المحرر حالياً؛ لم يتم ربط خدمات تنفيذ فعلية لهذه العمليات.",
-            color = Color.Gray,
+            color = theme.textTertiary,
             fontFamily = CairoFont,
             fontSize = 13.sp
         )
@@ -1535,6 +1537,7 @@ fun AiMagicPanel() {
 
 @Composable
 fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
+    val theme = QabasTheme.current
     val transitions = listOf(
         "Fade In" to Icons.Default.AutoAwesome,
         "Zoom In" to Icons.Default.ZoomIn,
@@ -1542,7 +1545,7 @@ fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
     )
     
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("اختر تأثير الانتقال ✨", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text("اختر تأثير الانتقال ✨", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
         Spacer(modifier = Modifier.height(20.dp))
         
         androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
@@ -1559,9 +1562,9 @@ fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
                         .clickable { onTransitionSelected(name) }
                         .padding(16.dp)
                 ) {
-                    Icon(icon, null, tint = GoldPrimary, modifier = Modifier.size(32.dp))
+                    Icon(icon, null, tint = PresetPrimary, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(name, color = Color.White, fontSize = 10.sp, fontFamily = CairoFont)
+                    Text(name, color = theme.textPrimary, fontSize = 10.sp, fontFamily = CairoFont)
                 }
             }
         }
@@ -1570,6 +1573,7 @@ fun TransitionPicker(onTransitionSelected: (String) -> Unit) {
 
 @Composable
 fun ExportWorkspace(state: EditorProjectState) {
+    val theme = QabasTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedResolution by remember { mutableStateOf("1080p") }
@@ -1589,10 +1593,10 @@ fun ExportWorkspace(state: EditorProjectState) {
         modifier = Modifier.fillMaxWidth().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("التصدير النهائي", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
-        Text("رندر MP4 فعلي عبر FFmpegKit", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+        Text("التصدير النهائي", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text("رندر MP4 فعلي عبر FFmpegKit", color = PresetPrimary, fontSize = 12.sp, fontFamily = CairoFont)
 
-        Text("الدقة", color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
+        Text("الدقة", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("720p", "1080p", "4K عمودي").forEach { option ->
                 FilterChip(
@@ -1604,7 +1608,7 @@ fun ExportWorkspace(state: EditorProjectState) {
             }
         }
 
-        Text("معدل الإطارات", color = Color.White, fontFamily = CairoFont, fontSize = 13.sp)
+        Text("معدل الإطارات", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(24, 30, 60).forEach { option ->
                 FilterChip(
@@ -1617,10 +1621,10 @@ fun ExportWorkspace(state: EditorProjectState) {
         }
 
         validation.error?.let { message ->
-            Text(message, color = Color(0xFFFBBF24), fontSize = 12.sp, fontFamily = CairoFont)
+            Text(message, color = theme.warning, fontSize = 12.sp, fontFamily = CairoFont)
         } ?: Text(
             "المقطع المحدد جاهز للرندر بدقة $selectedResolution وبمعدل $selectedFps إطار/ث.",
-            color = Color.Gray,
+            color = theme.textTertiary,
             fontSize = 12.sp,
             fontFamily = CairoFont
         )
@@ -1636,7 +1640,7 @@ fun ExportWorkspace(state: EditorProjectState) {
                             val file = EditorExportRenderer.render(context, state, width, height, selectedFps)
                             outputPath = file.absolutePath
                             statusMessage = "اكتمل الرندر والتحقق من ملف MP4."
-                        } catch (error: Exception) {
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (error: Exception) {
                             statusMessage = error.message ?: "فشل التصدير"
                         } finally {
                             isExporting = false
@@ -1646,7 +1650,7 @@ fun ExportWorkspace(state: EditorProjectState) {
             },
             enabled = !isExporting && validation.plan != null,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
         ) {
             if (isExporting) {
                 CircularProgressIndicator(
@@ -1678,10 +1682,10 @@ fun ExportWorkspace(state: EditorProjectState) {
         }
 
         statusMessage?.let { message ->
-            Text(message, color = if (outputPath != null) Color(0xFF86EFAC) else Color.White, fontSize = 12.sp, fontFamily = CairoFont)
+            Text(message, color = if (outputPath != null) theme.success else theme.textPrimary, fontSize = 12.sp, fontFamily = CairoFont)
         }
         outputPath?.let { path ->
-            Text("مكان الحفظ: $path", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
+            Text("مكان الحفظ: $path", color = theme.textTertiary, fontSize = 10.sp, fontFamily = CairoFont)
             OutlinedButton(
                 onClick = {
                     runCatching {
@@ -1712,7 +1716,7 @@ fun ExportWorkspace(state: EditorProjectState) {
 
         Text(
             "حدود الإصدار الحالي: مقطع فيديو مرئي واحد وصوته الأصلي. الطبقات المتعددة، النصوص، الانتقالات ومسارات الصوت المنفصلة تُرفض صراحةً حتى يكتمل محرك التركيب والميكس.",
-            color = Color.Gray,
+            color = theme.textTertiary,
             fontSize = 10.sp,
             fontFamily = CairoFont
         )
@@ -1725,21 +1729,22 @@ fun AudioMixerWorkspace(
     onTracksUpdated: (List<EditorTrack>) -> Unit,
     onEditStarted: () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     var editingTrackId by remember { mutableStateOf<String?>(null) }
     val audioTracks = state.tracks.filter { it.type == TrackType.AUDIO || it.type == TrackType.VIDEO }
 
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("ميكسر الصوت الاحترافي (Audio Mixer)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
+        Text("ميكسر الصوت الاحترافي (Audio Mixer)", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 20.sp)
         Text(
             "إعدادات مستوى المسارات والكتم والعزل تُحفظ مع المشروع",
-            color = Color.Gray,
+            color = theme.textTertiary,
             fontSize = 11.sp,
             fontFamily = CairoFont
         )
         Spacer(modifier = Modifier.height(24.dp))
 
         if (audioTracks.isEmpty()) {
-            Text("أضف مسار فيديو أو صوتاً لبدء ضبط مستويات الصوت.", color = Color.Gray, fontFamily = CairoFont)
+            Text("أضف مسار فيديو أو صوتاً لبدء ضبط مستويات الصوت.", color = theme.textTertiary, fontFamily = CairoFont)
         } else {
             audioTracks.forEach { track ->
                 val effectivelyAudible = isEditorTrackIncludedInMix(state, track)
@@ -1749,8 +1754,8 @@ fun AudioMixerWorkspace(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(track.name, color = Color.White, fontFamily = CairoFont)
-                        Text("${(track.volume * 100).toInt()}%", color = GoldPrimary, fontSize = 12.sp)
+                        Text(track.name, color = theme.textPrimary, fontFamily = CairoFont)
+                        Text("${(track.volume * 100).toInt()}%", color = PresetPrimary, fontSize = 12.sp)
                     }
                     Slider(
                         value = track.volume.coerceIn(0f, 1f),
@@ -1766,16 +1771,16 @@ fun AudioMixerWorkspace(
                         onValueChangeFinished = { editingTrackId = null },
                         enabled = !track.isMuted,
                         colors = SliderDefaults.colors(
-                            thumbColor = GoldPrimary,
-                            activeTrackColor = GoldPrimary,
-                            disabledThumbColor = Color.Gray,
-                            disabledActiveTrackColor = Color.Gray
+                            thumbColor = PresetPrimary,
+                            activeTrackColor = PresetPrimary,
+                            disabledThumbColor = theme.textTertiary,
+                            disabledActiveTrackColor = theme.textTertiary
                         )
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Text(
                             if (track.isMuted) "إلغاء الكتم" else "كتم",
-                            color = if (track.isMuted) GoldPrimary else Color.Gray,
+                            color = if (track.isMuted) PresetPrimary else theme.textTertiary,
                             fontSize = 11.sp,
                             modifier = Modifier.clickable {
                                 onEditStarted()
@@ -1786,7 +1791,7 @@ fun AudioMixerWorkspace(
                         )
                         Text(
                             if (track.isSolo) "إلغاء العزل" else "عزل المسار",
-                            color = if (track.isSolo) GoldPrimary else Color.Gray,
+                            color = if (track.isSolo) PresetPrimary else theme.textTertiary,
                             fontSize = 11.sp,
                             modifier = Modifier.clickable {
                                 onEditStarted()
@@ -1797,7 +1802,7 @@ fun AudioMixerWorkspace(
                         )
                         Text(
                             if (effectivelyAudible) "مفعّل ضمن المزيج" else "مستبعد من المزيج",
-                            color = if (effectivelyAudible) Color(0xFF10B981) else Color.Gray,
+                            color = if (effectivelyAudible) theme.success else theme.textTertiary,
                             fontSize = 10.sp
                         )
                     }
@@ -1808,7 +1813,7 @@ fun AudioMixerWorkspace(
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             "تشغيل المسارات الصوتية المتزامنة ومستوياتها يعمل في المعاينة؛ إدراج المزيج داخل ملف MP4 النهائي لم يُربط بعد.",
-            color = Color.Gray,
+            color = theme.textTertiary,
             fontSize = 10.sp,
             fontFamily = CairoFont
         )
@@ -1817,6 +1822,7 @@ fun AudioMixerWorkspace(
 
 @Composable
 fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
+    val theme = QabasTheme.current
     var selectedCategory by remember { mutableStateOf("فيديو") }
     val categories = listOf("فيديو", "صور", "صوت", "مواردي", "خطافات (Hooks)")
     val centralAssets by CentralMediaManager.assets.collectAsState()
@@ -1903,7 +1909,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
     }
     
     Column(modifier = Modifier.fillMaxWidth().height(400.dp).padding(16.dp)) {
-        Text("متصفح الموارد الحقيقية (Asset Library)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+        Text("متصفح الموارد الحقيقية (Asset Library)", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
         
         LazyRow(modifier = Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(categories) { cat ->
@@ -1911,14 +1917,14 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                     selected = selectedCategory == cat,
                     onClick = { selectedCategory = cat },
                     label = { Text(cat, fontFamily = CairoFont, fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = GoldPrimary)
+                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = PresetPrimary)
                 )
             }
         }
         
         if (realAssets.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Text("لا توجد وسائط مضافة حالياً في هذا القسم — يمكنك التوليد أو الرفع المباشر", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("لا توجد وسائط مضافة حالياً في هذا القسم — يمكنك التوليد أو الرفع المباشر", color = theme.textTertiary, fontSize = 12.sp, fontFamily = CairoFont)
             }
         } else {
             // Asset Grid
@@ -1934,7 +1940,7 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(ThemeSeparator)
-                            .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                            .border(1.dp, theme.textPrimary.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
                             .clickable { onAssetSelected(asset) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1946,11 +1952,11 @@ fun MediaAssetBrowser(onAssetSelected: (MediaAsset) -> Unit) {
                                     else -> Icons.Default.Image
                                 }, 
                                 null, 
-                                tint = GoldPrimary.copy(alpha = 0.7f)
+                                tint = PresetPrimary.copy(alpha = 0.7f)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(asset.title, color = Color.White, fontSize = 10.sp, fontFamily = CairoFont, textAlign = TextAlign.Center, maxLines = 1)
-                            Text(if (asset.durationSeconds > 0) "${asset.durationSeconds}s" else "تُقرأ عند الإضافة", color = Color.Gray, fontSize = 8.sp, fontFamily = NotoSansFont)
+                            Text(asset.title, color = theme.textPrimary, fontSize = 10.sp, fontFamily = CairoFont, textAlign = TextAlign.Center, maxLines = 1)
+                            Text(if (asset.durationSeconds > 0) "${asset.durationSeconds}s" else "تُقرأ عند الإضافة", color = theme.textTertiary, fontSize = 8.sp, fontFamily = NotoSansFont)
                         }
                     }
                 }
@@ -1974,6 +1980,7 @@ fun AdjustPanel(
     onDuplicate: () -> Unit = {},
     onDismiss: () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     var selectedTab by remember { mutableStateOf("الألوان") }
     var historyCaptured by remember { mutableStateOf(false) }
     fun beginEdit() {
@@ -1992,12 +1999,12 @@ fun AdjustPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("مفتش الخصائص (Inspector)", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 18.sp)
+            Text("مفتش الخصائص (Inspector)", color = theme.textPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont, fontSize = 18.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("الألوان", "التحويل", "المزج").forEach { tab ->
                     Text(
                         tab,
-                        color = if (selectedTab == tab) GoldPrimary else Color.Gray,
+                        color = if (selectedTab == tab) PresetPrimary else theme.textTertiary,
                         modifier = Modifier.clickable { selectedTab = tab },
                         fontSize = 12.sp,
                         fontFamily = CairoFont
@@ -2011,7 +2018,7 @@ fun AdjustPanel(
             "الألوان" -> {
                 Text(
                     "تُحفظ إعدادات اللون ضمن المشروع وتُطبّق عند تصدير المقطع الواحد؛ المعاينة الحية لا تعرض تأثيرها قبل الرندر.",
-                    color = Color(0xFFFBBF24),
+                    color = theme.warning,
                     fontSize = 11.sp,
                     fontFamily = CairoFont
                 )
@@ -2021,7 +2028,7 @@ fun AdjustPanel(
                 AdjustSlider("الحدة (Sharpness)", filters.sharpness, 0f..1f, onValueChange = { onFiltersChanged(filters.copy(sharpness = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
             }
             "التحويل" -> {
-                Text("الأبعاد والموقع (Desktop Precision)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("الأبعاد والموقع (Desktop Precision)", color = PresetPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 Spacer(modifier = Modifier.height(12.dp))
                 AdjustSlider("الحجم الأفقي", transform.scaleX, 0.1f..3f, onValueChange = { onTransformChanged(transform.copy(scaleX = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
                 AdjustSlider("الحجم العمودي", transform.scaleY, 0.1f..3f, onValueChange = { onTransformChanged(transform.copy(scaleY = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
@@ -2030,15 +2037,15 @@ fun AdjustPanel(
                 AdjustSlider("الموضع العمودي", transform.posY, -500f..500f, onValueChange = { onTransformChanged(transform.copy(posY = it)) }, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("السرعة (Speed)", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("السرعة (Speed)", color = PresetPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 AdjustSlider("سرعة المقطع", speed, 0.1f..5f, onValueChange = onSpeedChanged, onEditStarted = ::beginEdit, onEditFinished = ::finishEdit)
             }
             "المزج" -> {
-                Text("أنماط المزج", color = GoldPrimary, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("أنماط المزج", color = PresetPrimary, fontSize = 12.sp, fontFamily = CairoFont)
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     "لم يتم ربط محرك تركيب الطبقات بأنماط المزج بعد؛ لذلك لا توجد اختيارات شكلية توحي بتأثير غير مطبق.",
-                    color = Color(0xFFFBBF24),
+                    color = theme.warning,
                     fontSize = 12.sp,
                     fontFamily = CairoFont
                 )
@@ -2047,12 +2054,12 @@ fun AdjustPanel(
         
         // Volume & Transitions Section (New)
         Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+        HorizontalDivider(color = theme.textPrimary.copy(alpha = 0.1f))
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("مستوى الصوت", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("مستوى الصوت", color = theme.textTertiary, fontSize = 12.sp, fontFamily = CairoFont)
                 Slider(
                     value = volume.coerceIn(0f, 1f),
                     onValueChange = {
@@ -2060,14 +2067,14 @@ fun AdjustPanel(
                         onVolumeChanged(it)
                     },
                     onValueChangeFinished = ::finishEdit,
-                    colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                    colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("الانتقال (Transition)", color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("الانتقال (Transition)", color = theme.textTertiary, fontSize = 12.sp, fontFamily = CairoFont)
                 Text(
                     "استخدم علامة + بين مقطعين لتعيين انتقال دخول للمعاينة.",
-                    color = Color.Gray,
+                    color = theme.textTertiary,
                     fontSize = 10.sp,
                     fontFamily = CairoFont,
                     modifier = Modifier.padding(top = 8.dp)
@@ -2084,13 +2091,13 @@ fun AdjustPanel(
             ) {
                 Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("تكرار", color = Color.White, fontFamily = CairoFont)
+                Text("تكرار", color = theme.textPrimary, fontFamily = CairoFont)
             }
             
             Button(
                 onClick = onDelete,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.2f), contentColor = Color(0xFFEF4444))
+                colors = ButtonDefaults.buttonColors(containerColor = theme.destructive.copy(alpha = 0.2f), contentColor = theme.destructive)
             ) {
                 Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
@@ -2102,7 +2109,7 @@ fun AdjustPanel(
         Button(
             onClick = onDismiss,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
         ) {
             Text("حفظ التعديلات الاحترافية", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
         }
@@ -2118,10 +2125,11 @@ fun AdjustSlider(
     onEditStarted: () -> Unit = {},
     onEditFinished: () -> Unit = {}
 ) {
+    val theme = QabasTheme.current
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, color = Color.Gray, fontSize = 12.sp, fontFamily = CairoFont)
-            Text(String.format("%.2f", value), color = GoldPrimary, fontSize = 12.sp, fontFamily = RobotoMonoFont)
+            Text(label, color = theme.textTertiary, fontSize = 12.sp, fontFamily = CairoFont)
+            Text(String.format("%.2f", value), color = PresetPrimary, fontSize = 12.sp, fontFamily = RobotoMonoFont)
         }
         Slider(
             value = value.coerceIn(range.start, range.endInclusive),
@@ -2131,13 +2139,14 @@ fun AdjustSlider(
             },
             onValueChangeFinished = onEditFinished,
             valueRange = range,
-            colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+            colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
         )
     }
 }
 
 @Composable
 fun ToolButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
+    val theme = QabasTheme.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -2148,13 +2157,13 @@ fun ToolButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: B
         Icon(
             icon, 
             null, 
-            tint = if (enabled) Color.White else Color.White.copy(alpha = 0.2f), 
+            tint = if (enabled) theme.textPrimary else theme.textPrimary.copy(alpha = 0.2f),
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             label, 
-            color = if (enabled) Color.Gray else Color.Gray.copy(alpha = 0.3f), 
+            color = if (enabled) theme.textTertiary else theme.textTertiary.copy(alpha = 0.3f),
             fontSize = 10.sp, 
             fontFamily = CairoFont
         )
