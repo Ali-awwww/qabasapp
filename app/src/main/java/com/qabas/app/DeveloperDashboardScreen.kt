@@ -1995,6 +1995,10 @@ fun WeeklyEngagementTrendsChart(context: Context) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // ألوان السمة تُقرأ هنا (سياق @Composable)؛ فـ DrawScope داخل Canvas لا يقبل استدعاء @Composable.
+            val chartSeparatorColor = QabasTheme.current.separator
+            val chartBackgroundColor = QabasTheme.current.background
+
             // Canvas Chart
             Box(
                 modifier = Modifier
@@ -2010,7 +2014,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
                     for (i in 0..steps) {
                         val y = (maxBarHeight / steps) * i
                         drawLine(
-                            color = QabasTheme.current.separator.copy(alpha = 0.5f),
+                            color = chartSeparatorColor.copy(alpha = 0.5f),
                             start = androidx.compose.ui.geometry.Offset(0f, y),
                             end = androidx.compose.ui.geometry.Offset(size.width, y),
                             strokeWidth = 1f,
@@ -2027,7 +2031,7 @@ fun WeeklyEngagementTrendsChart(context: Context) {
 
                         // Background pillar
                         drawRoundRect(
-                            color = QabasTheme.current.background,
+                            color = chartBackgroundColor,
                             topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
                             size = androidx.compose.ui.geometry.Size(barWidth, maxBarHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
@@ -2395,6 +2399,11 @@ fun ApiConsumptionChart(context: Context) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ألوان السمة تُقرأ هنا (سياق @Composable)؛ فـ DrawScope داخل Canvas لا يقبل استدعاء @Composable.
+            val apiChartSeparatorColor = QabasTheme.current.separator
+            val apiChartBackgroundColor = QabasTheme.current.background
+            val apiChartSuccessColor = QabasTheme.current.success
+
             // Bar Chart
             Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -2405,7 +2414,7 @@ fun ApiConsumptionChart(context: Context) {
                     for (i in 0..steps) {
                         val y = (maxBarHeight / steps) * i
                         drawLine(
-                            color = QabasTheme.current.separator,
+                            color = apiChartSeparatorColor,
                             start = androidx.compose.ui.geometry.Offset(0f, y),
                             end = androidx.compose.ui.geometry.Offset(size.width, y),
                             strokeWidth = 1f,
@@ -2421,12 +2430,12 @@ fun ApiConsumptionChart(context: Context) {
                         val yOffset = maxBarHeight - targetHeight
 
                         drawRoundRect(
-                            color = QabasTheme.current.background,
+                            color = apiChartBackgroundColor,
                             topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
                             size = androidx.compose.ui.geometry.Size(barWidth, maxBarHeight),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
                         )
-                        val barColor = if (calls > 0) QabasTheme.current.success else QabasTheme.current.separator
+                        val barColor = if (calls > 0) apiChartSuccessColor else apiChartSeparatorColor
                         drawRoundRect(
                             brush = Brush.verticalGradient(listOf(barColor.copy(alpha = 0.8f), barColor.copy(alpha = 0.3f))),
                             topLeft = androidx.compose.ui.geometry.Offset(x, yOffset),

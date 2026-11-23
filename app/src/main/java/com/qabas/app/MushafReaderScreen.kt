@@ -288,7 +288,7 @@ fun MushafReaderScreen(
             }
             return
         }
-        val page = currentPage
+        val page = currentPage ?: return
         audioMessage = null
         isLoadingAudio = true
         audioScope.launch {
