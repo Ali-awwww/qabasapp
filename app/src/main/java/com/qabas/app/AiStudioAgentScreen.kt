@@ -302,6 +302,71 @@ fun AiStudioAgentScreen(
     val agentHasKey = keyResolution.third != KeySource.NONE
     val agentHasRepoWithPat = activeRepo != null && activeRepo.token.isNotBlank()
 
+    fun handleApprovePlan(planCard: AgentPlanCardData) {
+        val curId = AgentChatSessionManager.activeSessionId.value ?: return
+        val currentActive = AgentPrefs.activePlanningTasksCount(context)
+        AgentPrefs.putActivePlanningTasksCount(context, (currentActive - 1).coerceAtLeast(0))
+
+        Toast.makeText(context, "🚀 تم اعتماد الخطة! جاري البدء بالتنفيذ المباشر...", Toast.LENGTH_SHORT).show()
+        val sysMsg = AgentChatMessage(
+            sender = AgentChatSender.TOOL_SYSTEM,
+            text = "تم اعتماد خطة العمل بنجاح لـ: \"${planCard.prompt}\". جاري البدء بتطبيق التعديلات البرمجية..."
+        )
+        chatMessages.add(sysMsg)
+        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+
+        isThinking = true
+        isRunning = true
+        isPaused = false
+
+        // (المرحلة 3) إعادة كشف التخصص من نص الخطة المعتمدة.
+        detectedSpec = detectSpecialization(planCard.prompt)
+        // (المرحلة 4) اختيار نوع النموذج للخطة المعتمدة.
+        val sendModel = chooseModelForSend(planCard.prompt)
+
+        val job = coroutineScope.launch(Dispatchers.IO) {
+            var finalMissionResult: AgentMissionSession? = null
+            var missionFailure: String? = null
+            try {
+                executeAgentMission(
+                    context = context,
+                    prompt = planCard.prompt,
+                    spec = detectedSpec,
+                    repo = activeRepo,
+                    // ق93: الملاذ نموذج المزود النشط لا Gemini ثابتاً (كما في مسار الإرسال).
+                    selectedModel = sendModel,
+                    // السجل السابق لملاحظة الاعتماد (أُضيفت للتو فتُستثنى).
+                    history = chatMessages.dropLast(1).toList(),
+                    onUpdate = { currentMission = it },
+                    onFinished = { finalMissionResult = it; currentMission = it }
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                missionFailure = e.message
+                Log.e(TAG, "Plan execution error: ${e.message}")
+            }
+            withContext(Dispatchers.Main) {
+                val reportText = finalMissionResult?.finalReport?.takeIf { it.isNotBlank() }
+                    ?: missionFailure?.let { "تعذر تنفيذ الخطة المعتمدة: $it" }
+                    ?: "انتهى مسار الخطة دون تقرير نهائي؛ لم يتم تأكيد نجاح التنفيذ."
+                val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
+                    FileDiff(filePath = d.filePath, additions = d.additions, deletions = d.deletions, diffText = d.diffText)
+                }
+                val agentMsg = AgentChatMessage(
+                    sender = if (finalMissionResult?.status == AgentTaskStatus.COMPLETED) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
+                    text = reportText,
+                    diff = diff
+                )
+                chatMessages.add(agentMsg)
+                AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
+                isThinking = false
+                isRunning = false
+                isPaused = false
+                executionJob = null
+            }
+        }
+        executionJob = job
+    }
+
     fun handleSendMessage(text: String) {
         val clean = text.trim()
         if (clean.isBlank()) return
@@ -518,70 +583,6 @@ fun AiStudioAgentScreen(
         executionJob = job
     }
 
-    fun handleApprovePlan(planCard: AgentPlanCardData) {
-        val curId = AgentChatSessionManager.activeSessionId.value ?: return
-        val currentActive = AgentPrefs.activePlanningTasksCount(context)
-        AgentPrefs.putActivePlanningTasksCount(context, (currentActive - 1).coerceAtLeast(0))
-
-        Toast.makeText(context, "🚀 تم اعتماد الخطة! جاري البدء بالتنفيذ المباشر...", Toast.LENGTH_SHORT).show()
-        val sysMsg = AgentChatMessage(
-            sender = AgentChatSender.TOOL_SYSTEM,
-            text = "تم اعتماد خطة العمل بنجاح لـ: \"${planCard.prompt}\". جاري البدء بتطبيق التعديلات البرمجية..."
-        )
-        chatMessages.add(sysMsg)
-        AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
-
-        isThinking = true
-        isRunning = true
-        isPaused = false
-
-        // (المرحلة 3) إعادة كشف التخصص من نص الخطة المعتمدة.
-        detectedSpec = detectSpecialization(planCard.prompt)
-        // (المرحلة 4) اختيار نوع النموذج للخطة المعتمدة.
-        val sendModel = chooseModelForSend(planCard.prompt)
-
-        val job = coroutineScope.launch(Dispatchers.IO) {
-            var finalMissionResult: AgentMissionSession? = null
-            var missionFailure: String? = null
-            try {
-                executeAgentMission(
-                    context = context,
-                    prompt = planCard.prompt,
-                    spec = detectedSpec,
-                    repo = activeRepo,
-                    // ق93: الملاذ نموذج المزود النشط لا Gemini ثابتاً (كما في مسار الإرسال).
-                    selectedModel = sendModel,
-                    // السجل السابق لملاحظة الاعتماد (أُضيفت للتو فتُستثنى).
-                    history = chatMessages.dropLast(1).toList(),
-                    onUpdate = { currentMission = it },
-                    onFinished = { finalMissionResult = it; currentMission = it }
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-                missionFailure = e.message
-                Log.e(TAG, "Plan execution error: ${e.message}")
-            }
-            withContext(Dispatchers.Main) {
-                val reportText = finalMissionResult?.finalReport?.takeIf { it.isNotBlank() }
-                    ?: missionFailure?.let { "تعذر تنفيذ الخطة المعتمدة: $it" }
-                    ?: "انتهى مسار الخطة دون تقرير نهائي؛ لم يتم تأكيد نجاح التنفيذ."
-                val diff = finalMissionResult?.proposedDiffs?.firstOrNull()?.let { d ->
-                    FileDiff(filePath = d.filePath, additions = d.additions, deletions = d.deletions, diffText = d.diffText)
-                }
-                val agentMsg = AgentChatMessage(
-                    sender = if (finalMissionResult?.status == AgentTaskStatus.COMPLETED) AgentChatSender.AGENT else AgentChatSender.TOOL_SYSTEM,
-                    text = reportText,
-                    diff = diff
-                )
-                chatMessages.add(agentMsg)
-                AgentChatSessionManager.saveSessionMessages(context, curId, chatMessages.toList())
-                isThinking = false
-                isRunning = false
-                isPaused = false
-                executionJob = null
-            }
-        }
-        executionJob = job
-    }
 
     Scaffold(
         bottomBar = bottomBar,
@@ -720,7 +721,6 @@ fun AiStudioAgentScreen(
                         }
                     }
                 }
-            }
         }
     ) { innerPadding ->
             // شاشة المحادثة الأساسية والمباشرة مع اللوحة الجانبية الجزئية
@@ -1283,7 +1283,6 @@ fun AiStudioAgentScreen(
                     }
                 }
             }
-        }
     }
 
     if (showRequirementDialog) {

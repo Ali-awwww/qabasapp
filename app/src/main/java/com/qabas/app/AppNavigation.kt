@@ -320,6 +320,11 @@ fun AppNavigation(
     }
 
     when (appState) {
+        // DATA_LOADING بلا شاشة عمداً — التهيئة صامتة في LaunchedEffect أعلاه
+        // وتنتقل مباشرة عند اكتمالها؛ الفرع فارغ لإكمال when الشامل فقط.
+        AppState.DATA_LOADING -> {
+            // لا شاشة — التهيئة صامتة في LaunchedEffect أعلاه وتنتقل مباشرة.
+        }
         AppState.ONBOARDING -> {
             OnboardingScreen(
                 onFinish = {

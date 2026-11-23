@@ -692,6 +692,10 @@ fun SettingsScreen(
                                                     AppSoundManager.playClick()
                                                     AppNavigator.navigateTo(AppState.REQUEST_CHAT)
                                                 }
+                                                SettingsItemAction.OpenKeysAndModels -> {
+                                                    AppSoundManager.playClick()
+                                                    AppNavigator.navigateTo(AppState.MY_KEYS)
+                                                }
                                                 is SettingsItemAction.OpenSubScreen -> {
                                                     currentSubScreen = action.screen
                                                 }
