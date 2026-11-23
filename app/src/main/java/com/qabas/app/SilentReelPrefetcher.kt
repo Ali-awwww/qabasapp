@@ -1,6 +1,8 @@
 package com.qabas.app
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import com.qabas.app.SupabaseServices.ReelRow
 import kotlinx.coroutines.*
@@ -73,10 +75,11 @@ object SilentReelPrefetcher {
         }
     }
 
-    /** إجبار المزامنة الآن من النطاق نفسه ومن دون تداخل تنزيلين. */
+    /** إجبار المزامنة الآن من النطاق نفسه ومن دون تداخل تنزيلين.
+     * إجراء صريح من المطوّر/المستخدم فيتخطى بوابة توفير البيانات. */
     fun forceSync(context: Context) {
         val appContext = context.applicationContext
-        appScope.launch { performSync(appContext) }
+        appScope.launch { performSync(appContext, allowCellular = true) }
     }
 
     private fun updateIdleState(context: Context, message: String) {
@@ -88,11 +91,18 @@ object SilentReelPrefetcher {
         )
     }
 
-    private suspend fun performSync(context: Context) = syncMutex.withLock {
-        performSyncLocked(context)
+    private suspend fun performSync(context: Context, allowCellular: Boolean = false) = syncMutex.withLock {
+        performSyncLocked(context, allowCellular)
     }
 
-    private suspend fun performSyncLocked(context: Context) {
+    private fun isWifiConnected(context: Context): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private suspend fun performSyncLocked(context: Context, allowCellular: Boolean = false) {
         if (!ReelPreferencesManager.alAtharEnabled.value) {
             updateIdleState(context, "ميزة الأثر معطّلة")
             return
@@ -102,6 +112,17 @@ object SilentReelPrefetcher {
             UserPreferencesManager.networkStatus.value != ConnectivityObserver.Status.Available
         ) {
             updateIdleState(context, "غير متصل؛ ستُستخدم المقاطع المحفوظة محلياً")
+            return
+        }
+
+        // review-r12: مفتاحا توفير البيانات كانا بلا أي مستهلِك — المزامنة
+        // التلقائية كانت تنزّل مقاطع الأثر على البيانات الخلوية رغم تفعيله.
+        // الآن: المزامنة التلقائية تتوقف على الخلوي عند تفعيل التوفير، وتُستأنف
+        // على Wi-Fi؛ أما المزامنة الصريحة (forceSync) فتمضي كما طلب المستخدم.
+        val dataSaverOn = UserPreferencesManager.dataSaverMode.value ||
+            ReelPreferencesManager.dataSaver.value
+        if (dataSaverOn && !allowCellular && !isWifiConnected(context)) {
+            updateIdleState(context, "وضع توفير البيانات مفعّل — تُستأنف مزامنة الأثر على Wi-Fi")
             return
         }
 

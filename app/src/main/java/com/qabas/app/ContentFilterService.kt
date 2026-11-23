@@ -171,7 +171,7 @@ object ContentFilterService {
 
             val response = AppServices.chatWithAssistant(listOf(Pair(true, prompt)))
             parseAiInspection(response, text, quickResult)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             quickResult
         }
     }

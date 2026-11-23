@@ -205,24 +205,24 @@ fun SpatialServiceDiagnosticsHub(
                         "github" -> KeyVault.effective("github_token").isNotBlank() || GitHubAuthManager.isConfigured()
                         "azure" -> runCatching {
                             ApiKeyValidator.validateKey(context, "azure", KeyVault.azureSpeechKey, KeyVault.azureSpeechRegion).isValid
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         "flux" -> runCatching {
                             ApiKeyValidator.validateKey(context, "huggingface", KeyVault.huggingface).isValid
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         "broll" -> runCatching {
                             val type = if (KeyVault.pexels.isNotBlank()) "pexels" else "pixabay"
                             val key = if (type == "pexels") KeyVault.pexels else KeyVault.pixabay
                             ApiKeyValidator.validateKey(context, type, key).isValid
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         "gemini" -> runCatching {
                             ApiKeyValidator.validateKey(context, "gemini", KeyVault.gemini).isValid
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         "groq" -> runCatching {
                             ApiKeyValidator.validateKey(context, "groq", KeyVault.groq).isValid
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         "openrouter" -> runCatching {
                             ApiKeyValidator.validateKey(context, "openrouter", KeyVault.openrouter).isValid
-                        }.getOrDefault(false)
+                        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
                         else -> false
                     }
                 } else {
@@ -258,7 +258,7 @@ fun SpatialServiceDiagnosticsHub(
                     }
                 }
                 ApiUsageTracker.snapshot(context)
-            } catch (_: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
 
             withContext(Dispatchers.Main) {
                 isOptimizing = false

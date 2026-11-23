@@ -74,10 +74,6 @@ class ScholarPreferences(private val context: Context) {
         return all.distinctBy { it.id }.sortedByDescending { it.addedAtMillis }
     }
 
-    fun getLecturesForScholar(scholarId: String): List<ScholarLecture> {
-        return getOfficialLectures(scholarId)
-    }
-
     fun getLectureCountForScholar(scholarId: String): Int {
         return getOfficialLectures(scholarId).size
     }
@@ -165,7 +161,7 @@ class ScholarPreferences(private val context: Context) {
                 }
                 saveDeveloperAddedLectures(current)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             e.printStackTrace()
         }
         return getOfficialLectures(scholarId)
@@ -373,7 +369,7 @@ class ScholarPreferences(private val context: Context) {
                 }
                 saveProposals(current)
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             e.printStackTrace()
         }
         return getUserProposals(scholarId)

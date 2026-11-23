@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,7 +27,6 @@ import com.qabas.app.ui.components.AppleSegmentedControl
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
-import com.qabas.app.ui.theme.RobotoMonoFont
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -177,10 +174,13 @@ fun ReelSettingsSheet(
             AppleGroupedSection(header = "الشبكة والتخزين") {
                 ReelSettingSwitchRow(
                     title = "وضع توفير البيانات (Data Saver)",
-                    subtitle = "تقليل استهلاك البيانات وجودة البث عند استخدام الشبكة الخلوية",
+                    subtitle = "إيقاف التحميل المسبق لمقاطع «الأثر» على البيانات الخلوية",
                     checked = dataSaver,
                     onCheckedChange = {
                         ReelPreferencesManager.setDataSaver(context, it)
+                        // review-r12: يبقى مفتاحا التوفير (هنا + الإعدادات العامة)
+                        // متفقين — كل منهما يكتب الآخر.
+                        UserPreferencesManager.setDataSaverMode(context, it)
                         ReelPreferencesManager.triggerHaptic(context)
                     }
                 )

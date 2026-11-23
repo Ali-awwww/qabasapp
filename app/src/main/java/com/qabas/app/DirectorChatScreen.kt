@@ -150,9 +150,9 @@ fun DirectorChatScreen(
             أخرج JSON فقط: {"idea":"الفكرة المدمجة الغنية","contentType":"...","contentTone":"...","videoDuration":"...","selectedRatio":"...","reply":"..."}.
             القيم الفارغة null. النسبة الافتراضية 9:16. reply بالعربية الفصيحة المبسطة، جملتان كحد أقصى.
         """.trimIndent()
-        val raw = try { RealGroqService.chatOrGenerate(extractPrompt) } catch (_: Exception) { null }
-            ?: try { RealOpenAIService.chatOrGenerate(extractPrompt) } catch (_: Exception) { null }
-            ?: try { geminiChat(context, extractPrompt) } catch (_: Exception) { null }
+        val raw = try { RealGroqService.chatOrGenerate(extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+            ?: try { RealOpenAIService.chatOrGenerate(extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+            ?: try { geminiChat(context, extractPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         if (raw.isNullOrBlank() || !raw.contains("{")) return@withContext b to ""
         try {
             val json = JSONObject(raw.substring(raw.indexOf("{"), raw.lastIndexOf("}") + 1))
@@ -198,7 +198,7 @@ fun DirectorChatScreen(
             brief = nb
             messages = messages + DirectorMsg(true, reply)
             thinking = false
-            try { listState.animateScrollToItem(messages.size) } catch (_: Exception) {}
+            try { listState.animateScrollToItem(messages.size) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
             // معاينة حية: ابنِ العلاج السينمائي أمام عين المستخدم بعد كل دور
             if (nb.idea.length >= 10) {
                 buildingTreatment = true
@@ -213,9 +213,9 @@ fun DirectorChatScreen(
                     الخاتمة: الدعوة.
                     بلا مقدمات.
                 """.trimIndent()
-                val t = try { RealGroqService.chatOrGenerate(tPrompt) } catch (_: Exception) { null }
-                    ?: try { RealOpenAIService.chatOrGenerate(tPrompt) } catch (_: Exception) { null }
-                    ?: try { geminiChat(context, tPrompt) } catch (_: Exception) { null }
+                val t = try { RealGroqService.chatOrGenerate(tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                    ?: try { RealOpenAIService.chatOrGenerate(tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                    ?: try { geminiChat(context, tPrompt) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                 if (!t.isNullOrBlank()) treatment = t.take(900)
                 else if (treatment.isBlank()) treatment = "الخطاف: «${nb.idea.take(50)}…»\nالمشهد 1: صوت يطرح السؤال + صورة سماء واسعة\nالمشهد 2: صوت يعمّق المعنى + صورة نور يخترق غيوماً\nالمشهد 3: صوت الذروة + صورة مسجد وقت الغروب\nالخاتمة: دعوة للمشاركة والنشر"
                 buildingTreatment = false
@@ -229,7 +229,7 @@ fun DirectorChatScreen(
             TopAppBar(
                 title = { 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("غرفة المخرج", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text("غرفة المخرج", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                         Spacer(modifier = Modifier.width(10.dp))
                         com.qabas.app.ui.components.ModelIndicator()
                     }
@@ -269,15 +269,15 @@ fun DirectorChatScreen(
                         shape = RoundedCornerShape(14.dp),
                         maxLines = 3,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B),
-                            focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = GoldPrimary
+                            focusedBorderColor = PresetPrimary, unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = PresetPrimary
                         )
                     )
                     Spacer(Modifier.width(8.dp))
                     IconButton(
                         onClick = { send(input) },
                         modifier = Modifier.size(48.dp).background(
-                            Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary)), CircleShape
+                            Brush.horizontalGradient(listOf(PresetAccent, PresetPrimary)), CircleShape
                         )
                     ) {
                         if (thinking) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = DeepSlate, strokeWidth = 2.dp)
@@ -305,17 +305,17 @@ fun DirectorChatScreen(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
                     shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
                 ) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("موجز المشروع — يُبنى حياً", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("موجز المشروع — يُبنى حياً", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         BriefRow("الفكرة", brief.idea.take(80).ifBlank { "—" })
                         BriefRow("النوع", brief.contentType.ifBlank { "—" })
                         BriefRow("النبرة", brief.contentTone.ifBlank { "—" })
                         BriefRow("المدة", brief.videoDuration.ifBlank { "—" })
                         if (buildingTreatment) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = GoldPrimary)
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = PresetPrimary)
                                 Spacer(Modifier.width(6.dp))
                                 Text("المخرج يبني المشاهد حياً…", color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                             }
@@ -345,7 +345,7 @@ fun DirectorChatScreen(
                     Box(
                         modifier = Modifier.widthIn(max = 280.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (m.fromDirector) Color(0xFF151B2B) else GoldPrimary.copy(alpha = 0.9f))
+                            .background(if (m.fromDirector) Color(0xFF151B2B) else PresetPrimary.copy(alpha = 0.9f))
                             .padding(horizontal = 12.dp, vertical = 9.dp)
                     ) {
                         Text(
@@ -365,7 +365,7 @@ private suspend fun geminiChat(context: android.content.Context, prompt: String)
         try {
             val fbText = FirebaseAiService.generateText(prompt)
             if (fbText.isNotBlank()) return@withContext fbText
-        } catch (_: Exception) { }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
 
         val key = KeyVault.gemini
         if (key.isBlank()) return@withContext null
@@ -386,7 +386,7 @@ private suspend fun geminiChat(context: android.content.Context, prompt: String)
             json.optJSONArray("candidates")?.optJSONObject(0)
                 ?.optJSONObject("content")?.optJSONArray("parts")
                 ?.optJSONObject(0)?.optString("text")
-        } catch (_: Exception) { null }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
     }
 
 @Composable

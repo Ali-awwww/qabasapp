@@ -24,7 +24,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import com.qabas.app.ui.theme.DeepSlate
+import com.qabas.app.ui.theme.TextPrimary
+import com.qabas.app.ui.theme.TextSecondary
+import com.qabas.app.ui.theme.ThemeSecondarySurface
+import com.qabas.app.ui.theme.ThemeSuccess
+import com.qabas.app.ui.theme.ThemeWarning
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -223,7 +228,7 @@ object DevAlertsRepository {
         val hourAgo = now - 3_600_000L
         val dayAgo = now - 86_400_000L
 
-        val gatewayOk = runCatching { SupabaseServices.Database.ping() }.getOrDefault(false)
+        val gatewayOk = runCatching { SupabaseServices.Database.ping() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(false)
         val prevEvaluations = readEvaluations(context)
         val consecutiveFailures = if (!gatewayOk) {
             (prevEvaluations.firstOrNull()?.consecutiveGatewayFailures ?: 0) + 1
@@ -234,7 +239,7 @@ object DevAlertsRepository {
                 val ts = report.createdAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
                 ts in hourAgo..now
             }
-        }.getOrDefault(0)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0)
 
         val (signupsLastHour, baselinePerHour) = runCatching {
             val createdAts = SupabaseServices.Database.getAllUsers().mapNotNull { row ->
@@ -243,7 +248,7 @@ object DevAlertsRepository {
             val lastHour = createdAts.count { it in hourAgo..now }
             val lastDay = createdAts.count { it in dayAgo..now }
             lastHour to (lastDay / 24.0)
-        }.getOrDefault(0 to 0.0)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0 to 0.0)
 
         val inputs = DevAlertInputs(
             crashedSessionsLastHour = crashedLastHour,
@@ -341,8 +346,8 @@ fun DevAlertsScreen(onBack: () -> Unit = {}) {
 
     if (!AdminGuard.isDashboardAccessAllowed(context)) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
-            Text("التنبيهات مقفلة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-            Text("هذه الصفحة للمطورين المعتمدين فقط (رتبة سحابية).", color = Color(0xFF94A3B8))
+            Text("التنبيهات مقفلة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
+            Text("هذه الصفحة للمطورين المعتمدين فقط (رتبة سحابية).", color = TextSecondary)
         }
         return
     }
@@ -353,21 +358,21 @@ fun DevAlertsScreen(onBack: () -> Unit = {}) {
     ) {
         item {
             TextButton(onClick = onBack) { Text("← رجوع") }
-            Text("تنبيهات المطور", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Color.White)
+            Text("تنبيهات المطور", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextPrimary)
             Text(
                 "التوصيل داخل التطبيق فقط — لا يوجد مسار دفع أو بريد للمطور في التطبيق اليوم.",
-                color = Color(0xFF94A3B8), fontSize = 12.sp
+                color = TextSecondary, fontSize = 12.sp
             )
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+            Card(colors = CardDefaults.cardColors(containerColor = DeepSlate)) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("الحدود الحالية (تُعدَّل من ثوابت DevAlertThresholds في الكود)", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("الحدود الحالية (تُعدَّل من ثوابت DevAlertThresholds في الكود)", color = TextPrimary, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    Text("• قفزة أعطال: جلسات خالية < ${DevAlertThresholds.MIN_CRASH_FREE_RATE_PERCENT}% في ساعة (بحد أدنى ${DevAlertThresholds.MIN_SESSIONS_FOR_CRASH_ALERT} جلسة)", color = Color(0xFFCBD5E1), fontSize = 12.sp)
-                    Text("• فشل مفتاح API: أي مفتاح يفشل فحصه الحي", color = Color(0xFFCBD5E1), fontSize = 12.sp)
-                    Text("• خطأ بوابة: فشل ping (حرج عند ${DevAlertThresholds.GATEWAY_CONSECUTIVE_FAILURES_FOR_CRITICAL} فشل متتالٍ)", color = Color(0xFFCBD5E1), fontSize = 12.sp)
-                    Text("• موجة تسجيلات: > ${DevAlertThresholds.SIGNUP_SURGE_MULTIPLIER}× متوسط الساعة + بحد أدنى ${DevAlertThresholds.SIGNUP_SURGE_MIN_NEW_SIGNUPS} تسجيلات/ساعة", color = Color(0xFFCBD5E1), fontSize = 12.sp)
+                    Text("• قفزة أعطال: جلسات خالية < ${DevAlertThresholds.MIN_CRASH_FREE_RATE_PERCENT}% في ساعة (بحد أدنى ${DevAlertThresholds.MIN_SESSIONS_FOR_CRASH_ALERT} جلسة)", color = TextPrimary, fontSize = 12.sp)
+                    Text("• فشل مفتاح API: أي مفتاح يفشل فحصه الحي", color = TextPrimary, fontSize = 12.sp)
+                    Text("• خطأ بوابة: فشل ping (حرج عند ${DevAlertThresholds.GATEWAY_CONSECUTIVE_FAILURES_FOR_CRITICAL} فشل متتالٍ)", color = TextPrimary, fontSize = 12.sp)
+                    Text("• موجة تسجيلات: > ${DevAlertThresholds.SIGNUP_SURGE_MULTIPLIER}× متوسط الساعة + بحد أدنى ${DevAlertThresholds.SIGNUP_SURGE_MIN_NEW_SIGNUPS} تسجيلات/ساعة", color = TextPrimary, fontSize = 12.sp)
                 }
             }
         }
@@ -387,32 +392,32 @@ fun DevAlertsScreen(onBack: () -> Unit = {}) {
         }
         lastEvaluation?.let { evaluation ->
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+                Card(colors = CardDefaults.cardColors(containerColor = DeepSlate)) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("آخر تقييم", color = Color.White, fontWeight = FontWeight.Bold)
-                        if (evaluation.fired.isEmpty()) Text("لا تنبيهات مُطلقة.", color = Color(0xFF10B981))
+                        Text("آخر تقييم", color = TextPrimary, fontWeight = FontWeight.Bold)
+                        if (evaluation.fired.isEmpty()) Text("لا تنبيهات مُطلقة.", color = ThemeSuccess)
                         evaluation.fired.forEach { alert ->
-                            Text("• [${alert.severity.label}] ${alert.type.label}: ${alert.message}", color = Color(0xFFF59E0B), fontSize = 13.sp)
+                            Text("• [${alert.severity.label}] ${alert.type.label}: ${alert.message}", color = ThemeWarning, fontSize = 13.sp)
                         }
                         evaluation.unevaluated.forEach { note ->
-                            Text("• لا بيانات: $note", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            Text("• لا بيانات: $note", color = TextSecondary, fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
-        item { Text("سجل التقييمات والتنبيهات", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+        item { Text("سجل التقييمات والتنبيهات", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
         val allFired = stored.flatMap { it.fired }
         if (allFired.isEmpty()) {
-            item { Text("لا تنبيهات مسجلة بعد.", color = Color(0xFF94A3B8)) }
+            item { Text("لا تنبيهات مسجلة بعد.", color = TextSecondary) }
         } else {
             items(allFired) { alert ->
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))) {
+                Card(colors = CardDefaults.cardColors(containerColor = ThemeSecondarySurface)) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
-                            Text("[${alert.severity.label}] ${alert.type.label}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text(alert.message, color = Color(0xFFCBD5E1), fontSize = 12.sp)
-                            Text("القياس: ${alert.measuredValue} — الحد: ${alert.thresholdValue}", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                            Text("[${alert.severity.label}] ${alert.type.label}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(alert.message, color = TextPrimary, fontSize = 12.sp)
+                            Text("القياس: ${alert.measuredValue} — الحد: ${alert.thresholdValue}", color = TextSecondary, fontSize = 11.sp)
                         }
                     }
                 }

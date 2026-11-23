@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.animation.core.*
@@ -26,7 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,22 +35,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.CardSurface
-import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
-import com.qabas.app.ui.theme.GoldSecondary
+import com.qabas.app.ui.theme.PresetPrimary
+import com.qabas.app.ui.theme.PresetAccent
 import com.qabas.app.ui.theme.TextPrimary as ThemeTextPrimary
 import com.qabas.app.ui.theme.TextSecondary as ThemeTextSecondary
 import com.qabas.app.ui.theme.ThemeDestructive
-import com.qabas.app.ui.theme.ThemeSecondarySurface
-import com.qabas.app.ui.theme.ThemeSeparator
 import com.qabas.app.ui.theme.ThemeSuccess
 import com.qabas.app.ui.theme.ThemeWarning
 
@@ -63,45 +55,34 @@ import com.qabas.app.ui.theme.ThemeWarning
  */
 object AgentDesign {
     // ▬▬▬▬▬ الأسطح ▬▬▬▬▬
-    val Backdrop: Color get() = DeepSlate
-    val BackdropAlt: Color get() = ThemeSecondarySurface
     val SurfaceBase: Color get() = CardSurface
-    val SurfaceRaised: Color get() = ThemeSecondarySurface
-    val Hairline: Color get() = ThemeSeparator
 
     // ▬▬▬▬▬ النيون الدلالي ▬▬▬▬▬
-    val Primary: Color get() = GoldPrimary       // سماوي — عمل وجاري
-    val Secondary: Color get() = GoldSecondary   // بنفسجي — أدوات وهوية
+    val Primary: Color get() = PresetPrimary       // سماوي — عمل وجاري
+    val Secondary: Color get() = PresetAccent   // بنفسجي — أدوات وهوية
     val Success: Color get() = ThemeSuccess      // أخضر — نجاح وجاهز
     val Warning: Color get() = ThemeWarning      // كهرماني — تنبيه ويحتاج إجراء
     val Danger: Color get() = ThemeDestructive   // أحمر — فشل
-    val Info: Color get() = GoldPrimary          // أزرق/سماوي — معلومات
+    val Info: Color get() = PresetPrimary          // أزرق/سماوي — معلومات
 
     // ▬▬▬▬▬ النصوص ▬▬▬▬▬
     val TextPrimary: Color get() = ThemeTextPrimary
     val TextSecondary: Color get() = ThemeTextSecondary
-    val TextTertiary: Color get() = ThemeTextSecondary.copy(alpha = 0.72f)
 
     // ▬▬▬▬▬ المسافات (شبكة 4) ▬▬▬▬▬
     val SpaceXs = 4.dp
     val SpaceSm = 8.dp
     val SpaceMd = 12.dp
     val SpaceLg = 16.dp
-    val SpaceXl = 24.dp
-    val SpaceXxl = 32.dp
 
     // ▬▬▬▬▬ الحواف ▬▬▬▬▬
     val RadiusSm = 10.dp
     val RadiusMd = 14.dp
-    val RadiusLg = 18.dp
-    val RadiusXl = 24.dp
 
     // ▬▬▬▬▬ الخطوط ▬▬▬▬▬
     val FontXs = 12.sp   // الحد الأدنى — وصولية
     val FontSm = 14.sp
     val FontMd = 16.sp
-    val FontLg = 20.sp
-    val FontXl = 28.sp
 
     /** حجم لمسي 48dp إلزامي لأي عنصر تفاعلي. */
     val TouchTarget = 48.dp
@@ -359,46 +340,6 @@ fun AgentStatusChip(
     }
 }
 
-/** حالة فارغة ودّية بأسلوب هندسي — بشرح وزر اختياري. */
-@Composable
-fun AgentEmptyState(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    modifier: Modifier = Modifier,
-    action: (@Composable () -> Unit)? = null
-) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(AgentDesign.SpaceXl),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(AgentDesign.Primary.copy(alpha = 0.08f))
-                .border(1.dp, AgentDesign.Primary.copy(alpha = 0.3f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = AgentDesign.Primary, modifier = Modifier.size(26.dp))
-        }
-        Spacer(Modifier.height(AgentDesign.SpaceMd))
-        Text(title, color = AgentDesign.TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = AgentDesign.FontMd)
-        Spacer(Modifier.height(AgentDesign.SpaceXs))
-        Text(
-            description,
-            color = AgentDesign.TextSecondary,
-            fontFamily = CairoFont,
-            fontSize = AgentDesign.FontXs,
-            textAlign = TextAlign.Center
-        )
-        if (action != null) {
-            Spacer(Modifier.height(AgentDesign.SpaceMd))
-            action()
-        }
-    }
-}
-
 /** زر التوحيد الرئيسي — لمسة نيون على الغلاف الداكن. */
 @Composable
 fun AgentNeonButton(
@@ -432,61 +373,5 @@ fun AgentNeonButton(
                 fontSize = AgentDesign.FontSm
             )
         }
-    }
-}
-
-/** رسالة خطأ قابلة للقراءة مع سبب فعلي وإجراء إصلاح. */
-@Composable
-fun AgentErrorCard(
-    title: String,
-    detail: String,
-    modifier: Modifier = Modifier,
-    action: (@Composable () -> Unit)? = null
-) {
-    AgentNeonCard(modifier = modifier, accent = AgentDesign.Danger) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = AgentDesign.Danger, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(AgentDesign.SpaceSm))
-            Text(title, color = AgentDesign.TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = AgentDesign.FontSm)
-        }
-        Spacer(Modifier.height(AgentDesign.SpaceXs))
-        Text(detail, color = AgentDesign.TextSecondary, fontFamily = CairoFont, fontSize = AgentDesign.FontXs)
-        if (action != null) {
-            Spacer(Modifier.height(AgentDesign.SpaceSm))
-            action()
-        }
-    }
-}
-
-/** صف حالة جاهزية: أيقونة + عنوان + شرح + إجراء (48dp كحد أدنى). */
-@Composable
-fun AgentCheckRow(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    isReady: Boolean,
-    modifier: Modifier = Modifier,
-    trailing: (@Composable () -> Unit)? = null
-) {
-    val statusColor = if (isReady) AgentDesign.Success else AgentDesign.Warning
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = AgentDesign.TouchTarget)
-            .padding(vertical = AgentDesign.SpaceSm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            if (isReady) Icons.Default.CheckCircle else Icons.Default.HourglassEmpty,
-            contentDescription = if (isReady) "جاهز" else "غير جاهز",
-            tint = statusColor,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(AgentDesign.SpaceSm))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = AgentDesign.TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = AgentDesign.FontSm)
-            Text(description, color = AgentDesign.TextSecondary, fontFamily = CairoFont, fontSize = AgentDesign.FontXs)
-        }
-        if (trailing != null) trailing()
     }
 }

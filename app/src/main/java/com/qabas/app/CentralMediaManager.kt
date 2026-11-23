@@ -124,7 +124,7 @@ object CentralMediaManager {
                     }
                 }
                 _cloudSyncStatus.value = "تمت المزامنة السحابية بنجاح ✓"
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.w(TAG, "Supabase storage sync warning", e)
                 _cloudSyncStatus.value = "تم المسح المحلي (السحابة غير متصلة)"
             }
@@ -286,7 +286,7 @@ object CentralMediaManager {
             } else {
                 false
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to upload asset to Supabase", e)
             false
         }
@@ -376,7 +376,7 @@ object CentralMediaManager {
                     asset.id.removePrefix("supabase_${asset.bucketName}_")
                 }
                 remoteDeleted = SupabaseServices.Storage.deleteFiles(asset.bucketName, listOf(cloudPath))
-            } catch (_: Exception) {}
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
         }
 
         // إزالة العنصر من القائمة النشطة

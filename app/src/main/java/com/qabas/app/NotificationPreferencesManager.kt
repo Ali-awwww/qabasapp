@@ -19,16 +19,6 @@ object NotificationPreferencesManager {
     /** مخزن تفضيلات الصلاة — مشترك مع شاشة المحراب و PrayerAlarmManager */
     private const val PRAYER_PREFS_NAME = "qabas_prayer_prefs"
 
-    /**
-     * أنماط الصوت المتاحة لصلاة واحدة.
-     * القيم مطابقة تماماً لما يتعامل معه PrayerAzanReceiver — أي قيمة خارجها
-     * تجعل الإشعار لا يُعرض ولا يُشغَّل الصوت (فشل صامت).
-     */
-    const val SOUND_FULL_AZAN = "FULL_AZAN"
-    const val SOUND_TAKBEER_ONLY = "TAKBEER_ONLY"
-    const val SOUND_NOTIFICATION_ONLY = "NOTIFICATION_ONLY"
-    const val SOUND_SILENT = "SILENT"
-
     // مفاتيح التفضيلات الأساسية
     private const val KEY_MASTER_ENABLED = "notif_master_enabled"
     private const val KEY_PRAYER_AZAN = "notif_prayer_azan_enabled"
@@ -38,7 +28,6 @@ object NotificationPreferencesManager {
     private const val KEY_MORNING_ATHKAR = "notif_morning_athkar_enabled"
     private const val KEY_EVENING_ATHKAR = "notif_evening_athkar_enabled"
     private const val KEY_TREND_ALERTS = "notif_trend_alerts_enabled"
-    private const val KEY_DEV_CHAT_ALERTS = "notif_dev_chat_enabled"
     private const val KEY_SOUND_ENABLED = "notif_sound_enabled"
     private const val KEY_VIBRATION_ENABLED = "notif_vibration_enabled"
     
@@ -58,33 +47,6 @@ object NotificationPreferencesManager {
     private const val KEY_WIRAD_STREAK = "notif_wirad_streak"
     private const val KEY_LAST_WIRAD_DATE = "notif_last_wirad_date"
     
-    // مفاتيح كل صلاة
-    private const val KEY_PRAYER_FAJR = "notify_fajr"
-    private const val KEY_PRAYER_SUNRISE = "notify_sunrise"
-    private const val KEY_PRAYER_DHUHR = "notify_dhuhr"
-    private const val KEY_PRAYER_ASR = "notify_asr"
-    private const val KEY_PRAYER_MAGHRIB = "notify_maghrib"
-    private const val KEY_PRAYER_ISHA = "notify_isha"
-    private const val KEY_PRAYER_SUHUR = "notify_suhur"
-
-    // مفاتيح إعداد الصوت لكل صلاة
-    private const val KEY_SOUND_MODE_FAJR = "sound_mode_fajr"
-    private const val KEY_SOUND_MODE_SUNRISE = "sound_mode_sunrise"
-    private const val KEY_SOUND_MODE_DHUHR = "sound_mode_dhuhr"
-    private const val KEY_SOUND_MODE_ASR = "sound_mode_asr"
-    private const val KEY_SOUND_MODE_MAGHRIB = "sound_mode_maghrib"
-    private const val KEY_SOUND_MODE_ISHA = "sound_mode_isha"
-    private const val KEY_SOUND_MODE_SUHUR = "sound_mode_suhur"
-
-    // مفاتيح معرف الصوت لكل صلاة
-    private const val KEY_VOICE_ID_FAJR = "voice_id_fajr"
-    private const val KEY_VOICE_ID_SUNRISE = "voice_id_sunrise"
-    private const val KEY_VOICE_ID_DHUHR = "voice_id_dhuhr"
-    private const val KEY_VOICE_ID_ASR = "voice_id_asr"
-    private const val KEY_VOICE_ID_MAGHRIB = "voice_id_maghrib"
-    private const val KEY_VOICE_ID_ISHA = "voice_id_isha"
-    private const val KEY_VOICE_ID_SUHUR = "voice_id_suhur"
-
     // مفاتيح تفضيلات الصلاة العالمية
     private const val KEY_GLOBAL_PRAYER_ENABLED = "prayer_notifications_enabled"
 
@@ -110,11 +72,11 @@ object NotificationPreferencesManager {
     private val _eveningAthkarEnabled = MutableStateFlow(true)
     val eveningAthkarEnabled: StateFlow<Boolean> = _eveningAthkarEnabled.asStateFlow()
 
+    // review-r12: أُبقي مفتاح الترند — له مستهلِك حي: AppNotificationService
+    // يمنع إشعارات isTrendAlert عند إيقافه، ويرسلها ContentGuard و
+    // SocialAccountManager فعلاً. (أما مفتاح ردود المطور فحُذف: بلا مستهلِك.)
     private val _trendAlertsEnabled = MutableStateFlow(true)
     val trendAlertsEnabled: StateFlow<Boolean> = _trendAlertsEnabled.asStateFlow()
-
-    private val _devChatAlertsEnabled = MutableStateFlow(true)
-    val devChatAlertsEnabled: StateFlow<Boolean> = _devChatAlertsEnabled.asStateFlow()
 
     private val _soundEnabled = MutableStateFlow(true)
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
@@ -164,11 +126,23 @@ object NotificationPreferencesManager {
         _morningAthkarEnabled.value = prefs.getBoolean(KEY_MORNING_ATHKAR, true)
         _eveningAthkarEnabled.value = prefs.getBoolean(KEY_EVENING_ATHKAR, true)
         _trendAlertsEnabled.value = prefs.getBoolean(KEY_TREND_ALERTS, true)
-        _devChatAlertsEnabled.value = prefs.getBoolean(KEY_DEV_CHAT_ALERTS, true)
         _soundEnabled.value = prefs.getBoolean(KEY_SOUND_ENABLED, true)
         _vibrationEnabled.value = prefs.getBoolean(KEY_VIBRATION_ENABLED, true)
-        
+
         _wiradStreak.value = prefs.getInt(KEY_WIRAD_STREAK, 0)
+        // review-r12: سلسلة الورد كانت تُعرض كما هي حتى بعد انقطاع أيام — أي
+        // رقم قديم يبقى معروضاً إلى أن يُسجَّل ورد جديد. إن كان آخر ورد مسجّل
+        // ليس اليوم ولا أمس، فالسلسلة منقطعة فعلاً وتُصفَّر عند التحميل.
+        if (_wiradStreak.value > 0) {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val today = dateFormat.format(Date())
+            val yesterday = dateFormat.format(Date(System.currentTimeMillis() - 24L * 60L * 60L * 1000L))
+            val lastWiradDate = prefs.getString(KEY_LAST_WIRAD_DATE, null)
+            if (lastWiradDate != null && lastWiradDate != today && lastWiradDate != yesterday) {
+                _wiradStreak.value = 0
+                prefs.edit().putInt(KEY_WIRAD_STREAK, 0).apply()
+            }
+        }
 
         // توقيت السحر والفجر
         _suhurTime.value = Pair(
@@ -208,7 +182,6 @@ object NotificationPreferencesManager {
                     KEY_MORNING_ATHKAR -> _morningAthkarEnabled.value = prefs.getBoolean(key, true)
                     KEY_EVENING_ATHKAR -> _eveningAthkarEnabled.value = prefs.getBoolean(key, true)
                     KEY_TREND_ALERTS -> _trendAlertsEnabled.value = prefs.getBoolean(key, true)
-                    KEY_DEV_CHAT_ALERTS -> _devChatAlertsEnabled.value = prefs.getBoolean(key, true)
                     KEY_SOUND_ENABLED -> _soundEnabled.value = prefs.getBoolean(key, true)
                     KEY_VIBRATION_ENABLED -> _vibrationEnabled.value = prefs.getBoolean(key, true)
                     KEY_WIRAD_STREAK -> _wiradStreak.value = prefs.getInt(key, 0)
@@ -221,7 +194,7 @@ object NotificationPreferencesManager {
                         prefs.getInt(KEY_FAJR_MINUTE, 0)
                     )
                     KEY_DAILY_HADITH_HOUR, KEY_DAILY_HADITH_MINUTE -> _dailyHadithTime.value = Pair(
-                        prefs.getInt(KEY_DAILY_HADITH_HOUR, 8),
+                        prefs.getInt(KEY_DAILY_HADITH_HOUR, 9),
                         prefs.getInt(KEY_DAILY_HADITH_MINUTE, 0)
                     )
                     KEY_MORNING_HOUR, KEY_MORNING_MINUTE -> _morningTime.value = Pair(
@@ -326,12 +299,6 @@ object NotificationPreferencesManager {
         _trendAlertsEnabled.value = enabled
     }
 
-    fun setDevChatAlertsEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_DEV_CHAT_ALERTS, enabled).apply()
-        _devChatAlertsEnabled.value = enabled
-    }
-
     fun setSoundEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
@@ -398,49 +365,22 @@ object NotificationPreferencesManager {
         _wiradStreak.value = streak
     }
 
-    fun incrementWiradStreak(context: Context) {
-        val newStreak = _wiradStreak.value + 1
-        setWiradStreak(context, newStreak)
-    }
-
+    /**
+     * review-r12: كان كل ضغط على «تم إنجاز الورد» في أي إشعار يزيد السلسلة
+     * (+1) بلا أي حارس — فالضغط 5 مرات في يوم واحد يصنع «5 أيام»، وانقطاع
+     * أيام لا يُصفّرها لأن KEY_LAST_WIRAD_DATE كان يُكتب ولا يُقرأ أبداً.
+     * الآن: مرة واحدة في اليوم؛ أمس → +1، وغير ذلك (انقطاع) → 1 من جديد.
+     */
     fun recordWirdCompleted(context: Context) {
-        incrementWiradStreak(context)
-        // تسجيل التاريخ لآخر ورد
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        prefs.edit().putString(KEY_LAST_WIRAD_DATE, dateFormat.format(Date())).apply()
-    }
-
-    /**
-     * تفضيلات تنبيه صلاة واحدة.
-     * ملاحظة مهمة: تُخزَّن في "qabas_prayer_prefs" — نفس المخزن الذي تستخدمه
-     * شاشة المحراب و PrayerAlarmManager، حتى لا يوجد مصدران للحقيقة.
-     */
-    fun getPrayerPreferences(context: Context, prayerKey: String): Pair<Boolean, String> {
-        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
-        val prayerEnabled = prefs.getBoolean(getPrayerPrefKey(prayerKey), true)
-        val soundMode = prefs.getString(getSoundModeKey(prayerKey), SOUND_FULL_AZAN) ?: SOUND_FULL_AZAN
-        return Pair(prayerEnabled, soundMode)
-    }
-
-    fun getVoiceId(context: Context, prayerKey: String): String {
-        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(getVoiceIdKey(prayerKey), "") ?: ""
-    }
-
-    fun setPrayerPreferences(
-        context: Context,
-        prayerKey: String,
-        enabled: Boolean,
-        soundMode: String,
-        voiceId: String
-    ) {
-        val prefs = context.getSharedPreferences(PRAYER_PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean(getPrayerPrefKey(prayerKey), enabled)
-            .putString(getSoundModeKey(prayerKey), soundMode)
-            .putString(getVoiceIdKey(prayerKey), voiceId)
-            .apply()
+        val today = dateFormat.format(Date())
+        val lastDate = prefs.getString(KEY_LAST_WIRAD_DATE, null)
+        if (lastDate == today) return // ورد اليوم مسجَّل من قبل — لا تضخيم
+        val yesterday = dateFormat.format(Date(System.currentTimeMillis() - 24L * 60L * 60L * 1000L))
+        val newStreak = if (lastDate == yesterday) _wiradStreak.value + 1 else 1
+        setWiradStreak(context, newStreak)
+        prefs.edit().putString(KEY_LAST_WIRAD_DATE, today).apply()
     }
 
     fun isGlobalPrayerEnabled(context: Context): Boolean {
@@ -482,6 +422,9 @@ object NotificationPreferencesManager {
         } else {
             AppNotificationService.cancelDailyHadithAlarm(context)
         }
+        // (ر22) تنظيف أشباح التأجيل: نسخ قديمة كانت تعيد جدولة «snooze»
+        // يومياً 7:00 — الإلغاء بـ FLAG_NO_CREATE فلا أثر له إن لم يوجد.
+        SpiritualNotificationManager.cancelNotification(context, "snooze")
     }
 
     private fun cancelAllConfiguredAlarms(context: Context) {
@@ -491,14 +434,21 @@ object NotificationPreferencesManager {
         SpiritualNotificationManager.cancelNotification(context, "fajr")
         SpiritualNotificationManager.cancelNotification(context, "morning")
         SpiritualNotificationManager.cancelNotification(context, "evening")
+        SpiritualNotificationManager.cancelNotification(context, "snooze")
         runCatching { AzanCountdownService.stop(context) }
     }
 
-    fun scheduleSnooze(context: Context, minutes: Int) {
+    /**
+     * تأجيل لمرة واحدة: منبه واحد بعد [minutes] دقيقة يعرض [title]/[message]
+     * كما هما، بلا إعادة جدولة يومية (ر22).
+     */
+    fun scheduleSnooze(context: Context, minutes: Int, title: String = "", message: String = "") {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager ?: return
             val intent = android.content.Intent(context, SpiritualNotificationReceiver::class.java).apply {
                 putExtra("notification_type", "snooze")
+                putExtra("snooze_title", title)
+                putExtra("snooze_message", message)
             }
             val pendingIntent = android.app.PendingIntent.getBroadcast(
                 context,
@@ -521,42 +471,4 @@ object NotificationPreferencesManager {
         }
     }
 
-    private fun getPrayerPrefKey(prayerKey: String): String {
-        return when (prayerKey) {
-            "fajr" -> KEY_PRAYER_FAJR
-            "sunrise" -> KEY_PRAYER_SUNRISE
-            "dhuhr" -> KEY_PRAYER_DHUHR
-            "asr" -> KEY_PRAYER_ASR
-            "maghrib" -> KEY_PRAYER_MAGHRIB
-            "isha" -> KEY_PRAYER_ISHA
-            "suhur" -> KEY_PRAYER_SUHUR
-            else -> prayerKey
-        }
-    }
-
-    private fun getSoundModeKey(prayerKey: String): String {
-        return when (prayerKey) {
-            "fajr" -> KEY_SOUND_MODE_FAJR
-            "sunrise" -> KEY_SOUND_MODE_SUNRISE
-            "dhuhr" -> KEY_SOUND_MODE_DHUHR
-            "asr" -> KEY_SOUND_MODE_ASR
-            "maghrib" -> KEY_SOUND_MODE_MAGHRIB
-            "isha" -> KEY_SOUND_MODE_ISHA
-            "suhur" -> KEY_SOUND_MODE_SUHUR
-            else -> "sound_mode_$prayerKey"
-        }
-    }
-
-    private fun getVoiceIdKey(prayerKey: String): String {
-        return when (prayerKey) {
-            "fajr" -> KEY_VOICE_ID_FAJR
-            "sunrise" -> KEY_VOICE_ID_SUNRISE
-            "dhuhr" -> KEY_VOICE_ID_DHUHR
-            "asr" -> KEY_VOICE_ID_ASR
-            "maghrib" -> KEY_VOICE_ID_MAGHRIB
-            "isha" -> KEY_VOICE_ID_ISHA
-            "suhur" -> KEY_VOICE_ID_SUHUR
-            else -> "voice_id_$prayerKey"
-        }
-    }
 }

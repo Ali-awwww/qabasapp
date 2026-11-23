@@ -23,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -93,7 +92,7 @@ fun SpatialPrecisionDiagnosticDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.85f))
+                .background(DeepSlate.copy(alpha = 0.85f))
                 .clickable { onDismiss() }
                 .padding(16.dp),
             contentAlignment = Alignment.Center
@@ -105,7 +104,7 @@ fun SpatialPrecisionDiagnosticDialog(
                     .fillMaxHeight(0.92f)
                     .clickable(enabled = false) {},
                 shape = RoundedCornerShape(26.dp),
-                borderColor = Color(0xFF00E5FF).copy(alpha = 0.6f)
+                borderColor = PresetPrimary.copy(alpha = 0.6f)
             ) {
                 Column(
                     modifier = Modifier
@@ -122,7 +121,7 @@ fun SpatialPrecisionDiagnosticDialog(
                             onClick = onDismiss,
                             modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White.copy(alpha = 0.75f))
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextPrimary.copy(alpha = 0.75f))
                         }
 
                         Row(
@@ -131,7 +130,7 @@ fun SpatialPrecisionDiagnosticDialog(
                         ) {
                             Text(
                                 text = "مسبار التشخيص الدقيق 🔬",
-                                color = Color(0xFF00E5FF),
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -140,14 +139,14 @@ fun SpatialPrecisionDiagnosticDialog(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF00E5FF).copy(alpha = 0.2f))
-                                    .border(1.dp, Color(0xFF00E5FF), CircleShape),
+                                    .background(PresetPrimary.copy(alpha = 0.2f))
+                                    .border(1.dp, PresetPrimary, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Default.CameraAlt,
                                     contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
+                                    tint = PresetPrimary,
                                     modifier = Modifier
                                         .size(13.dp)
                                         .rotate(if (isScanning) radarRotate else 0f)
@@ -174,14 +173,14 @@ fun SpatialPrecisionDiagnosticDialog(
                                     modifier = Modifier
                                         .size(90.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF00E5FF).copy(alpha = 0.12f))
-                                        .border(1.5.dp, Color(0xFF00E5FF).copy(alpha = 0.5f), CircleShape),
+                                        .background(PresetPrimary.copy(alpha = 0.12f))
+                                        .border(1.5.dp, PresetPrimary.copy(alpha = 0.5f), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         Icons.Default.Radar,
                                         contentDescription = null,
-                                        tint = Color(0xFF00E5FF),
+                                        tint = PresetPrimary,
                                         modifier = Modifier
                                             .size(46.dp)
                                             .rotate(radarRotate)
@@ -189,7 +188,7 @@ fun SpatialPrecisionDiagnosticDialog(
                                 }
                                 Text(
                                     text = "جاري مسح البصمة التقنية للشاشة...",
-                                    color = Color.White,
+                                    color = TextPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
@@ -200,12 +199,12 @@ fun SpatialPrecisionDiagnosticDialog(
                                         .width(200.dp)
                                         .height(6.dp)
                                         .clip(RoundedCornerShape(3.dp)),
-                                    color = Color(0xFF00E5FF),
-                                    trackColor = Color.White.copy(alpha = 0.15f)
+                                    color = PresetPrimary,
+                                    trackColor = TextPrimary.copy(alpha = 0.15f)
                                 )
                                 Text(
                                     text = "${(scanProgress * 100).toInt()}% اكتمل فحص الذاكرة والأبعاد والشبكة",
-                                    color = Color.White.copy(alpha = 0.6f),
+                                    color = TextPrimary.copy(alpha = 0.6f),
                                     fontFamily = CairoFont,
                                     fontSize = 11.sp
                                 )
@@ -223,11 +222,11 @@ fun SpatialPrecisionDiagnosticDialog(
                             // Primary Diagnosis Banner Card
                             val issue = telemetry.detectedProbableIssue
                             val bannerColor = when (issue) {
-                                PrecisionDiagnosticEngine.ProbableIssue.UI_OVERFLOW -> Color(0xFF00E5FF)
-                                PrecisionDiagnosticEngine.ProbableIssue.MEMORY_PRESSURE -> Color(0xFFEF4444)
-                                PrecisionDiagnosticEngine.ProbableIssue.NETWORK_UNAVAILABLE -> Color(0xFFF59E0B)
-                                PrecisionDiagnosticEngine.ProbableIssue.AUDIO_STREAM_ISSUE -> Color(0xFFA855F7)
-                                PrecisionDiagnosticEngine.ProbableIssue.GENERAL_BUG -> GoldPrimary
+                                PrecisionDiagnosticEngine.ProbableIssue.UI_OVERFLOW -> PresetPrimary
+                                PrecisionDiagnosticEngine.ProbableIssue.MEMORY_PRESSURE -> ThemeDestructive
+                                PrecisionDiagnosticEngine.ProbableIssue.NETWORK_UNAVAILABLE -> ThemeWarning
+                                PrecisionDiagnosticEngine.ProbableIssue.AUDIO_STREAM_ISSUE -> PresetAccent
+                                PrecisionDiagnosticEngine.ProbableIssue.GENERAL_BUG -> PresetPrimary
                             }
 
                             Card(
@@ -262,7 +261,7 @@ fun SpatialPrecisionDiagnosticDialog(
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text(
                                                 text = issue.title,
-                                                color = Color.White,
+                                                color = TextPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.5.sp
@@ -273,7 +272,7 @@ fun SpatialPrecisionDiagnosticDialog(
 
                                     Text(
                                         text = issue.reason,
-                                        color = Color.White.copy(alpha = 0.9f),
+                                        color = TextPrimary.copy(alpha = 0.9f),
                                         fontFamily = NotoSansFont,
                                         fontSize = 11.5.sp,
                                         lineHeight = 17.sp
@@ -282,11 +281,11 @@ fun SpatialPrecisionDiagnosticDialog(
                             }
 
                             // 1. Screen & Layout Matrix
-                            SectionHeader(title = "مصفوفة الشاشة والأبعاد (Layout & DP)", icon = Icons.Default.AspectRatio, color = Color(0xFF00E5FF))
+                            SectionHeader(title = "مصفوفة الشاشة والأبعاد (Layout & DP)", icon = Icons.Default.AspectRatio, color = PresetPrimary)
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFF131B2E).copy(alpha = 0.85f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                color = CardSurface.copy(alpha = 0.85f),
+                                border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.12f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -308,11 +307,11 @@ fun SpatialPrecisionDiagnosticDialog(
                             }
 
                             // 2. System & Memory Health
-                            SectionHeader(title = "حالة موارد الجهاز والذاكرة (System Health)", icon = Icons.Default.Memory, color = GoldPrimary)
+                            SectionHeader(title = "حالة موارد الجهاز والذاكرة (System Health)", icon = Icons.Default.Memory, color = PresetPrimary)
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFF131B2E).copy(alpha = 0.85f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                color = CardSurface.copy(alpha = 0.85f),
+                                border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.12f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -329,11 +328,11 @@ fun SpatialPrecisionDiagnosticDialog(
 
                             // 3. Audio & Media State (if relevant)
                             if (telemetry.isAudioPlaying || !telemetry.activeAudioTrack.isNullOrBlank()) {
-                                SectionHeader(title = "مشغل الوسائط والصوت", icon = Icons.Default.GraphicEq, color = Color(0xFFA855F7))
+                                SectionHeader(title = "مشغل الوسائط والصوت", icon = Icons.Default.GraphicEq, color = PresetAccent)
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFF131B2E).copy(alpha = 0.85f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                    color = CardSurface.copy(alpha = 0.85f),
+                                    border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.12f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -345,18 +344,18 @@ fun SpatialPrecisionDiagnosticDialog(
 
                             // 4. Recent Breadcrumbs Activity
                             if (telemetry.recentBreadcrumbs.isNotEmpty()) {
-                                SectionHeader(title = "سجل التفاعلات الأخيرة (Breadcrumbs)", icon = Icons.Default.Timeline, color = Color(0xFF38BDF8))
+                                SectionHeader(title = "سجل التفاعلات الأخيرة (Breadcrumbs)", icon = Icons.Default.Timeline, color = PresetPrimary)
                                 Surface(
                                     shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                    color = CardSurface,
+                                    border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.1f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         telemetry.recentBreadcrumbs.takeLast(5).forEach { crumb ->
                                             Text(
                                                 text = "• $crumb",
-                                                color = Color.White.copy(alpha = 0.75f),
+                                                color = TextPrimary.copy(alpha = 0.75f),
                                                 fontSize = 10.sp,
                                                 fontFamily = CairoFont,
                                                 maxLines = 1,
@@ -381,11 +380,11 @@ fun SpatialPrecisionDiagnosticDialog(
                                     .weight(1f)
                                     .height(46.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.6f))
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("نسخ التقرير 📋", color = Color(0xFF00E5FF), fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                Text("نسخ التقرير 📋", color = PresetPrimary, fontFamily = CairoFont, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                             }
 
                             Button(
@@ -397,7 +396,7 @@ fun SpatialPrecisionDiagnosticDialog(
                                 modifier = Modifier
                                     .weight(1.3f)
                                     .height(46.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(Icons.Default.Send, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(15.dp))
@@ -439,7 +438,7 @@ private fun DiagMetricRow(title: String, value: String) {
     ) {
         Text(
             text = title,
-            color = Color.White.copy(alpha = 0.65f),
+            color = TextPrimary.copy(alpha = 0.65f),
             fontFamily = CairoFont,
             fontSize = 11.sp,
             modifier = Modifier.weight(1f, fill = false),
@@ -448,7 +447,7 @@ private fun DiagMetricRow(title: String, value: String) {
         )
         Text(
             text = value,
-            color = Color.White,
+            color = TextPrimary,
             fontFamily = CairoFont,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,

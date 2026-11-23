@@ -1,15 +1,12 @@
 package com.qabas.app
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,32 +21,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.qabas.app.ui.theme.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.UUID
-import java.util.Date
-import java.util.Locale
-import java.text.SimpleDateFormat
 
 
 private data class Requirement(
@@ -73,6 +50,7 @@ internal fun RequirementsTab(
     onOpenRepoSetup: () -> Unit,
     onJumpKeys: () -> Unit
 ) {
+    val theme = QabasTheme.current
     val prefs = com.qabas.app.AgentPrefs.instance(context)
     val _ap = com.qabas.app.AgentPrefs
     var isClientMode by remember { mutableStateOf(false) }
@@ -177,9 +155,9 @@ internal fun RequirementsTab(
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF070C18),
+                color = theme.cardSurface,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+                border = BorderStroke(1.dp, theme.cardBorder)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(6.dp),
@@ -189,9 +167,9 @@ internal fun RequirementsTab(
                     Button(
                         onClick = { isClientMode = false },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (!isClientMode) Color(0xFF0F3A2A) else Color.Transparent
+                            containerColor = if (!isClientMode) theme.success.copy(alpha = 0.15f) else Color.Transparent
                         ),
-                        border = if (!isClientMode) BorderStroke(1.2.dp, Color(0xFF10B981)) else null,
+                        border = if (!isClientMode) BorderStroke(1.2.dp, theme.success) else null,
                         shape = RoundedCornerShape(9.dp),
                         modifier = Modifier.weight(1f).height(44.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
@@ -199,13 +177,13 @@ internal fun RequirementsTab(
                         Icon(
                             Icons.Default.Build,
                             contentDescription = null,
-                            tint = if (!isClientMode) Color(0xFF34D399) else Color(0xFF64748B),
+                            tint = if (!isClientMode) theme.success else theme.textTertiary,
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "التطوير الذاتي المباشر",
-                            color = if (!isClientMode) Color.White else Color(0xFF94A3B8),
+                            color = if (!isClientMode) theme.textPrimary else theme.textSecondary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -216,9 +194,9 @@ internal fun RequirementsTab(
                     Button(
                         onClick = { isClientMode = true },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isClientMode) Color(0xFF1E1B4B) else Color.Transparent
+                            containerColor = if (isClientMode) theme.accent.copy(alpha = 0.15f) else Color.Transparent
                         ),
-                        border = if (isClientMode) BorderStroke(1.2.dp, Color(0xFF818CF8)) else null,
+                        border = if (isClientMode) BorderStroke(1.2.dp, theme.accent) else null,
                         shape = RoundedCornerShape(9.dp),
                         modifier = Modifier.weight(1f).height(44.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
@@ -226,13 +204,13 @@ internal fun RequirementsTab(
                         Icon(
                             Icons.Default.Assignment,
                             contentDescription = null,
-                            tint = if (isClientMode) Color(0xFFA5B4FC) else Color(0xFF64748B),
+                            tint = if (isClientMode) theme.accent else theme.textTertiary,
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "طلبات ومشاريع العملاء",
-                            color = if (isClientMode) Color.White else Color(0xFF94A3B8),
+                            color = if (isClientMode) theme.textPrimary else theme.textSecondary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -247,15 +225,15 @@ internal fun RequirementsTab(
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xEE090F1F),
+                color = theme.cardSurface.copy(alpha = 0.93f),
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(
                     1.dp,
                     Brush.horizontalGradient(
                         listOf(
-                            (if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF)).copy(alpha = 0.6f),
-                            Color(0xFF38BDF8).copy(alpha = 0.3f),
-                            Color(0xFF1E2D4A).copy(alpha = 0.5f)
+                            (if (done == 5) theme.success else theme.primary).copy(alpha = 0.6f),
+                            theme.primary.copy(alpha = 0.3f),
+                            theme.cardBorder.copy(alpha = 0.5f)
                         )
                     )
                 )
@@ -272,12 +250,12 @@ internal fun RequirementsTab(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF))
+                                        .background(if (done == 5) theme.success else theme.primary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     "SYSTEM READINESS MATRIX",
-                                    color = if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF),
+                                    color = if (done == 5) theme.success else theme.primary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -287,7 +265,7 @@ internal fun RequirementsTab(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "مصفوفة فحص متطلبات التشغيل المستقل",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -295,7 +273,7 @@ internal fun RequirementsTab(
                             Text(
                                 if (done == 5) "النظام جاهز بنسبة 100% — كافة الموصلات متزامنة ومحققة"
                                 else "استكمل الشروط غير المكتملة لتفعيل الإطلاق التلقائي",
-                                color = Color(0xFF94A3B8),
+                                color = theme.textSecondary,
                                 fontFamily = CairoFont,
                                 fontSize = 12.sp
                             )
@@ -308,20 +286,20 @@ internal fun RequirementsTab(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF040814))
-                                .border(1.dp, Color(0xFF1E2D4A), CircleShape),
+                                .background(theme.background)
+                                .border(1.dp, theme.cardBorder, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Canvas(modifier = Modifier.size(52.dp)) {
                                 val stroke = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                                 drawArc(
-                                    color = Color(0xFF1E293B),
+                                    color = theme.secondarySurface,
                                     startAngle = -90f,
                                     sweepAngle = 360f,
                                     useCenter = false,
                                     style = stroke
                                 )
-                                val accent = if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF)
+                                val accent = if (done == 5) theme.success else theme.primary
                                 drawArc(
                                     color = accent,
                                     startAngle = -90f,
@@ -332,14 +310,14 @@ internal fun RequirementsTab(
                             }
 
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("$done/5", color = Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                Text("$readyPercentage%", color = if (done == 5) Color(0xFF10B981) else Color(0xFF00F0FF), fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("$done/5", color = theme.textPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                Text("$readyPercentage%", color = if (done == 5) theme.success else theme.primary, fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(color = Color(0xFF1E2D4A).copy(alpha = 0.6f))
+                    HorizontalDivider(color = theme.cardBorder.copy(alpha = 0.6f))
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
@@ -349,7 +327,7 @@ internal fun RequirementsTab(
                     ) {
                         Text(
                             "الحالة العامة: ${if (done == 5) "جاهز للعمليات المباشرة ✓" else "بانتظار اكتمال المتطلبات ⏳"}",
-                            color = if (done == 5) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            color = if (done == 5) theme.success else theme.warning,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -360,9 +338,9 @@ internal fun RequirementsTab(
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             modifier = Modifier.height(28.dp)
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("إعادة الفحص", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("إعادة الفحص", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -372,21 +350,21 @@ internal fun RequirementsTab(
         // بطاقات الشروط الخمسة بتصميم هندسي متناغم
         items(reqs) { r ->
             val color = when (r.state) {
-                ReqState.OK -> Color(0xFF10B981)
-                ReqState.FAIL -> Color(0xFFEF4444)
-                else -> Color(0xFF00F0FF)
+                ReqState.OK -> theme.success
+                ReqState.FAIL -> theme.destructive
+                else -> theme.primary
             }
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xDD080E1C),
+                color = theme.cardSurface.copy(alpha = 0.87f),
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(
                     1.dp,
                     Brush.horizontalGradient(
                         listOf(
                             color.copy(alpha = 0.5f),
-                            Color(0xFF1E293B).copy(alpha = 0.4f),
+                            theme.secondarySurface.copy(alpha = 0.4f),
                             Color.Transparent
                         )
                     )
@@ -422,7 +400,7 @@ internal fun RequirementsTab(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(r.title, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            Text(r.title, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 color = color.copy(alpha = 0.12f),
@@ -443,7 +421,7 @@ internal fun RequirementsTab(
                                 )
                             }
                         }
-                        Text(r.hint, color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 12.sp)
+                        Text(r.hint, color = theme.textSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             if (r.state == ReqState.CHECKING) "جاري التحقق الفوري..." else r.detail.ifBlank { "—" },
@@ -458,7 +436,7 @@ internal fun RequirementsTab(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = { if (r.id == "engine") onJumpKeys() else onOpenRepoSetup() },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier.height(30.dp)

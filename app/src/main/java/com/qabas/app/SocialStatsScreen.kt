@@ -4,7 +4,6 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,12 +17,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -49,18 +46,18 @@ fun SocialStatsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             Translator.tr("إحصائيات الانتشار"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
-                            color = Color(0xFF10B981),
+                            color = ThemeSuccess,
                             shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
                                 "جديد",
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontSize = 10.sp,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -71,7 +68,7 @@ fun SocialStatsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = PresetPrimary)
                     }
                 },
                 actions = {
@@ -86,7 +83,7 @@ fun SocialStatsScreen(
                         Icon(
                             Icons.Default.Sync, 
                             contentDescription = "مزامنة الإحصائيات", 
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = if (isSyncing) Modifier.clip(CircleShape) else Modifier
                         )
                     }
@@ -111,7 +108,7 @@ fun SocialStatsScreen(
             item {
                 Text(
                     text = Translator.tr("حساباتك المتصلة"),
-                    color = Color.White,
+                    color = TextPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -142,7 +139,7 @@ fun OverallStatsHeader(accounts: List<SocialPlatformAccount>) {
     val totalFollowers = accounts.sumOf { it.followers }
     
     Surface(
-        color = Color(0xFF1E293B),
+        color = ThemeSecondarySurface,
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -152,14 +149,14 @@ fun OverallStatsHeader(accounts: List<SocialPlatformAccount>) {
         ) {
             Text(
                 text = Translator.tr("إجمالي الوصول الدعوي"),
-                color = Color.White.copy(alpha = 0.6f),
+                color = TextPrimary.copy(alpha = 0.6f),
                 fontFamily = CairoFont,
                 fontSize = 12.sp
             )
             
             Text(
                 text = formatNumber(totalViews.toLong()),
-                color = GoldPrimary,
+                color = PresetPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 36.sp
@@ -167,7 +164,7 @@ fun OverallStatsHeader(accounts: List<SocialPlatformAccount>) {
             
             Text(
                 text = Translator.tr("مشاهدة تراكمية"),
-                color = GoldPrimary.copy(alpha = 0.8f),
+                color = PresetPrimary.copy(alpha = 0.8f),
                 fontFamily = CairoFont,
                 fontSize = 14.sp
             )
@@ -179,7 +176,7 @@ fun OverallStatsHeader(accounts: List<SocialPlatformAccount>) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 StatMiniBox(Translator.tr("المتابعون"), formatNumber(totalFollowers.toLong()), Icons.Default.People)
-                Divider(modifier = Modifier.width(1.dp).height(40.dp), color = Color.White.copy(alpha = 0.1f))
+                Divider(modifier = Modifier.width(1.dp).height(40.dp), color = TextPrimary.copy(alpha = 0.1f))
                 StatMiniBox(Translator.tr("الفيديوهات"), accounts.sumOf { it.publishedCount }.toString(), Icons.Default.VideoLibrary)
             }
         }
@@ -189,9 +186,9 @@ fun OverallStatsHeader(accounts: List<SocialPlatformAccount>) {
 @Composable
 fun StatMiniBox(label: String, value: String, icon: ImageVector) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
-        Text(value, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = NotoSansFont)
-        Text(label, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontFamily = CairoFont)
+        Icon(icon, null, tint = TextPrimary.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
+        Text(value, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = NotoSansFont)
+        Text(label, color = TextPrimary.copy(alpha = 0.5f), fontSize = 10.sp, fontFamily = CairoFont)
     }
 }
 
@@ -204,14 +201,14 @@ fun AccountStatCard(account: SocialPlatformAccount) {
         "instagram" -> Color(0xFFE4405F)
         "facebook" -> Color(0xFF1877F2)
         "twitter" -> Color(0xFF1DA1F2)
-        else -> GoldPrimary
+        else -> PresetPrimary
     }
 
     Surface(
-        color = Color(0xFF151B2B),
+        color = CardSurface,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth(),
-        border = if (account.isConnected) null else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+        border = if (account.isConnected) null else androidx.compose.foundation.BorderStroke(1.dp, TextPrimary.copy(alpha = 0.05f))
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -242,15 +239,15 @@ fun AccountStatCard(account: SocialPlatformAccount) {
             Spacer(modifier = Modifier.width(16.dp))
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(account.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
-                Text(account.handle, color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontFamily = NotoSansFont)
+                Text(account.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = CairoFont)
+                Text(account.handle, color = TextPrimary.copy(alpha = 0.5f), fontSize = 12.sp, fontFamily = NotoSansFont)
             }
             
             if (account.isConnected) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         formatNumber(account.totalViews.toLong()) + " " + Translator.tr("مشاهدة"),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         fontFamily = NotoSansFont
@@ -264,7 +261,7 @@ fun AccountStatCard(account: SocialPlatformAccount) {
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.height(24.dp)
                     ) {
-                        Text(Translator.tr("قطع الاتصال"), color = Color(0xFFEF4444), fontSize = 10.sp, fontFamily = CairoFont)
+                        Text(Translator.tr("قطع الاتصال"), color = ThemeDestructive, fontSize = 10.sp, fontFamily = CairoFont)
                     }
                 }
             } else {
@@ -273,8 +270,8 @@ fun AccountStatCard(account: SocialPlatformAccount) {
                         SocialAccountManager.toggleConnection(context, account.id, true, handle = "@qabas_user")
                         android.widget.Toast.makeText(context, Translator.tr("تم ربط الحساب بنجاح! 🎉"), android.widget.Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary.copy(alpha = 0.1f), contentColor = GoldPrimary),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f)),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary.copy(alpha = 0.1f), contentColor = PresetPrimary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.3f)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     modifier = Modifier.height(32.dp)
@@ -294,18 +291,18 @@ fun ViralPotentialLab() {
     val scope = rememberCoroutineScope()
 
     Surface(
-        color = Color(0xFF1E293B),
+        color = ThemeSecondarySurface,
         shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+        border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Bolt, null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Bolt, null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = Translator.tr("مختبر الانتشار (Viral Lab) 🧪"),
-                    color = Color.White,
+                    color = TextPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
@@ -315,7 +312,7 @@ fun ViralPotentialLab() {
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = Translator.tr("أدخل فكرتك أو السيناريو الخاص بك لنتوقع مدى نجاحه بناءً على خوارزميات المنصات:"),
-                color = Color.White.copy(alpha = 0.6f),
+                color = TextPrimary.copy(alpha = 0.6f),
                 fontFamily = CairoFont,
                 fontSize = 12.sp,
                 lineHeight = 18.sp
@@ -326,12 +323,12 @@ fun ViralPotentialLab() {
                 value = scriptText,
                 onValueChange = { scriptText = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("اكتب فكرتك هنا...", color = Color.Gray, fontSize = 12.sp) },
+                placeholder = { Text("اكتب فكرتك هنا...", color = TextTertiary, fontSize = 12.sp) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GoldPrimary,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedBorderColor = PresetPrimary,
+                    unfocusedBorderColor = TextPrimary.copy(alpha = 0.1f),
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
                 maxLines = 3
@@ -349,7 +346,7 @@ fun ViralPotentialLab() {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                 enabled = !isAnalyzing && scriptText.isNotBlank(),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -362,24 +359,24 @@ fun ViralPotentialLab() {
 
             score?.let { s ->
                 Spacer(modifier = Modifier.height(20.dp))
-                Divider(color = Color.White.copy(alpha = 0.05f))
+                Divider(color = TextPrimary.copy(alpha = 0.05f))
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text("قوة الخطاف (Hook)", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
-                        Text(s.hookGrade, color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 24.sp, fontFamily = NotoSansFont)
+                        Text("قوة الخطاف (Hook)", color = TextTertiary, fontSize = 10.sp, fontFamily = CairoFont)
+                        Text(s.hookGrade, color = PresetPrimary, fontWeight = FontWeight.Bold, fontSize = 24.sp, fontFamily = NotoSansFont)
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("الانتشار المتوقع", color = Color.Gray, fontSize = 10.sp, fontFamily = CairoFont)
-                        Text("${s.overallScore}%", color = Color(0xFF10B981), fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, fontFamily = NotoSansFont)
+                        Text("الانتشار المتوقع", color = TextTertiary, fontSize = 10.sp, fontFamily = CairoFont)
+                        Text("${s.overallScore}%", color = ThemeSuccess, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, fontFamily = NotoSansFont)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("نصائح التحسين الذكية:", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = CairoFont)
+                Text("نصائح التحسين الذكية:", color = PresetPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = CairoFont)
                 s.improvementTips.forEach { tip ->
-                    Text("• $tip", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontFamily = CairoFont, modifier = Modifier.padding(vertical = 2.dp))
+                    Text("• $tip", color = TextPrimary.copy(alpha = 0.8f), fontSize = 11.sp, fontFamily = CairoFont, modifier = Modifier.padding(vertical = 2.dp))
                 }
             }
         }
@@ -395,18 +392,18 @@ fun AiGrowthSuggestions() {
     )
     
     Surface(
-        color = GoldPrimary.copy(alpha = 0.05f),
+        color = PresetPrimary.copy(alpha = 0.05f),
         shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.1f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.1f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.AutoAwesome, null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = Translator.tr("اقتراحات خادم المسلم الذكية للنمو"),
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
@@ -420,10 +417,10 @@ fun AiGrowthSuggestions() {
                     modifier = Modifier.padding(vertical = 4.dp),
                     verticalAlignment = Alignment.Top
                 ) {
-                    Text("•", color = GoldPrimary, modifier = Modifier.padding(end = 8.dp))
+                    Text("•", color = PresetPrimary, modifier = Modifier.padding(end = 8.dp))
                     Text(
                         text = Translator.tr(suggestion),
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = TextPrimary.copy(alpha = 0.8f),
                         fontFamily = CairoFont,
                         fontSize = 12.sp,
                         lineHeight = 18.sp

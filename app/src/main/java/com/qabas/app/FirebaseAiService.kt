@@ -90,6 +90,10 @@ object FirebaseAiService {
                 confidence = obj.optDouble("confidence", 0.0)
             )
         } catch (e: Exception) {
+            // الإلغاء الخارجي ليس فشل تحليل ولا يُبتلَع (نمط الجولة 87): أما
+            // مهلة withTimeout نفسها (TimeoutCancellationException) فتبقى
+            // فشلاً عادياً يمرّر البصري مؤقتاً كما كان — قصد التعليق أدناه.
+            if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
             Log.e(TAG, "Visual audit failed", e)
             // في حال فشل الذكاء الاصطناعي، نعتمد على الفحص النصي التقليدي ونمرر البصري مؤقتاً لتجنب توقف الخدمة
             VisualAuditResult(isAllowed = true, reason = "فشل التحليل الذكي: ${e.message}", confidence = 0.0)
@@ -292,22 +296,6 @@ object FirebaseAiService {
             )
         }
         scenes
-    }
-
-    /**
-     * توليد عناوين جذابة وعالية النقرات (CTR Titles Generation)
-     * يستخدم Gemini 3.8 Flash لصياغة عناوين تزيد من نسبة التفاعل.
-     */
-    suspend fun generateTitles(topic: String): String = withContext(Dispatchers.IO) {
-        val prompt = """
-            أنت خبير في تحسين محركات البحث (SEO) وعناوين الفيديوهات الفيروسية (Viral Titles Specialist).
-            الموضوع: $topic
-
-            مهمتك: اقترح 5 عناوين يوتيوب/ريلز جذابة جداً تثير الفضول وتدفع للنقر، مع الحفاظ على الوقار الدعوي.
-            أخرج النتائج كقائمة مرقمة فقط بدون مقدمات.
-        """.trimIndent()
-
-        generateText(prompt)
     }
 
     /**

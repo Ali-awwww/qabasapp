@@ -113,7 +113,7 @@ object WorkspaceAutoSaveManager {
                 draftSnippet = if (state.inputText.length > 60) state.inputText.take(60) + "..." else state.inputText,
                 draftTimestamp = now
             )
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             _status.value = _status.value.copy(isSaving = false)
         }
     }
@@ -280,7 +280,7 @@ object WorkspaceAutoSaveManager {
                 draftSnippet = "${state.tracks.size} مسارات، ${state.tracks.sumOf { it.clips.size }} عناصر",
                 draftTimestamp = now
             )
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             _status.value = _status.value.copy(isSaving = false)
         }
     }
@@ -458,25 +458,6 @@ object WorkspaceAutoSaveManager {
         }
     }
 
-    /**
-     * يبدأ دورة حفظ دورية كل 15 ثانية للمحرر اليدوي
-     */
-    fun startPeriodicProAutoSave(stateSupplier: () -> EditorProjectState) {
-        periodicJob?.cancel()
-        periodicJob = scope.launch {
-            while (isActive) {
-                delay(15000L) // كل 15 ثانية
-                val state = stateSupplier()
-                performProEditorSave(state)
-            }
-        }
-    }
-
-    fun stopPeriodicAutoSave() {
-        periodicJob?.cancel()
-        periodicJob = null
-    }
-
     // ==================== Recovery & Clearing ====================
 
     suspend fun getAiDraft(): WorkspaceDraftEntity? = withContext(Dispatchers.IO) {
@@ -493,11 +474,6 @@ object WorkspaceAutoSaveManager {
         _status.value = _status.value.copy(hasRecoverableDraft = false)
     }
 
-    suspend fun clearProDraft() = withContext(Dispatchers.IO) {
-        repository?.deleteDraft(DRAFT_ID_PRO)
-        lastSavedProHash = 0
-        _status.value = _status.value.copy(hasRecoverableDraft = false)
-    }
 }
 
 /**

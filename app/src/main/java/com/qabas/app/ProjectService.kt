@@ -33,7 +33,9 @@ class ProjectService(private val context: Context) {
         val status: String = "",
         val lastScreen: String = "",
         val workspaceJson: String = "",
-        val synced: Boolean = true
+        val synced: Boolean = true,
+        /** صاحب المشروع في السحابة (user_id) — لعرض اسمه الحقيقي في تغذية المجتمع. */
+        val userId: String = ""
     )
 
     private val repository: ProjectRepository by lazy {
@@ -128,15 +130,13 @@ class ProjectService(private val context: Context) {
                             .map { it.toProject() }
                             .sortedByDescending { it.updatedAt }
                     }
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                     android.util.Log.w("ProjectService", "Supabase sync error: ${e.message}")
                 }
             }
 
             localProjects.sortedByDescending { it.updatedAt }
         }
-
-    suspend fun syncFromCloud(): List<Project> = getAllProjects(syncCloud = true)
 
     suspend fun getProject(id: String): Project? = withContext(Dispatchers.IO) {
         repository.getProject(id)?.toProject()
@@ -171,7 +171,7 @@ class ProjectService(private val context: Context) {
                     }
                 }
             }
-        } catch (_: Exception) { }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
     }
 
     suspend fun deleteProject(id: String) = withContext(Dispatchers.IO) {

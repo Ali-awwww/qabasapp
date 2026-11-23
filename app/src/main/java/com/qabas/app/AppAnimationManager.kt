@@ -275,8 +275,12 @@ object AppAnimationManager {
      */
     fun createSectorTransitionSpec(
         initialSector: Int,
-        targetSector: Int
+        targetSector: Int,
+        reducedMotion: Boolean = false
     ): ContentTransform {
+        if (reducedMotion) {
+            return EnterTransition.None togetherWith ExitTransition.None
+        }
         val isStepForward = targetSector >= initialSector
         val duration = _currentSpeed.value.durationMs
         val factor = if (isStepForward) 4 else -4

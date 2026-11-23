@@ -249,7 +249,7 @@ object UpdateTelemetryManager {
                 deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
                 userId = userId
             )
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.w(TAG, "Failed to sync update failure to Supabase: ${e.message}")
             false
         }
@@ -284,7 +284,7 @@ object UpdateTelemetryManager {
                                 timestamp = System.currentTimeMillis()
                             )
                         }
-                }.getOrDefault(emptyList())
+                }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(emptyList())
             } else {
                 emptyList()
             }
@@ -293,7 +293,7 @@ object UpdateTelemetryManager {
                 .distinctBy { it.failureId }
                 .sortedByDescending { it.timestamp }
                 .take(limitCount.toInt())
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /**
@@ -326,7 +326,7 @@ object UpdateTelemetryManager {
                     affectedTargetVersions = versions
                 )
             }.sortedByDescending { it.count }
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     fun formatMarkdownReport(report: UpdateErrorReport): String {

@@ -29,8 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.qabas.app.ui.theme.CairoFont
-import com.qabas.app.ui.theme.RobotoMonoFont
+import com.qabas.app.ui.theme.*
 
 /**
  * عتاد الواجهة السيبرانية لقسم الوكيل الذكي (Agent Spatial HUD Kit)
@@ -38,17 +37,14 @@ import com.qabas.app.ui.theme.RobotoMonoFont
  * وصفوف قياس (telemetry) بخط أحادي المسافة. كل القيم المعروضة حقيقية ومحسوبة لحظياً.
  */
 
-private val HudBase = Color(0xFF05070D)
-private val HudPanelBg = Color(0xFF0A101E)
-
 /**
  * خلفية شبكية سيبرانية مع توهج أفقى خفيف — تُرسم خلف المحتوى وتقف ثابتة أثناء التمرير.
  */
 fun Modifier.cyberGridBackground(
-    line: Color = Color(0xFF00E5FF),
+    line: Color = PresetPrimary,
     cellPx: Float = 44f
 ): Modifier = this.drawBehind {
-    drawRect(HudBase)
+    drawRect(DeepSlate)
     var x = 0f
     while (x <= size.width) {
         drawLine(line.copy(alpha = 0.05f), Offset(x, 0f), Offset(x, size.height), 1f)
@@ -69,89 +65,6 @@ fun Modifier.cyberGridBackground(
 }
 
 /**
- * لوحة HUD زجاجية بزوايا ليزر سيبرانية وعنوان بأيقونة.
- */
-@Composable
-fun HudPanel(
-    title: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    accent: Color = Color(0xFF00E5FF),
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(HudPanelBg.copy(alpha = 0.92f))
-            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-    ) {
-        HudCornerDecor(modifier = Modifier.matchParentSize(), color = accent.copy(alpha = 0.75f))
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontFamily = CairoFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            content()
-        }
-    }
-}
-
-/**
- * صف قياس هندسي: تسمية عربية على اليمين وقيمة أحادية المسافة على اليسار.
- */
-@Composable
-fun HudMetric(
-    label: String,
-    value: String,
-    accent: Color,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            color = Color(0xFF64748B),
-            fontFamily = CairoFont,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.width(8.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(Color(0xFF1E293B))
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = value,
-            color = accent,
-            fontFamily = RobotoMonoFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-/**
  * تعريف تبويب واحد في شريط الـ HUD.
  */
 data class AgentTab(
@@ -160,95 +73,6 @@ data class AgentTab(
     val icon: ImageVector,
     val accent: Color
 )
-
-/**
- * شريط تبويبات نيوني هندسي قابل للتمرير أفقيًا (Spatial HUD Tab Rail).
- * كل تبويب يحمل كودًا رقميًا، أيقونة، تسمية، وخيط نيون سفلي للتبويب النشط.
- */
-@Composable
-fun AgentHudTabRail(
-    tabs: List<AgentTab>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        tabs.forEachIndexed { index, tab ->
-            HudTabItem(
-                tab = tab,
-                selected = index == selectedIndex,
-                onClick = { onSelect(index) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun HudTabItem(
-    tab: AgentTab,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) tab.accent.copy(alpha = 0.14f) else Color(0xFF0A101E).copy(alpha = 0.85f))
-            .border(
-                width = 1.dp,
-                color = if (selected) tab.accent.copy(alpha = 0.7f) else Color(0xFF1E293B),
-                shape = RoundedCornerShape(10.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "[${tab.code}]",
-                color = if (selected) tab.accent else Color(0xFF475569),
-                fontFamily = RobotoMonoFont,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                maxLines = 1
-            )
-            Spacer(Modifier.width(7.dp))
-            Icon(
-                imageVector = tab.icon,
-                contentDescription = null,
-                tint = if (selected) tab.accent else Color(0xFF94A3B8),
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(Modifier.width(5.dp))
-            Text(
-                text = tab.label,
-                color = if (selected) Color.White else Color(0xFF94A3B8),
-                fontFamily = CairoFont,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 12.sp,
-                maxLines = 1,
-                softWrap = false
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    if (selected) {
-                        Brush.horizontalGradient(listOf(tab.accent, tab.accent.copy(alpha = 0.05f)))
-                    } else {
-                        Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
-                    }
-                )
-        )
-    }
-}
 
 /**
  * 🛰️ شريط التيليميتري النيوني اللحظي الموحّد (Unified Live Telemetry HUD Strip)
@@ -269,6 +93,7 @@ fun LiveTelemetryHudStrip(
     onMemoryClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val infiniteTransition = rememberInfiniteTransition(label = "hud_pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -295,9 +120,9 @@ fun LiveTelemetryHudStrip(
 
     val holographicBorder = Brush.horizontalGradient(
         listOf(
-            Color(0xFF00E5FF).copy(alpha = 0.75f),
-            Color(0xFF10B981).copy(alpha = 0.85f),
-            Color(0xFF00E5FF).copy(alpha = 0.35f)
+            theme.primary.copy(alpha = 0.75f),
+            theme.success.copy(alpha = 0.85f),
+            theme.primary.copy(alpha = 0.35f)
         )
     )
 
@@ -305,7 +130,7 @@ fun LiveTelemetryHudStrip(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF060B18).copy(alpha = 0.92f))
+            .background(theme.background.copy(alpha = 0.92f))
             .border(1.dp, holographicBorder, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
@@ -328,9 +153,9 @@ fun LiveTelemetryHudStrip(
                         .clip(CircleShape)
                         .background(
                             when {
-                                isPinging -> Color(0xFF00E5FF).copy(alpha = pulseAlpha)
-                                isConnected -> Color(0xFF10B981).copy(alpha = pulseAlpha)
-                                else -> Color(0xFFEF4444)
+                                isPinging -> theme.primary.copy(alpha = pulseAlpha)
+                                isConnected -> theme.success.copy(alpha = pulseAlpha)
+                                else -> theme.destructive
                             }
                         )
                 )
@@ -340,7 +165,7 @@ fun LiveTelemetryHudStrip(
                         text = "الاستجابة",
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         maxLines = 1
                     )
                     Text(
@@ -348,7 +173,7 @@ fun LiveTelemetryHudStrip(
                         fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        color = if (isConnected) Color(0xFF10B981) else Color(0xFFEF4444),
+                        color = if (isConnected) theme.success else theme.destructive,
                         maxLines = 1
                     )
                 }
@@ -359,7 +184,7 @@ fun LiveTelemetryHudStrip(
                 modifier = Modifier
                     .width(1.dp)
                     .height(26.dp)
-                    .background(Color(0xFF1E293B))
+                    .background(theme.secondarySurface)
             )
 
             // 2. Active Model
@@ -373,7 +198,7 @@ fun LiveTelemetryHudStrip(
                 Icon(
                     imageVector = Icons.Default.SmartToy,
                     contentDescription = null,
-                    tint = Color(0xFF00E5FF),
+                    tint = theme.primary,
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(Modifier.width(5.dp))
@@ -382,7 +207,7 @@ fun LiveTelemetryHudStrip(
                         text = if (isOfflineMode) "نموذج محلي" else "النموذج النشط",
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         maxLines = 1
                     )
                     Text(
@@ -390,7 +215,7 @@ fun LiveTelemetryHudStrip(
                         fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00E5FF),
+                        color = theme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -402,7 +227,7 @@ fun LiveTelemetryHudStrip(
                 modifier = Modifier
                     .width(1.dp)
                     .height(26.dp)
-                    .background(Color(0xFF1E293B))
+                    .background(theme.secondarySurface)
             )
 
             // 3. Live Device Memory Allocation
@@ -416,7 +241,7 @@ fun LiveTelemetryHudStrip(
                 Icon(
                     imageVector = Icons.Default.Memory,
                     contentDescription = null,
-                    tint = Color(0xFF10B981),
+                    tint = theme.success,
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(Modifier.width(5.dp))
@@ -425,7 +250,7 @@ fun LiveTelemetryHudStrip(
                         text = "الذاكرة الحية",
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
-                        color = Color(0xFF94A3B8),
+                        color = theme.textSecondary,
                         maxLines = 1
                     )
                     Text(
@@ -433,7 +258,7 @@ fun LiveTelemetryHudStrip(
                         fontSize = 12.sp,
                         fontFamily = RobotoMonoFont,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF10B981),
+                        color = theme.success,
                         maxLines = 1
                     )
                 }
@@ -446,21 +271,21 @@ fun LiveTelemetryHudStrip(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF0F172A))
-                    .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f), CircleShape)
+                    .background(theme.cardSurface)
+                    .border(1.dp, theme.primary.copy(alpha = 0.35f), CircleShape)
                     .testTag("telemetry_refresh_btn")
             ) {
                 if (isPinging) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = Color(0xFF00E5FF),
+                        color = theme.primary,
                         strokeWidth = 1.5.dp
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "تحديث التيليميتري اللحظي",
-                        tint = Color(0xFF00E5FF),
+                        tint = theme.primary,
                         modifier = Modifier
                             .size(16.dp)
                             .rotate(spinAngle)
@@ -482,13 +307,14 @@ fun AgentGeometricControlDeck(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val modules = listOf(
-        AgentTab("01", "نظرة عامة", Icons.Default.Dashboard, Color(0xFF00E5FF)),
-        AgentTab("02", "مساحة العمل", Icons.Default.Code, Color(0xFF8B5CF6)),
-        AgentTab("03", "الكونسول", Icons.Default.Terminal, Color(0xFF10B981)),
-        AgentTab("04", "المشاريع", Icons.Default.FolderOpen, Color(0xFF00E5FF)),
-        AgentTab("05", "النشاط", Icons.Default.History, Color(0xFF8B5CF6)),
-        AgentTab("06", "الأدوات", Icons.Default.Handyman, Color(0xFF10B981))
+        AgentTab("01", "نظرة عامة", Icons.Default.Dashboard, theme.primary),
+        AgentTab("02", "مساحة العمل", Icons.Default.Code, theme.accent),
+        AgentTab("03", "الكونسول", Icons.Default.Terminal, theme.success),
+        AgentTab("04", "المشاريع", Icons.Default.FolderOpen, theme.primary),
+        AgentTab("05", "النشاط", Icons.Default.History, theme.accent),
+        AgentTab("06", "الأدوات", Icons.Default.Handyman, theme.success)
     )
 
     Row(
@@ -520,14 +346,14 @@ fun AgentGeometricControlDeck(
                         Brush.horizontalGradient(
                             listOf(
                                 module.accent.copy(alpha = animatedBorderAlpha),
-                                Color(0xFF10B981).copy(alpha = animatedBorderAlpha)
+                                theme.success.copy(alpha = animatedBorderAlpha)
                             )
                         )
                     } else {
                         Brush.horizontalGradient(
                             listOf(
-                                Color(0xFF1E293B),
-                                Color(0xFF1E293B)
+                                theme.secondarySurface,
+                                theme.secondarySurface
                             )
                         )
                     }
@@ -555,13 +381,13 @@ fun AgentGeometricControlDeck(
                             fontSize = 8.sp,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) module.accent else Color(0xFF64748B)
+                            color = if (isSelected) module.accent else theme.textTertiary
                         )
                         Spacer(Modifier.width(3.dp))
                         Icon(
                             imageVector = module.icon,
                             contentDescription = null,
-                            tint = if (isSelected) module.accent else Color(0xFF94A3B8),
+                            tint = if (isSelected) module.accent else theme.textSecondary,
                             modifier = Modifier.size(13.dp)
                         )
                     }
@@ -570,7 +396,7 @@ fun AgentGeometricControlDeck(
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                        color = if (isSelected) theme.textPrimary else theme.textSecondary,
                         maxLines = 1,
                         softWrap = false,
                         textAlign = TextAlign.Center
@@ -589,134 +415,6 @@ fun AgentGeometricControlDeck(
 }
 
 /**
- * شريط المراقبة الحية للرموز والسرعة (Cyber Live Telemetry HUD)
- * يعرض استهلاك الرموز، السرعة اللحظية، وزمن الاستجابة مع مؤشر نبضي.
- */
-@Composable
-fun CyberLiveTelemetryHud(
-    tokensIn: Int,
-    tokensOut: Int,
-    latencyMs: Long,
-    tokensPerSec: Float,
-    isThinking: Boolean,
-    onRunDiagnostic: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val pulseTransition = rememberInfiniteTransition(label = "hud_pulse")
-    val pulseAlpha by pulseTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_alpha"
-    )
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp)),
-        color = Color(0xFF091220),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f))
-    ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isThinking) Color(0xFF10B981).copy(alpha = pulseAlpha)
-                                else Color(0xFF00E5FF)
-                            )
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (isThinking) "SYSTEM PROCESSING ⚡" else "TELEMETRY LIVE 🟢",
-                        color = if (isThinking) Color(0xFF10B981) else Color(0xFF00E5FF),
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Surface(
-                    onClick = onRunDiagnostic,
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.45f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(Icons.Default.Troubleshoot, contentDescription = null, tint = Color(0xFFC084FC), modifier = Modifier.size(13.dp))
-                        Text(
-                            text = "تشخيص سريع 🔬",
-                            color = Color(0xFFE9D5FF),
-                            fontFamily = CairoFont,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Tokens In / Out
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("الرموز (Tokens)", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
-                    Text(
-                        "${tokensIn + tokensOut}",
-                        color = Color.White,
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Tokens / Sec Speed
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("السرعة (T/s)", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
-                    Text(
-                        if (tokensPerSec > 0f) "%.1f".format(tokensPerSec) else "--",
-                        color = Color(0xFF10B981),
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Latency
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                    Text("الاستجابة (Latency)", color = Color(0xFF64748B), fontFamily = CairoFont, fontSize = 10.sp)
-                    Text(
-                        if (latencyMs > 0) "${latencyMs}ms" else "--",
-                        color = Color(0xFF38BDF8),
-                        fontFamily = RobotoMonoFont,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * شريط مراحل التفكير الحي (Reasoning Flow HUD)
  * يوضح بدقة المرحلة الحالية: تحليل -> تخطيط -> كود -> فحص
  */
@@ -725,19 +423,20 @@ fun CyberReasoningFlowHud(
     currentPhase: String, // "ANALYZE", "PLAN", "CODE", "VERIFY", "IDLE"
     modifier: Modifier = Modifier
 ) {
+    val theme = QabasTheme.current
     val phases = listOf(
-        Triple("ANALYZE", "تحليل 🔍", Color(0xFF38BDF8)),
-        Triple("PLAN", "تخطيط 📐", Color(0xFF8B5CF6)),
-        Triple("CODE", "تعديل 💻", Color(0xFF10B981)),
-        Triple("VERIFY", "تدقيق 🧪", Color(0xFFF59E0B))
+        Triple("ANALYZE", "تحليل 🔍", theme.primary),
+        Triple("PLAN", "تخطيط 📐", theme.accent),
+        Triple("CODE", "تعديل 💻", theme.success),
+        Triple("VERIFY", "تدقيق 🧪", theme.warning)
     )
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp)),
-        color = Color(0xFF070C16),
-        border = BorderStroke(1.dp, Color(0xFF1E2D4A))
+        color = theme.background,
+        border = BorderStroke(1.dp, theme.secondarySurface)
     ) {
         Row(
             modifier = Modifier
@@ -753,7 +452,7 @@ fun CyberReasoningFlowHud(
                 Surface(
                     color = when {
                         isActive -> accent.copy(alpha = 0.2f)
-                        isCompleted -> Color(0xFF10B981).copy(alpha = 0.12f)
+                        isCompleted -> theme.success.copy(alpha = 0.12f)
                         else -> Color.Transparent
                     },
                     shape = RoundedCornerShape(8.dp),
@@ -761,8 +460,8 @@ fun CyberReasoningFlowHud(
                         1.dp,
                         when {
                             isActive -> accent
-                            isCompleted -> Color(0xFF10B981).copy(alpha = 0.5f)
-                            else -> Color(0xFF1E293B)
+                            isCompleted -> theme.success.copy(alpha = 0.5f)
+                            else -> theme.secondarySurface
                         }
                     ),
                     modifier = Modifier.weight(1f).padding(horizontal = 2.dp)
@@ -773,14 +472,14 @@ fun CyberReasoningFlowHud(
                     ) {
                         Text(
                             text = "[0${index + 1}]",
-                            color = if (isActive || isCompleted) accent else Color(0xFF475569),
+                            color = if (isActive || isCompleted) accent else theme.separator,
                             fontFamily = RobotoMonoFont,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = label,
-                            color = if (isActive) Color.White else if (isCompleted) Color(0xFFA7F3D0) else Color(0xFF64748B),
+                            color = if (isActive) theme.textPrimary else if (isCompleted) theme.success else theme.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 11.sp,
                             fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium

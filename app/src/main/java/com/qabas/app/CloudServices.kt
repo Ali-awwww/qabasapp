@@ -33,10 +33,6 @@ object CloudServices {
     
     val isFirebaseInitialized: Boolean = false
 
-    fun initializeWithJson(context: Context, jsonText: String): Pair<Boolean, String> {
-        return Pair(true, "تم تفعيل الوضع السحابي بنجاح")
-    }
-
     fun tryInitFromSavedConfig(context: Context) {}
 
     // --- Supabase Auth compatibility surface ---
@@ -100,8 +96,6 @@ object CloudServices {
         fun getCurrentUserId(): String? = SupabaseServices.Auth.getCurrentUserId()
     }
 
-    suspend fun syncAdminClaimFromFirebase(context: Context) = syncAdminClaim(context)
-
     suspend fun syncAdminClaim(context: Context) {
         val authEmail = SupabaseServices.Auth.getCurrentUserEmail()
         val role = if (authEmail.equals(OWNER_EMAIL, ignoreCase = true)) {
@@ -109,9 +103,6 @@ object CloudServices {
         } else {
             SupabaseServices.Auth.getUserRoleFromMetadata().lowercase(Locale.ROOT)
         }
-        val isDeveloper = SupabaseServices.Auth.isDeveloperRole(role)
-        val isAdmin = SupabaseServices.Auth.isAdminRole(role) || isOwnerAccount(authEmail)
-
         // Observe cloud role transitions at sign-in and explicit role refresh, not only
         // when the developer dashboard is opened. First observation per UID is silent.
         RolePromotionNotifier.checkAndNotifyPromotion(
@@ -120,12 +111,10 @@ object CloudServices {
             newCloudRole = role
         )
 
-        // Cached flags are display/compatibility caches only. Always overwrite them
-        // from the authenticated Supabase session, including clearing revoked roles.
-        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE).edit()
-            .putBoolean("is_developer", isDeveloper)
-            .putBoolean("is_admin", isAdmin)
-            .apply()
+        // Role flags are read live from the Supabase session (AdminGuard /
+        // SupabaseServices.Auth) — never cached in preferences: no reader
+        // ever consumed the cached is_admin/is_developer flags, so the
+        // stale cache writes were removed (review-r35).
         Log.d(TAG, "Synchronized cloud role $role for authenticated account.")
     }
 
@@ -154,30 +143,6 @@ object CloudServices {
             return SupabaseServices.Database.updateUserSuspension(userId, isSuspended)
         }
 
-        suspend fun savePromoCodeToCloud(code: String, type: String, value: Long): Boolean {
-            return SupabaseServices.Database.savePromoCode(code, type, value)
-        }
-
-        suspend fun fetchValidCodesCache(): Pair<Map<String, Long>, Map<String, Int>> {
-            val codes = SupabaseServices.Database.getValidPromoCodes()
-            val promos = mutableMapOf<String, Long>()
-            val gifts = mutableMapOf<String, Int>()
-            codes.forEach { c ->
-                if (c.type == "PROMO") {
-                    promos[c.code] = c.value * 24L * 60L * 60L * 1000L
-                } else {
-                    gifts[c.code] = c.value.toInt()
-                }
-            }
-            return Pair(promos, gifts)
-        }
-
-        suspend fun getCloudPromoCodes(): List<Map<String, Any>> {
-            return SupabaseServices.Database.getValidPromoCodes().map {
-                mapOf("code" to it.code, "type" to it.type, "value" to it.value)
-            }
-        }
-        
         suspend fun getAllUsers(): List<Map<String, Any>> {
             return SupabaseServices.Database.getAllUsers().map {
                 mapOf(
@@ -190,14 +155,6 @@ object CloudServices {
             }
         }
 
-        suspend fun getDevUserProjectCount(uid: String): Int {
-            return SupabaseServices.Database.getUserProjects(uid).size
-        }
-
-        suspend fun grantTemporaryRole(userId: String, userEmail: String, newType: String, daysValid: Int): Boolean {
-            return SupabaseServices.Database.updateUserRole(userId, newType)
-        }
-
         suspend fun sweepExpiredRoles(): Int = 0
 
         suspend fun getUserTimeline(uid: String): List<Map<String, Any>> {
@@ -208,22 +165,6 @@ object CloudServices {
                     "ts" to System.currentTimeMillis()
                 )
             }
-        }
-
-        // حفظ مشروع في السحابة
-        suspend fun saveProjectToCloud(project: Project) {
-            SupabaseServices.Database.saveFullProject(
-                id = project.id,
-                title = project.title,
-                description = project.idea,
-                cost = project.cost,
-                status = "saved"
-            )
-        }
-        
-        // حذف مشروع من السحابة
-        suspend fun deleteProjectFromCloud(projectId: String) {
-            SupabaseServices.Database.deleteProject(projectId)
         }
 
         // جلب المشاريع من السحابة
@@ -253,7 +194,8 @@ object CloudServices {
                     resources = "",
                     settings = "",
                     script = "",
-                    cost = it.cost
+                    cost = it.cost,
+                    userId = it.userId ?: ""
                 )
             }
         }
@@ -314,8 +256,6 @@ object CloudServices {
 
         fun observeGuardLogs(): Flow<List<Map<String, Any>>> = flowOf(emptyList())
 
-        suspend fun recordProjectAnalytics(projectId: String, title: String, status: String, cost: Double = 0.0) {}
-
         fun observeAllTransactions(): Flow<List<Map<String, Any>>> = TransactionManager.transactionsFlow
 
         // إدارة كائنات الأنماط الفنية
@@ -347,12 +287,6 @@ object CloudServices {
             }
         }
 
-        suspend fun deleteStyleObjectFromCloud(styleId: String): Boolean {
-            return SupabaseServices.Database.deleteStyleObject(styleId)
-        }
-
-        fun observeCloudStyleObjects(): Flow<List<StyleObject>> = flowOf(emptyList())
-
         // إدارة أنماط الماستر المركبة
         suspend fun saveMasterStyleToCloud(masterStyle: MasterStyle): Boolean {
             return SupabaseServices.Database.saveMasterStyle(
@@ -365,12 +299,5 @@ object CloudServices {
             )
         }
 
-        suspend fun getCloudMasterStyles(userId: String? = null): List<MasterStyle> {
-            return emptyList()
-        }
-
-        suspend fun deleteMasterStyleFromCloud(masterStyleId: String): Boolean {
-            return SupabaseServices.Database.deleteMasterStyle(masterStyleId)
-        }
     }
 }

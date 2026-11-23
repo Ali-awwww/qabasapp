@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.compose.runtime.mutableStateOf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -89,9 +88,6 @@ class MuslimToolsEngine(context: Context) {
             return true
         }
         return false
-    }
-    fun resetFastingTracker() {
-        prefs.edit().putInt("missed_fasting_total", 0).putInt("missed_fasting_completed", 0).apply()
     }
 
     // --- Quran Khatma Planner Logic ---
@@ -186,6 +182,30 @@ class MuslimToolsEngine(context: Context) {
     data class HijriDateComponents(val day: String, val monthName: String, val year: String, val fullFormatted: String)
 
     fun getHijriComponents(timeMillis: Long = System.currentTimeMillis()): HijriDateComponents {
+        val hijriMonthsAr = listOf("محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة")
+        // تقويم أم القرى (الحسابي الرسمي) عبر java.time — كان التحويل الجدولي
+        // اليدوي يتأخر يوماً عن أم القرى (تحقق حي 2026-11-23: الجدولي 12
+        // جمادى الآخرة بينما أم القرى 13 جمادى الآخرة). عند تعذّر المتغير
+        // يُرجع للتحويل الجدولي نفسه (بلا تراجع سلوكي).
+        runCatching {
+            val chrono = java.time.chrono.Chronology.of("Hijrah-umalqura")
+            val hijrah = chrono.date(
+                java.time.LocalDate.ofInstant(
+                    java.time.Instant.ofEpochMilli(timeMillis),
+                    java.time.ZoneId.systemDefault()
+                )
+            )
+            val hDay = hijrah.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+            val hMonth = hijrah.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+            val hYear = hijrah.get(java.time.temporal.ChronoField.YEAR)
+            val monthName = hijriMonthsAr.getOrElse(hMonth - 1) { "رمضان" }
+            return HijriDateComponents(
+                day = hDay.toString(),
+                monthName = monthName,
+                year = "$hYear هـ",
+                fullFormatted = "$hDay $monthName $hYear هـ"
+            )
+        }
         val cal = Calendar.getInstance().apply { timeInMillis = timeMillis }
         val day = cal.get(Calendar.DAY_OF_MONTH)
         val month = cal.get(Calendar.MONTH) + 1
@@ -205,7 +225,6 @@ class MuslimToolsEngine(context: Context) {
         val hMonth = floor((24 * lDoublePrime) / 709.0).toInt()
         val hDay = (lDoublePrime - floor((709 * hMonth) / 24.0)).toInt()
         val hYear = (30 * n + j - 30).toInt()
-        val hijriMonthsAr = listOf("محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة")
         val monthName = hijriMonthsAr.getOrElse(hMonth - 1) { "رمضان" }
         return HijriDateComponents(
             day = hDay.toString(),

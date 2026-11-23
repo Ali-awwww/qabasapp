@@ -9,7 +9,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
@@ -25,10 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -260,9 +258,6 @@ object ReelSafetyGuardrails {
         return if (rem > 0) ((rem + 999) / 1000).toInt() else 0
     }
 
-    /** عدد الإخفاقات المتتالية المسجلة */
-    fun getConsecutiveFailures(): Int = consecutiveNetworkFailures
-
 
     /**
      * فحص حجم الكاش ومسح الفائض تلقائياً لمنع استهلاك ذاكرة الهاتف
@@ -293,7 +288,7 @@ object ReelSafetyGuardrails {
                     }
                     Log.i(TAG, "Auto-trimmed reels cache, freed $freed bytes safely.")
                 }
-            }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         }
     }
 }
@@ -323,16 +318,16 @@ fun ReelCrashBoundary(
                 verticalArrangement = Arrangement.Center
             ) {
                 Surface(
-                    color = GoldPrimary.copy(alpha = 0.15f),
+                    color = PresetPrimary.copy(alpha = 0.15f),
                     shape = CircleShape,
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                     modifier = Modifier.size(64.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -368,7 +363,7 @@ fun ReelCrashBoundary(
                             hasCrashed = false
                             crashMessage = ""
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))

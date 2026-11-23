@@ -194,10 +194,10 @@ private fun LivePrayerSummaryCard(nowMillis: Long) {
     val city = remember { PrayerCalculationHelper.getSavedCity(context) }
     val times = remember(nowMillis / 1_000L) {
         runCatching {
-            PrayerCalculationHelper.calculatePrayerTimes(
+            PrayerCalculationHelper.calculatePrayerTimesForUser(
+                context,
                 Calendar.getInstance(),
-                city,
-                city.defaultMethod
+                city
             )
         }.getOrNull()
     }
@@ -598,7 +598,7 @@ private fun categoryColor(notif: AppNotificationService.AppNotification, theme: 
     notif.isTrendAlert -> theme.destructive
     notif.category == AppNotificationService.CATEGORY_PRAYER -> theme.success
     notif.category == AppNotificationService.CATEGORY_HADITH -> theme.accent
-    notif.category == AppNotificationService.CATEGORY_SPIRITUAL -> GoldSecondary
+    notif.category == AppNotificationService.CATEGORY_SPIRITUAL -> PresetAccent
     else -> theme.primary
 }
 

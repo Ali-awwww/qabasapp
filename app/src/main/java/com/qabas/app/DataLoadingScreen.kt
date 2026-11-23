@@ -101,13 +101,12 @@ fun DataLoadingScreen(
         try {
             withContext(Dispatchers.IO) {
                 AppServices.init(appContext)
-                AudioPlayerManager.init(appContext)
                 BillingManager.getInstance(appContext)
                 StyleBrain.init(appContext)
                 StyleManager.init(appContext)
             }
             overallProgress = 0.45f
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("DataLoading", "Local init failed: ${e.message}")
             loadError = "تعذر تهيئة خدمات التطبيق المحلية. حاول مرة أخرى."
         }
@@ -123,7 +122,7 @@ fun DataLoadingScreen(
                 }
             }
             overallProgress = 0.78f
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("DataLoading", "Cloud init failed: ${e.message}")
             loadError = loadError ?: "تعذر مزامنة الخدمات السحابية. تحقق من الاتصال وحاول مرة أخرى."
         }
@@ -138,7 +137,7 @@ fun DataLoadingScreen(
                 }
             }
             overallProgress = 0.98f
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e("DataLoading", "Data load failed: ${e.message}")
             loadError = loadError ?: "تعذر تحميل المشاريع. حاول مرة أخرى."
         }

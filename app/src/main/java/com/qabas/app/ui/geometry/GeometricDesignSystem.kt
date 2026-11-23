@@ -68,8 +68,8 @@ import com.qabas.app.ui.theme.CyberLightBackground
 import com.qabas.app.ui.theme.CyberLightSecondarySurface
 import com.qabas.app.ui.theme.CyberLightSeparator
 import com.qabas.app.ui.theme.CyberLightSurface
-import com.qabas.app.ui.theme.GoldPrimary
-import com.qabas.app.ui.theme.GoldSecondary
+import com.qabas.app.ui.theme.PresetPrimary
+import com.qabas.app.ui.theme.PresetAccent
 import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ui.theme.TextPrimary
@@ -96,7 +96,6 @@ object Geo {
     val S_SM = 8.dp
     val S_MD = 14.dp
     val S_LG = 20.dp
-    val S_XL = 28.dp
 
     val I_XS = 14.dp
     val I_SM = 18.dp
@@ -134,12 +133,12 @@ object GeoColor {
     fun hairline(): Color = if (isCyber) {
         if (isDark) CyberDarkSeparator else CyberLightSeparator.copy(alpha = 0.55f)
     } else if (isDark) AppleDarkSeparator else AppleLightSeparator.copy(alpha = 0.55f)
-    fun outline(): Color = if (isDark) GoldPrimary.copy(alpha = 0.35f) else GoldPrimary.copy(alpha = 0.38f)
-    fun outlineStrong(): Color = GoldPrimary.copy(alpha = 0.65f)
+    fun outline(): Color = if (isDark) PresetPrimary.copy(alpha = 0.35f) else PresetPrimary.copy(alpha = 0.38f)
+    fun outlineStrong(): Color = PresetPrimary.copy(alpha = 0.65f)
 
     /** الحالات */
-    fun selectedBg(): Color = GoldPrimary.copy(alpha = if (isDark) 0.16f else 0.12f)
-    fun pressed(): Color = GoldPrimary.copy(alpha = 0.10f)
+    fun selectedBg(): Color = PresetPrimary.copy(alpha = if (isDark) 0.16f else 0.12f)
+    fun pressed(): Color = PresetPrimary.copy(alpha = 0.10f)
 
     /** النصوص */
     fun textPrimary(): Color = TextPrimary
@@ -154,7 +153,6 @@ object GeoColor {
     val Hadith: Color get() = if (isCyber) CyberDarkAccent else if (isDark) AppleDarkIndigo else AppleLightIndigo
     val Dua: Color get() = if (isCyber) CyberDarkRed else if (isDark) Color(0xFFFF375F) else Color(0xFFD81B60)
     val Learn: Color get() = if (isCyber) CyberDarkBlue else if (isDark) Color(0xFF64D2FF) else Color(0xFF0071A4)
-    val Rawatib: Color get() = if (isCyber) com.qabas.app.ui.theme.CyberDarkPrimary else if (isDark) Color(0xFF40CBE0) else Color(0xFF0A8499)
     val Warning: Color get() = if (isCyber) CyberDarkRed else if (isDark) AppleDarkRed else AppleLightRed
     val Reward: Color get() = if (isCyber) CyberDarkOrange else if (isDark) Color(0xFFFFD60A) else Color(0xFFA66F00)
     val Qibla: Color get() = if (isCyber) CyberDarkAccent else if (isDark) AppleDarkIndigo else AppleLightIndigo
@@ -172,7 +170,7 @@ object GeoColor {
         }
 
     val goldGradient: Brush
-        get() = Brush.horizontalGradient(colors = listOf(GoldPrimary, GoldSecondary))
+        get() = Brush.horizontalGradient(colors = listOf(PresetPrimary, PresetAccent))
 }
 
 // ═══════════════════════════════════════════════
@@ -183,39 +181,9 @@ object GeoShape {
     val CardSm = RoundedCornerShape(Geo.R_CARD_SM)
     val CardLg = RoundedCornerShape(Geo.R_CARD_LG)
     val Button = RoundedCornerShape(Geo.R_BUTTON)
-    val ButtonSm = RoundedCornerShape(Geo.R_BUTTON_SM)
     val ButtonSmCompat = RoundedCornerShape(Geo.R_BUTTON_SM)
     val Chip = RoundedCornerShape(Geo.R_CHIP)
     val Circle = CircleShape
-}
-
-// ═══════════════════════════════════════════════
-// 4. بطاقات هندسية أساسية
-// ═══════════════════════════════════════════════
-@Composable
-fun GeoCard(
-    modifier: Modifier = Modifier,
-    accent: Color = GoldPrimary,
-    selected: Boolean = false,
-    onClick: (() -> Unit)? = null,
-    content: @Composable (Modifier) -> Unit
-) {
-    val isDark = ThemeManager.isDarkState
-    val bg = if (selected) GeoColor.selectedBg() else GeoColor.surfaceRaised()
-    val stroke = if (selected) accent.copy(alpha = 0.65f) else GeoColor.hairline()
-    val shape = GeoShape.Card
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .clip(shape),
-        shape = shape,
-        color = bg,
-        shadowElevation = if (isDark) 0.dp else 1.5.dp,
-        border = BorderStroke(Geo.B_HAIRLINE, stroke),
-        content = { content(Modifier.padding(Geo.S_MD)) }
-    )
 }
 
 @Composable
@@ -251,7 +219,7 @@ fun GeoHeader(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    accent: Color = GoldPrimary,
+    accent: Color = PresetPrimary,
     action: (@Composable () -> Unit)? = null
 ) {
     Row(
@@ -299,7 +267,7 @@ fun GeoChip(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     selected: Boolean = false,
-    accent: Color = GoldPrimary,
+    accent: Color = PresetPrimary,
     onClick: (() -> Unit)? = null
 ) {
     val bg = if (selected) accent.copy(alpha = 0.14f) else GeoColor.surfaceRaised()
@@ -338,7 +306,7 @@ fun GeoButton(
     text: String,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    accent: Color = GoldPrimary,
+    accent: Color = PresetPrimary,
     variant: GeoButtonStyle = GeoButtonStyle.Filled,
     enabled: Boolean = true,
     onClick: () -> Unit
@@ -399,7 +367,7 @@ fun GeoProgressRing(
     size: Dp = 120.dp,
     strokeWidth: Dp = Geo.RING_STROKE,
     trackColor: Color = GeoColor.hairline().copy(alpha = 0.45f),
-    progressColor: Color = GoldPrimary,
+    progressColor: Color = PresetPrimary,
     content: @Composable (() -> Unit)? = null
 ) {
     Box(

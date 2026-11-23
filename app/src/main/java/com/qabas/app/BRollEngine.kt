@@ -17,23 +17,21 @@ data class TransitionEffect(
     val id: String,
     val nameAr: String,
     val nameEn: String,
-    val ffmpegFilterName: String,
     val iconName: String,
-    val defaultDurationSeconds: Double = 0.8
 )
 
 object BRollEngine {
 
     val availableTransitions = listOf(
-        TransitionEffect("fade", "تلاشي ناعم (Fade)", "Smooth Fade", "fade", "Opacity", 0.8),
-        TransitionEffect("dissolve", "ذوبان سينمائي (Dissolve)", "Dissolve", "dissolve", "AutoAwesome", 1.0),
-        TransitionEffect("slideleft", "انزلاق لليسار (Slide Left)", "Slide Left", "slideleft", "ArrowForward", 0.6),
-        TransitionEffect("slideright", "انزلاق لليمين (Slide Right)", "Slide Right", "slideright", "ArrowBack", 0.6),
-        TransitionEffect("wipeleft", "مسح متدرج (Wipe Left)", "Wipe Left", "wipeleft", "Swipe", 0.7),
-        TransitionEffect("wiperight", "مسح يمين (Wipe Right)", "Wipe Right", "wiperight", "Swipe", 0.7),
-        TransitionEffect("zoomin", "تكبير سينمائي (Zoom In)", "Zoom In", "zoomin", "ZoomIn", 0.8),
-        TransitionEffect("circleopen", "تأطير دائري (Circle Open)", "Circle Open", "circleopen", "Circle", 0.9),
-        TransitionEffect("fadeblack", "تلاشي بالأسود (Fade to Black)", "Fade to Black", "fadeblack", "Contrast", 1.0)
+        TransitionEffect("fade", "تلاشي ناعم (Fade)", "Smooth Fade", "Opacity"),
+        TransitionEffect("dissolve", "ذوبان سينمائي (Dissolve)", "Dissolve", "AutoAwesome"),
+        TransitionEffect("slideleft", "انزلاق لليسار (Slide Left)", "Slide Left", "ArrowForward"),
+        TransitionEffect("slideright", "انزلاق لليمين (Slide Right)", "Slide Right", "ArrowBack"),
+        TransitionEffect("wipeleft", "مسح متدرج (Wipe Left)", "Wipe Left", "Swipe"),
+        TransitionEffect("wiperight", "مسح يمين (Wipe Right)", "Wipe Right", "Swipe"),
+        TransitionEffect("zoomin", "تكبير سينمائي (Zoom In)", "Zoom In", "ZoomIn"),
+        TransitionEffect("circleopen", "تأطير دائري (Circle Open)", "Circle Open", "Circle"),
+        TransitionEffect("fadeblack", "تلاشي بالأسود (Fade to Black)", "Fade to Black", "Contrast")
     )
 
     val categories = listOf(

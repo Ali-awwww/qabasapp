@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,18 +41,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import com.qabas.app.ui.theme.TextPrimary
+import com.qabas.app.ui.theme.ThemeDestructive
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.CairoFont
 import com.qabas.app.ui.theme.CardSurface
 import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.RobotoMonoFont
 import com.qabas.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
@@ -96,7 +95,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = CardSurface.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.30f)),
+        border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.30f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
@@ -109,13 +108,13 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .size(32.dp)
                         .clip(RoundedCornerShape(9.dp))
-                        .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                        .background(PresetPrimary.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.BugReport,
                         contentDescription = null,
-                        tint = Color(0xFF00E5FF),
+                        tint = PresetPrimary,
                         modifier = Modifier.size(17.dp)
                     )
                 }
@@ -123,7 +122,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "تشخيص قناة التحديث",
-                        color = Color.White,
+                        color = TextPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -150,7 +149,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                 loading -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
@@ -164,7 +163,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
 
                 errorText != null -> Text(
                     text = "⚠️ $errorText",
-                    color = Color(0xFFEF4444),
+                    color = ThemeDestructive,
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
                     lineHeight = 16.sp
@@ -221,7 +220,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                         }
                     },
                     enabled = !loading,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(9.dp),
                     modifier = Modifier.weight(1f)
                 ) {
@@ -245,20 +244,20 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                             )
                         }
                     },
-                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f)),
                     shape = RoundedCornerShape(9.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         Icons.Default.OpenInNew,
                         null,
-                        tint = Color(0xFF00E5FF),
+                        tint = PresetPrimary,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
                         text = "صفحة الإصدارات",
-                        color = Color(0xFF00E5FF),
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         maxLines = 1
@@ -281,20 +280,20 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                             }
                         }
                     },
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
+                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.45f)),
                     shape = RoundedCornerShape(9.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         Icons.Default.CheckCircle,
                         null,
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
                         text = if (localApk != null) "تثبيت الآن" else "تثبيت بعد الفحص",
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         maxLines = 1
@@ -319,19 +318,19 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                         }
                         clipboard.setText(AnnotatedString(report))
                     },
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                    border = BorderStroke(1.dp, TextPrimary.copy(alpha = 0.18f)),
                     shape = RoundedCornerShape(9.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         Icons.Default.ContentCopy,
                         null,
-                        tint = Color.White.copy(alpha = 0.7f),
+                        tint = TextPrimary.copy(alpha = 0.7f),
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = "نسخ التقرير",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = TextPrimary.copy(alpha = 0.8f),
                         fontFamily = CairoFont,
                         fontSize = 11.sp,
                         maxLines = 1
@@ -347,7 +346,7 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                     onDismissRequest = { showDeltaMonitoringModal = false },
                     properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
                 ) {
-                    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF030712).copy(alpha = 0.95f))) {
+                    Box(modifier = Modifier.fillMaxSize().background(DeepSlate.copy(alpha = 0.95f))) {
                         DeltaMonitoringDashboard(
                             modifier = Modifier.fillMaxSize(),
                             onClose = { showDeltaMonitoringModal = false }
@@ -359,15 +358,15 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { showDeltaMonitoringModal = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
+                    colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                     shape = RoundedCornerShape(9.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.QueryStats, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.QueryStats, null, tint = DeepSlate, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(5.dp))
                     Text(
                         text = "مرصد أعطال الدلتا (HUD)",
-                        color = Color.White,
+                        color = DeepSlate,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
@@ -385,16 +384,16 @@ fun UpdateDiagnosticsPanel(modifier: Modifier = Modifier) {
                             customMessage = "محاكاة التقاط خطأ الدلتا وفحص تيليمتري Firestore"
                         )
                     },
-                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)),
+                    border = BorderStroke(1.dp, ThemeDestructive.copy(alpha = 0.5f)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = ThemeDestructive.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(9.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.BugReport, null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.BugReport, null, tint = ThemeDestructive, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(5.dp))
                     Text(
                         text = "محاكاة خطأ (smart-ex)",
-                        color = Color(0xFFEF4444),
+                        color = ThemeDestructive,
                         fontFamily = CairoFont,
                         fontSize = 10.5.sp
                     )
@@ -421,7 +420,7 @@ private fun DevInfoRow(label: String, value: String) {
         Spacer(Modifier.width(6.dp))
         Text(
             text = value,
-            color = Color.White,
+            color = TextPrimary,
             fontFamily = RobotoMonoFont,
             fontSize = 10.sp,
             lineHeight = 14.sp,
@@ -436,7 +435,7 @@ private fun GeoDividerCompat() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(TextPrimary.copy(alpha = 0.08f))
     )
 }
 

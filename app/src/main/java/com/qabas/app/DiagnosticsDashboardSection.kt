@@ -47,14 +47,14 @@ fun DiagnosticsDashboardSection(
             title = {
                 Text(
                     "تشخيص شامل 🏥",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontWeight = FontWeight.Bold,
                     fontFamily = CairoFont
                 )
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = GoldPrimary)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = PresetPrimary)
                 }
             },
             actions = {
@@ -74,7 +74,7 @@ fun DiagnosticsDashboardSection(
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = GoldPrimary)
+                    CircularProgressIndicator(color = PresetPrimary)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("جاري التشخيص...", color = TextSecondary, fontFamily = CairoFont, fontSize = 14.sp)
                 }
@@ -136,7 +136,7 @@ fun DiagnosticsDashboardSection(
                 if (r.issues.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("المشاكل المكتشفة (${r.issues.size}):", color = GoldPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                        Text("المشاكل المكتشفة (${r.issues.size}):", color = PresetPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                         Spacer(modifier = Modifier.height(6.dp))
                     }
 
@@ -358,11 +358,11 @@ private fun diagnosticCategory(
                 Icon(
                     if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = null,
-                    tint = GoldPrimary,
+                    tint = PresetPrimary,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(title, color = GoldPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont, modifier = Modifier.weight(1f))
+                Text(title, color = PresetPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont, modifier = Modifier.weight(1f))
             }
             if (isExpanded) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {

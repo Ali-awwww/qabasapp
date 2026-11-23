@@ -10,9 +10,6 @@ object SamirMustafaAqaidAlBalaaData {
 
     const val SCHOLAR_ID = "sheikh_samir_mustafa"
     const val SCHOLAR_NAME = "الشيخ سمير مصطفى"
-    const val SCHOLAR_TITLE = "فضيلة الشيخ سمير مصطفى فرج"
-    const val SERIES_TITLE = "سلسلة عقائد البلاء"
-    const val CATEGORY_NAME = "الشيخ سمير مصطفى"
 
     data class BalaaLesson(
         val episodeNumber: Int,
@@ -157,24 +154,6 @@ object SamirMustafaAqaidAlBalaaData {
                 author = SCHOLAR_NAME,
                 likesCount = 312,
                 isActive = true
-            )
-        }
-    }
-
-    /**
-     * تحويل الدروس إلى كائنات AudioTrackEntity لقاعدة بيانات Room المحلية
-     */
-    fun toAudioTrackEntities(): List<AudioTrackEntity> {
-        return LESSONS.map { lesson ->
-            AudioTrackEntity(
-                id = "samir_mustafa_balaa_${lesson.episodeNumber}",
-                title = lesson.title,
-                artistOrVibe = SCHOLAR_NAME,
-                typeCategory = "الشيخ سمير مصطفى",
-                audioUrlOrPath = lesson.audioUrl,
-                duration = lesson.duration,
-                scriptText = lesson.synopsis,
-                createdAt = System.currentTimeMillis()
             )
         }
     }

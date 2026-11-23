@@ -1,7 +1,6 @@
 package com.qabas.app
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Refresh
@@ -22,10 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -104,151 +99,6 @@ fun Modifier.luxuryCardStyle(
             color = borderColor,
             shape = shape
         )
-}
-
-/**
- * Adaptive Light/Dark Shimmer Brush
- */
-@Composable
-fun rememberQabasShimmerBrush(): Brush {
-    val theme = QabasTheme.current
-    val transition = rememberInfiniteTransition(label = "qabas_shimmer_transition")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1200f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "qabas_shimmer_anim"
-    )
-
-    val baseColor = if (theme.isDark) Color(0xFF1C1C1E) else Color(0xFFE5E5EA)
-    val highlightColor = if (theme.isDark) Color(0xFF2C2C2E) else Color(0xFFF2F2F7)
-
-    return Brush.linearGradient(
-        colors = listOf(baseColor, highlightColor, baseColor),
-        start = Offset.Zero,
-        end = Offset(x = translateAnim, y = translateAnim)
-    )
-}
-
-@Composable
-fun QabasSkeletonBox(
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(8.dp)
-) {
-    val brush = rememberQabasShimmerBrush()
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(brush)
-    )
-}
-
-@Composable
-fun QabasHeroSkeleton(modifier: Modifier = Modifier) {
-    val theme = QabasTheme.current
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .luxuryCardStyle(shapeRadius = 18.dp),
-        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                QabasSkeletonBox(modifier = Modifier.size(width = 110.dp, height = 28.dp), shape = RoundedCornerShape(10.dp))
-                QabasSkeletonBox(modifier = Modifier.size(width = 80.dp, height = 28.dp), shape = RoundedCornerShape(10.dp))
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            QabasSkeletonBox(modifier = Modifier.fillMaxWidth(0.75f).height(22.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            QabasSkeletonBox(modifier = Modifier.fillMaxWidth(0.9f).height(14.dp))
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                QabasSkeletonBox(modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp))
-                QabasSkeletonBox(modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
-fun QabasListSkeleton(
-    modifier: Modifier = Modifier,
-    itemCount: Int = 3
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        repeat(itemCount) {
-            QabasShimmerCard()
-        }
-    }
-}
-
-@Composable
-fun QabasReelFeedSkeleton(modifier: Modifier = Modifier) {
-    val theme = QabasTheme.current
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(360.dp)
-            .luxuryCardStyle(shapeRadius = 18.dp),
-        colors = CardDefaults.cardColors(containerColor = theme.cardSurface),
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            QabasSkeletonBox(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(18.dp))
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                QabasSkeletonBox(modifier = Modifier.fillMaxWidth(0.6f).height(20.dp))
-                Spacer(modifier = Modifier.height(8.dp))
-                QabasSkeletonBox(modifier = Modifier.fillMaxWidth(0.85f).height(14.dp))
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    QabasSkeletonBox(modifier = Modifier.size(width = 80.dp, height = 16.dp))
-                    QabasSkeletonBox(modifier = Modifier.size(width = 100.dp, height = 24.dp), shape = RoundedCornerShape(8.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun QabasProfileSkeleton(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        QabasSkeletonBox(modifier = Modifier.size(96.dp), shape = CircleShape)
-        QabasSkeletonBox(modifier = Modifier.size(width = 160.dp, height = 22.dp))
-        QabasSkeletonBox(modifier = Modifier.size(width = 120.dp, height = 14.dp))
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            QabasSkeletonBox(modifier = Modifier.weight(1f).height(74.dp), shape = RoundedCornerShape(14.dp))
-            QabasSkeletonBox(modifier = Modifier.weight(1f).height(74.dp), shape = RoundedCornerShape(14.dp))
-            QabasSkeletonBox(modifier = Modifier.weight(1f).height(74.dp), shape = RoundedCornerShape(14.dp))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        QabasSkeletonBox(modifier = Modifier.fillMaxWidth().height(120.dp), shape = RoundedCornerShape(16.dp))
-    }
 }
 
 @Composable
@@ -453,62 +303,6 @@ fun QabasErrorState(
 }
 
 @Composable
-fun QabasShimmerCard(modifier: Modifier = Modifier) {
-    val theme = QabasTheme.current
-    val shimmerBrush = rememberQabasShimmerBrush()
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(92.dp),
-        color = theme.cardSurface,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(0.5.dp, theme.separator.copy(alpha = if (theme.isDark) 0.7f else 0.4f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .height(15.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(shimmerBrush)
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(shimmerBrush)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(70.dp)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(shimmerBrush)
-                )
-                Box(
-                    modifier = Modifier
-                        .width(50.dp)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(shimmerBrush)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun QabasGlowingSpinner(
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
@@ -636,93 +430,6 @@ fun QabasIndeterminateProgressBar(
                 .clip(RoundedCornerShape(height / 2)),
             color = theme.primary,
             trackColor = theme.secondarySurface
-        )
-    }
-}
-
-@Composable
-fun QabasStepProgressBar(
-    currentStep: Int,
-    totalSteps: Int,
-    stepLabels: List<String>,
-    modifier: Modifier = Modifier
-) {
-    val theme = QabasTheme.current
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            stepLabels.forEachIndexed { index, label ->
-                val isCompleted = index < currentStep
-                val isCurrent = index == currentStep
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(
-                                when {
-                                    isCompleted -> theme.primary
-                                    isCurrent -> theme.primary.copy(alpha = 0.16f)
-                                    else -> theme.secondarySurface
-                                }
-                            )
-                            .border(
-                                1.dp,
-                                when {
-                                    isCompleted || isCurrent -> theme.primary
-                                    else -> theme.separator
-                                },
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isCompleted) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = theme.onPrimary, modifier = Modifier.size(14.dp))
-                        } else if (isCurrent) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(theme.primary)
-                            )
-                        } else {
-                            Text(
-                                text = "${index + 1}",
-                                color = theme.textSecondary,
-                                fontSize = 10.sp,
-                                fontFamily = RobotoMonoFont,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = label,
-                        color = if (isCompleted || isCurrent) theme.primary else theme.textSecondary,
-                        fontFamily = CairoFont,
-                        fontSize = 10.sp,
-                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-
-        val targetProg = (currentStep.toFloat() / (totalSteps - 1).coerceAtLeast(1)).coerceIn(0f, 1f)
-        QabasProgressBar(
-            progress = targetProg,
-            height = 4.dp,
-            showPercentage = false
         )
     }
 }

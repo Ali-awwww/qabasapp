@@ -20,8 +20,6 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
     private val _products = MutableStateFlow<Map<String, ProductDetails>>(emptyMap())
     val products: StateFlow<Map<String, ProductDetails>> = _products.asStateFlow()
 
-    private val _isSubscribed = MutableStateFlow(false)
-    val isSubscribed: StateFlow<Boolean> = _isSubscribed.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -153,7 +151,7 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
             } else {
                 Log.w(TAG, "Error querying product details: ${result.billingResult.debugMessage}")
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Exception querying products: ${e.message}", e)
         }
     }
@@ -173,7 +171,6 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
                     purchase.purchaseState == Purchase.PurchaseState.PURCHASED
                 }
 
-                _isSubscribed.value = hasActiveSub
                 if (hasActiveSub) {
                     val accountService = AppServices.getAccountService(context)
                     accountService.isPremium = true
@@ -187,7 +184,7 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
                 }
                 return hasActiveSub
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Exception checking active subscriptions: ${e.message}", e)
         }
         return false
@@ -215,6 +212,18 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
                     .build()
                 val inAppResult = billingClient.queryPurchasesAsync(inAppParams)
 
+                // (R48) فحص صادق لنتيجتي الاستعلام: عند فشل الاستعلام تكون
+                // purchasesList فارغة، فكان الفشل يُقرأ سابقاً «لا مشتريات».
+                if (subResult.billingResult.responseCode != BillingClient.BillingResponseCode.OK ||
+                    inAppResult.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    Log.w(TAG, "restorePurchases: query failed sub=${subResult.billingResult.responseCode} inApp=${inAppResult.billingResult.responseCode}")
+                    withContext(Dispatchers.Main) {
+                        _isLoading.value = false
+                        onResult(false, Translator.tr("تعذّر الوصول إلى Google Play للتحقق من مشترياتك، تحقق من اتصال الإنترنت وحاول لاحقاً"))
+                    }
+                    return@launch
+                }
+
                 val activeSubPurchases = subResult.purchasesList.filter {
                     it.purchaseState == Purchase.PurchaseState.PURCHASED
                 }
@@ -222,25 +231,79 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
                 if (activeSubPurchases.isNotEmpty()) {
                     val accountService = AppServices.getAccountService(context)
                     accountService.isPremium = true
-                    _isSubscribed.value = true
 
                     activeSubPurchases.forEach { purchase ->
                         if (!purchase.isAcknowledged) {
                             acknowledgePurchase(purchase)
                         }
                     }
+                }
 
-                    withContext(Dispatchers.Main) {
-                        _isLoading.value = false
-                        onResult(true, Translator.tr("تمت استعادة اشتراكك بنجاح!"))
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        _isLoading.value = false
-                        onResult(false, Translator.tr("لم يتم العثور على اشتراكات نشطة سابقة في حساب Google Play"))
+                // (R48) مشتريات الدفع الواحد: كانت inAppResult تُحسب ولا تُفحص
+                // أبداً، فأي رصيد عملات اشتُري ولم يُستهلك (انقطاع أو إغلاق
+                // بين الشراء والاستهلاك) لا يُستعاد أبداً. المنتجات لمرة
+                // واحدة هنا حزم عملات استهلاكية فقط (لا منتج غير استهلاكي
+                // مباع اليوم)، فالمسار الصحيح لها الاستهلاك لا الإقرار
+                // (الإقرار لغير الاستهلاكي). المنح مباشرة عبر PaymentService
+                // لا عبر onPurchaseSuccess: خانة رد النداء الواحدة مشتركة
+                // بين الشاشات، وPremiumUpgradeScreen تمنح Premium لأي
+                // productId فكانت ستمنح برو مقابل حزمة عملات، وPaymentScreen
+                // كانت ستمنح مرتين إن منحت هنا واستدعيت رد النداء أيضاً.
+                var restoredCoins = 0
+                var failedCoinRestores = 0
+                for (purchase in inAppResult.purchasesList) {
+                    if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) continue
+                    val productId = purchase.products.firstOrNull() ?: continue
+                    val coins = coinsForProduct(productId)
+                    if (coins > 0) {
+                        val consumeParams = ConsumeParams.newBuilder()
+                            .setPurchaseToken(purchase.purchaseToken)
+                            .build()
+                        val consumeResult = billingClient.consumePurchase(consumeParams)
+                        if (consumeResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                            CloudServices.Database.recordPurchase(productId, purchase.purchaseToken)
+                            AppServices.getPaymentService(context).recharge(coins)
+                            restoredCoins += coins
+                            Log.d(TAG, "Restored $coins coins from $productId")
+                        } else {
+                            failedCoinRestores++
+                            Log.w(TAG, "restorePurchases: consume failed for $productId code=${consumeResult.billingResult.responseCode}")
+                        }
+                    } else if (!purchase.isAcknowledged) {
+                        // منتج لمرة واحدة غير استهلاكي (لا يُباع اليوم):
+                        // إقرار فقط حتى لا يسترجعه Play بعد 3 أيام، بلا منح
+                        // ميزة غير معروفة.
+                        acknowledgePurchase(purchase)
+                        CloudServices.Database.recordPurchase(productId, purchase.purchaseToken)
                     }
                 }
-            } catch (e: Exception) {
+
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                    val restoredSubs = activeSubPurchases.isNotEmpty()
+                    if (restoredSubs || restoredCoins > 0) {
+                        // نجاح (كامل أو جزئي): أي استعادة فاشلة تُذكر في
+                        // الرسالة نفسها لا تُبتلع بصمت.
+                        val message = buildString {
+                            if (restoredSubs) append("تمت استعادة اشتراكك بنجاح!")
+                            if (restoredCoins > 0) {
+                                if (isNotEmpty()) append(" ")
+                                if (restoredSubs) append("واستُعيدت $restoredCoins عملة إلى رصيدك.")
+                                else append("تمت استعادة $restoredCoins عملة إلى رصيدك بنجاح!")
+                            }
+                            if (failedCoinRestores > 0) {
+                                if (isNotEmpty()) append(" ")
+                                append("تعذّرت استعادة بعض المشتريات، حاول لاحقاً.")
+                            }
+                        }
+                        onResult(true, Translator.tr(message))
+                    } else if (failedCoinRestores > 0) {
+                        onResult(false, Translator.tr("تعذّرت استعادة مشترياتك السابقة، حاول لاحقاً"))
+                    } else {
+                        onResult(false, Translator.tr("لم يتم العثور على اشتراكات أو مشتريات سابقة في حساب Google Play"))
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
                     onResult(false, Translator.tr("حدث خطأ أثناء استعادة المشتريات: ${e.localizedMessage}"))
@@ -343,7 +406,6 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
                             CloudServices.Database.recordPurchase(productId, purchase.purchaseToken)
                             val accountService = AppServices.getAccountService(context)
                             accountService.isPremium = true
-                            _isSubscribed.value = true
                             withContext(Dispatchers.Main) {
                                 onPurchaseSuccess?.invoke(productId)
                             }
@@ -351,7 +413,6 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
                     } else {
                         val accountService = AppServices.getAccountService(context)
                         accountService.isPremium = true
-                        _isSubscribed.value = true
                         withContext(Dispatchers.Main) {
                             onPurchaseSuccess?.invoke(productId)
                         }
@@ -370,9 +431,21 @@ class BillingManager(private val context: Context) : PurchasesUpdatedListener {
             if (ackResult.responseCode == BillingClient.BillingResponseCode.OK) {
                 Log.d(TAG, "Background acknowledge success: ${purchase.products}")
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Failed to acknowledge purchase: ${e.message}")
         }
+    }
+
+    /**
+     * (R48) عدد عملات حزمة الدفع الواحد، أو 0 إن لم تكن حزمة عملات معروفة.
+     * نفس التعيين في PaymentScreen.kt (منح الشراء الفوري).
+     */
+    private fun coinsForProduct(productId: String): Int = when (productId) {
+        COIN_500 -> 500
+        COIN_1200 -> 1200
+        COIN_3000 -> 3000
+        COIN_10000 -> 10000
+        else -> 0
     }
 
     fun getFormattedPrice(productId: String, fallbackPrice: String): String {

@@ -12,10 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -26,16 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.qabas.app.ui.theme.*
 import com.qabas.app.ui.theme.DeepSlate
-import com.qabas.app.ui.theme.GoldPrimary
+import com.qabas.app.ui.theme.PresetPrimary
 import com.qabas.app.ui.theme.NotoSansFont
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -168,7 +164,7 @@ fun YouTubeStudioScreen(
                 ) {
                     Text(
                         processingLabel,
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -186,7 +182,7 @@ fun YouTubeStudioScreen(
                             onClick = {
                                 videoPicker.launch(arrayOf("video/*"))
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.FolderOpen, contentDescription = null, tint = DeepSlate)
@@ -194,7 +190,7 @@ fun YouTubeStudioScreen(
                             Text("اختيار فيديو", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     } else if (!processingDone) {
-                        CircularProgressIndicator(color = GoldPrimary)
+                        CircularProgressIndicator(color = PresetPrimary)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "جاري المعالجة بواسطة FFmpeg…",
@@ -206,7 +202,7 @@ fun YouTubeStudioScreen(
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = GoldPrimary,
+                            tint = PresetPrimary,
                             modifier = Modifier.size(36.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -221,7 +217,7 @@ fun YouTubeStudioScreen(
                             activeTool = null
                             processingDone = false
                             processingResult = null
-                        }) { Text("إغلاق", color = GoldPrimary, fontFamily = CairoFont) }
+                        }) { Text("إغلاق", color = PresetPrimary, fontFamily = CairoFont) }
                     }
                 }
             }
@@ -234,14 +230,14 @@ fun YouTubeStudioScreen(
             TopAppBar(
                 title = { 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(Translator.tr("استوديو يوتيوب الذكي"), color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        Text(Translator.tr("استوديو يوتيوب الذكي"), color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(10.dp))
                         com.qabas.app.ui.components.ModelIndicator()
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = PresetPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
@@ -263,7 +259,7 @@ fun YouTubeStudioScreen(
                         .padding(20.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Visibility, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(28.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             Translator.tr("لا تتوفر إحصائيات حقيقية بعد"),
@@ -291,13 +287,13 @@ fun YouTubeStudioScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(GoldPrimary.copy(alpha = 0.1f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(PresetPrimary.copy(alpha = 0.1f))
+                        .border(1.dp, PresetPrimary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                         .clickable { showSeriesDialog = true }
                         .padding(20.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.OndemandVideo, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(48.dp))
+                        Icon(Icons.Default.OndemandVideo, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(Translator.tr("مولد السلاسل والروابط التلقائية (Auto Series Engine) 🚀"), color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -381,12 +377,12 @@ fun YouTubeStudioScreen(
                     onClick = { showSeriesDialog = true },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = DeepSlate),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = GoldPrimary)
+                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = PresetPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(Translator.tr("بدء سلسلة محتوى جديدة بنفس النمط"), color = GoldPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                    Text(Translator.tr("بدء سلسلة محتوى جديدة بنفس النمط"), color = PresetPrimary, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
                 }
                 Spacer(modifier = Modifier.height(32.dp))
             }
@@ -422,137 +418,5 @@ fun ToolCard(tool: ToolItem, onClick: () -> Unit = {}) {
         Text(tool.title, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(4.dp))
         Text(tool.desc, color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp, textAlign = TextAlign.Center, lineHeight = 16.sp)
-    }
-}
-
-@Composable
-fun ThumbnailGeneratorDialog(onDismiss: () -> Unit) {
-    var prompt by remember { mutableStateOf("") }
-    var generatedImage by remember { mutableStateOf<String?>(null) }
-    var suggestedTitles by remember { mutableStateOf<List<String>>(emptyList()) }
-    var isGenerating by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
-            colors = CardDefaults.cardColors(containerColor = CardSurface),
-            shape = RoundedCornerShape(24.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333))
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(Translator.tr("مولّد العناوين والأفكار"), color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(Translator.tr("ارفع نسبة النقر إلى الظهور (CTR) من خلال عناوين وصور مصغرة احترافية."), color = Color.Gray, fontFamily = NotoSansFont, fontSize = 14.sp, textAlign = TextAlign.Center)
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                OutlinedTextField(
-                    value = prompt,
-                    onValueChange = { prompt = it },
-                    label = { Text(Translator.tr("موضوع الفيديو (مثال: أثر الصدقة)"), color = Color.Gray, fontFamily = CairoFont) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF333333),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Button(
-                    onClick = {
-                        isGenerating = true
-                        generatedImage = null
-                        suggestedTitles = emptyList()
-                        scope.launch {
-                            val titlesText = runCatching { AppServices.generateTitles(prompt) }.getOrDefault("")
-                            val titles = titlesText
-                                .lineSequence()
-                                .map { it.trim().trimStart('1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ')', '-', '•') }
-                                .filter { it.isNotBlank() && it.length >= 8 }
-                                .take(3)
-                                .toList()
-                            if (titles.isEmpty()) {
-                                generatedImage = null
-                                android.widget.Toast.makeText(context, "تعذر توليد عناوين حقيقية حالياً — حاول مجدداً", android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                suggestedTitles = titles
-                            }
-                            isGenerating = false
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !isGenerating && prompt.isNotBlank()
-                ) {
-                    if (isGenerating) {
-                        CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(24.dp))
-                    } else {
-                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = DeepSlate)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(Translator.tr("توليد العناوين"), color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
-                    }
-                }
-                
-                if (suggestedTitles.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(Translator.tr("العناوين المقترحة:"), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    suggestedTitles.forEach { title ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .background(ThemeSeparator, RoundedCornerShape(8.dp))
-                                .border(1.dp, Color(0xFF333333), RoundedCornerShape(8.dp))
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Title, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(title, color = Color.White, fontFamily = NotoSansFont, fontSize = 14.sp)
-                        }
-                    }
-                }
-
-                if (generatedImage != null) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(Translator.tr("الصورة المصغرة المقترحة:"), color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AsyncImage(
-                        model = generatedImage,
-                        contentDescription = "Thumbnail",
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                if (!isGenerating && suggestedTitles.isEmpty() && prompt.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        Translator.tr("توليد الصور المصغرة بالذكاء الاصطناعي غير متاح حالياً — تُولَّد العناوين فقط."),
-                        color = Color.Gray,
-                        fontFamily = CairoFont,
-                        fontSize = 12.sp,
-                        modifier = Modifier.align(Alignment.Start)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text(Translator.tr("إغلاق"), color = Color.Gray, fontFamily = CairoFont)
-                }
-            }
-        }
     }
 }

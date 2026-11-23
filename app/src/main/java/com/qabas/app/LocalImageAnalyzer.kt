@@ -54,7 +54,6 @@ object LocalImageAnalyzer {
         val usedRealOpticalFlow: Boolean,
         val visualTraits: List<String>,
         val framesUsed: Int,
-        val dominantPalette: List<String> = emptyList()
     )
 
     /** تهيئة كسولة لـ OpenCV — تُستدعى مرة واحدة */
@@ -189,7 +188,6 @@ object LocalImageAnalyzer {
      */
     private fun estimateMotionFarneback(frames: List<Bitmap>): Pair<Float, String> {
         val matClass = Class.forName("org.opencv.core.Mat")
-        val cvType = Class.forName("org.opencv.core.CvType")
         val imgproc = Class.forName("org.opencv.imgproc.Imgproc")
         val video = Class.forName("org.opencv.video.Video")
         val utils = Class.forName("org.opencv.android.Utils")

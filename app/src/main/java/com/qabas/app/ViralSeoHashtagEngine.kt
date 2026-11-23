@@ -8,8 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,9 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -84,7 +80,7 @@ fun ViralSeoHashtagsDialog(
                 .heightIn(max = 720.dp),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, GoldPrimary)
+            border = BorderStroke(1.dp, PresetPrimary)
         ) {
             Column(
                 modifier = Modifier
@@ -100,14 +96,14 @@ fun ViralSeoHashtagsDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.15f),
+                            color = PresetPrimary.copy(alpha = 0.15f),
                             shape = CircleShape,
-                            border = BorderStroke(1.dp, GoldPrimary)
+                            border = BorderStroke(1.dp, PresetPrimary)
                         ) {
                             Icon(
                                 Icons.Default.TrendingUp,
                                 contentDescription = null,
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.padding(6.dp).size(20.dp)
                             )
                         }
@@ -115,7 +111,7 @@ fun ViralSeoHashtagsDialog(
                         Column {
                             Text(
                                 "مُحلل الهاشتاغات والكلمات الفيروسية 📈",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -130,7 +126,7 @@ fun ViralSeoHashtagsDialog(
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextPrimary)
                     }
                 }
 
@@ -143,10 +139,10 @@ fun ViralSeoHashtagsDialog(
                     label = { Text("موضوع المقطع أو الفكرة الرئيسية", color = Color.Gray, fontFamily = CairoFont) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = GoldPrimary,
-                        unfocusedBorderColor = Color(0xFF1E293B),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedBorderColor = PresetPrimary,
+                        unfocusedBorderColor = ThemeSeparator,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
                     ),
                     shape = RoundedCornerShape(12.dp),
                     trailingIcon = {
@@ -165,7 +161,7 @@ fun ViralSeoHashtagsDialog(
                                 }
                             }
                         }) {
-                            Icon(Icons.Default.Search, contentDescription = "تحليل", tint = GoldPrimary)
+                            Icon(Icons.Default.Search, contentDescription = "تحليل", tint = PresetPrimary)
                         }
                     }
                 )
@@ -196,10 +192,10 @@ fun ViralSeoHashtagsDialog(
                             label = { Text(plt, fontSize = 12.sp, fontFamily = NotoSansFont) },
                             modifier = Modifier.weight(1f),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldPrimary,
+                                selectedContainerColor = PresetPrimary,
                                 selectedLabelColor = DeepSlate,
-                                containerColor = Color(0xFF151B2B),
-                                labelColor = Color.White
+                                containerColor = ThemeSecondarySurface,
+                                labelColor = TextPrimary
                             )
                         )
                     }
@@ -215,16 +211,16 @@ fun ViralSeoHashtagsDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = GoldPrimary)
+                            CircularProgressIndicator(color = PresetPrimary)
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("جاري فحص خوارزميات النشر وتوليد الكلمات الأكثر تداولاً...", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
+                            Text("جاري فحص خوارزميات النشر وتوليد الكلمات الأكثر تداولاً...", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 14.sp)
                         }
                     }
                 } else if (tagList.isNotEmpty() || titleSuggestions.isNotEmpty()) {
                     // SECTION 1: OPTIMIZED VIRAL TITLES
                     Text(
                         "العناوين الأعلى نقراً وفيروسية (CTR Boost) 🎯:",
-                        color = Color.White,
+                        color = TextPrimary,
                         fontFamily = CairoFont,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -239,9 +235,9 @@ fun ViralSeoHashtagsDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { selectedTitle = titleObj.title },
-                                color = if (isSel) GoldPrimary.copy(alpha = 0.15f) else Color(0xFF151B2B),
+                                color = if (isSel) PresetPrimary.copy(alpha = 0.15f) else ThemeSecondarySurface,
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, if (isSel) GoldPrimary else Color(0xFF1E293B))
+                                border = BorderStroke(1.dp, if (isSel) PresetPrimary else ThemeSeparator)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(10.dp),
@@ -249,18 +245,18 @@ fun ViralSeoHashtagsDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(titleObj.title, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text(titleObj.title, color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text("نمط الخطاف: ${titleObj.hookType}", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
-                                        color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                        color = ThemeSuccess.copy(alpha = 0.2f),
                                         shape = RoundedCornerShape(6.dp)
                                     ) {
                                         Text(
                                             titleObj.ctrBoostEstimate,
-                                            color = Color(0xFF10B981),
+                                            color = ThemeSuccess,
                                             fontFamily = NotoSansFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 10.sp,
@@ -282,7 +278,7 @@ fun ViralSeoHashtagsDialog(
                     ) {
                         Text(
                             "الوسوم والهاشتاغات الموصى بها (Hashtags) #:",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontFamily = CairoFont,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
@@ -294,7 +290,7 @@ fun ViralSeoHashtagsDialog(
                         }) {
                             Text(
                                 if (tagList.all { it.isSelected }) "إلغاء تحديد الكل" else "تحديد الكل",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp
                             )
@@ -328,9 +324,9 @@ fun ViralSeoHashtagsDialog(
                                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp)) }
                                 } else null,
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = GoldPrimary,
+                                    selectedContainerColor = PresetPrimary,
                                     selectedLabelColor = DeepSlate,
-                                    containerColor = Color(0xFF151B2B),
+                                    containerColor = ThemeSecondarySurface,
                                     labelColor = Color.LightGray
                                 )
                             )
@@ -351,7 +347,7 @@ fun ViralSeoHashtagsDialog(
                             onDismiss()
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = DeepSlate)
@@ -364,13 +360,13 @@ fun ViralSeoHashtagsDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(160.dp)
-                            .background(Color(0xFF0B0F19), RoundedCornerShape(16.dp)),
+                            .background(DeepSlate, RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Analytics, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(40.dp))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("أدخل موضوع المقطع واضغط تحليل لاستخراج الوسوم الفيروسية", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp)
+                            Text("أدخل موضوع المقطع واضغط تحليل لاستخراج الوسوم الفيروسية", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                         }
                     }
                 }
