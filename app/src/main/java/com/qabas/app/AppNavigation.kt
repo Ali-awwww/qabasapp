@@ -529,6 +529,15 @@ fun AppNavigation(
                 bottomBar = bottomNav
             )
         }
+        AppState.VIBE_CODING -> {
+            VibeCodingScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onOpenLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
+                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                bottomBar = bottomNav
+            )
+        }
         AppState.PHOTO_STUDIO -> {
             PhotoStudioScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },

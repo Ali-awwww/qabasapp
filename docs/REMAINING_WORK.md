@@ -1,6 +1,6 @@
 # الأعمال المتبقية — Qabas
 
-آخر تحديث: 2026-11-21
+آخر تحديث: 2026-11-24
 
 الفرع الحالي:
 
@@ -8,15 +8,17 @@
 feature/studio-route-organization (PR #89)
 ```
 
-آخر commit على فرع Studio:
+آخر commit منشور سابقاً على فرع Studio:
 
 ```text
 148648780936e0fc8d70c562601f263b8411901b
 ```
 
+التغييرات المحلية الحالية بعد إصلاح فشل CI ستُسجّل في commit جديد قبل دفع PR #89.
+
 ## الحالة الحالية
 
-تم تنفيذ دفعات الأداء والأمان والتوثيق وإصلاحات Studio على PR #89. فحوص Build & Sign APK وCodeQL وCodeQL Advanced وSecret Scan للـ commit الأخير ناجحة. فحص Mintlify Deployment ما زال فاشلاً من تكامل خارجي غير موجود إعدادُه داخل المستودع.
+تم تنفيذ دفعات الأداء والأمان والتوثيق وإصلاحات Studio على PR #89. أُصلحت محلياً أخطاء Kotlin المؤكدة في `AiStudioAgentScreen.kt` و`AppNavigation.kt` و`SettingsScreen.kt`. فحوص Build وCodeQL للرأس الجديد لم تُشغّل بعد؛ ستُحسم عبر GitHub Actions بعد الدفع. فحص Mintlify Deployment ما زال فاشلاً من تكامل خارجي غير موجود إعدادُه داخل المستودع.
 
 ## عناصر يمكن لـ Manus إكمالها لاحقًا
 
@@ -184,3 +186,13 @@ QABAS_KEY_VAULT_SECRET
 - [x] إضافة مهلة اتصال وقراءة لتنزيل ملف التلاوة.
 - [x] فحص رمز استجابة HTTP وإغلاق الاتصال في `finally`.
 - [ ] اختبار جهاز فعلي مع شبكة بطيئة أو منقطعة للتأكد من ظهور رسالة الفشل واستمرار الواجهة دون تعليق.
+
+## إصلاح فشل CI بعد تقدم main — 2026-11-24
+
+- [x] إصلاح إغلاق `Scaffold` والحفاظ على حوارات `AiStudioAgentScreen` داخل نطاق الدالة.
+- [x] إضافة فرع `AppState.VIBE_CODING` إلى `AppNavigation`.
+- [x] إضافة فرع `SettingsItemAction.OpenKeysAndModels` إلى قائمة الإعدادات الرئيسية.
+- [x] تنفيذ فحوص ساكنة محلية: `git diff --check`، علامات التعارض، توازن الأقواس، وتغطية قيم `AppState`.
+- [ ] دفع commit الجولة وانتظار Build وCodeQL وSecret Scan على GitHub Actions.
+- [ ] اختبار الجهاز الفعلي لمسارات Studio والتحديثات وxdelta؛ لم تُنفذ هذه الجولة على جهاز Android.
+- [ ] مراجعة تكامل Mintlify الخارجي من إعدادات GitHub/Mintlify؛ لا توجد إعدادات له داخل المستودع.
