@@ -963,6 +963,21 @@ object MultiModelAgentOrchestrator {
                         toolName = "team_leader_verify", isRunning = false, isSuccess = true
                     )
                 )
+            } else if (!AgentPrefs.isAutoFix(context)) {
+                // (المرحلة 8) الإصلاح الذاتي متوقف: لا تُعاد المهام التي طلب
+                // القائد إعادتها — تُسجَّل كما هي مع تحذير صريح، بدل إعادة صامتة.
+                warnings.add(
+                    "⚠️ الإصلاح الذاتي متوقف — لم تُعَد ${round1.size} مهمة طلب القائد إعادتها: " +
+                        round1.joinToString("، ") { it.first } +
+                        ". فعّله من تبويب التحكم لإعادة المحاولة تلقائياً."
+                )
+                safeOnStep(
+                    TeamStepEvent(
+                        key = "verify", title = "🔎 تحقق القائد",
+                        description = "الإصلاح الذاتي متوقف — لم تُعَد ${round1.size} مهمة.",
+                        toolName = "team_leader_verify", isRunning = false, isSuccess = false
+                    )
+                )
             } else {
                 safeOnUpdate("🔁 ${leader.displayName}: طلب إعادة ${round1.size} مهمة.")
                 round1.forEach { (id, instruction) ->

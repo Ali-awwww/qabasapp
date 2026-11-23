@@ -27,8 +27,14 @@ data class BuildRunSnapshot(
     val headSha: String,
     val status: String,
     val conclusion: String?,
-    val htmlUrl: String
+    val htmlUrl: String,
+    /** وقت بدء التشغيل (created_at الخام من GitHub، UTC). */
+    val createdAt: String = ""
 ) {
+    /** وقت التشغيل بصيغة مقروءة — من created_at الخام، بلا اختراع. */
+    val displayTime: String
+        get() = if (createdAt.isBlank()) "—"
+        else createdAt.take(16).replace("T", " ") + " UTC"
     val outcome: BuildRunOutcome get() = AgentBuildVerifier.classify(status, conclusion)
 }
 
@@ -85,7 +91,8 @@ object AgentBuildVerifier {
                     headSha = o.optString("head_sha", ""),
                     status = o.optString("status", ""),
                     conclusion = o.optString("conclusion").takeIf { it.isNotBlank() },
-                    htmlUrl = o.optString("html_url", "")
+                    htmlUrl = o.optString("html_url", ""),
+                    createdAt = o.optString("created_at", "")
                 )
             }
         } catch (_: Exception) {

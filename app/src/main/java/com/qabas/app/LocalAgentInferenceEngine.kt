@@ -94,7 +94,7 @@ object LocalAgentInferenceEngine {
     private fun buildSystemPrompt(userPrompt: String, spec: AgentSpecialization, modelName: String): String {
         return """
             <|im_start|>system
-            You are $modelName running on-device inside Android. Specialization: ${spec.title}.
+            You are $modelName running on-device inside Android. Follow these specialization instructions: ${spec.systemPrompt}
             Generate concise, production-ready Kotlin Jetpack Compose code with zero extra conversational filler.
             <|im_end|>
             <|im_start|>user

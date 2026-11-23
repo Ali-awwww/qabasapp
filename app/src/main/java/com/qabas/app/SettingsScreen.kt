@@ -100,10 +100,14 @@ data class SearchableSetting(
 internal sealed class SettingsItemAction {
     data class OpenSubScreen(val screen: SettingsSubScreen) : SettingsItemAction()
     object OpenContact : SettingsItemAction()
+    /** (المرحلة 5) القسم الموحد «مفاتيحي ونماذجي» — شاشة AppState لا sub-screen. */
+    object OpenKeysAndModels : SettingsItemAction()
 }
 
 internal fun settingsItemAction(item: SearchableSetting): SettingsItemAction =
-    if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
+    if (item.title.contains("مفاتيحي ونماذجي")) {
+        SettingsItemAction.OpenKeysAndModels
+    } else if (item.subScreen == SettingsSubScreen.MAIN && item.title.contains("التواصل")) {
         SettingsItemAction.OpenContact
     } else {
         SettingsItemAction.OpenSubScreen(item.subScreen)
@@ -238,6 +242,7 @@ fun SettingsScreen(
             SearchableSetting("مركز الإنتاج والذكاء الاحترافي", "هوية الذكاء، العلامة المائية، وجودة التصدير", Icons.Default.Psychology, SettingsSubScreen.PRO_PRODUCTION_HUB, listOf("ذكاء", "فيديو", "إنتاج", "علامة مائية"), badge = "الإنتاج", accentColor = Color(0xFF5856D6), group = "الإنتاج والإبداع"),
             SearchableSetting("إعدادات مشغل الفيديو الموحد", "سرعة التشغيل، ملاءمة الصورة، وأزرار التحكم", Icons.Default.PlayCircle, SettingsSubScreen.VIDEO_PLAYER_SETTINGS, listOf("فيديو", "مشغل", "سرعة"), badge = "المشغل", accentColor = theme.primary, group = "الإنتاج والإبداع"),
             SearchableSetting("النظام والبيانات والمجتمع", "النسخ الاحتياطي، الذاكرة، السياسات، والروابط الرسمية", Icons.Default.SettingsSuggest, SettingsSubScreen.COMMUNITY_SUPPORT, listOf("كاش", "نظام", "بيانات", "احتياطي"), badge = "البيانات", accentColor = Color(0xFF5856D6), group = "البيانات والحساب"),
+            SearchableSetting("مفاتيحي ونماذجي", "مفاتيح API والنماذج السحابية والمحلية في مكان واحد", Icons.Default.VpnKey, SettingsSubScreen.MAIN, listOf("مفاتيح", "نماذج", "مفتاح", "API", "نموذج"), badge = "المفاتيح", accentColor = theme.primary, group = "البيانات والحساب"),
             SearchableSetting("إعدادات كاميرا البلاغات", "التحكم بزر الكاميرا العائم المستخدم لإرسال البلاغات", Icons.Default.CameraAlt, SettingsSubScreen.BUG_CAMERA_CONTROL, listOf("كاميرا", "بلاغ", "خطأ"), badge = "البلاغات", accentColor = theme.primary, group = "التواصل والمساندة")
         ).let { base ->
             val withDeveloperSettings = if (isDeveloperAccount) {
@@ -653,6 +658,10 @@ fun SettingsScreen(
                                             SettingsItemAction.OpenContact -> {
                                                 AppSoundManager.playClick()
                                                 AppNavigator.navigateTo(AppState.REQUEST_CHAT)
+                                            }
+                                            SettingsItemAction.OpenKeysAndModels -> {
+                                                AppSoundManager.playClick()
+                                                AppNavigator.navigateTo(AppState.MY_KEYS)
                                             }
                                             is SettingsItemAction.OpenSubScreen -> {
                                                 currentSubScreen = action.screen

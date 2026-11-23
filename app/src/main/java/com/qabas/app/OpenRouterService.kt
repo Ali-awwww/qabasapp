@@ -330,9 +330,14 @@ object OpenRouterService {
         model: String? = null,
         maxTurns: Int = 4,
         context: Context? = null
-    ): Pair<String, List<String>> =
-        KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
-            chatWithTools(k, system, history, tools, model, maxTurns, context)
+    ): Pair<String, List<String>> {
+        // (المرحلة 8) حد الجولات من تبويب التحكم (AgentPrefs.maxTurns،
+        // افتراضي 6) يحكم حلقة الأدوات repeat(maxTurns) — التبويب هو المتحكم
+        // الوحيد بالعدد؛ وبلا سياق يبقى المعامل الممرَّر (افتراضي 4).
+        val effectiveMaxTurns = context?.let { AgentPrefs.maxTurns(it) } ?: maxTurns
+        return KeyPoolManager.withFailover("openrouter_key", KeyVault.openrouter) { k ->
+            chatWithTools(k, system, history, tools, model, effectiveMaxTurns, context)
                 .takeIf { it.first.isNotBlank() }
         } ?: Pair("", emptyList())
+    }
 }

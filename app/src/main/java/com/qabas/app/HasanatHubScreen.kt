@@ -767,7 +767,10 @@ fun HasanatHubScreen(
                                             fontFamily = AmiriFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 18.sp,
-                                            lineHeight = 31.sp,
+                                            // (تضييق عمودي) خط أميري مشكَّل بالكامل: التشكيل المتراكم
+                                            // فوق الحروف وتحتها كان يتداخل مع السطر أعلاه عند 31sp،
+                                            // فارتفاع السطر هنا سخي ليتنفس النص.
+                                            lineHeight = 42.sp,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.fillMaxWidth()
                                         )

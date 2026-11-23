@@ -230,7 +230,6 @@ fun AppNavigation(
             // القيم هنا مطابقة حرفياً لـ onBack/onExit الممرَّرة في
             // فروع when أدناه، لا أب جديد مخترع.
             AppState.MY_KEYS to AppState.STUDIO_GATEWAY,
-            AppState.ADVANCED_KEYS to AppState.MY_KEYS,
             AppState.STUDIO_AGENT to AppState.STUDIO_GATEWAY,
             AppState.STUDIO_LIBRARY to AppState.STUDIO_GATEWAY,
             AppState.SOCIAL_STATS to AppState.STUDIO_GATEWAY,
@@ -267,24 +266,60 @@ fun AppNavigation(
         viewModel.updateState { copy(appState = target) }
     }
 
-    when (appState) {
-        AppState.DATA_LOADING -> {
-            DataLoadingScreen(
-                onLoadProjects = { viewModel.loadProjectsSuspend() },
-                onFinished = {
-                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-                    val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-                    val isGuest = prefs.getBoolean("is_guest", false)
-                    val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
-                    when {
-                        !hasAcceptedCovenant -> viewModel.updateState { copy(appState = AppState.ONBOARDING) }
-                        isLoggedIn -> verifySessionBeforeNavigation(AppState.HOME)
-                        isGuest -> viewModel.updateState { copy(appState = AppState.HOME) }
-                        else -> viewModel.updateState { copy(appState = AppState.LOGIN) }
-                    }
-                }
-            )
+    // Silent startup: the init/progress screen was deleted on the user's
+    // order. The same init steps it ran, in the same order, now run here
+    // without any UI. Failures are only logged — routing proceeds
+    // regardless, so an offline start still reaches Home/Login instead of
+    // stranding the user on an error screen with a retry button.
+    var startupInitDone by remember { mutableStateOf(false) }
+    LaunchedEffect(appState) {
+        if (appState != AppState.DATA_LOADING || startupInitDone) return@LaunchedEffect
+        startupInitDone = true
+        val appContext = context.applicationContext
+        try {
+            withContext(Dispatchers.IO) {
+                AppServices.init(appContext)
+                BillingManager.getInstance(appContext)
+                StyleBrain.init(appContext)
+                StyleManager.init(appContext)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            android.util.Log.e("StartupInit", "Local init failed: ${e.message}")
         }
+        try {
+            withContext(Dispatchers.IO) {
+                CloudServices.tryInitFromSavedConfig(appContext)
+                if (SupabaseServices.isSupabaseAvailable) {
+                    CloudServices.syncAdminClaim(appContext)
+                    SupabaseServices.Auth.refreshVerifiedRole()
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            android.util.Log.e("StartupInit", "Cloud init failed: ${e.message}")
+        }
+        try {
+            withContext(Dispatchers.IO) {
+                viewModel.loadProjectsSuspend()
+                if (SupabaseServices.isSupabaseAvailable) {
+                    SupabaseServices.Database.ping()
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            android.util.Log.e("StartupInit", "Data load failed: ${e.message}")
+        }
+        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+        val isGuest = prefs.getBoolean("is_guest", false)
+        val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
+        when {
+            !hasAcceptedCovenant -> viewModel.updateState { copy(appState = AppState.ONBOARDING) }
+            isLoggedIn -> verifySessionBeforeNavigation(AppState.HOME)
+            isGuest -> viewModel.updateState { copy(appState = AppState.HOME) }
+            else -> viewModel.updateState { copy(appState = AppState.LOGIN) }
+        }
+    }
+
+    when (appState) {
         AppState.ONBOARDING -> {
             OnboardingScreen(
                 onFinish = {
@@ -492,6 +527,7 @@ fun AppNavigation(
         AppState.PHOTO_STUDIO -> {
             PhotoStudioScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
                 onNavigateToAdvancedEdit = { videoPath ->
                     viewModel.updateState {
                         copy(
@@ -606,10 +642,9 @@ fun AppNavigation(
         }
         AppState.VIBE_CODING -> {
             // قسم «فايب كودينج» الموحد (12.2): محادثة واحدة بمساري برمجة/محتوى.
-            // بوابة المحتوى (STUDIO_GATEWAY) تبقى reachable من مسار المحتوى ومن تبويب الروابط.
+            // بوابة المحتوى (STUDIO_GATEWAY) تبقى reachable من مسار المحتوى.
             VibeCodingScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onNavigateToGateway = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
                 onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
                 onOpenLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
                 onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
@@ -653,14 +688,7 @@ fun AppNavigation(
         AppState.MY_KEYS -> {
             StudioKeysScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                bottomBar = bottomNav,
-                // (12.3) «خيارات متقدمة» رابط واحد من «مفاتيحي» إلى ApiKeysScreen.
-                onOpenAdvancedKeys = { viewModel.updateState { copy(appState = AppState.ADVANCED_KEYS) } }
-            )
-        }
-        AppState.ADVANCED_KEYS -> {
-            ApiKeysScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } }
+                bottomBar = bottomNav
             )
         }
         AppState.STUDIO_LIBRARY -> {

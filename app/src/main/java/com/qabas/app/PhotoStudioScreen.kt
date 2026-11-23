@@ -65,7 +65,9 @@ data class PhotoTemplate(
 fun PhotoStudioScreen(
     onBack: () -> Unit,
     onNavigateToAdvancedEdit: (String) -> Unit = {},
-    onSaveProject: (String) -> Unit = {}
+    onSaveProject: (String) -> Unit = {},
+    /** (المرحلة 5) زر المفتاح يوجّه إلى القسم الموحد «مفاتيحي ونماذجي». */
+    onOpenKeys: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -89,7 +91,6 @@ fun PhotoStudioScreen(
     var outputQuality by remember { mutableStateOf("HD") }
 
     var selectedAudioOption by remember { mutableStateOf("تلاوة هادئة") }
-    var showApiKeyDialog by remember { mutableStateOf(false) }
 
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
@@ -458,7 +459,7 @@ fun PhotoStudioScreen(
                         }
                     }
                 },
-                onOpenApiKeys = { showApiKeyDialog = true }
+                onOpenApiKeys = onOpenKeys
             )
             3 -> Step3Export(
                 processing = processing,
@@ -501,10 +502,6 @@ fun PhotoStudioScreen(
                     onNavigateToAdvancedEdit(path)
                 }
             )
-        }
-
-        if (showApiKeyDialog) {
-            ApiKeyManagerDialog(onDismiss = { showApiKeyDialog = false })
         }
     }
 }

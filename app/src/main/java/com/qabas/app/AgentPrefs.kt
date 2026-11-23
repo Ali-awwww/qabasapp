@@ -19,6 +19,8 @@ object AgentPrefs {
     const val MAX_TURNS = "agent_max_turns"
     const val AUTO_FIX = "agent_auto_fix"
     const val PLANNING_MODE = "agent_planning_mode"
+    // وضع الفريق (المرحلة 4): محفوظ — يبقى كما تركه المستخدم عند إعادة الدخول.
+    const val TEAM_MODE = "agent_team_mode"
     const val ACTIVE_PLANNING_TASKS_COUNT = "active_planning_tasks_count"
     const val PREFS_NAME = "qabas_agent_encrypted"
     private const val LEGACY_PREFS_NAME = "qabas_prefs"
@@ -231,6 +233,13 @@ object AgentPrefs {
 
     fun putPlanningMode(context: Context, enabled: Boolean) {
         putBoolean(context, PLANNING_MODE, enabled)
+    }
+
+    fun isTeamMode(context: Context): Boolean =
+        getBoolean(context, TEAM_MODE, false)
+
+    fun putTeamMode(context: Context, enabled: Boolean) {
+        putBoolean(context, TEAM_MODE, enabled)
     }
 
     fun activePlanningTasksCount(context: Context): Int =

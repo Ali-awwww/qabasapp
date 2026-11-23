@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -103,7 +104,7 @@ internal fun AgentKernelSettingsCard(context: Context) {
                         null to "⚡ تلقائي الذكي (Auto)",
                         "gemini-2.5-flash" to "💎 Gemini 2.5 Flash (سريع ودقيق)",
                         "llama-3.3-70b-versatile" to "⚡ Groq Llama 3.3 70B (فائق السرعة)",
-                        "google/gemma-4-31b-it:free" to "🌊 Gemma 4 Free (مجاني ومفتوح)"
+                        "google/gemma-3-27b-it:free" to "🌊 Gemma 3 (مجاني ومفتوح)"
                     ).forEach { (id, label) ->
                         val isSelected = model == id
                         Surface(
@@ -185,7 +186,14 @@ internal fun AgentKernelSettingsCard(context: Context) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🔧 الإصلاح التلقائي الذكي (Self-Healing)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                "🔧 الإصلاح التلقائي الذكي (Self-Healing)",
+                                color = theme.textPrimary,
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 color = if (autoFix) theme.success.copy(alpha = 0.12f) else theme.textTertiary.copy(alpha = 0.12f),
@@ -197,6 +205,8 @@ internal fun AgentKernelSettingsCard(context: Context) {
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -419,22 +429,26 @@ private fun ToolRow(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            arabicName,
-                            color = if (on) theme.textPrimary else theme.textTertiary,
-                            fontFamily = CairoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            tool.name,
-                            color = theme.textTertiary,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
-                        )
-                    }
+                    // المعرّف على سطر مستقل كامل العرض: كان في صف مع الاسم
+                    // العربي فيضغط فينكمش ويتكسر عمودياً حرفاً حرفاً.
+                    Text(
+                        arabicName,
+                        color = if (on) theme.textPrimary else theme.textTertiary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        tool.name,
+                        color = theme.textTertiary,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
+                    )
                     Text(
                         tool.description,
                         color = theme.textSecondary,
