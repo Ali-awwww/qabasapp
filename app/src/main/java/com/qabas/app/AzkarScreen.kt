@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -95,7 +97,14 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
 
     // Selected tab: 0 = Morning, 1 = Evening, 2 = Sleep, 3 = Waking,
     // 4 = After Prayer, 5 = Mosque, 6 = All (AzkarTabSelector)
-    private val _selectedTab = MutableStateFlow(0)
+    // ق140: الافتراضي حسب وقت اليوم — كان الصباح (0) دائماً حتى لمن
+    // يفتح الأذكار ليلاً فيجد أذكار الصباح أولاً ويضطر للتبديل يدوياً
+    // كل مرة. القاعدة تقريبية بالساعة (الفجر–الظهر صباح، والعصر–الفجر
+    // مساءً): 05:00–14:59 صباح، وما عداها مساءً؛ واختيار المستخدم بعد
+    // الفتح يبقى كما هو (تُحسب مرة عند إنشاء النموذج فقط).
+    private val _selectedTab = MutableStateFlow(
+        if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) in 5..14) 0 else 1
+    )
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
     // Search query
@@ -108,6 +117,28 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
 
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
+    // التهيئة غير متزامنة: بين إنشاء المحرك وonInit قد يأتي نقر جديد —
+    // بلا هذا العلم يُعامل كفشل سابق فيُكذَّب التنبيه ويُسقَط الطلب.
+    private var isTtsInitializing = false
+
+    // سرعة الاستماع: محفوظة محلياً (0.75×–1.5×)، وتُطبَّق عند كل نطق.
+    private val _ttsRate = MutableStateFlow(
+        prefs.getFloat("azkar_tts_rate", 1.0f).coerceIn(0.5f, 2.0f)
+    )
+    val ttsRate: StateFlow<Float> = _ttsRate.asStateFlow()
+
+    /** تدوير سرعة الاستماع 0.75× ← 1× ← 1.25× ← 1.5×، مع الحفظ والتطبيق الفوري. */
+    fun cycleTtsRate() {
+        val next = when (_ttsRate.value) {
+            0.75f -> 1.0f
+            1.0f -> 1.25f
+            1.25f -> 1.5f
+            else -> 0.75f
+        }
+        _ttsRate.value = next
+        prefs.edit().putFloat("azkar_tts_rate", next).apply()
+        tts?.setSpeechRate(next)
+    }
 
     init {
         loadAllAzkar()
@@ -153,14 +184,51 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
         _progressMap.value = map
     }
 
+    /**
+     * إعادة تحميل تقدّم اليوم من التفضيلات. يُستدعى عند تبدّل التاريخ
+     * والتطبيق مفتوح (حلقة الدقيقة في الشاشة): بلا هذا يبقى تقدّم أمس
+     * في الذاكرة، فتُبنى نقرات اليوم الجديد على عدّ أمس وتُكتب في
+     * مفاتيح اليوم الجديد.
+     */
+    fun refreshDailyProgress() {
+        loadSavedProgress()
+    }
+
     fun initTts(context: Context) {
         if (tts == null) {
+            isTtsInitializing = true
             tts = TextToSpeech(context.applicationContext) { status ->
+                isTtsInitializing = false
                 if (status == TextToSpeech.SUCCESS) {
                     val result = tts?.setLanguage(Locale("ar"))
                     isTtsReady = (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED)
+                    if (isTtsReady) {
+                        pendingSpeakItem?.let { item ->
+                            pendingSpeakItem = null
+                            speakNow(item)
+                        }
+                    } else {
+                        pendingSpeakItem = null
+                        Toast.makeText(context.applicationContext, "تعذّر تحضير المحرك الصوتي العربي على هذا الجهاز", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    pendingSpeakItem = null
+                    Toast.makeText(context.applicationContext, "تعذّر تحضير المحرك الصوتي العربي على هذا الجهاز", Toast.LENGTH_SHORT).show()
                 }
             }
+            // يُسجَّل المستمع مرة واحدة عند الإنشاء وقبل أي نطق: التسجيل
+            // بعد speak() كان يفوته اكتمال النصوص القصيرة فيبقى speakingId
+            // عالقاً (زر الإيقاف وأيقونة التحدث لا يزولان).
+            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    if (_speakingId.value == utteranceId) _speakingId.value = null
+                }
+
+                override fun onError(utteranceId: String?) {
+                    if (_speakingId.value == utteranceId) _speakingId.value = null
+                }
+            })
         }
     }
 
@@ -172,7 +240,12 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
         _searchQuery.value = query
     }
 
-    fun incrementCount(id: String, target: Int) {
+    /**
+     * يزيد العدّاد نقرة واحدة إن لم يبلغ الهدف، ويعيد true عند الزيادة
+     * الفعلية وfalse عند بلوغ الهدف — ليصدر صوت النقرة عن زيادة حقيقية
+     * فقط، لا عن نقرة على ذكر مكتمل لا يتحرك عدّاده.
+     */
+    fun incrementCount(id: String, target: Int): Boolean {
         val current = _progressMap.value[id] ?: 0
         if (current < target) {
             val next = current + 1
@@ -182,19 +255,47 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
 
             // 🌟 Auto sync with daily spiritual progress keys
             val morning = _morningAzkar.value
-            if (morning.isNotEmpty() && morning.all { (newMap[it.id] ?: 0) >= it.targetCount }) {
+            val morningDone = morning.isNotEmpty() && morning.all { (newMap[it.id] ?: 0) >= it.targetCount }
+            if (morningDone) {
                 prefs.edit().putBoolean("daily_morning_azkar_$todayKey", true).apply()
             }
             val evening = _eveningAzkar.value
-            if (evening.isNotEmpty() && evening.all { (newMap[it.id] ?: 0) >= it.targetCount }) {
+            val eveningDone = evening.isNotEmpty() && evening.all { (newMap[it.id] ?: 0) >= it.targetCount }
+            if (eveningDone) {
                 prefs.edit().putBoolean("daily_evening_azkar_$todayKey", true).apply()
             }
+            // ق121: إكمال ورد حقيقي (صباح أو مساء) يسجّل سلسلة الورد —
+            // كان التسجيل من زر «تم إنجاز الورد» في الإشعار وحده، فبقيت
+            // السلسلة صفراً لمن يكمل الأذكار داخل التطبيق كل يوم، بينما
+            // نقرة إشعار بلا أذكار كانت ترفعها. مرة واحدة في اليوم داخل
+            // recordWirdCompleted فلا تضخيم بتكرار الإكمال.
+            if (morningDone || eveningDone) {
+                NotificationPreferencesManager.recordWirdCompleted(application)
+            }
+            return true
         }
+        return false
     }
 
     fun resetCount(id: String) {
+        // ق83: تصفير ذكر مكتمل كان يُبقي شارة إكمال الصباح/المساء
+        // (daily_morning/evening_azkar) في الرئيسية والحسنات — فتظل
+        // البطاقة تدّعي اكتمال الأذكار وذكرٌ منها صفر. التراجع عن
+        // نقرة وتصفير الكل يسحبان الشارة؛ وهذا المسار الثالث كان
+        // منسياً. يُسحب العلم هنا كما فيهما.
+        val item = (_morningAzkar.value + _eveningAzkar.value + _sleepAzkar.value +
+            _wakingAzkar.value + _prayerAzkar.value + _mosqueAzkar.value)
+            .firstOrNull { it.id == id }
         _progressMap.value = _progressMap.value + (id to 0)
-        prefs.edit().remove("azkar_count_${todayKey}_$id").apply()
+        val editor = prefs.edit().remove("azkar_count_${todayKey}_$id")
+        if (item != null) {
+            when (item.category) {
+                AzkarTimeCategory.MORNING -> editor.remove("daily_morning_azkar_$todayKey")
+                AzkarTimeCategory.EVENING -> editor.remove("daily_evening_azkar_$todayKey")
+                else -> {}
+            }
+        }
+        editor.apply()
     }
 
     /**
@@ -255,6 +356,10 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // طلب نطق معلّق ريثما يجهز محرك TTS: النقرة الأولى أثناء التهيئة
+    // كانت تُسقَط مع تنبيه «جاري تحضير...» فيضطر المستخدم للنقر ثانية.
+    private var pendingSpeakItem: AzkarItem? = null
+
     fun speakZikr(item: AzkarItem, context: Context) {
         if (_speakingId.value == item.id) {
             stopSpeaking()
@@ -262,18 +367,39 @@ class AzkarViewModel(application: Application) : AndroidViewModel(application) {
         }
         initTts(context)
         if (isTtsReady && tts != null) {
-            _speakingId.value = item.id
-            val cleanText = item.text.replace("•", " ").trim()
-            tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, item.id)
-            tts?.setOnUtteranceCompletedListener {
-                _speakingId.value = null
-            }
+            speakNow(item)
+        } else if (isTtsInitializing) {
+            // التهيئة ما زالت جارية: يُعلَّق الطلب فيُنطق عند جهوز
+            // المحرك، بدل تنبيه فشل كاذب وإسقاط الطلب — كان النقر
+            // أثناء التهيئة على ذكر آخر يسلك فرع الفشل أدناه.
+            pendingSpeakItem = item
         } else {
-            Toast.makeText(context, "جاري تحضير المحرك الصوتي العربي...", Toast.LENGTH_SHORT).show()
+            // تهيئة سابقة فشلت ولن يعيد onInit إطلاقاً: لا تعليق صامت.
+            Toast.makeText(context, "تعذّر تحضير المحرك الصوتي العربي على هذا الجهاز", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun speakNow(item: AzkarItem) {
+        val cleanText = item.text.replace("•", " ").trim()
+        if (cleanText.isBlank()) return
+        val engine = tts ?: return
+        engine.setSpeechRate(_ttsRate.value)
+        _speakingId.value = item.id
+        val result = engine.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, item.id)
+        if (result == TextToSpeech.ERROR) {
+            // فشل متزامن قد لا يصل معه onError أبداً: لا يبقى زر
+            // الإيقاف وأيقونة التحدث عالقين على ذكر لم يُنطق.
+            _speakingId.value = null
+            Toast.makeText(
+                getApplication<Application>().applicationContext,
+                "تعذّر تشغيل الصوت لهذا الذكر",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     fun stopSpeaking() {
+        pendingSpeakItem = null
         tts?.stop()
         _speakingId.value = null
     }
@@ -733,6 +859,20 @@ fun AzkarScreen(
     val selectedTab by viewModel.selectedTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val speakingId by viewModel.speakingId.collectAsState()
+    val ttsRate by viewModel.ttsRate.collectAsState()
+    val rateLabel = when (ttsRate) {
+        0.75f -> "0.75"
+        1.0f -> "1"
+        1.25f -> "1.25"
+        1.5f -> "1.5"
+        else -> ttsRate.toString()
+    }
+
+    // مغادرة الشاشة توقف الاستماع: بلا هذا يستمر الصوت بعد الانتقال
+    // لتبويب آخر بلا أي زر إيقاف ظاهر — على نمط شاشتي الحسنات والحديث.
+    DisposableEffect(Unit) {
+        onDispose { viewModel.stopSpeaking() }
+    }
 
     val morningCompleted = morningList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
     val eveningCompleted = eveningList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
@@ -742,11 +882,16 @@ fun AzkarScreen(
     val mosqueCompleted = mosqueList.count { (progressMap[it.id] ?: 0) >= it.targetCount }
 
     var todayKey by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
+    var showResetAllConfirm by remember { mutableStateOf(false) }
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
 
     LaunchedEffect(Unit) {
         while (isActive) {
-            todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            val newKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            if (newKey != todayKey) {
+                todayKey = newKey
+                viewModel.refreshDailyProgress()
+            }
             delay(60_000L)
         }
     }
@@ -773,40 +918,54 @@ fun AzkarScreen(
         Toast.makeText(context, "تم نسخ الذكر إلى الحافظة", Toast.LENGTH_SHORT).show()
     }
 
+    // ق83: البحث عبر المطبّع لا contains الخام — نصوص الأذكار
+    // مشكولة («اللَّهُمَّ»، «سيّد») فاستعلام بلا تشكيل كان يعيد صفراً.
     val filteredMorning = remember(morningList, searchQuery) {
         morningList.filter {
-            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+            // ق125: البحث يشمل الفضل أيضاً كما يعد شريط البحث
+            // («ابحث في الأذكار أو الفضائل») — كان العنوان والنص
+            // وحدهما فيُعيد استعلام من الفضل صفراً.
+            searchQuery.isBlank() || HadithSearchNormalizer.matches(it.title, searchQuery) || HadithSearchNormalizer.matches(it.text, searchQuery) || HadithSearchNormalizer.matches(it.fadl, searchQuery)
         }
     }
     val filteredEvening = remember(eveningList, searchQuery) {
         eveningList.filter {
-            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+            searchQuery.isBlank() || HadithSearchNormalizer.matches(it.title, searchQuery) || HadithSearchNormalizer.matches(it.text, searchQuery) || HadithSearchNormalizer.matches(it.fadl, searchQuery)
         }
     }
     val filteredSleep = remember(sleepList, searchQuery) {
         sleepList.filter {
-            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+            searchQuery.isBlank() || HadithSearchNormalizer.matches(it.title, searchQuery) || HadithSearchNormalizer.matches(it.text, searchQuery) || HadithSearchNormalizer.matches(it.fadl, searchQuery)
         }
     }
     val filteredWaking = remember(wakingList, searchQuery) {
         wakingList.filter {
-            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+            searchQuery.isBlank() || HadithSearchNormalizer.matches(it.title, searchQuery) || HadithSearchNormalizer.matches(it.text, searchQuery) || HadithSearchNormalizer.matches(it.fadl, searchQuery)
         }
     }
     val filteredPrayer = remember(prayerList, searchQuery) {
         prayerList.filter {
-            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+            searchQuery.isBlank() || HadithSearchNormalizer.matches(it.title, searchQuery) || HadithSearchNormalizer.matches(it.text, searchQuery) || HadithSearchNormalizer.matches(it.fadl, searchQuery)
         }
     }
     val filteredMosque = remember(mosqueList, searchQuery) {
         mosqueList.filter {
-            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.text.contains(searchQuery, ignoreCase = true)
+            searchQuery.isBlank() || HadithSearchNormalizer.matches(it.title, searchQuery) || HadithSearchNormalizer.matches(it.text, searchQuery) || HadithSearchNormalizer.matches(it.fadl, searchQuery)
         }
     }
 
     val anySearchMatches = filteredMorning.isNotEmpty() || filteredEvening.isNotEmpty() ||
         filteredSleep.isNotEmpty() || filteredWaking.isNotEmpty() ||
         filteredPrayer.isNotEmpty() || filteredMosque.isNotEmpty()
+
+    // في تبويب «الكل» مع بحث: تُخفى الأقسام بلا نتائج، فلا يظهر عنوان
+    // فارغ «0/ن» بلا بطاقات تحته.
+    val showMorning = selectedTab == 0 || (selectedTab == 6 && (searchQuery.isBlank() || filteredMorning.isNotEmpty()))
+    val showEvening = selectedTab == 1 || (selectedTab == 6 && (searchQuery.isBlank() || filteredEvening.isNotEmpty()))
+    val showSleep = selectedTab == 2 || (selectedTab == 6 && (searchQuery.isBlank() || filteredSleep.isNotEmpty()))
+    val showWaking = selectedTab == 3 || (selectedTab == 6 && (searchQuery.isBlank() || filteredWaking.isNotEmpty()))
+    val showPrayer = selectedTab == 4 || (selectedTab == 6 && (searchQuery.isBlank() || filteredPrayer.isNotEmpty()))
+    val showMosque = selectedTab == 5 || (selectedTab == 6 && (searchQuery.isBlank() || filteredMosque.isNotEmpty()))
 
     Scaffold(
         containerColor = theme.background,
@@ -816,6 +975,15 @@ fun AzkarScreen(
                 subtitle = "حصن المؤمن وبركة اليوم والسكينة",
                 onBack = onBack,
                 actions = {
+                    TextButton(onClick = { viewModel.cycleTtsRate() }) {
+                        Text(
+                            text = "السرعة ${rateLabel}×",
+                            color = theme.primary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
                     if (speakingId != null) {
                         IconButton(
                             onClick = { viewModel.stopSpeaking() },
@@ -859,7 +1027,7 @@ fun AzkarScreen(
                         prayerDone = prayerCompleted,
                         mosqueTotal = mosqueList.size,
                         mosqueDone = mosqueCompleted,
-                        onResetAll = { viewModel.resetAllCounters() }
+                        onResetAll = { showResetAllConfirm = true }
                     )
                 }
 
@@ -882,7 +1050,7 @@ fun AzkarScreen(
                 }
 
                 // TAB 0: Morning
-                if (selectedTab == 0 || selectedTab == 6) {
+                if (showMorning) {
                     item(key = "header_morning") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار الصباح",
@@ -894,7 +1062,7 @@ fun AzkarScreen(
                         )
                     }
                     if (selectedTab == 0 && filteredMorning.isEmpty() && searchQuery.isNotBlank()) {
-                        item { EmptySearchResultCard(query = searchQuery) }
+                        item { EmptySearchResultCard(query = searchQuery, sectionTitle = "أذكار الصباح") }
                     } else {
                         items(filteredMorning, key = { "morning_${it.id}" }) { item ->
                             AzkarManuscriptCard(
@@ -902,8 +1070,7 @@ fun AzkarScreen(
                                 currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
                                 onIncrement = {
-                                    AppSoundManager.playDhikr()
-                                    viewModel.incrementCount(item.id, item.targetCount)
+                                    if (viewModel.incrementCount(item.id, item.targetCount)) AppSoundManager.playDhikr()
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onDecrement = { viewModel.decrementCount(item.id) },
@@ -921,7 +1088,7 @@ fun AzkarScreen(
                 }
 
                 // TAB 1: Evening
-                if (selectedTab == 1 || selectedTab == 6) {
+                if (showEvening) {
                     item(key = "header_evening") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار المساء",
@@ -933,7 +1100,7 @@ fun AzkarScreen(
                         )
                     }
                     if (selectedTab == 1 && filteredEvening.isEmpty() && searchQuery.isNotBlank()) {
-                        item { EmptySearchResultCard(query = searchQuery) }
+                        item { EmptySearchResultCard(query = searchQuery, sectionTitle = "أذكار المساء") }
                     } else {
                         items(filteredEvening, key = { "evening_${it.id}" }) { item ->
                             AzkarManuscriptCard(
@@ -941,8 +1108,7 @@ fun AzkarScreen(
                                 currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
                                 onIncrement = {
-                                    AppSoundManager.playDhikr()
-                                    viewModel.incrementCount(item.id, item.targetCount)
+                                    if (viewModel.incrementCount(item.id, item.targetCount)) AppSoundManager.playDhikr()
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onDecrement = { viewModel.decrementCount(item.id) },
@@ -954,7 +1120,7 @@ fun AzkarScreen(
                 }
 
                 // TAB 2: Sleep
-                if (selectedTab == 2 || selectedTab == 6) {
+                if (showSleep) {
                     item(key = "header_sleep") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار النوم",
@@ -966,7 +1132,7 @@ fun AzkarScreen(
                         )
                     }
                     if (selectedTab == 2 && filteredSleep.isEmpty() && searchQuery.isNotBlank()) {
-                        item { EmptySearchResultCard(query = searchQuery) }
+                        item { EmptySearchResultCard(query = searchQuery, sectionTitle = "أذكار النوم") }
                     } else {
                         items(filteredSleep, key = { "sleep_${it.id}" }) { item ->
                             AzkarManuscriptCard(
@@ -974,8 +1140,7 @@ fun AzkarScreen(
                                 currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
                                 onIncrement = {
-                                    AppSoundManager.playDhikr()
-                                    viewModel.incrementCount(item.id, item.targetCount)
+                                    if (viewModel.incrementCount(item.id, item.targetCount)) AppSoundManager.playDhikr()
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onDecrement = { viewModel.decrementCount(item.id) },
@@ -987,7 +1152,7 @@ fun AzkarScreen(
                 }
 
                 // TAB 3: Waking
-                if (selectedTab == 3 || selectedTab == 6) {
+                if (showWaking) {
                     item(key = "header_waking") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار الاستيقاظ",
@@ -999,7 +1164,7 @@ fun AzkarScreen(
                         )
                     }
                     if (selectedTab == 3 && filteredWaking.isEmpty() && searchQuery.isNotBlank()) {
-                        item { EmptySearchResultCard(query = searchQuery) }
+                        item { EmptySearchResultCard(query = searchQuery, sectionTitle = "أذكار الاستيقاظ") }
                     } else {
                         items(filteredWaking, key = { "waking_${it.id}" }) { item ->
                             AzkarManuscriptCard(
@@ -1007,8 +1172,7 @@ fun AzkarScreen(
                                 currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
                                 onIncrement = {
-                                    AppSoundManager.playDhikr()
-                                    viewModel.incrementCount(item.id, item.targetCount)
+                                    if (viewModel.incrementCount(item.id, item.targetCount)) AppSoundManager.playDhikr()
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onDecrement = { viewModel.decrementCount(item.id) },
@@ -1020,7 +1184,7 @@ fun AzkarScreen(
                 }
 
                 // TAB 4: After Prayer
-                if (selectedTab == 4 || selectedTab == 6) {
+                if (showPrayer) {
                     item(key = "header_prayer") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار بعد الصلاة",
@@ -1032,7 +1196,7 @@ fun AzkarScreen(
                         )
                     }
                     if (selectedTab == 4 && filteredPrayer.isEmpty() && searchQuery.isNotBlank()) {
-                        item { EmptySearchResultCard(query = searchQuery) }
+                        item { EmptySearchResultCard(query = searchQuery, sectionTitle = "أذكار بعد الصلاة") }
                     } else {
                         items(filteredPrayer, key = { "prayer_${it.id}" }) { item ->
                             AzkarManuscriptCard(
@@ -1040,8 +1204,7 @@ fun AzkarScreen(
                                 currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
                                 onIncrement = {
-                                    AppSoundManager.playDhikr()
-                                    viewModel.incrementCount(item.id, item.targetCount)
+                                    if (viewModel.incrementCount(item.id, item.targetCount)) AppSoundManager.playDhikr()
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onDecrement = { viewModel.decrementCount(item.id) },
@@ -1053,7 +1216,7 @@ fun AzkarScreen(
                 }
 
                 // TAB 5: Mosque
-                if (selectedTab == 5 || selectedTab == 6) {
+                if (showMosque) {
                     item(key = "header_mosque") {
                         AzkarSectionHeaderBanner(
                             title = "أذكار المسجد",
@@ -1065,7 +1228,7 @@ fun AzkarScreen(
                         )
                     }
                     if (selectedTab == 5 && filteredMosque.isEmpty() && searchQuery.isNotBlank()) {
-                        item { EmptySearchResultCard(query = searchQuery) }
+                        item { EmptySearchResultCard(query = searchQuery, sectionTitle = "أذكار المسجد") }
                     } else {
                         items(filteredMosque, key = { "mosque_${it.id}" }) { item ->
                             AzkarManuscriptCard(
@@ -1073,8 +1236,7 @@ fun AzkarScreen(
                                 currentCount = progressMap[item.id] ?: 0,
                                 isSpeaking = speakingId == item.id,
                                 onIncrement = {
-                                    AppSoundManager.playDhikr()
-                                    viewModel.incrementCount(item.id, item.targetCount)
+                                    if (viewModel.incrementCount(item.id, item.targetCount)) AppSoundManager.playDhikr()
                                 },
                                 onReset = { viewModel.resetCount(item.id) },
                                 onDecrement = { viewModel.decrementCount(item.id) },
@@ -1120,6 +1282,44 @@ fun AzkarScreen(
                         }
                     }
                 }
+            }
+
+            // تأكيد تصفير كل العدّادات: نقرة واحدة بلا تأكيد كانت تمسح
+            // تقدّم اليوم كاملاً في الأقسام الستة بلا تراجع.
+            if (showResetAllConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showResetAllConfirm = false },
+                    title = {
+                        Text(
+                            "تصفير كل عدّادات اليوم؟",
+                            color = theme.textPrimary,
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            "سيُمسح تقدّمك في أذكار الصباح والمساء والنوم والاستيقاظ وبعد الصلاة والمسجد لهذا اليوم، ولا يمكن التراجع.",
+                            color = theme.textSecondary,
+                            fontFamily = NotoSansFont
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showResetAllConfirm = false
+                                viewModel.resetAllCounters()
+                            }
+                        ) {
+                            Text("تصفير الكل", color = theme.destructive, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetAllConfirm = false }) {
+                            Text("إلغاء", color = theme.primary, fontFamily = CairoFont)
+                        }
+                    }
+                )
             }
         }
     }
@@ -1296,7 +1496,17 @@ fun AzkarTabSelector(
         )
     }
 
+    // ق140: الصف يتمرير للتبويب المختار — كان بلا حالة تمرير، فالتبويبات
+    // الأخيرة («المسجد»، «الكل») خارج الشاشة في الهواتف الضيقة ولا يصلها
+    // التمرير التلقائي عند اختيارها؛ والتمرير اليدوي لا يغيّر selectedTab
+    // فلا يصارع هذا الأثرُ تمريرَ المستخدم (نمط ق138 نفسه).
+    val tabRowState = rememberLazyListState()
+    LaunchedEffect(selectedTab) {
+        tabRowState.scrollToItem(selectedTab)
+    }
+
     LazyRow(
+        state = tabRowState,
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -1712,7 +1922,7 @@ fun AzkarManuscriptCard(
 }
 
 @Composable
-fun EmptySearchResultCard(query: String) {
+fun EmptySearchResultCard(query: String, sectionTitle: String? = null) {
     val theme = QabasTheme.current
     AppleCard(modifier = Modifier.padding(vertical = 12.dp)) {
         Column(
@@ -1729,7 +1939,13 @@ fun EmptySearchResultCard(query: String) {
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                "لم يتم العثور على أذكار تطابق: \"$query\"",
+                // ق125: البطاقة مشتركة بين الفراغ العام وفراغ تبويب
+                // واحد — كان نصها المطلق «لم يتم العثور على أذكار
+                // تطابق» يظهر في تبويب بلا نتائج بينما توجد نتائج
+                // في تبويبات أخرى؛ فصار النص مقيّداً بالقسم حين
+                // يُمرَّر عنوانه، ويشير التلميح لتبويب «الكل».
+                if (sectionTitle != null) "لم يتم العثور على أذكار تطابق \"$query\" في $sectionTitle"
+                else "لم يتم العثور على أذكار تطابق: \"$query\"",
                 color = theme.textPrimary,
                 fontFamily = CairoFont,
                 fontWeight = FontWeight.Bold,
@@ -1738,7 +1954,8 @@ fun EmptySearchResultCard(query: String) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "يرجى تجربة كلمة بحث أخرى أو تصفح الأذكار عبر التبويبات أعلاه.",
+                if (sectionTitle != null) "جرّب تبويب «الكل» للبحث في جميع الأذكار، أو كلمة بحث أخرى."
+                else "يرجى تجربة كلمة بحث أخرى أو تصفح الأذكار عبر التبويبات أعلاه.",
                 color = theme.textSecondary,
                 fontFamily = NotoSansFont,
                 fontSize = 12.sp,

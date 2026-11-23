@@ -12,18 +12,16 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 
+// ق138: حُذفت الحقول الميتة (englishName/isLocked/isMastered/score/
+// tajweedFocus/famousVerses) — بلا قارئ واحد في الريبو كله، وهي سقالة
+// ميزة إتقان/أكاديمية تجويد لم تُبنَ؛ بقي ما يُقرأ فعلاً (النوع وعدد
+// الآيات والجزء — ويُقرأ الفضل في سطر فضل اليوم).
 data class QuranSurahItem(
     val id: Int,
     val name: String,
-    val englishName: String,
     val type: String, // مكية / مدنية
     val versesCount: Int,
     val juz: Int,
-    val isLocked: Boolean = false,
-    val isMastered: Boolean = false,
-    val score: Int = 0,
-    val tajweedFocus: String,
-    val famousVerses: List<String> = emptyList(),
     val virtue: String? = null // فضل السورة
 )
 
@@ -1244,120 +1242,120 @@ object QuranDataProvider {
      */
     val surahs: List<QuranSurahItem> by lazy {
         listOf(
-            QuranSurahItem(1, "الفاتحة", "Al-Fatiha", "مكية", 7, 1, isLocked = false, isMastered = false, score = 0, "أحكام المد الطبيعي والنون الساكنة", emptyList(), "أم الكتاب والسبع المثاني والشفاء النافع"),
-            QuranSurahItem(2, "البقرة", "Al-Baqarah", "مدنية", 286, 1, isLocked = false, isMastered = false, score = 0, "أحكام الميم الساكنة والإدغام بغنة", emptyList(), "سنام القرآن وطاردة الشياطين، فيها آية الكرسي وخواتيمها كنز من تحت العرش"),
-            QuranSurahItem(3, "آل عمران", "Ali 'Imran", "مدنية", 200, 3, isLocked = false, isMastered = false, score = 0, "المد المتصل والمنفصل", emptyList(), "إحدى الزهراوين، تحاج عن صاحبها يوم القيامة"),
-            QuranSurahItem(4, "النساء", "An-Nisa", "مدنية", 176, 4, isLocked = false, isMastered = false, score = 0, "أحكام الوصل والوقف والمدود", emptyList()),
-            QuranSurahItem(5, "المائدة", "Al-Ma'idah", "مدنية", 120, 6, isLocked = false, isMastered = false, score = 0, "أحكام الإظهار والترقيق", emptyList()),
-            QuranSurahItem(6, "الأنعام", "Al-An'am", "مكية", 165, 7, isLocked = false, isMastered = false, score = 0, "أحكام القلقلة وتفخيم اللام", emptyList()),
-            QuranSurahItem(7, "الأعراف", "Al-A'raf", "مكية", 206, 8, isLocked = false, isMastered = false, score = 0, "أحكام السجدات والمد اللازم", emptyList()),
-            QuranSurahItem(8, "الأنفال", "Al-Anfal", "مدنية", 75, 9, isLocked = false, isMastered = false, score = 0, "أحكام التقاء الساكنين والغنة", emptyList()),
-            QuranSurahItem(9, "التوبة", "At-Tawbah", "مدنية", 129, 10, isLocked = false, isMastered = false, score = 0, "أحكام ترك البسملة والاستعاذة", emptyList()),
-            QuranSurahItem(10, "يونس", "Yunus", "مكية", 109, 11, isLocked = false, isMastered = false, score = 0, "الحروف المقطعة وأحكام الراء", emptyList()),
-            QuranSurahItem(11, "هود", "Hud", "مكية", 123, 11, isLocked = false, isMastered = false, score = 0, "أحكام الإمالة في (مَجْرَاهَا)", emptyList()),
-            QuranSurahItem(12, "يوسف", "Yusuf", "مكية", 111, 12, isLocked = false, isMastered = false, score = 0, "أحكام الإشمام والروم في (لَا تَأْمَنَّا)", emptyList()),
-            QuranSurahItem(13, "الرعد", "Ar-Ra'd", "مدنية", 43, 13, isLocked = false, isMastered = false, score = 0, "أحكام تفخيم الراء وقلقلة الدال", emptyList()),
-            QuranSurahItem(14, "إبراهيم", "Ibrahim", "مكية", 52, 13, isLocked = false, isMastered = false, score = 0, "المدود والوقف التام", emptyList()),
-            QuranSurahItem(15, "الحجر", "Al-Hijr", "مكية", 99, 14, isLocked = false, isMastered = false, score = 0, "الإظهار المطلق والغنة", emptyList()),
-            QuranSurahItem(16, "النحل", "An-Nahl", "مكية", 128, 14, isLocked = false, isMastered = false, score = 0, "أحكام الاستعاذة والنبر", emptyList()),
-            QuranSurahItem(17, "الإسراء", "Al-Isra", "مكية", 111, 15, isLocked = false, isMastered = false, score = 0, "أحكام الوقف الكافي والتفخيم", emptyList()),
-            QuranSurahItem(18, "الكهف", "Al-Kahf", "مكية", 110, 15, isLocked = false, isMastered = false, score = 0, "السكتات اللطيفة والإخفاء الشفوي", emptyList(), "نور ما بين الجمعتين وعصمة من فتنة الدجال لمن حفظ أوائلها"),
-            QuranSurahItem(19, "مريم", "Maryam", "مكية", 98, 16, isLocked = false, isMastered = false, score = 0, "المد اللازم الحرفي في (كهيعص)", emptyList()),
-            QuranSurahItem(20, "طه", "Ta-Ha", "مكية", 135, 16, isLocked = false, isMastered = false, score = 0, "أحكام الفواتح والإمالة الصغرى", emptyList()),
-            QuranSurahItem(21, "الأنبياء", "Al-Anbiya", "مكية", 112, 17, isLocked = false, isMastered = false, score = 0, "أحكام القلقلة والإظهار", emptyList()),
-            QuranSurahItem(22, "الحج", "Al-Hajj", "مدنية", 78, 17, isLocked = false, isMastered = false, score = 0, "سجدات التلاوة وأحكام المد", emptyList()),
-            QuranSurahItem(23, "المؤمنون", "Al-Mu'minun", "مكية", 118, 18, isLocked = false, isMastered = false, score = 0, "ترقيق الميم والغنة", emptyList()),
-            QuranSurahItem(24, "النور", "An-Nur", "مدنية", 64, 18, isLocked = false, isMastered = false, score = 0, "آية النور وأحكام المد المتصل", emptyList()),
-            QuranSurahItem(25, "الفرقان", "Al-Furqan", "مكية", 77, 18, isLocked = false, isMastered = false, score = 0, "صفات عباد الرحمن والتفخيم", emptyList()),
-            QuranSurahItem(26, "الشعراء", "Ash-Shu'ara", "مكية", 227, 19, isLocked = false, isMastered = false, score = 0, "الفواتح الحرفية والمدود", emptyList()),
-            QuranSurahItem(27, "النمل", "An-Naml", "مكية", 93, 19, isLocked = false, isMastered = false, score = 0, "البسملة وسط السورة", emptyList()),
-            QuranSurahItem(28, "القصص", "Al-Qasas", "مكية", 88, 20, isLocked = false, isMastered = false, score = 0, "أحكام التنوين والوقف", emptyList()),
-            QuranSurahItem(29, "العنكبوت", "Al-'Ankabut", "مكية", 69, 20, isLocked = false, isMastered = false, score = 0, "أحكام الهمزات والتفخيم", emptyList()),
-            QuranSurahItem(30, "الروم", "Ar-Rum", "مكية", 60, 21, isLocked = false, isMastered = false, score = 0, "تفخيم الراء وترقيقها", emptyList()),
-            QuranSurahItem(31, "لقمان", "Luqman", "مكية", 34, 21, isLocked = false, isMastered = false, score = 0, "وصايا لقمان والمد العارض", emptyList()),
-            QuranSurahItem(32, "السجدة", "As-Sajdah", "مكية", 30, 21, isLocked = false, isMastered = false, score = 0, "سجدة التلاوة والمد اللازم", emptyList()),
-            QuranSurahItem(33, "الأحزاب", "Al-Ahzab", "مدنية", 73, 21, isLocked = false, isMastered = false, score = 0, "أحكام الصلاة على النبي ﷺ والمد", emptyList()),
-            QuranSurahItem(34, "سبأ", "Saba", "مكية", 54, 22, isLocked = false, isMastered = false, score = 0, "أحكام الإظهار والترقيق", emptyList()),
-            QuranSurahItem(35, "فاطر", "Fatir", "مكية", 45, 22, isLocked = false, isMastered = false, score = 0, "صفات الحروف والمدود", emptyList()),
-            QuranSurahItem(36, "يس", "Ya-Sin", "مكية", 83, 22, isLocked = false, isMastered = false, score = 0, "أحكام الإظهار المطلق والغنة", emptyList(), "قلب القرآن، لا يقرؤها أحد يريد الله والدار الآخرة إلا غفر له"),
-            QuranSurahItem(37, "الصافات", "As-Saffat", "مكية", 182, 23, isLocked = false, isMastered = false, score = 0, "المد اللازم الكلمي المثقل", emptyList()),
-            QuranSurahItem(38, "ص", "Sad", "مكية", 88, 23, isLocked = false, isMastered = false, score = 0, "حرف الصاد وتفخيمه والاستعلاء", emptyList()),
-            QuranSurahItem(39, "الزمر", "Az-Zumar", "مكية", 75, 23, isLocked = false, isMastered = false, score = 0, "أحكام الرجاء والاستغفار", emptyList()),
-            QuranSurahItem(40, "غافر", "Ghafir", "مكية", 85, 24, isLocked = false, isMastered = false, score = 0, "الحواميم والمد الحرفي (حم)", emptyList()),
-            QuranSurahItem(41, "فصلت", "Fussilat", "مكية", 54, 24, isLocked = false, isMastered = false, score = 0, "تسهيل الهمزة في (أَأَعْجَمِيٌّ)", emptyList()),
-            QuranSurahItem(42, "الشورى", "Ash-Shura", "مكية", 53, 25, isLocked = false, isMastered = false, score = 0, "مد حرف (عسق) 4 أو 6 حركات", emptyList()),
-            QuranSurahItem(43, "الزخرف", "Az-Zukhruf", "مكية", 89, 25, isLocked = false, isMastered = false, score = 0, "أحكام الوصل والفصل", emptyList()),
-            QuranSurahItem(44, "الدخان", "Ad-Dukhan", "مكية", 59, 25, isLocked = false, isMastered = false, score = 0, "ليلة القدر والغنة", emptyList()),
-            QuranSurahItem(45, "الجاثية", "Al-Jathiyah", "مكية", 37, 25, isLocked = false, isMastered = false, score = 0, "أحكام التنوين والوقف", emptyList()),
-            QuranSurahItem(46, "الأحقاف", "Al-Ahqaf", "مكية", 35, 26, isLocked = false, isMastered = false, score = 0, "بر الوالدين وأحكام الإخفاء", emptyList()),
-            QuranSurahItem(47, "محمد", "Muhammad", "مدنية", 38, 26, isLocked = false, isMastered = false, score = 0, "أحكام الغنة والهمس", emptyList()),
-            QuranSurahItem(48, "الفتح", "Al-Fath", "مدنية", 29, 26, isLocked = false, isMastered = false, score = 0, "ضم الهاء في (عَلَيْهُ اللَّهَ)", emptyList()),
-            QuranSurahItem(49, "الحجرات", "Al-Hujurat", "مدنية", 18, 26, isLocked = false, isMastered = false, score = 0, "أخلاق المؤمنين وأحكام النداء", emptyList()),
-            QuranSurahItem(50, "ق", "Qaf", "مكية", 45, 26, isLocked = false, isMastered = false, score = 0, "حرف القاف وصفة القلقلة والاستعلاء", emptyList()),
-            QuranSurahItem(51, "الذاريات", "Adh-Dhariyat", "مكية", 60, 26, isLocked = false, isMastered = false, score = 0, "القسم والمد العارض", emptyList()),
-            QuranSurahItem(52, "الطور", "At-Tur", "مكية", 49, 27, isLocked = false, isMastered = false, score = 0, "الهمس في التاء والطاء", emptyList()),
-            QuranSurahItem(53, "النجم", "An-Najm", "مكية", 62, 27, isLocked = false, isMastered = false, score = 0, "سجدة النجم والمدود", emptyList()),
-            QuranSurahItem(54, "القمر", "Al-Qamar", "مكية", 55, 27, isLocked = false, isMastered = false, score = 0, "ترقيق الراء في (مُسْتَمِرّ)", emptyList()),
-            QuranSurahItem(55, "الرحمن", "Ar-Rahman", "مدنية", 78, 27, isLocked = false, isMastered = false, score = 0, "نبر الآيات والمد العارض للسكون", emptyList(), "عروس القرآن، تذكر بآلاء الله ونعمه الظاهرة والباطنة"),
-            QuranSurahItem(56, "الواقعة", "Al-Waqi'ah", "مكية", 96, 27, isLocked = false, isMastered = false, score = 0, "أحكام القلقلة والتفخيم والترقيق", emptyList()),
-            QuranSurahItem(57, "الحديد", "Al-Hadid", "مدنية", 29, 27, isLocked = false, isMastered = false, score = 0, "المسبحات وأحكام النون", emptyList()),
-            QuranSurahItem(58, "المجادلة", "Al-Mujadila", "مدنية", 22, 28, isLocked = false, isMastered = false, score = 0, "لفظ الجلالة في كل آية", emptyList()),
-            QuranSurahItem(59, "الحشر", "Al-Hashr", "مدنية", 24, 28, isLocked = false, isMastered = false, score = 0, "أواخر الحشر وأسماء الله الحسنى", emptyList()),
-            QuranSurahItem(60, "الممتحنة", "Al-Mumtahanah", "مدنية", 13, 28, isLocked = false, isMastered = false, score = 0, "الإدغام والإخفاء", emptyList()),
-            QuranSurahItem(61, "الصف", "As-Saff", "مدنية", 14, 28, isLocked = false, isMastered = false, score = 0, "المد اللازم ونصر الله", emptyList()),
-            QuranSurahItem(62, "الجمعة", "Al-Jumu'ah", "مدنية", 11, 28, isLocked = false, isMastered = false, score = 0, "أحكام نداء الجمعة والترتيل", emptyList()),
-            QuranSurahItem(63, "المنافقون", "Al-Munafiqun", "مدنية", 11, 28, isLocked = false, isMastered = false, score = 0, "الإنفاق قبل الموت والهمس", emptyList()),
-            QuranSurahItem(64, "التغابن", "At-Taghabun", "مدنية", 18, 28, isLocked = false, isMastered = false, score = 0, "التوكل على الله والمد", emptyList()),
-            QuranSurahItem(65, "الطلاق", "At-Talaq", "مدنية", 12, 28, isLocked = false, isMastered = false, score = 0, "التقوى وتيسير الأمور", emptyList()),
-            QuranSurahItem(66, "التحريم", "At-Tahrim", "مدنية", 12, 28, isLocked = false, isMastered = false, score = 0, "التوبة النصوح والإخفاء", emptyList()),
-            QuranSurahItem(67, "الملك", "Al-Mulk", "مكية", 30, 29, isLocked = false, isMastered = false, score = 0, "أحكام الميم الساكنة والمد اللازم", emptyList(), "المنجية من عذاب القبر والشافعة لصاحبها حتى يغفر له"),
-            QuranSurahItem(68, "القلم", "Al-Qalam", "مكية", 52, 29, isLocked = false, isMastered = false, score = 0, "إظهار النون في (ن ۚ وَالْقَلَمِ)", emptyList()),
-            QuranSurahItem(69, "الحاقة", "Al-Haqqah", "مكية", 52, 29, isLocked = false, isMastered = false, score = 0, "المد اللازم الكلمي المثقل 6 حركات", emptyList()),
-            QuranSurahItem(70, "المعارج", "Al-Ma'arij", "مكية", 44, 29, isLocked = false, isMastered = false, score = 0, "أحكام الصبر الجميل", emptyList()),
-            QuranSurahItem(71, "نوح", "Nuh", "مكية", 28, 29, isLocked = false, isMastered = false, score = 0, "الاستغفار وثمراته", emptyList()),
-            QuranSurahItem(72, "الجن", "Al-Jinn", "مكية", 28, 29, isLocked = false, isMastered = false, score = 0, "سماع القرآن والتوحيد", emptyList()),
-            QuranSurahItem(73, "المزمل", "Al-Muzzammil", "مكية", 20, 29, isLocked = false, isMastered = false, score = 0, "أمر الترتيل (وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا)", emptyList()),
-            QuranSurahItem(74, "المدثر", "Al-Muddathir", "مكية", 56, 29, isLocked = false, isMastered = false, score = 0, "الدعوة والتكبير", emptyList()),
-            QuranSurahItem(75, "القيامة", "Al-Qiyamah", "مكية", 40, 29, isLocked = false, isMastered = false, score = 0, "السكت اللطيف في (مَنْ ۜ رَاقٍ)", emptyList()),
-            QuranSurahItem(76, "الإنسان", "Al-Insan", "مدنية", 31, 29, isLocked = false, isMastered = false, score = 0, "نعيم الجنة والألفات السبعة", emptyList()),
-            QuranSurahItem(77, "المرسلات", "Al-Mursalat", "مكية", 50, 29, isLocked = false, isMastered = false, score = 0, "إدغام القاف في الكاف في (أَلَمْ نَخْلُقكُّم)", emptyList()),
-            QuranSurahItem(78, "النبأ", "An-Naba", "مكية", 40, 30, isLocked = false, isMastered = false, score = 0, "المد العارض للسكون والقلقلة", emptyList()),
-            QuranSurahItem(79, "النازعات", "An-Nazi'at", "مكية", 46, 30, isLocked = false, isMastered = false, score = 0, "الهمس والغنة", emptyList()),
-            QuranSurahItem(80, "عبس", "'Abasa", "مكية", 42, 30, isLocked = false, isMastered = false, score = 0, "تذكرة القرآن والتفخيم", emptyList()),
-            QuranSurahItem(81, "التكوير", "At-Takwir", "مكية", 29, 30, isLocked = false, isMastered = false, score = 0, "أحكام القسم وإذا الشمس كورت", emptyList()),
-            QuranSurahItem(82, "الانفطار", "Al-Infitar", "مكية", 19, 30, isLocked = false, isMastered = false, score = 0, "الكرام الكاتبين والإخفاء", emptyList()),
-            QuranSurahItem(83, "المطففين", "Al-Mutaffifin", "مكية", 36, 30, isLocked = false, isMastered = false, score = 0, "السكت اللطيف في (كَلَّا ۖ بَلْ ۜ رَانَ)", emptyList()),
-            QuranSurahItem(84, "الانشقاق", "Al-Inshiqaq", "مكية", 25, 30, isLocked = false, isMastered = false, score = 0, "سجدة الانشقاق والحساب اليسير", emptyList()),
-            QuranSurahItem(85, "البروج", "Al-Buruj", "مكية", 22, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى في الوقف على (الْبُرُوجِ)", emptyList()),
-            QuranSurahItem(86, "الطارق", "At-Tariq", "مكية", 17, 30, isLocked = false, isMastered = false, score = 0, "أحكام القلقلة وتفخيم الطاء والراء", emptyList()),
-            QuranSurahItem(87, "الأعلى", "Al-A'la", "مكية", 19, 30, isLocked = false, isMastered = false, score = 0, "الإمالة والتسهيل والتفخيم", emptyList()),
-            QuranSurahItem(88, "الغاشية", "Al-Ghashiyah", "مكية", 26, 30, isLocked = false, isMastered = false, score = 0, "نغم الآيات والتفكر في خلق الله", emptyList()),
-            QuranSurahItem(89, "الفجر", "Al-Fajr", "مكية", 30, 30, isLocked = false, isMastered = false, score = 0, "تفخيم الراء وقلقلة الجيم", emptyList()),
-            QuranSurahItem(90, "البلد", "Al-Balad", "مكية", 20, 30, isLocked = false, isMastered = false, score = 0, "القلقلة في (الْبَلَدِ) والتواصي بالمرحمة", emptyList()),
-            QuranSurahItem(91, "الشمس", "Ash-Shams", "مكية", 15, 30, isLocked = false, isMastered = false, score = 0, "تزكية النفس وتفخيم الشين والصاد", emptyList()),
-            QuranSurahItem(92, "الليل", "Al-Layl", "مكية", 21, 30, isLocked = false, isMastered = false, score = 0, "أحكام التيسير والإنفاق", emptyList()),
-            QuranSurahItem(93, "الضحى", "Ad-Duha", "مكية", 11, 30, isLocked = false, isMastered = false, score = 0, "أحكام المد والوقف ورعاية اليتيم", emptyList()),
-            QuranSurahItem(94, "الشرح", "Ash-Sharh", "مكية", 8, 30, isLocked = false, isMastered = false, score = 0, "أحكام الإخفاء وانشراح الصدر", emptyList()),
-            QuranSurahItem(95, "التين", "At-Tin", "مكية", 8, 30, isLocked = false, isMastered = false, score = 0, "قلقلة الدال وخلق الإنسان", emptyList()),
-            QuranSurahItem(96, "العلق", "Al-'Alaq", "مكية", 19, 30, isLocked = false, isMastered = false, score = 0, "أول ما نزل وسجدة التلاوة", emptyList()),
-            QuranSurahItem(97, "القدر", "Al-Qadr", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "أحكام التفخيم والترقيق في الراء", emptyList()),
-            QuranSurahItem(98, "البينة", "Al-Bayyinah", "مدنية", 8, 30, isLocked = false, isMastered = false, score = 0, "إخلاص الدين وأحكام النون", emptyList()),
-            QuranSurahItem(99, "الزلزلة", "Az-Zalzalah", "مدنية", 8, 30, isLocked = false, isMastered = false, score = 0, "الإدغام بغنة في (فَمَن يَعْمَلْ)", emptyList()),
-            QuranSurahItem(100, "العاديات", "Al-'Adiyat", "مكية", 11, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى في أواخر الآيات", emptyList()),
-            QuranSurahItem(101, "القارعة", "Al-Qari'ah", "مكية", 11, 30, isLocked = false, isMastered = false, score = 0, "نبر القارعة وثقل الموازين", emptyList()),
-            QuranSurahItem(102, "التكاثر", "At-Takathur", "مكية", 8, 30, isLocked = false, isMastered = false, score = 0, "عين اليقين والسؤال عن النعيم", emptyList()),
-            QuranSurahItem(103, "العصر", "Al-'Asr", "مكية", 3, 30, isLocked = false, isMastered = false, score = 0, "ترقيق وتفخيم الراء وقيمة الوقت", emptyList()),
-            QuranSurahItem(104, "الهمزة", "Al-Humazah", "مكية", 9, 30, isLocked = false, isMastered = false, score = 0, "الحذر من الغيبة والهمز", emptyList()),
-            QuranSurahItem(105, "الفيل", "Al-Fil", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "الإظهار الشفوي في (أَلَمْ تَرَ)", emptyList()),
-            QuranSurahItem(106, "قريش", "Quraysh", "مكية", 4, 30, isLocked = false, isMastered = false, score = 0, "مد اللين في (قُرَيْشٍ - خَوْفٍ)", emptyList()),
-            QuranSurahItem(107, "الماعون", "Al-Ma'un", "مكية", 7, 30, isLocked = false, isMastered = false, score = 0, "إخلاص العبادة وإعانة المحتاج", emptyList()),
-            QuranSurahItem(108, "الكوثر", "Al-Kawthar", "مكية", 3, 30, isLocked = false, isMastered = false, score = 0, "أحكام قلقلة الدال والتفخيم", emptyList()),
-            QuranSurahItem(109, "الكافرون", "Al-Kafirun", "مكية", 6, 30, isLocked = false, isMastered = false, score = 0, "المد المنفصل والبراءة من الشرك", emptyList()),
-            QuranSurahItem(110, "النصر", "An-Nasr", "مدنية", 3, 30, isLocked = false, isMastered = false, score = 0, "المد المتصل في (جَاءَ) والاستغفار", emptyList()),
-            QuranSurahItem(111, "المسد", "Al-Masad", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى في (وَتَبَّ)", emptyList()),
-            QuranSurahItem(112, "الإخلاص", "Al-Ikhlas", "مكية", 4, 30, isLocked = false, isMastered = false, score = 0, "القلقلة الكبرى والصغرى", emptyList()),
-            QuranSurahItem(113, "الفلق", "Al-Falaq", "مكية", 5, 30, isLocked = false, isMastered = false, score = 0, "أحكام النون والميم المشددتين والقلقلة", emptyList()),
-            QuranSurahItem(114, "الناس", "An-Nas", "مكية", 6, 30, isLocked = false, isMastered = false, score = 0, "الغنة في النون المشددة والهمس", emptyList())
+            QuranSurahItem(1, "الفاتحة", "مكية", 7, 1, "أم الكتاب والسبع المثاني والشفاء النافع"),
+            QuranSurahItem(2, "البقرة", "مدنية", 286, 1, "سنام القرآن وطاردة الشياطين، فيها آية الكرسي وخواتيمها كنز من تحت العرش"),
+            QuranSurahItem(3, "آل عمران", "مدنية", 200, 3, "إحدى الزهراوين، تحاج عن صاحبها يوم القيامة"),
+            QuranSurahItem(4, "النساء", "مدنية", 176, 4),
+            QuranSurahItem(5, "المائدة", "مدنية", 120, 6),
+            QuranSurahItem(6, "الأنعام", "مكية", 165, 7),
+            QuranSurahItem(7, "الأعراف", "مكية", 206, 8),
+            QuranSurahItem(8, "الأنفال", "مدنية", 75, 9),
+            QuranSurahItem(9, "التوبة", "مدنية", 129, 10),
+            QuranSurahItem(10, "يونس", "مكية", 109, 11),
+            QuranSurahItem(11, "هود", "مكية", 123, 11),
+            QuranSurahItem(12, "يوسف", "مكية", 111, 12),
+            QuranSurahItem(13, "الرعد", "مدنية", 43, 13),
+            QuranSurahItem(14, "إبراهيم", "مكية", 52, 13),
+            QuranSurahItem(15, "الحجر", "مكية", 99, 14),
+            QuranSurahItem(16, "النحل", "مكية", 128, 14),
+            QuranSurahItem(17, "الإسراء", "مكية", 111, 15),
+            QuranSurahItem(18, "الكهف", "مكية", 110, 15, "نور ما بين الجمعتين وعصمة من فتنة الدجال لمن حفظ أوائلها"),
+            QuranSurahItem(19, "مريم", "مكية", 98, 16),
+            QuranSurahItem(20, "طه", "مكية", 135, 16),
+            QuranSurahItem(21, "الأنبياء", "مكية", 112, 17),
+            QuranSurahItem(22, "الحج", "مدنية", 78, 17),
+            QuranSurahItem(23, "المؤمنون", "مكية", 118, 18),
+            QuranSurahItem(24, "النور", "مدنية", 64, 18),
+            QuranSurahItem(25, "الفرقان", "مكية", 77, 18),
+            QuranSurahItem(26, "الشعراء", "مكية", 227, 19),
+            QuranSurahItem(27, "النمل", "مكية", 93, 19),
+            QuranSurahItem(28, "القصص", "مكية", 88, 20),
+            QuranSurahItem(29, "العنكبوت", "مكية", 69, 20),
+            QuranSurahItem(30, "الروم", "مكية", 60, 21),
+            QuranSurahItem(31, "لقمان", "مكية", 34, 21),
+            QuranSurahItem(32, "السجدة", "مكية", 30, 21),
+            QuranSurahItem(33, "الأحزاب", "مدنية", 73, 21),
+            QuranSurahItem(34, "سبأ", "مكية", 54, 22),
+            QuranSurahItem(35, "فاطر", "مكية", 45, 22),
+            QuranSurahItem(36, "يس", "مكية", 83, 22, "قلب القرآن، لا يقرؤها أحد يريد الله والدار الآخرة إلا غفر له"),
+            QuranSurahItem(37, "الصافات", "مكية", 182, 23),
+            QuranSurahItem(38, "ص", "مكية", 88, 23),
+            QuranSurahItem(39, "الزمر", "مكية", 75, 23),
+            QuranSurahItem(40, "غافر", "مكية", 85, 24),
+            QuranSurahItem(41, "فصلت", "مكية", 54, 24),
+            QuranSurahItem(42, "الشورى", "مكية", 53, 25),
+            QuranSurahItem(43, "الزخرف", "مكية", 89, 25),
+            QuranSurahItem(44, "الدخان", "مكية", 59, 25),
+            QuranSurahItem(45, "الجاثية", "مكية", 37, 25),
+            QuranSurahItem(46, "الأحقاف", "مكية", 35, 26),
+            QuranSurahItem(47, "محمد", "مدنية", 38, 26),
+            QuranSurahItem(48, "الفتح", "مدنية", 29, 26),
+            QuranSurahItem(49, "الحجرات", "مدنية", 18, 26),
+            QuranSurahItem(50, "ق", "مكية", 45, 26),
+            QuranSurahItem(51, "الذاريات", "مكية", 60, 26),
+            QuranSurahItem(52, "الطور", "مكية", 49, 27),
+            QuranSurahItem(53, "النجم", "مكية", 62, 27),
+            QuranSurahItem(54, "القمر", "مكية", 55, 27),
+            QuranSurahItem(55, "الرحمن", "مدنية", 78, 27, "عروس القرآن، تذكر بآلاء الله ونعمه الظاهرة والباطنة"),
+            QuranSurahItem(56, "الواقعة", "مكية", 96, 27),
+            QuranSurahItem(57, "الحديد", "مدنية", 29, 27),
+            QuranSurahItem(58, "المجادلة", "مدنية", 22, 28),
+            QuranSurahItem(59, "الحشر", "مدنية", 24, 28),
+            QuranSurahItem(60, "الممتحنة", "مدنية", 13, 28),
+            QuranSurahItem(61, "الصف", "مدنية", 14, 28),
+            QuranSurahItem(62, "الجمعة", "مدنية", 11, 28),
+            QuranSurahItem(63, "المنافقون", "مدنية", 11, 28),
+            QuranSurahItem(64, "التغابن", "مدنية", 18, 28),
+            QuranSurahItem(65, "الطلاق", "مدنية", 12, 28),
+            QuranSurahItem(66, "التحريم", "مدنية", 12, 28),
+            QuranSurahItem(67, "الملك", "مكية", 30, 29, "المنجية من عذاب القبر والشافعة لصاحبها حتى يغفر له"),
+            QuranSurahItem(68, "القلم", "مكية", 52, 29),
+            QuranSurahItem(69, "الحاقة", "مكية", 52, 29),
+            QuranSurahItem(70, "المعارج", "مكية", 44, 29),
+            QuranSurahItem(71, "نوح", "مكية", 28, 29),
+            QuranSurahItem(72, "الجن", "مكية", 28, 29),
+            QuranSurahItem(73, "المزمل", "مكية", 20, 29),
+            QuranSurahItem(74, "المدثر", "مكية", 56, 29),
+            QuranSurahItem(75, "القيامة", "مكية", 40, 29),
+            QuranSurahItem(76, "الإنسان", "مدنية", 31, 29),
+            QuranSurahItem(77, "المرسلات", "مكية", 50, 29),
+            QuranSurahItem(78, "النبأ", "مكية", 40, 30),
+            QuranSurahItem(79, "النازعات", "مكية", 46, 30),
+            QuranSurahItem(80, "عبس", "مكية", 42, 30),
+            QuranSurahItem(81, "التكوير", "مكية", 29, 30),
+            QuranSurahItem(82, "الانفطار", "مكية", 19, 30),
+            QuranSurahItem(83, "المطففين", "مكية", 36, 30),
+            QuranSurahItem(84, "الانشقاق", "مكية", 25, 30),
+            QuranSurahItem(85, "البروج", "مكية", 22, 30),
+            QuranSurahItem(86, "الطارق", "مكية", 17, 30),
+            QuranSurahItem(87, "الأعلى", "مكية", 19, 30),
+            QuranSurahItem(88, "الغاشية", "مكية", 26, 30),
+            QuranSurahItem(89, "الفجر", "مكية", 30, 30),
+            QuranSurahItem(90, "البلد", "مكية", 20, 30),
+            QuranSurahItem(91, "الشمس", "مكية", 15, 30),
+            QuranSurahItem(92, "الليل", "مكية", 21, 30),
+            QuranSurahItem(93, "الضحى", "مكية", 11, 30),
+            QuranSurahItem(94, "الشرح", "مكية", 8, 30),
+            QuranSurahItem(95, "التين", "مكية", 8, 30),
+            QuranSurahItem(96, "العلق", "مكية", 19, 30),
+            QuranSurahItem(97, "القدر", "مكية", 5, 30),
+            QuranSurahItem(98, "البينة", "مدنية", 8, 30),
+            QuranSurahItem(99, "الزلزلة", "مدنية", 8, 30),
+            QuranSurahItem(100, "العاديات", "مكية", 11, 30),
+            QuranSurahItem(101, "القارعة", "مكية", 11, 30),
+            QuranSurahItem(102, "التكاثر", "مكية", 8, 30),
+            QuranSurahItem(103, "العصر", "مكية", 3, 30),
+            QuranSurahItem(104, "الهمزة", "مكية", 9, 30),
+            QuranSurahItem(105, "الفيل", "مكية", 5, 30),
+            QuranSurahItem(106, "قريش", "مكية", 4, 30),
+            QuranSurahItem(107, "الماعون", "مكية", 7, 30),
+            QuranSurahItem(108, "الكوثر", "مكية", 3, 30),
+            QuranSurahItem(109, "الكافرون", "مكية", 6, 30),
+            QuranSurahItem(110, "النصر", "مدنية", 3, 30),
+            QuranSurahItem(111, "المسد", "مكية", 5, 30),
+            QuranSurahItem(112, "الإخلاص", "مكية", 4, 30),
+            QuranSurahItem(113, "الفلق", "مكية", 5, 30),
+            QuranSurahItem(114, "الناس", "مكية", 6, 30)
         )
     }
 
@@ -1384,13 +1382,64 @@ object QuranDataProvider {
         surahs.firstOrNull { it.id == surahId }?.name ?: "سورة $surahId"
 
     /**
+     * ق105: نمط نزع التشكيل مشترك — كان Regex يُبنى من جديد في كل
+     * استدعاء لتطبيع النص، أي 6236 بناءً في كل ضغطة مفتاح أثناء
+     * البحث في الآيات.
+     */
+    private val ARABIC_STRIP_REGEX = Regex("[\\u064B-\\u0652\\u0640\\u0670]")
+
+    /**
      * تطبيع النص العربي للبحث: حذف التشكيل والتطويل وألف الخنجرية،
      * ثم توحيد الهمزات والألف المقصورة والتاء المربوطة لتزداد دقة المطابقة.
      */
     private fun normalizeArabicText(text: String): String =
-        text.replace(Regex("[\\u064B-\\u0652\\u0640\\u0670]"), "")
+        text.replace(ARABIC_STRIP_REGEX, "")
             .replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ٱ", "ا")
             .replace("ى", "ي").replace("ة", "ه")
+
+    /**
+     * ق105: مقتطف نتيجة بحث يُظهر موضع المطابقة لا بداية الآية —
+     * كان take(90) يخفي الكلمة المطابقة في الآيات الطويلة (مثل
+     * «كرسيه» في آية الكرسي). يُبنى التطبيع مع خريطة فهارس من النص
+     * المطبَّع إلى النص الأصلي (الحذف وحده يزيح الفهارس؛ والاستبدال
+     * 1:1) فيُقتطع إطار ~90 حرفاً حول المطابقة مع «…» عند الحواف.
+     * المعروض مقتطف من الآية نفسها — لا تعديل للنص القرآني.
+     */
+    fun verseSnippet(verseText: String, query: String): String {
+        val trimmed = query.trim()
+        if (trimmed.length < 3) return verseText.take(90)
+        val needle = normalizeArabicText(trimmed)
+        if (needle.isEmpty()) return verseText.take(90)
+        val strippedNeedle =
+            if (needle.length > 3 && needle.startsWith("ال")) needle.substring(2) else null
+        val normalized = StringBuilder()
+        val indexMap = ArrayList<Int>()
+        for ((index, ch) in verseText.withIndex()) {
+            if (ARABIC_STRIP_REGEX.matches(ch.toString())) continue
+            val mapped = when (ch) {
+                'أ', 'إ', 'آ', 'ٱ' -> 'ا'
+                'ى' -> 'ي'
+                'ة' -> 'ه'
+                else -> ch
+            }
+            normalized.append(mapped)
+            indexMap.add(index)
+        }
+        val hay = normalized.toString()
+        val match = when {
+            hay.indexOf(needle) >= 0 -> hay.indexOf(needle) to needle.length
+            strippedNeedle != null && hay.indexOf(strippedNeedle) >= 0 ->
+                hay.indexOf(strippedNeedle) to strippedNeedle.length
+            else -> return verseText.take(90)
+        }
+        val origStart = indexMap[match.first]
+        val windowStart = maxOf(0, origStart - 20)
+        val windowEnd = minOf(verseText.length, windowStart + 90)
+        val window = verseText.substring(windowStart, windowEnd)
+        val prefix = if (windowStart > 0) "…" else ""
+        val suffix = if (windowEnd < verseText.length) "…" else ""
+        return prefix + window + suffix
+    }
 
     /**
      * بحث نصي حقيقي في الآيات الـ 6236 المحملة من النص العثماني.
@@ -1435,11 +1484,23 @@ object QuranDataProvider {
      * المستعمل في بحث الآيات (بلا تشكيل/تطويل، وتوحيد الهمزات)، فيجد
      * «البقره» و«البقرة» معاً. استعلام رقمي (أرقام عربية أو غربية) يطابق
      * رقم السورة مباشرة. استعلام فارغ يرجع السور الـ 114 بالترتيب.
+     * بادئة «سورة»/«السورة» تُجرَّد قبل المطابقة (ق138) فيجد
+     * «سورة البقرة» و«سورة 2» ما يجده «البقرة» و«2».
      */
     fun searchSurahs(query: String): List<QuranSurahItem> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return surahs
-        val westernDigits = trimmed
+        // ق138: تجريد بادئة «سورة» قبل المطابقة — كان «سورة البقرة»
+        // يعيد صفر نتيجة لأن الاسم المخزن «البقرة» بلا البادئة، فيكذّب
+        // البحثُ رسالةَ «لا توجد سورة بهذا الاسم أو الرقم» على أشهر صيغة
+        // بحث عربية؛ و«سورة 2» كان يفشل للسبب نفسه. التجريد بعد التطبيع
+        // فيبتلع التشكيل و«ة/ه» («سُورة»، «السورة»)؛ وبادئة وحدها ترجع
+        // القائمة كاملة كالاستعلام الفارغ.
+        val withoutPrefix = normalizeArabicText(trimmed)
+            .removePrefix("السوره ").removePrefix("سوره ")
+            .removePrefix("السوره").removePrefix("سوره").trim()
+        if (withoutPrefix.isEmpty()) return surahs
+        val westernDigits = withoutPrefix
             .map { ch ->
                 when (ch) {
                     in '٠'..'٩' -> ('0' + (ch - '٠'))
@@ -1452,7 +1513,7 @@ object QuranDataProvider {
                 return surahs.filter { it.id == number }
             }
         }
-        val needle = normalizeArabicText(trimmed)
+        val needle = normalizeArabicText(withoutPrefix)
         if (needle.isEmpty()) return emptyList()
         return surahs.filter { normalizeArabicText(it.name).contains(needle) }
     }
@@ -1523,6 +1584,20 @@ object QuranDataProvider {
         )
     )
 
+    /**
+     * ق84: معرّفات الترجمات المعروفة — المصدر الوحيد للحقيقة،
+     * مشتقة من MUSHAF_TRANSLATIONS. كل تحقق من معرّف ترجمة
+     * (التفضيلات والجلب) يرجع إليها؛ القائمة كانت منسوخة يدوياً
+     * في 3 مواضع فأي ترجمة رابعة تُضاف للمنتقي كانت ستُرفض بصمت
+     * (التفضيلات تعيدها لسهيه، والجلب يرفضها) — بلا أي خطأ ظاهر.
+     */
+    val MUSHAF_TRANSLATION_IDS: Set<String> =
+        MUSHAF_TRANSLATIONS.map { it.id }.toSet()
+
+    /** هل معرّف الترجمة معروف (أي معروض في المنتقي)؟ */
+    fun isKnownMushafTranslationId(id: String): Boolean =
+        id in MUSHAF_TRANSLATION_IDS
+
     /** كلمة قرآنية مع نقلها الصوتي وترجمتها الإنجليزية (من QF العام). */
     data class QuranWordStudy(
         val position: Int,
@@ -1544,7 +1619,9 @@ object QuranDataProvider {
      * null عند أي فشل أو معرّف غير معروف.
      */
     suspend fun fetchSurahTranslationFor(translationId: String, surahId: Int): Map<Int, String>? {
-        if (translationId !in setOf("english_saheeh", "english_hilali_khan", "english_rwwad")) return null
+        // ق84: التحقق من المصدر الوحيد (MUSHAF_TRANSLATION_IDS) بدل
+        // نسخة يدوية ثالثة من القائمة.
+        if (!isKnownMushafTranslationId(translationId)) return null
         if (surahId !in 1..114) return null
         val key = "$translationId:$surahId"
         surahTranslationCache[key]?.let { return it }
@@ -1766,7 +1843,13 @@ object QuranDataProvider {
             val tag = rawMarkup.substring(open + 1, close).trim()
             when {
                 tag.startsWith("tajweed class=") -> {
+                    // وسم QF بصيغة HTML القياسية: class="ham_wasl"
+                    // بعلامتي تنصيص. تجريدهما واجب، وإلا بقيت القاعدة
+                    // "ham_wasl" (بتنصيص) فلا تطابق خريطة الألوان أبداً
+                    // وتبقى كل ألوان التجويد بلا أثر صامتاً. يُقبل أيضاً
+                    // الشكل بلا تنصيص أو بتنصيص مفرد.
                     val rule = tag.removePrefix("tajweed class=").trim()
+                        .trim('"', '\'')
                     flushPlain()
                     ruleStack.addLast(currentRule)
                     currentRule = rule
@@ -1803,26 +1886,61 @@ object QuranDataProvider {
 
     /**
      * ألوان أحكام التجويد في القارئ (لوحة التطبيق الخاصة؛ الفئات من QF).
-     * كل فئة لون مميز يقرأ على الخلفيات الداكنة والفاتحة معاً.
+     * لوحة داكنة للخلفيات الداكنة: كل لون فيها ≥ 4.5:1 تبايناً على
+     * خلفية القارئ الداكنة (0B0F19) وعلى الأسود المطبق — حُسبت يدوياً
+     * (الألوان الفاتحة الأصلية madda_permissible/madda_obligatory/
+     * ikhafa/idgham_mutajanisayn كانت 2.4–2.7:1 فلا تُقرأ، فاستُبدلت
+     * بدرجات 300 الأفتح؛ وlaam_shamsiyah/qalaqah/ikhafa_shafawi/
+     * madda_necessary رُفعت كذلك فوق 4.5:1).
      */
     val TAJWEED_RULE_COLORS: Map<String, Color> = mapOf(
         "ham_wasl" to Color(0xFF9AA0A6),
         "slnt" to Color(0xFF78909C),
-        "laam_shamsiyah" to Color(0xFF8D6E63),
+        "laam_shamsiyah" to Color(0xFFBCAAA4),
         "madda_normal" to Color(0xFF1E88E5),
-        "madda_permissible" to Color(0xFF3949AB),
-        "madda_obligatory" to Color(0xFF5E35B1),
-        "madda_necessary" to Color(0xFF00897B),
-        "qalaqah" to Color(0xFFD32F2F),
-        "ikhafa" to Color(0xFF8E24AA),
-        "ikhafa_shafawi" to Color(0xFFD81B60),
+        "madda_permissible" to Color(0xFF7986CB),
+        "madda_obligatory" to Color(0xFF9575CD),
+        "madda_necessary" to Color(0xFF4DB6AC),
+        "qalaqah" to Color(0xFFE57373),
+        "ikhafa" to Color(0xFFBA68C8),
+        "ikhafa_shafawi" to Color(0xFFF06292),
         "idgham_shafawi" to Color(0xFF388E3C),
         "idgham_ghunnah" to Color(0xFF43A047),
         "idgham_wo_ghunnah" to Color(0xFF7CB342),
-        "idgham_mutajanisayn" to Color(0xFF6D4C41),
+        "idgham_mutajanisayn" to Color(0xFFA1887F),
         "iqlab" to Color(0xFF00ACC1),
         "ghunnah" to Color(0xFFFB8C00)
     )
+
+    /**
+     * لوحة فاتحة للخلفيات الفاتحة (ورق دافئ FBF0D9 وأبيض ناصع F8FAFC):
+     * كل لون فيها ≥ 4.5:1 تبايناً على الورق الدافئ (الأغمق) — حُسبت
+     * يدوياً. اللوحة الداكنة الواحدة كانت تفشل في 10 من 16 لوناً على
+     * الخلفيات الفاتحة (ham_wasl ‏2.5:1، ghunnah ‏2.3:1)، فلا تُقرأ
+     * ألوان التجويد أصلاً عند اختيار سمة فاتحة.
+     */
+    val TAJWEED_RULE_COLORS_LIGHT: Map<String, Color> = mapOf(
+        "ham_wasl" to Color(0xFF546E7A),
+        "slnt" to Color(0xFF455A64),
+        "laam_shamsiyah" to Color(0xFF5D4037),
+        "madda_normal" to Color(0xFF1565C0),
+        "madda_permissible" to Color(0xFF283593),
+        "madda_obligatory" to Color(0xFF4527A0),
+        "madda_necessary" to Color(0xFF00695C),
+        "qalaqah" to Color(0xFFB71C1C),
+        "ikhafa" to Color(0xFF6A1B9A),
+        "ikhafa_shafawi" to Color(0xFFAD1457),
+        "idgham_shafawi" to Color(0xFF1B5E20),
+        "idgham_ghunnah" to Color(0xFF2E7D32),
+        "idgham_wo_ghunnah" to Color(0xFF33691E),
+        "idgham_mutajanisayn" to Color(0xFF4E342E),
+        "iqlab" to Color(0xFF006064),
+        "ghunnah" to Color(0xFFBF360C)
+    )
+
+    /** خريطة ألوان التجويد المناسبة لإضاءة خلفية القارئ (فاتحة/داكنة). */
+    fun tajweedRuleColors(isLightBackground: Boolean): Map<String, Color> =
+        if (isLightBackground) TAJWEED_RULE_COLORS_LIGHT else TAJWEED_RULE_COLORS
 
     /** أسماء أحكام التجويد العربية لدليل الألوان في القارئ. */
     val TAJWEED_RULE_NAMES_AR: Map<String, String> = mapOf(

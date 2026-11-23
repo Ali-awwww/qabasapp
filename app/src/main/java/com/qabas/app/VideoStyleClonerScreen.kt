@@ -296,6 +296,9 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
         try {
             val fbText = FirebaseAiService.generateText(prompt)
             if (fbText.isNotBlank()) {
+                // ق44: تسجيل الاستهلاك — كان هذا المسار يمر بلا أثر في
+                // تتبع التكلفة (رموز تقديرية فتبقى «غير مقاسة»).
+                VibeCostTracker.recordEstimated(context, "gemini", "gemini-3.8-flash", prompt, fbText, "استنساخ نمط فيديو")
                 val clean = fbText.replace("```json", "").replace("```", "").trim()
                 return@withContext parseJsonToAnalysis(clean)
             }
@@ -321,6 +324,9 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                     if (response.isSuccessful) {
                         val text = parseGeminiTextFromResponse(body)
                         if (!text.isNullOrBlank()) {
+                            // ق44: تسجيل الاستهلاك — بتفصيل الرموز الحقيقي
+                            // عند إرساله، وإلا تقديرياً («غير مقاسة»).
+                            recordGeminiBodyUsage(context, prompt, text, body, "استنساخ نمط فيديو")
                             return@withContext parseJsonToAnalysis(text)
                         }
                     }
@@ -352,6 +358,9 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
                         val json = JSONObject(body)
                         val text = json.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
                         if (!text.isNullOrBlank()) {
+                            // ق44: تسجيل الاستهلاك — بتفصيل الرموز الحقيقي
+                            // عند إرساله، وإلا تقديرياً («غير مقاسة»).
+                            recordChatBodyUsage(context, provider, model, prompt, text, json, "استنساخ نمط فيديو")
                             return@withContext parseJsonToAnalysis(text)
                         }
                     }
@@ -363,6 +372,32 @@ suspend fun analyzeVideoStyleMultiProvider(context: Context, input: String): Vid
 
     // Fallback: تحليل دلالي ذكي وسريع محلياً بناءً على الكلمات المفتاحية
     return@withContext deduceHeuristicStyle(input)
+}
+
+/** ق44: تسجيل استجابة Gemini غير متدفقة — بتفصيل usageMetadata عند إرساله، وإلا تقديرياً («غير مقاسة»). */
+private fun recordGeminiBodyUsage(context: Context, prompt: String, text: String, body: String, missionTitle: String) {
+    val usage = runCatching { JSONObject(body).optJSONObject("usageMetadata") }.getOrNull()
+    val promptTokens = usage?.optInt("promptTokenCount", 0) ?: 0
+    val completionTokens = usage?.optInt("candidatesTokenCount", 0) ?: 0
+    if (promptTokens + completionTokens > 0) {
+        val total = usage?.optInt("totalTokenCount", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
+        VibeCostTracker.record(context, "gemini", "gemini-2.5-flash", RealAgentResponse(text, total, promptTokens, completionTokens), missionTitle)
+    } else {
+        VibeCostTracker.recordEstimated(context, "gemini", "gemini-2.5-flash", prompt, text, missionTitle)
+    }
+}
+
+/** ق44: تسجيل استجابة chat/completions غير متدفقة — بتفصيل usage عند إرساله، وإلا تقديرياً («غير مقاسة»). */
+private fun recordChatBodyUsage(context: Context, provider: DetectedProvider, model: String, prompt: String, text: String, json: JSONObject, missionTitle: String) {
+    val usage = json.optJSONObject("usage")
+    val promptTokens = usage?.optInt("prompt_tokens", 0) ?: 0
+    val completionTokens = usage?.optInt("completion_tokens", 0) ?: 0
+    if (promptTokens + completionTokens > 0) {
+        val total = usage?.optInt("total_tokens", 0)?.takeIf { it > 0 } ?: (promptTokens + completionTokens)
+        VibeCostTracker.record(context, provider.id, model, RealAgentResponse(text, total, promptTokens, completionTokens), missionTitle)
+    } else {
+        VibeCostTracker.recordEstimated(context, provider.id, model, prompt, text, missionTitle)
+    }
 }
 
 private fun parseGeminiTextFromResponse(body: String): String? {

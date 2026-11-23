@@ -2263,7 +2263,9 @@ object StyleBrain {
                 .post(requestBody)
                 .build()
 
-            val response = httpClient.newCall(request).execute()
+            // ق161: استدعاء Gemini Vision المباشر كان يمر بلا
+            // ApiUsageTracker.track فيغيب عن لوحة المطور.
+            val response = ApiUsageTracker.track(actualContext, "Gemini") { httpClient.newCall(request).execute() }
             if (!response.isSuccessful) {
                 Log.e("StyleBrain", "Vision API call unsuccessful: HTTP ${response.code}")
                 return@withContext defaultFallback
@@ -2288,12 +2290,20 @@ object StyleBrain {
                         val score = parsedResult.optInt("overallScore", 0).coerceIn(0, 100)
                         parsedResult.put("overallScore", score)
                         parsedResult.put("analysisSource", "MODEL")
+                        // ق160: استدعاء Gemini Vision المباشر كان يمر بلا أثر في تتبع التكلفة.
+                        runCatching {
+                            VibeCostTracker.recordEstimated(actualContext, "gemini", "gemini-2.5-flash", promptText, rawText, "تحليل إطارات بصري")
+                        }
                         return@withContext parsedResult
                     }
                 }
             }
 
             return@withContext defaultFallback
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // ق161: track() يعيد رمي الإلغاء — ولا يُبتلَع هنا كفشل
+            // تحليل يعيد البديل الافتراضي.
+            throw e
         } catch (e: Exception) {
             Log.e("StyleBrain", "Vision analysis failed with exception: ${e.message}", e)
             return@withContext defaultFallback

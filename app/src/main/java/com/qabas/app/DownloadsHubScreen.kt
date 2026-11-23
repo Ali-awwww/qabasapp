@@ -142,6 +142,9 @@ private fun SpatialControlDeck(
     hasInstalledModel: Boolean,
     onToggleOfflineAi: (Boolean) -> Unit,
     onOpenAssistant: () -> Unit,
+    /** ق168: مبدّل «التنزيل عبر Wi-Fi فقط» — كان الخيار بلا واجهة. */
+    isWifiOnlyDownloads: Boolean,
+    onToggleWifiOnlyDownloads: (Boolean) -> Unit,
     onCleanCache: () -> Unit,
     onOpenCategory: (Int) -> Unit,
     categoryCounts: Map<DownloadCategory, Int>,
@@ -256,6 +259,56 @@ private fun SpatialControlDeck(
                     onOpenAssistant = onOpenAssistant,
                     embedded = true
                 )
+
+                SpatialDeckDivider()
+
+                // ق168: مبدّل «التنزيل عبر Wi-Fi فقط» — كان الخيار يُقرأ
+                // في قيود العامل وحارس المسار المباشر بلا كاتب ولا مبدّل،
+                // فبقي دائماً على الافتراضي. يسري على التنزيلات الجديدة
+                // (قيود WorkManager تُثبَّت عند الإدراج)؛ والجارية تكمل
+                // كما بدأت، والمسار المباشر يُرفض فوراً بلا شبكة غير محدودة.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Wifi,
+                        contentDescription = null,
+                        tint = QabasTheme.current.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "التنزيل عبر Wi-Fi فقط",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = QabasTheme.current.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "تنزيلات الريلز والوسائط الجديدة تنتظر شبكة غير محدودة؛ والجارية تكمل كما بدأت",
+                            fontFamily = CairoFont,
+                            fontSize = 10.5.sp,
+                            color = TextSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Switch(
+                        checked = isWifiOnlyDownloads,
+                        onCheckedChange = onToggleWifiOnlyDownloads,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = QabasTheme.current.primary,
+                            checkedTrackColor = QabasTheme.current.primary.copy(alpha = 0.35f),
+                            uncheckedThumbColor = Color.LightGray,
+                            uncheckedTrackColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.testTag("wifi_only_downloads_switch")
+                    )
+                }
 
                 if (visibleCategories.isNotEmpty()) {
                     SpatialDeckDivider()
@@ -534,6 +587,9 @@ fun DownloadsHubScreen(
     onBack: () -> Unit,
     onOpenReels: () -> Unit = {},
     onOpenAiAssistant: () -> Unit = {},
+    /** ق119: زر فراغ الوسائط «فتح مكتبة الصوتيات» كان تنبيهاً فقط
+     * (Toast) لا ينتقل لأي مكان — الآن يفتح المكتبة الصوتية فعلاً. */
+    onOpenAudioLibrary: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -555,6 +611,11 @@ fun DownloadsHubScreen(
 
     var isOfflineAiActive by remember {
         mutableStateOf(OnDeviceModelManager.isOfflineModeActive(context))
+    }
+    // ق168: حالة مبدّل «التنزيل عبر Wi-Fi فقط» — كان الخيار بلا كاتب
+    // ولا واجهة فبقي ميتاً على الافتراضي.
+    var wifiOnlyDownloads by remember {
+        mutableStateOf(DownloadsHubManager.isWifiOnlyDownloads(context))
     }
     var selectedModel by remember {
         mutableStateOf(OnDeviceModelManager.getSelectedModel(context))
@@ -723,6 +784,11 @@ fun DownloadsHubScreen(
         }
 
         activeReelDownloads.values.forEach { progress ->
+            // ق168: إدخال الريل الفاشل له «إعادة» كالوسائط (ق119) — كان
+            // «إزالة» وحده لأن الرابط لم يُحفظ في الإدخال أبداً؛ والإعادة
+            // تستأنف من الجزئي (.tmp) عبر العامل نفسه. وسبب الفشل أولاً
+            // لا البايتات (كالوسائط) — كان مخفياً كلما وُجدت بايتات جزئية.
+            val canRetryReel = progress.isError && !progress.sourceUrl.isNullOrBlank()
             add(
                 ActiveDownloadEntry(
                     id = "reel_${progress.reelId}",
@@ -730,16 +796,45 @@ fun DownloadsHubScreen(
                     category = DownloadCategory.Reels,
                     progress = progress.progress.coerceIn(0f, 1f),
                     statusText = if (progress.isError) "فشل تنزيل الريل" else "جارٍ تنزيل الريل",
-                    detailText = if (progress.totalBytes > 0) {
+                    detailText = if (progress.isError) {
+                        progress.errorMessage?.take(80).orEmpty()
+                    } else if (progress.totalBytes > 0) {
                         "${StorageMetrics.formatBytes(progress.downloadedBytes)} / ${StorageMetrics.formatBytes(progress.totalBytes)}"
                     } else progress.errorMessage?.take(40).orEmpty(),
-                    actionLabel = if (progress.isError) "إزالة" else "إلغاء",
-                    onAction = { DownloadsHubManager.cancelReelDownload(progress.reelId) }
+                    actionLabel = if (progress.isError) {
+                        if (canRetryReel) "إعادة" else "إزالة"
+                    } else "إلغاء",
+                    onAction = {
+                        if (canRetryReel) {
+                            val retryUrl = progress.sourceUrl!!
+                            startAfterSpaceCheck(progress.title, progress.totalBytes) {
+                                DownloadsHubManager.downloadReel(
+                                    context = context,
+                                    reelId = progress.reelId,
+                                    title = progress.title,
+                                    videoUrl = retryUrl,
+                                    thumbnailUrl = progress.thumbnailUrl,
+                                    author = progress.author.ifBlank { "صانع محتوى" }
+                                ) { success ->
+                                    if (!success) {
+                                        Toast.makeText(context, "تعذرت إعادة تنزيل الريل", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        } else {
+                            DownloadsHubManager.cancelReelDownload(progress.reelId)
+                        }
+                    }
                 )
             )
         }
 
         activeMediaDownloads.values.forEach { progress ->
+            // ق119: إدخال الوسائط الفاشل له «إعادة» (كحال النموذج والتحديث)
+            // لا «إزالة» فقط — الرابط والتسمية محفوظان في الإدخال نفسه،
+            // والإعادة عبر عامل WorkManager تستأنف من الجزئي (.tmp) وتخضع
+            // لقيد Wi-Fi فقط كأي تنزيل عامل؛ وبلا رابط يبقى «إزالة» وحده.
+            val canRetry = progress.isError && !progress.sourceUrl.isNullOrBlank()
             add(
                 ActiveDownloadEntry(
                     id = "media_${progress.reelId}",
@@ -747,11 +842,37 @@ fun DownloadsHubScreen(
                     category = DownloadCategory.Media,
                     progress = progress.progress.coerceIn(0f, 1f),
                     statusText = if (progress.isError) "فشل تنزيل الصوت" else "جارٍ تنزيل الصوت",
-                    detailText = if (progress.totalBytes > 0) {
+                    detailText = if (progress.isError) {
+                        // ق119: سبب الفشل أولاً لا البايتات — البايتات ظاهرة
+                        // في الشريط بالنسبة نفسها، والسبب كان مخفياً كلما
+                        // وُجدت بايتات جزئية (totalBytes > 0).
+                        progress.errorMessage?.take(80).orEmpty()
+                    } else if (progress.totalBytes > 0) {
                         "${StorageMetrics.formatBytes(progress.downloadedBytes)} / ${StorageMetrics.formatBytes(progress.totalBytes)}"
                     } else progress.errorMessage?.take(40).orEmpty(),
-                    actionLabel = if (progress.isError) "إزالة" else "إلغاء",
-                    onAction = { DownloadsHubManager.cancelMediaDownload(progress.reelId) }
+                    actionLabel = if (progress.isError) {
+                        if (canRetry) "إعادة" else "إزالة"
+                    } else "إلغاء",
+                    onAction = {
+                        if (canRetry) {
+                            val retryUrl = progress.sourceUrl!!
+                            startAfterSpaceCheck(progress.title, progress.totalBytes) {
+                                DownloadsHubManager.enqueueMediaDownload(
+                                    context = context,
+                                    mediaId = progress.reelId,
+                                    title = progress.title,
+                                    fileUrl = retryUrl,
+                                    subtitle = progress.subtitle
+                                ) { success ->
+                                    if (!success) {
+                                        Toast.makeText(context, "تعذرت إعادة تنزيل الملف الصوتي", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        } else {
+                            DownloadsHubManager.cancelMediaDownload(progress.reelId)
+                        }
+                    }
                 )
             )
         }
@@ -898,6 +1019,11 @@ fun DownloadsHubScreen(
                         }
                     },
                     onOpenAssistant = onOpenAiAssistant,
+                    isWifiOnlyDownloads = wifiOnlyDownloads,
+                    onToggleWifiOnlyDownloads = { newState ->
+                        wifiOnlyDownloads = newState
+                        DownloadsHubManager.setWifiOnlyDownloads(context, newState)
+                    },
                     onCleanCache = {
                         scope.launch {
                             tempCacheEstimate = withContext(Dispatchers.IO) {
@@ -1115,9 +1241,7 @@ fun DownloadsHubScreen(
                                         "أي تلاوة قرآنية، صوتيات مرافقة، أو تصاميم يتم تنزيلها ستظهر هنا بدقة عالية وإحصائيات حجم دقيقة."
                                     },
                                     actionText = "فتح مكتبة الصوتيات 🎙️",
-                                    onAction = {
-                                        Toast.makeText(context, "انتقل لمكتبة الصوتيات من القائمة الجانبية", Toast.LENGTH_SHORT).show()
-                                    }
+                                    onAction = { onOpenAudioLibrary() }
                                 )
                             }
                         } else if (matchingMedia.isEmpty()) {
@@ -1144,7 +1268,10 @@ fun DownloadsHubScreen(
                                                     context = context,
                                                     mediaId = media.id,
                                                     title = media.title,
-                                                    fileUrl = sourceUrl
+                                                    fileUrl = sourceUrl,
+                                                    // ق119: الإعادة تحفظ تسمية العنصر («تلاوة قرآنية»
+                                                    // لا فراغاً) كما يفعل عامل التنزيل عند النجاح.
+                                                    subtitle = media.subtitle
                                                 ) { success ->
                                                     if (!success) {
                                                         Toast.makeText(context, "تعذرت إعادة تنزيل الملف الصوتي", Toast.LENGTH_SHORT).show()

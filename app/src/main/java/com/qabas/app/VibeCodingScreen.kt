@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.WebView
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -456,6 +458,22 @@ private sealed interface VibeCurrentFile {
     data class Missing(val reason: String) : VibeCurrentFile
 }
 
+/** نبرة رسالة حالة في تبويب المعاينة: لونها يطابق معناها لا الأخضر دائماً. */
+private enum class VibeMessageTone { SUCCESS, ERROR, WARNING }
+
+@Composable
+private fun VibeMessageTone.color(): androidx.compose.ui.graphics.Color {
+    val theme = QabasTheme.current
+    return when (this) {
+        VibeMessageTone.ERROR -> theme.destructive
+        VibeMessageTone.WARNING -> theme.warning
+        VibeMessageTone.SUCCESS -> theme.success
+    }
+}
+
+/** سقف عرض الملف الحالي في المعاينة (محرفاً) — بلا سقف كان يُركَّب كاملاً. */
+private const val PREVIEW_CURRENT_FILE_MAX_CHARS = 12_000
+
 /** مخرج HTML كامل؟ (12.13) */
 private fun vibeLooksLikeHtmlDocument(text: String): Boolean {
     val lower = text.lowercase()
@@ -477,14 +495,24 @@ private fun vibeLooksLikeHtmlFragment(text: String): Boolean {
  */
 @Composable
 private fun VibeHtmlPreview(html: String) {
+    // update يُستدعى مع كل إعادة تركيب للأب؛ بلا حارس كان يعيد تحميل
+    // الصفحة ويفقد موضع التمرير عند كل تحديث لقائمة التشغيلات.
+    // الحارس مصفوفة عادية لا حالة — الكتابة في حالة أثناء التركيب ممنوعة.
+    val lastLoaded = remember { arrayOf<String?>(null) }
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
                 settings.javaScriptEnabled = false
                 loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                lastLoaded[0] = html
             }
         },
-        update = { view -> view.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null) },
+        update = { view ->
+            if (lastLoaded[0] != html) {
+                view.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                lastLoaded[0] = html
+            }
+        },
         modifier = Modifier.fillMaxWidth().height(320.dp)
     )
 }
@@ -594,8 +622,9 @@ private fun openVibeUrl(context: android.content.Context, url: String) {
  * تبويب «التحكم» (12.9، المرتبة 7): إعدادات AgentPrefs (حد الجولات/
  * الإصلاح الذاتي/وضع التخطيط/النموذج) عبر AgentKernelSettingsCard كما هي،
  * + مفتاح الوضع المستقل (افتراضياً متوقف — كان true) + حد التكلفة
- * (يُحفظ ويُعرض فقط؛ الإيقاف عند الحد في بند 12.14 اللاحق، فلا إيقاف
- * وهمي هنا) + قائمة سماح المسارات/الفروع التي يفرضها AgentToolGate.
+ * (يُحفظ ويُعرض هنا فقط؛ الإيقاف عند الحد يفرضه AgentBrain وAgentMission
+ * عبر VibeCostTracker.checkLimit قبل تنفيذ المهمة، لا هذا التبويب)
+ * + قائمة سماح المسارات/الفروع التي يفرضها AgentToolGate.
  */
 @Composable
 private fun VibeControlTab() {
@@ -722,19 +751,29 @@ private fun VibeControlTab() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "الإنفاق المقاس: ${VibeCostTracker.formatUsd(costSnapshot.spentUsd)} دولار",
+                    // ق44: إجمالي العمر — لا يتقلص بتقادم السجل الـ 300.
+                    "الإنفاق المقاس: ${VibeCostTracker.formatUsd(costSnapshot.lifetimeSpentUsd)} دولار",
                     color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 13.sp, fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "الاستدعاءات: ${costSnapshot.totalCalls} (مقاسة: ${costSnapshot.measuredCalls} • غير مقاسة: ${costSnapshot.unmeasuredCalls}) • الرموز: ${costSnapshot.totalTokens}",
+                    "الاستدعاءات: ${costSnapshot.lifetimeCalls} (مقاسة: ${costSnapshot.lifetimeCalls - costSnapshot.lifetimeUnmeasuredCalls} • غير مقاسة: ${costSnapshot.lifetimeUnmeasuredCalls}) • الرموز: ${costSnapshot.lifetimeTokens}",
                     color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
                 )
                 val currentLimit = AgentPrefs.getCostLimitUsd(context)
                 Text(
                     if (currentLimit == null) "الحد: بلا حد"
-                    else "الحد: ${VibeCostTracker.formatUsd(currentLimit)} دولار • المتبقي المقاس: ${VibeCostTracker.formatUsd((currentLimit - costSnapshot.spentUsd).coerceAtLeast(0.0))} دولار",
+                    else "الحد: ${VibeCostTracker.formatUsd(currentLimit)} دولار • المتبقي المقاس: ${VibeCostTracker.formatUsd((currentLimit - costSnapshot.lifetimeSpentUsd).coerceAtLeast(0.0))} دولار",
                     color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 12.sp
                 )
+                if (costSnapshot.totalCalls > 0) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        // ق44: التفصيل أدناه من السجل المحفوظ (آخر N) لا
+                        // من إجمالي العمر — السجل يحتفظ بآخر 300 قيد.
+                        "التفصيل أدناه لآخر ${costSnapshot.totalCalls} استدعاء محفوظ:",
+                        color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp
+                    )
+                }
                 if (costSnapshot.unmeasuredByReason.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("غير مقاسة حسب السبب:", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -874,6 +913,57 @@ private fun VibeProjectsTab(onOpenLibrary: () -> Unit, onOpenChat: () -> Unit = 
     var projectsMessage by remember { mutableStateOf("") }
     var showRepoDialog by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<VibeCodingProject?>(null) }
+    // ق110: التصدير بلا حارس نقرة ولا حفظ ملف — زر المشاركة وحده كان
+    // يبني مرتين عند النقر المزدوج، ولا بديل عند تجاوز حد Binder.
+    var isExportingProject by remember { mutableStateOf(false) }
+    var pendingExportVibe by remember { mutableStateOf<VibeCodingProject?>(null) }
+    var pendingExportUri by remember { mutableStateOf<Uri?>(null) }
+
+    fun exportFileName(vibe: VibeCodingProject): String {
+        val safe = vibe.title.trim().take(40)
+            .map { if (it in "/\\:*?\"<>|") '_' else it }.joinToString("")
+            .trim().ifBlank { "vibe-project" }
+        return "$safe.json"
+    }
+
+    val exportFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) {
+            pendingExportVibe = null
+            return@rememberLauncherForActivityResult
+        }
+        pendingExportUri = uri
+        isExportingProject = true
+    }
+
+    // (نمط DashboardBackup) يُبنى التصدير بعد اختيار الملف لا قبله،
+    // فلا بناء مهدور عند إلغاء المنتقي؛ وفشل البناء/الكتابة لا يترك
+    // الزر معطلاً أبداً.
+    LaunchedEffect(isExportingProject, pendingExportUri) {
+        val vibe = pendingExportVibe ?: return@LaunchedEffect
+        val uri = pendingExportUri ?: return@LaunchedEffect
+        if (!isExportingProject) return@LaunchedEffect
+        var ok = false
+        try {
+            val json = VibeCodingProjects.buildExportJson(context, vibe)
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val stream = context.contentResolver.openOutputStream(uri)
+                    ?: throw java.io.IOException("تعذّر فتح ملف التصدير")
+                stream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            }
+            ok = true
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            android.util.Log.e("VibeExport", "save export failed", e)
+        } finally {
+            isExportingProject = false
+            pendingExportVibe = null
+            pendingExportUri = null
+        }
+        Toast.makeText(
+            context,
+            if (ok) "تم حفظ التصدير كملف JSON" else "تعذّر حفظ ملف التصدير — حاول مجدداً.",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 
     fun reloadVibeProjects() {
         scope.launch { vibeProjects = VibeCodingProjects.list(context) }
@@ -903,12 +993,19 @@ private fun VibeProjectsTab(onOpenLibrary: () -> Unit, onOpenChat: () -> Unit = 
                 Button(
                     onClick = {
                         scope.launch {
-                            val created = VibeCodingProjects.createFromActiveSession(context)
-                            if (created != null) {
-                                reloadVibeProjects()
-                                projectsMessage = "تم إنشاء مشروع «${created.title}»."
-                            } else {
-                                projectsMessage = "لا توجد جلسة نشطة أو مهمة أو مستودع لإنشاء مشروع منها."
+                            when (val result = VibeCodingProjects.createFromActiveSession(context)) {
+                                is VibeCodingProjects.CreateResult.Created -> {
+                                    reloadVibeProjects()
+                                    projectsMessage = "تم إنشاء مشروع «${result.project.title}»."
+                                }
+                                VibeCodingProjects.CreateResult.NothingToLink -> {
+                                    projectsMessage = "لا توجد جلسة نشطة أو مهمة أو مستودع لإنشاء مشروع منها."
+                                }
+                                VibeCodingProjects.CreateResult.SaveFailed -> {
+                                    // رسالة الفشل Toast لا projectsMessage:
+                                    // نصها أخضر النجاح فيكذب لونها.
+                                    Toast.makeText(context, "تعذر حفظ المشروع — حاول مجدداً.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     },
@@ -937,7 +1034,7 @@ private fun VibeProjectsTab(onOpenLibrary: () -> Unit, onOpenChat: () -> Unit = 
                 template = template,
                 onCreated = { created ->
                     reloadVibeProjects()
-                    projectsMessage = "تم إنشاء مشروع «${created.title}» من القالب — انسخ أمر البدء أو أرسله من المحادثة."
+                    projectsMessage = "تم إنشاء مشروع «${created.title}» من القالب — تم نسخ أمر البدء، الصقه في المحادثة وأرسله."
                     onOpenChat()
                 }
             )
@@ -960,20 +1057,94 @@ private fun VibeProjectsTab(onOpenLibrary: () -> Unit, onOpenChat: () -> Unit = 
                     if (vibe.modifiedFiles.size > 5) {
                         Text("… و${vibe.modifiedFiles.size - 5} ملفات أخرى", color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
                     }
+                    // (ق66) ملفات القالب البادئة تُعرض باسمها الصحيح بدل
+                    // عدّها «معدلة» — كانت مختفية خلف عدّاد كاذب.
+                    if (vibe.starterFiles.isNotEmpty()) {
+                        Text("ملفات بادئة من القالب:", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        vibe.starterFiles.keys.take(5).forEach { path ->
+                            Text("• $path", color = QabasTheme.current.textPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                        }
+                        if (vibe.starterFiles.size > 5) {
+                            Text("… و${vibe.starterFiles.size - 5} ملفات أخرى", color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     // (12.12) ذاكرة الوكيل: ملخص + قرارات + ملفات مهمة.
                     VibeMemoryEditor(vibe = vibe, onSaved = { reloadVibeProjects() })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // فتح المشروع: يستعيد جلسته ومستودعه ثم ينقل
+                        // للمحادثة لمتابعة العمل — كان زر الفتح غائباً
+                        // أصلاً فلا طريق من البطاقة إلى العمل إلا البحث
+                        // اليدوي في قوائم الجلسات والمستودعات أدناه.
                         OutlinedButton(onClick = {
-                            scope.launch {
-                                val json = VibeCodingProjects.buildExportJson(context, vibe)
-                                VibeCodingProjects.shareExport(context, json, vibe.title)
+                            val missing = mutableListOf<String>()
+                            var restoredSession = false
+                            var restoredRepo = false
+                            vibe.sessionId?.let { sid ->
+                                if (sessions.any { it.id == sid }) {
+                                    AgentChatSessionManager.switchSession(context, sid)
+                                    restoredSession = true
+                                } else {
+                                    missing += "الجلسة المحفوظة"
+                                }
                             }
+                            vibe.repoFullName?.let { fullName ->
+                                val repo = savedRepos.firstOrNull { it.fullName.equals(fullName, ignoreCase = true) }
+                                if (repo != null) {
+                                    RepoVaultManager.setActiveRepo(context, repo.id)
+                                    RepoVaultManager.notifyVaultChanged()
+                                    restoredRepo = true
+                                } else {
+                                    missing += "المستودع"
+                                }
+                            }
+                            val summary = buildString {
+                                if (restoredSession) append("الجلسة")
+                                if (restoredRepo) {
+                                    if (isNotEmpty()) append(" و")
+                                    append("المستودع")
+                                }
+                                if (isEmpty()) append("لا جلسة ولا مستودع مرتبطين")
+                                else append(" — تمت الاستعادة")
+                                if (missing.isNotEmpty()) append("؛ لم يعد موجوداً: ${missing.joinToString(" و")}")
+                            }
+                            Toast.makeText(context, "فتح «${vibe.title}»: $summary", Toast.LENGTH_LONG).show()
+                            onOpenChat()
                         }) {
-                            Text("تصدير ومشاركة", fontFamily = CairoFont, fontSize = 11.sp)
+                            Text("فتح المشروع", fontFamily = CairoFont, fontSize = 11.sp)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    if (isExportingProject) return@launch
+                                    isExportingProject = true
+                                    try {
+                                        val json = VibeCodingProjects.buildExportJson(context, vibe)
+                                        VibeCodingProjects.shareExport(context, json, vibe.title)
+                                    } finally {
+                                        isExportingProject = false
+                                    }
+                                }
+                            },
+                            enabled = !isExportingProject
+                        ) {
+                            Text(if (isExportingProject) "جارٍ التصدير..." else "تصدير ومشاركة", fontFamily = CairoFont, fontSize = 11.sp)
                         }
                         OutlinedButton(onClick = { pendingDelete = vibe }) {
                             Text("حذف المشروع", fontFamily = CairoFont, fontSize = 11.sp)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                if (!isExportingProject) {
+                                    pendingExportVibe = vibe
+                                    exportFileLauncher.launch(exportFileName(vibe))
+                                }
+                            },
+                            enabled = !isExportingProject
+                        ) {
+                            Text("حفظ كملف JSON", fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
                 }
@@ -1053,8 +1224,13 @@ private fun VibeProjectsTab(onOpenLibrary: () -> Unit, onOpenChat: () -> Unit = 
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     scope.launch {
-                        VibeCodingProjects.delete(context, vibe.id)
+                        val ok = VibeCodingProjects.delete(context, vibe.id)
                         reloadVibeProjects()
+                        if (ok) {
+                            projectsMessage = "تم حذف مشروع «${vibe.title}»."
+                        } else {
+                            Toast.makeText(context, "تعذر حذف المشروع — حاول مجدداً.", Toast.LENGTH_LONG).show()
+                        }
                     }
                     pendingDelete = null
                 }) { Text("حذف", fontFamily = CairoFont, fontWeight = FontWeight.Bold) }
@@ -1219,6 +1395,15 @@ private fun VibeTemplateCard(template: VibeTemplate, onCreated: (VibeCodingProje
                         val created = VibeCodingProjects.createFromTemplate(context, template)
                         creating = false
                         if (created != null) {
+                            // (ق66) تسليم أمر البدء للمحادثة كان مكسوراً:
+                            // الإنشاء ينقل فوراً لتبويب المحادثة بإدخال
+                            // فارغ، وأمر البدء عالق على بطاقة القالب خلف
+                            // المستخدم — فلا طريق لإرساله إلا العودة
+                            // والنسخ والعودة واللصق. الآن يُنسخ تلقائياً
+                            // عند الإنشاء مع توست يشرح اللصق (الرسالة في
+                            // تبويب المشاريع لا تُرى بعد الانتقال).
+                            clipboard.setText(AnnotatedString(template.startPrompt))
+                            Toast.makeText(context, "تم إنشاء المشروع ونسخ أمر البدء — الصقه في المحادثة وأرسله", Toast.LENGTH_LONG).show()
                             onCreated(created)
                         } else {
                             message = "تعذر إنشاء المشروع — حاول مجدداً."
@@ -1267,6 +1452,11 @@ private fun VibePreviewTab() {
     var statusMessage by remember { mutableStateOf("") }
     var showRepoDialog by remember { mutableStateOf(false) }
     var failedLogs by remember { mutableStateOf("") }
+    // نبرة كل رسالة حالة: لونها يطابق معناها (نجاح/خطأ/تحذير) — كانت
+    // الرسائل الثلاث خضراء دائماً حتى الفشل والإلغاء.
+    var previewTone by remember { mutableStateOf(VibeMessageTone.SUCCESS) }
+    var statusTone by remember { mutableStateOf(VibeMessageTone.SUCCESS) }
+    var verifyTone by remember { mutableStateOf(VibeMessageTone.SUCCESS) }
     // (12.13) المهمة النشطة ومقترحاتها وحالة الملفات الحالية.
     var mission by remember { mutableStateOf<AgentMissionSession?>(null) }
     var fileStates by remember { mutableStateOf<Map<String, VibeCurrentFile>>(emptyMap()) }
@@ -1321,10 +1511,18 @@ private fun VibePreviewTab() {
         val repo = activeRepo ?: return
         loading = true
         scope.launch {
-            runs = runCatching {
+            val fetched = runCatching {
                 AgentBuildVerifier.fetchRuns(repo.owner, repo.repo, repo.token)
             }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
-            if (runs == null) statusMessage = "تعذر جلب حالة البناء — تحقق من الاتصال والصلاحيات."
+            if (fetched != null) {
+                runs = fetched
+                statusTone = VibeMessageTone.SUCCESS
+            } else {
+                // فشل عابر كان يمسح القائمة المعروضة (runs = null)؛
+                // تبقى القائمة القديمة مع رسالة صادقة بدل الفراغ.
+                statusMessage = "تعذر جلب حالة البناء — تحقق من الاتصال والصلاحيات."
+                statusTone = VibeMessageTone.ERROR
+            }
             loading = false
         }
     }
@@ -1388,13 +1586,25 @@ private fun VibePreviewTab() {
                                     null -> Text("—", color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
                                     VibeCurrentFile.Loading -> Text("يُجلب الملف الحالي…", color = QabasTheme.current.textSecondary, fontFamily = CairoFont, fontSize = 11.sp)
                                     is VibeCurrentFile.Missing -> Text(state.reason, color = QabasTheme.current.destructive, fontFamily = CairoFont, fontSize = 11.sp)
-                                    is VibeCurrentFile.Ready -> Text(
-                                        state.content,
-                                        color = QabasTheme.current.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+                                    is VibeCurrentFile.Ready -> Column(
                                         modifier = Modifier.heightIn(max = 220.dp)
                                             .horizontalScroll(rememberScrollState())
                                             .verticalScroll(rememberScrollState())
-                                    )
+                                    ) {
+                                        // الملف الحالي بلا سقف كان يُركَّب كاملاً
+                                        // (ملف Kotlin ضخم = آلاف الأسطر) داخل
+                                        // نص واحد؛ المعاينة مقتطف لا الملف كله.
+                                        Text(
+                                            state.content.take(PREVIEW_CURRENT_FILE_MAX_CHARS),
+                                            color = QabasTheme.current.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 10.sp
+                                        )
+                                        if (state.content.length > PREVIEW_CURRENT_FILE_MAX_CHARS) {
+                                            Text(
+                                                "… مقتطف — الملف ${state.content.length} محرفاً، يُعرض أول $PREVIEW_CURRENT_FILE_MAX_CHARS.",
+                                                color = QabasTheme.current.textTertiary, fontFamily = CairoFont, fontSize = 10.sp
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -1416,6 +1626,7 @@ private fun VibePreviewTab() {
                                     val repo = activeRepo
                                     if (repo == null || repo.token.isBlank() || repo.defaultBranch.isBlank()) {
                                         previewMessage = "اربط مستودع GitHub أولاً لحفظ المقترح."
+                                        previewTone = VibeMessageTone.WARNING
                                     } else {
                                         applyingDiffPath = diff.filePath
                                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -1426,8 +1637,10 @@ private fun VibePreviewTab() {
                                                 if (savedPath != null && current != null) {
                                                     persistMission(current.copy(appliedPaths = current.appliedPaths + savedPath))
                                                     previewMessage = "تم حفظ المقترح في المستودع (مجلد qabas-agent-proposals) — لم يُستبدل الملف الأصلي."
+                                                    previewTone = VibeMessageTone.SUCCESS
                                                 } else {
                                                     previewMessage = "تعذر حفظ المقترح — تأكد من الصلاحيات والفرع."
+                                                    previewTone = VibeMessageTone.ERROR
                                                 }
                                             }
                                         }
@@ -1437,7 +1650,9 @@ private fun VibePreviewTab() {
                                 colors = ButtonDefaults.buttonColors(containerColor = QabasTheme.current.primary, contentColor = QabasTheme.current.onPrimary)
                             ) {
                                 Text(
-                                    if (applyingDiffPath == diff.filePath) "يُحفظ…" else "تطبيق المقترح",
+                                    // كان «تطبيق المقترح» والفعل الحقيقي
+                                    // حفظ المقترح في مجلد لا استبدال الملف.
+                                    if (applyingDiffPath == diff.filePath) "يُحفظ…" else "حفظ المقترح في المستودع",
                                     fontFamily = CairoFont, fontSize = 11.sp, fontWeight = FontWeight.Bold
                                 )
                             }
@@ -1459,7 +1674,7 @@ private fun VibePreviewTab() {
         }
         if (previewMessage.isNotBlank()) {
             item {
-                Text(previewMessage, color = QabasTheme.current.success, fontFamily = CairoFont, fontSize = 11.sp)
+                Text(previewMessage, color = previewTone.color(), fontFamily = CairoFont, fontSize = 11.sp)
             }
         }
         // (12.13) معاينة المخرجات المولدة (HTML في WebView حيث ينطبق).
@@ -1518,9 +1733,11 @@ private fun VibePreviewTab() {
                             val base = mission
                             if (base == null) {
                                 verifyMessage = "لا مهمة نشطة — نفّذ مهمة من تبويب المحادثة أولاً."
+                                verifyTone = VibeMessageTone.ERROR
                                 return@Button
                             }
                             verifying = true
+                            verifyTone = VibeMessageTone.SUCCESS
                             verifyMessage = "يُطلق البناء على GitHub Actions ويُراقب حتى الاكتمال…"
                             verifyJob = scope.launch {
                                 try {
@@ -1529,8 +1746,10 @@ private fun VibePreviewTab() {
                                     verifyMessage = updated.finalReport.substringAfterLast("\n\n")
                                         .takeIf { it.isNotBlank() }
                                         ?: "انتهى التحقق — راجع خطوة التحقق في المهمة."
+                                    verifyTone = if (updated.status == AgentTaskStatus.FAILED) VibeMessageTone.ERROR else VibeMessageTone.SUCCESS
                                 } catch (_: kotlinx.coroutines.CancellationException) {
                                     verifyMessage = "أُلغي التحقق."
+                                    verifyTone = VibeMessageTone.WARNING
                                 } finally {
                                     verifying = false
                                 }
@@ -1549,6 +1768,7 @@ private fun VibePreviewTab() {
                             verifyJob?.cancel()
                             verifying = false
                             verifyMessage = "أُلغي التحقق."
+                            verifyTone = VibeMessageTone.WARNING
                         }) {
                             Text("إلغاء", fontFamily = CairoFont, fontSize = 12.sp)
                         }
@@ -1556,7 +1776,7 @@ private fun VibePreviewTab() {
                 }
                 if (verifyMessage.isNotBlank()) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(verifyMessage, color = QabasTheme.current.success, fontFamily = CairoFont, fontSize = 11.sp)
+                    Text(verifyMessage, color = verifyTone.color(), fontFamily = CairoFont, fontSize = 11.sp)
                 }
                 mission?.steps?.lastOrNull { it.id == "ci_exec_verify" }?.let { step ->
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1633,6 +1853,7 @@ private fun VibePreviewTab() {
                                         activeRepo.defaultBranch
                                     )
                                     statusMessage = if (ok) "أُرسل أمر البناء إلى GitHub Actions." else "تعذر تشغيل البناء — تحقق من الصلاحيات وملف android-ci.yml."
+                                    statusTone = if (ok) VibeMessageTone.SUCCESS else VibeMessageTone.ERROR
                                     triggering = false
                                     refreshRuns()
                                 }
@@ -1648,7 +1869,7 @@ private fun VibePreviewTab() {
                     }
                     if (statusMessage.isNotBlank()) {
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(statusMessage, color = QabasTheme.current.success, fontFamily = CairoFont, fontSize = 11.sp)
+                        Text(statusMessage, color = statusTone.color(), fontFamily = CairoFont, fontSize = 11.sp)
                     }
                 }
             }

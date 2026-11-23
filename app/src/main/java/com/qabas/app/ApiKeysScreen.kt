@@ -300,7 +300,9 @@ private val ALL_SERVICES = listOf(
     ServiceUiConfig(
         id = "leonardo",
         name = "Leonardo.ai",
-        trackerName = "Leonardo",
+        // ق136: كان «Leonardo» بينما الفحص يسجّل «Leonardo.ai» —
+        // فبطاقة الخدمة كانت تعرض صفر استدعاء دائماً بعد فحص ناجح.
+        trackerName = "Leonardo.ai",
         provider = "Leonardo AI",
         prefsKey = "leonardo_api_key",
         serviceType = "leonardo",
@@ -513,7 +515,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
             }
 
             isTestingAll = true
-            targets.forEach { (svc, _, _) -> testingState = testingState + (svc.id to true) }
+            targets.forEach { (svc, _) -> testingState = testingState + (svc.id to true) }
 
             coroutineScope {
                 targets.map { (svc, key) ->
@@ -798,7 +800,7 @@ fun ApiKeysScreen(onBack: () -> Unit) {
                                     OutlinedTextField(
                                         value = smartInput,
                                         onValueChange = { smartInput = it },
-                                        label = { Text("الصق المفتاح هنا (AIzaSy, gsk_, sk-, hf_ ...)", fontFamily = NotoSansFont, fontSize = 12.sp) },
+                                        label = { Text("الصق المفتاح هنا (AIzaSy, gsk_, sk-or- ...)", fontFamily = NotoSansFont, fontSize = 12.sp) },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                         visualTransformation = if (smartShowKey) VisualTransformation.None else PasswordVisualTransformation(),
