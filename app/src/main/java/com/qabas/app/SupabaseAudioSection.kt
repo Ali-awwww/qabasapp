@@ -1,6 +1,7 @@
 package com.qabas.app
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +38,7 @@ import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 @Composable
@@ -801,6 +803,10 @@ fun AddAudioTrackDialog(
             if (title.isBlank()) {
                 title = selectedFileName.substringBeforeLast(".")
             }
+            // المدة الحقيقية من الملف المختار نفسه — كانت «0:00» ثابتة
+            // تُحفظ لكل مقطع مرفوع لأن حالة duration لم تُسند في أي موضع.
+            val pickedMs = measureAudioUriDurationMs(context, uri)
+            if (pickedMs > 0) duration = formatAudioDurationMs(pickedMs)
         }
     }
 
@@ -984,23 +990,51 @@ fun AddAudioTrackDialog(
                             if (selectedFileUri != null) {
                                 uploadProgressPercent = 0.25f
                                 uploadStageText = "جاري معالجة بيانات الصوت..."
-                                val bytes = withContext(Dispatchers.IO) {
-                                    context.contentResolver.openInputStream(selectedFileUri!!)?.use { it.readBytes() }
+                                // (ق63) تدفق حقيقي من ملف مؤقت: كان readBytes()
+                                // يحمل الملف كاملاً في الذاكرة (خطر OOM على
+                                // ملف صوتي كبير)، والتقدم 40% والسرعة
+                                // 1_850_000 ثابتان مختلقان لأن uploadAudioFile
+                                // بلا عدّاد أصلاً. الآن نسخ متدفق إلى مؤقت
+                                // ثم رفع متدفق بعدّاد وسرعة حقيقيين.
+                                val tmpAudio = withContext(Dispatchers.IO) {
+                                    val tmp = File.createTempFile("audio_upload_", ".tmp", context.cacheDir)
+                                    runCatching {
+                                        context.contentResolver.openInputStream(selectedFileUri!!)?.use { input ->
+                                            tmp.outputStream().use { input.copyTo(it) }
+                                        }
+                                        tmp.takeIf { it.length() > 0L }
+                                    }.getOrNull().also { if (it == null) tmp.delete() }
                                 }
-
-                                if (bytes != null) {
-                                    totalBytesCount = bytes.size.toLong()
-                                    uploadedBytesCount = (bytes.size * 0.4).toLong()
+                                if (tmpAudio == null) {
+                                    Toast.makeText(context, "تعذر قراءة الملف الصوتي المختار", Toast.LENGTH_SHORT).show()
+                                    isUploading = false
+                                    return@launch
+                                }
+                                try {
+                                    totalBytesCount = tmpAudio.length()
+                                    uploadedBytesCount = 0L
                                     uploadProgressPercent = 0.5f
                                     uploadStageText = "جاري رفع الحزم إلى Supabase Storage ☁️..."
-                                    uploadSpeedBytes = 1_850_000L
-
                                     val currentUserId = SupabaseServices.Auth.getCurrentUserId()
                                     val safeName = "${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.mp3"
                                     val storagePath = currentUserId?.let { "$it/$safeName" }
+                                    val uploadStartMs = System.currentTimeMillis()
                                     val uploadedUrl = storagePath?.let { path ->
                                         withContext(Dispatchers.IO) {
-                                            SupabaseServices.Storage.uploadAudioFile("audio-tracks", path, bytes)
+                                            SupabaseServices.Storage.uploadFileWithProgress(
+                                                bucketName = "audio-tracks",
+                                                path = path,
+                                                file = tmpAudio,
+                                                contentType = "audio/mpeg",
+                                                upsert = true
+                                            ) { sent, total ->
+                                                uploadedBytesCount = sent
+                                                if (total > 0L) {
+                                                    uploadProgressPercent = 0.25f + 0.5f * (sent.toFloat() / total)
+                                                    val elapsedSec = (System.currentTimeMillis() - uploadStartMs) / 1000.0
+                                                    if (elapsedSec > 0.5) uploadSpeedBytes = (sent / elapsedSec).toLong()
+                                                }
+                                            }
                                         }
                                     }
 
@@ -1017,6 +1051,8 @@ fun AddAudioTrackDialog(
                                         isUploading = false
                                         return@launch
                                     }
+                                } finally {
+                                    tmpAudio.delete()
                                 }
                             }
 
@@ -1214,4 +1250,27 @@ fun SupabaseAudioGuideDialog(onDismiss: () -> Unit) {
         containerColor = theme.cardSurface,
         shape = RoundedCornerShape(16.dp)
     )
+}
+
+/**
+ * مدة ملف صوتي مختار (Uri محتوى) بالمللي ثانية من بياناته نفسها، أو 0 عند
+ * تعذّر القياس — لا رقم مخمّن أبداً؛ المتصل يُبقي «0:00» (تُخفى في القائمة)
+ * عند الفشل بدل اختراع مدة.
+ */
+private fun measureAudioUriDurationMs(context: Context, uri: Uri): Long {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(context, uri)
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+    } catch (_: Exception) {
+        0L
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+/** تنسيق مدة بالمللي ثانية إلى m:ss (نفس تنسيق بقية المكتبة الصوتية). */
+private fun formatAudioDurationMs(ms: Long): String {
+    val totalSec = (ms / 1000).toInt()
+    return String.format(java.util.Locale.US, "%d:%02d", totalSec / 60, totalSec % 60)
 }

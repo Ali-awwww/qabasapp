@@ -342,7 +342,7 @@ fun EnhancedUsersSection(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // ---- بطاقة إدارة الأحاديث اليومية السحابية ----
+        // ---- بطاقة إدارة الأحاديث اليومية ----
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -363,7 +363,7 @@ fun EnhancedUsersSection(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("إدارة الأحاديث اليومية السحابية", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("إدارة الأحاديث اليومية (نصوص موثقة)", color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             Text("جدولة 365 حديثاً من الصحيحين للإرسال التلقائي", color = theme.textTertiary, fontFamily = CairoFont, fontSize = 11.sp)
                         }
                     }
@@ -377,7 +377,7 @@ fun EnhancedUsersSection(
                                 trackColor = theme.textPrimary.copy(alpha = 0.1f)
                             )
                             Text(
-                                "جارٍ التوليد والرفع سحابياً... $hadithGenProgress / 365",
+                                "جارٍ تجهيز الفوائد... $hadithGenProgress / 365",
                                 color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 11.sp,
@@ -404,10 +404,10 @@ fun EnhancedUsersSection(
                                                     throw Exception("Batch failed at day $day")
                                                 }
                                             }
-                                            Toast.makeText(context, "تم تجهيز 365 حديثاً سحابياً بنجاح! ✨", Toast.LENGTH_LONG).show()
-                                            AuditLogger.log(context, "hadith_cloud_init", "توليد 365 حديثاً")
+                                            Toast.makeText(context, "تم تجهيز 365 حديثاً من الصحيحين بنجاح! ✨", Toast.LENGTH_LONG).show()
+                                            AuditLogger.log(context, "hadith_cloud_init", "تجهيز 365 حديثاً (نصوص موثقة + فوائد AI)")
                                         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-                                            Toast.makeText(context, "فشل التوليد: ${e.message}", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "فشل التجهيز: ${e.message}", Toast.LENGTH_LONG).show()
                                         } finally {
                                             isGeneratingHadiths = false
                                         }
@@ -419,7 +419,7 @@ fun EnhancedUsersSection(
                             ) {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = theme.background, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("توليد 365 حديثاً (AI)", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("تجهيز 365 حديثاً (فوائد AI)", color = theme.background, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }

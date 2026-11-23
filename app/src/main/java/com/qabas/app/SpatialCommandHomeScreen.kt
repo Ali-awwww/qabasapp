@@ -97,6 +97,8 @@ fun SpatialCommandHomeScreen(
     onOpenCreator: (String, String) -> Unit = { _, _ -> onReels() },
     // فتح قارئ المصحف عند موضع محدد (سورة، آية، صفحة) — الدفعة 5 الجزء C.
     onOpenMushaf: (Int, Int, Int?) -> Unit = { _, _, _ -> onMishkatHub() },
+    // ق103: فتح قارئ المصحف من الدرج بلا موضع — يستأنف آخر قراءة.
+    onMushafReader: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val theme = QabasTheme.current
@@ -108,6 +110,11 @@ fun SpatialCommandHomeScreen(
     val isAdmin = remember(authState, verifiedRole) {
         SupabaseServices.Auth.isAdminRole(verifiedRole) ||
             CloudServices.isOwnerAccount(SupabaseServices.Auth.getCurrentUserEmail())
+    }
+    // ق103: الضيف يصل الرئيسية فشارة الدرج يجب ألا تدعي له حساباً نشطاً.
+    val isGuest = remember(authState) {
+        context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+            .getBoolean("is_guest", false)
     }
     val isDeveloper = remember(authState, verifiedRole) {
         AdminGuard.isDashboardAccessAllowed(context)
@@ -338,6 +345,7 @@ fun SpatialCommandHomeScreen(
             ) {
                 QabasNavigationDrawerContent(
                     isAdmin = isAdmin,
+                    isGuest = isGuest,
                     isDrawerOpen = drawerState.isOpen,
                     onCloseDrawer = { scope.launch { drawerState.close() } },
                     onNavigateTo = { action ->
@@ -357,6 +365,7 @@ fun SpatialCommandHomeScreen(
                     onYouTubeStudio = onYouTubeStudio,
                     onViewProjects = onViewProjects,
                     onMishkatHub = onMishkatHub,
+                    onMushafReader = onMushafReader,
                     onIslamicLibrary = onIslamicLibrary,
                     onAzkar = onAzkar,
                     onScholarBiographies = onScholarBiographies,
@@ -916,7 +925,7 @@ private fun SpatialSpiritualBeacon(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "الصلاة القادمة: ${prayerTimes.nextPrayerName}",
+                                text = PrayerCalculationHelper.nextEventTitle(prayerTimes.nextPrayerName),
                                 color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,

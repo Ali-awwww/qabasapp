@@ -138,8 +138,8 @@ fun SaveShareScreen(
         if (alreadyRenderedFile != null && retryTrigger == 0 && selectedQualityOption.title.contains("1080p")) {
             // Already compiled in ProcessingScreen — reuse immediately!
             exportedFile = alreadyRenderedFile
-            logs.add(Translator.tr("[INFO] تم العثور على الفيديو المجهز مسبقاً من الاستوديو: ${alreadyRenderedFile.name}"))
-            logs.add(Translator.tr("[SUCCESS] تم تحميل الفيديو بنجاح (${alreadyRenderedFile.length() / 1024} KB)"))
+            logs.add(Translator.trf("[INFO] تم العثور على الفيديو المجهز مسبقاً من الاستوديو: {0}", alreadyRenderedFile.name))
+            logs.add(Translator.trf("[SUCCESS] تم تحميل الفيديو بنجاح ({0} KB)", alreadyRenderedFile.length() / 1024))
             currentLog = Translator.tr("الفيديو جاهز للمشاركة والحفظ!")
             renderProgress = 1.0f
             isRenderComplete = true
@@ -155,9 +155,9 @@ fun SaveShareScreen(
         val engine = VideoEngineManager(analyticsContext)
         VideoProcessor.currentQualityPreset = selectedQualityOption.preset
         
-        logs.add(Translator.tr("[INFO] بدء تشغيل Muslim AI Assistant Engine (${selectedQualityOption.resolution} @ ${selectedQualityOption.fps})..."))
+        logs.add(Translator.trf("[INFO] بدء تشغيل Muslim AI Assistant Engine ({0} @ {1})...", selectedQualityOption.resolution, selectedQualityOption.fps))
         if (videoStyleAnalysis != null) {
-            logs.add(Translator.tr("[STYLE] تم تفعيل الخلطة المستنسخة: ${videoStyleAnalysis.dominantColors} | ${videoStyleAnalysis.transitionSpeed}"))
+            logs.add(Translator.trf("[STYLE] تم تفعيل الخلطة المستنسخة: {0} | {1}", videoStyleAnalysis.dominantColors, videoStyleAnalysis.transitionSpeed))
         }
         
         val resultFile = try {
@@ -185,7 +185,7 @@ fun SaveShareScreen(
         
         if (resultFile != null && resultFile.exists() && resultFile.length() > 0) {
             exportedFile = resultFile
-            logs.add(Translator.tr("[SUCCESS] تم تصدير الفيديو بنجاح: ${resultFile.name} (${resultFile.length() / 1024} KB)"))
+            logs.add(Translator.trf("[SUCCESS] تم تصدير الفيديو بنجاح: {0} ({1} KB)", resultFile.name, resultFile.length() / 1024))
             currentLog = Translator.tr("اكتمل التصدير بنجاح!")
             isRenderComplete = true
             exportFailed = false

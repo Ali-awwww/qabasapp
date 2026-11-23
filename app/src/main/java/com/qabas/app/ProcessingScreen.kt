@@ -332,7 +332,7 @@ fun ProcessingScreen(
             totalScenes = scenes.size
             pushActivity("تم اعتماد ${scenes.size} مشاهد — بدء المونتاج")
             currentStage = "scenes"
-            statusText = Translator.tr("جاري معالجة $totalScenes مشاهد...")
+            statusText = Translator.trf("جاري معالجة {0} مشاهد...", totalScenes)
             progress = 0.22f
             notificationService.showProgressNotification(22, 100, statusText)
 
@@ -407,7 +407,7 @@ fun ProcessingScreen(
                 }
                 withContext(Dispatchers.Main) {
                     scenesProcessed++
-                    statusText = Translator.tr("معالجة المشاهد: $scenesProcessed / $totalScenes")
+                    statusText = Translator.trf("معالجة المشاهد: {0} / {1}", scenesProcessed, totalScenes)
                     pushActivity("مشهد $scenesProcessed/$totalScenes: ${scene.title.take(36).ifBlank { "—" }}")
                     val prog = 0.20f + (0.55f * (scenesProcessed.toFloat() / totalScenes.toFloat().coerceAtLeast(1f)))
                     progress = prog
@@ -446,7 +446,7 @@ fun ProcessingScreen(
             pushActivity("VideoEngine: بدء التجميع (FFmpeg)")
 
             if (ambientSound != Translator.tr("بدون") && ambientSound.isNotBlank()) {
-                statusText = Translator.tr("دمج الصوت المحيطي: $ambientSound...")
+                statusText = Translator.trf("دمج الصوت المحيطي: {0}...", ambientSound)
                 pushActivity("دمج صوت: $ambientSound")
             }
 
@@ -1306,7 +1306,7 @@ private fun StoryboardPreviewUI(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = Translator.tr("تم توليد ${scenes.size} مشاهد سينمائية. راجع السرد قبل بدء الرندر الثقيل."),
+                text = Translator.trf("تم توليد {0} مشاهد سينمائية. راجع السرد قبل بدء الرندر الثقيل.", scenes.size),
                 color = theme.textPrimary.copy(alpha = 0.6f),
                 fontSize = 12.sp,
                 fontFamily = CairoFont,

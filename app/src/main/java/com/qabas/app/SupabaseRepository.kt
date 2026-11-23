@@ -674,9 +674,14 @@ class SupabaseRepository(
             syncLocalAuthSuccess(uid, session?.user?.email)
             true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
+            // ق51: نص المكتبة الخام (روابط/مضيفون/أكواد HTTP) كان يُنشر
+            // في حالة المصادقة فيعرضه SavedItemsViewModel حرفياً؛
+            // يُعقَّم عبر describeAuthFailure كما في diagnoseSignInAttempt.
+            // register() مستثناة عمداً: شاشة التسجيل تطابق فيها علامتي
+            // EMAIL_CONFIRMATION_REQUIRED وduplicate key نصياً.
             publishAuthStateIfRevision(
                 attemptRevision,
-                AuthState.Error(e.message ?: "Login failed")
+                AuthState.Error(SupabaseServices.Auth.describeAuthFailure(e).message)
             )
         }
     }
@@ -753,20 +758,12 @@ class SupabaseRepository(
             checkAuthState()
             true
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { e ->
+            // ق51: تعقيم نص الخطأ كما في login() — لا نص مكتبة خام في الحالة.
             publishAuthStateIfRevision(
                 attemptRevision,
-                AuthState.Error(e.message ?: "Google Sign-In failed")
+                AuthState.Error(SupabaseServices.Auth.describeAuthFailure(e).message)
             )
         }
-    }
-
-    /** Reset user password via email. */
-    suspend fun resetPassword(email: String): Result<Boolean> = withContext(Dispatchers.IO) {
-        if (!isAvailable) return@withContext Result.failure(IllegalStateException("Supabase is not configured"))
-        runCatching {
-            client.auth.resetPasswordForEmail(email)
-            true
-        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
     }
 
     /** Update current user password. */
@@ -786,6 +783,16 @@ class SupabaseRepository(
             // Invalidate any profile/role response already in flight before sign-out starts.
             synchronized(authStateWriteLock) {
                 authStateRevision += 1L
+            }
+            // ق108: تحرير حجز الجلسة النشطة عند كل تسجيل خروج — كان التحرير
+            // في ActiveSessionManager.endLocalSession وحده، فمسارات الخروج
+            // عبر المستودع مباشرة (المحفوظات، حذف الحساب، الاستعادة)
+            // تترك الحجز معلقاً فيحجب دخول جهاز آخر بـ ACTIVE_ELSEWHERE
+            // حتى انتهاء مهلة الحجز؛ والتحرير هنا أفضل جهد (لا يفشل الخروج).
+            val currentUid = client.auth.currentUserOrNull()?.id
+            if (!currentUid.isNullOrBlank()) {
+                runCatching { ActiveSessionManager.release(AppServices.appContext, currentUid) }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             }
             if (isAvailable) client.auth.signOut()
 

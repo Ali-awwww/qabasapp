@@ -369,7 +369,7 @@ fun AutoSeriesGeneratorDialog(
                                 isGeneratingSeries = true
                                 scope.launch {
                                     val episodes = withContext(Dispatchers.IO) {
-                                        generateSeriesOutline(seriesTitle, episodeCount, defaultEpilogText, selectedTargetFormat)
+                                        generateSeriesOutline(seriesTitle, episodeCount, defaultEpilogText, selectedTargetFormat, context)
                                     }
                                     generatedEpisodes = episodes
                                     
@@ -841,7 +841,10 @@ suspend fun generateSeriesOutline(
     seriesTitle: String,
     count: Int,
     epilogCallout: String,
-    format: String = "Reels / Shorts (9:16)"
+    format: String = "Reels / Shorts (9:16)",
+    // ق44: اختياري ليتسجل الاستهلاك في تتبع التكلفة؛ بلا سياق يبقى
+    // التوليد بلا قيد (مسارات الفحص غير المدفوعة).
+    context: android.content.Context? = null
 ): List<SeriesEpisode> {
     val prompt = """
 أنت كاتب سيناريو ومخرج محتوى دعوي وإسلامي محترف ومسؤول عن تخطيط سلاسل الفيديو الفيروسية (Reels / Shorts / YouTube).
@@ -865,6 +868,11 @@ suspend fun generateSeriesOutline(
 
     try {
         val response = FirebaseAiService.generateText(prompt)
+        // ق44: تسجيل الاستهلاك — كان هذا المسار يمر بلا أثر في تتبع
+        // التكلفة (رموز تقديرية فتبقى «غير مقاسة»).
+        if (context != null && response.isNotBlank()) {
+            VibeCostTracker.recordEstimated(context, "gemini", "gemini-3.8-flash", prompt, response, "توليد سلسلة")
+        }
         val cleanJson = response.replace("```json", "").replace("```", "").trim()
         val startIndex = cleanJson.indexOf('[')
         val endIndex = cleanJson.lastIndexOf(']')

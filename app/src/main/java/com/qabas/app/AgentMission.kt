@@ -28,6 +28,7 @@ suspend fun executeAgentMission(
     spec: AgentSpecialization,
     repo: RepoVaultEntry?,
     selectedModel: String = "gemini-2.5-flash",
+    history: List<AgentChatMessage> = emptyList(),
     onUpdate: (AgentMissionSession) -> Unit,
     onFinished: (AgentMissionSession) -> Unit
 ) = withContext(Dispatchers.IO) {
@@ -46,7 +47,7 @@ suspend fun executeAgentMission(
         )
     }
     try {
-        executeAgentMissionInner(context, prompt, spec, repo, selectedModel, onUpdate) { s ->
+        executeAgentMissionInner(context, prompt, spec, repo, selectedModel, history, onUpdate) { s ->
             recordRun(s)
             onFinished(s)
         }
@@ -69,6 +70,7 @@ private suspend fun executeAgentMissionInner(
     spec: AgentSpecialization,
     repo: RepoVaultEntry?,
     selectedModel: String,
+    history: List<AgentChatMessage> = emptyList(),
     onUpdate: (AgentMissionSession) -> Unit,
     onFinished: (AgentMissionSession) -> Unit
 ) {
@@ -89,6 +91,11 @@ private suspend fun executeAgentMissionInner(
         VibeAgentMemoryStore.loadForActiveSession(context)
             ?.let { VibeAgentMemoryStore.contextBlock(it) }
     }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull().orEmpty()
+
+    // (ق31) سجل المحادثة: كان كل استدعاء بلا أي سجل (دور منفصل تماماً)
+    // فينسى النموذج ما قيل قبله في الجلسة نفسها؛ يُلحق السجل الأخير
+    // المحدود بموجه التخطيط في المسارين أيضاً.
+    val historyBlock = AgentChatSessionManager.historyBlock(history)
 
     val isOffline = OnDeviceModelManager.isOfflineModeActive(context)
     if (isOffline) {
@@ -183,7 +190,8 @@ private suspend fun executeAgentMissionInner(
         val planText = LlamaCppService.chatLocal(
             context, readyModel.fileName,
             "حلل هذا الأمر واكتب خطة عمل معمارية موجزة: $prompt (التخصص: ${spec.title})" +
-                if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else "",
+                if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else "" +
+                if (historyBlock.isNotBlank()) "\n\n$historyBlock" else "",
             maxTokens = 400
         )
         val latencyMs1 = System.currentTimeMillis() - startTime1
@@ -345,7 +353,8 @@ private suspend fun executeAgentMissionInner(
         نمط تخصص الوكيل: ${spec.title}
         
         قم بصياغة خطة عمل برمجية تفصيلية، وحدد الملفات المستهدفة بالتعديل أو الإنشاء، واشرح الخطوات الهندسية اللازمة.
-    """.trimIndent() + if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else ""
+    """.trimIndent() + if (memoryBlock.isNotBlank()) "\n\n$memoryBlock" else "" +
+        if (historyBlock.isNotBlank()) "\n\n$historyBlock" else ""
 
     val startTime1 = System.currentTimeMillis()
     // (12.14) إيقاف عند حد التكلفة قبل أي استدعاء سحابي مدفوع — بعد
@@ -831,7 +840,8 @@ suspend fun executeAgentMissionMultiModel(
     onUpdate: (AgentMissionSession) -> Unit = {},
     onStatusChange: (AgentTaskStatus) -> Unit = {},
     onTeamProgress: (String) -> Unit = {},
-    buildFeedback: String = ""
+    buildFeedback: String = "",
+    history: List<AgentChatMessage> = emptyList()
 ): AgentMissionSession {
     val team = MultiModelAgentOrchestrator.loadTeam(context, onlyEnabled = true)
 
@@ -889,6 +899,7 @@ suspend fun executeAgentMissionMultiModel(
         team = team,
         onUpdate = onTeamProgress,
         buildFeedback = buildFeedback,
+        history = history,
         onStep = { ev ->            val prev = stepsByKey[ev.key]
             stepsByKey[ev.key] = AgentExecutionStep(
                 id = prev?.id ?: ev.key,

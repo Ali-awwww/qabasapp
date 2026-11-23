@@ -271,7 +271,7 @@ fun StudioGatewayScreen(
                     
                     StudioFeatureCard(
                         title = "استوديو الأصوات والدبلجة (VoiceStudio) 🎙️",
-                        description = "توليد تعليق صوتي فخم واستنساخ النبرات بدقة عالية.",
+                        description = "توليد تعليق صوتي فخم بأنماط Edge-Neural مع ضبط النبرة والسرعة.",
                         badge = "VOICE ENGINE",
                         badgeColor = theme.accent,
                         icon = Icons.Default.GraphicEq,
@@ -788,7 +788,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                                 isSavingHiggsfield = true
                                                 val removed = PlatformGatewayClient.removeProviderKeySuspend("higgsfield")
                                                 isHiggsfieldConfigured = !removed && isHiggsfieldConfigured
-                                                higgsfieldTestResult = (removed to if (removed) "تم حذف المفتاح من الخادم." else "تعذر حذف المفتاح من الخادم.")
+                                                higgsfieldTestResult = (removed to if (removed) "تم حذف المفتاح من الخادم." else (PlatformGatewayClient.lastError ?: "تعذر حذف المفتاح من الخادم."))
                                                 isSavingHiggsfield = false
                                             }
                                         }
@@ -909,7 +909,9 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                 ).show()
                                 onDismiss()
                             } else {
-                                Toast.makeText(context, "تعذر حفظ مفتاح Higgsfield. تحقق من صلاحية حساب المطور واتصال بوابة خادم المسلم.", Toast.LENGTH_LONG).show()
+                                // ق71: سبب الحفظ الحقيقي (شبكة/جلسة/خادم)
+                                // بدل الرسالة العامة عن صلاحية الحساب.
+                                Toast.makeText(context, PlatformGatewayClient.lastError ?: "تعذر حفظ مفتاح Higgsfield. تحقق من صلاحية حساب المطور واتصال بوابة خادم المسلم.", Toast.LENGTH_LONG).show()
                             }
                             isSavingHiggsfield = false
                         }

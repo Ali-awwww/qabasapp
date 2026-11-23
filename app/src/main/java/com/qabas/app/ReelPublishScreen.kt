@@ -2,14 +2,10 @@ package com.qabas.app
 
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +35,7 @@ import com.qabas.app.ui.theme.NotoSansFont
 import com.qabas.app.ui.theme.QabasTheme
 import com.qabas.app.ui.theme.RobotoMonoFont
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,7 +45,20 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DecimalStyle
 import java.time.temporal.ChronoUnit
+import java.util.Locale
+
+/** ق91: عرض لحظة بتوقيت الجهاز بأسماء عربية وأرقام لاتينية — كان حوار
+ * الجدولة يعرض ISO خاماً بتوقيت UTC (2026-11-24T05:00:00Z) تحت تسمية
+ * «غداً صباحاً (08:00)» المحلية فيبدو وقتان مختلفان للمستخدم. */
+private fun formatReelLocalDateTime(instant: Instant, zone: ZoneId): String =
+    ZonedDateTime.ofInstant(instant, zone)
+        .format(
+            DateTimeFormatter.ofPattern("EEEE، d MMMM HH:mm", Locale("ar"))
+                .withDecimalStyle(DecimalStyle.of(Locale.US))
+        )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -93,6 +103,9 @@ fun ReelPublishScreen(
     var spiritualViolationAyah by remember { mutableStateOf<String?>(null) }
 
     var isPublishing by remember { mutableStateOf(false) }
+    // ق109: مقبض مهمة النشر — بلا مقبض كان الإلغاء مستحيلاً والمستخدم
+    // محبوس في الشاشة طوال الرفع (والمغادرة ممنوعة أثناءه).
+    var publishJob by remember { mutableStateOf<Job?>(null) }
     var publishProgressText by remember { mutableStateOf("جاري النشر...") }
     var generalErrorMessage by remember { mutableStateOf<String?>(null) }
     var uploadSentBytes by remember { mutableStateOf(0L) }
@@ -105,16 +118,39 @@ fun ReelPublishScreen(
     var publishScheduleLabel by remember { mutableStateOf("الآن (نشر فوري)") }
     var showSchedulePickerDialog by remember { mutableStateOf(false) }
     var expiryAt by remember { mutableStateOf<String?>(null) }
+    // ق91: الانتهاء كان حالة بلا أي واجهة تضبطها (ق57) رغم اكتمال
+    // السباكة (الحالة ← المدير ← العمود ← تصفية الخلاصة)؛ الآن له
+    // منتقٍ كالجدولة، بخيارات من موعد النشر فلا يسبق الظهور أبداً.
+    var expiryLabel by remember { mutableStateOf("بلا انتهاء (يعرض دائماً)") }
+    var showExpiryPickerDialog by remember { mutableStateOf(false) }
     var quality by remember { mutableStateOf("high") }
     var isAnalyzing by remember { mutableStateOf(false) }
 
-    // Pre-Publish Optimization States
-    var isOptimizationExpanded by remember { mutableStateOf(false) }
-    var targetResolution by remember { mutableStateOf("1080p") }
-    var isSmartCompressEnabled by remember { mutableStateOf(true) }
-    var isAudioNormalizeEnabled by remember { mutableStateOf(true) }
-    var isSilenceTrimEnabled by remember { mutableStateOf(true) }
-    var isSmartThumbEnabled by remember { mutableStateOf(true) }
+    // ق86: مسح الفيديو المختار يمسح مشتقاته معه (المصغّرة والمدة).
+    // كتابة رابط مباشر كانت تُصفّر الـ Uri وحده فتبقى مصغّرة الفيديو
+    // الملغي ومدته: فيُتحقق من مدة فيديو آخر (ويُهزم حارس «مدة رابط
+    // مجهولة → مرفوض» وحارس الـ 90 ثانية)، ويستمر التدقيق البصري
+    // على إطار الفيديو الملغي.
+    fun clearSelectedVideo() {
+        selectedVideoUri = null
+        selectedVideoThumbnailFile = null
+        selectedVideoThumbnailBytes = null
+        selectedVideoDurationMs = 0L
+    }
+
+    // ق86: بلا مسودات، المغادرة بنموذج معبأ تُفقد العمل بصمت — زر
+    // الإغلاق والرجوع يستأذنان أولاً عند وجود محتوى غير منشور.
+    val isDirty = title.isNotBlank() || description.isNotBlank() ||
+        selectedVideoUri != null || directVideoUrl.isNotBlank() || publishAt != null || expiryAt != null
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    fun requestDismiss() {
+        if (isPublishing) {
+            Toast.makeText(context, "جارٍ نشر المقطع — لا يمكن المغادرة أثناء الرفع", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (isDirty) showDiscardConfirm = true else onDismiss()
+    }
+    BackHandler { requestDismiss() }
 
     val categories = listOf("قرآن كريم", "أحاديث نبوية", "وعظة إيمانية")
 
@@ -127,9 +163,14 @@ fun ReelPublishScreen(
             generalErrorMessage = null
             scope.launch {
                 val metadata = SpiritualSafetyGuard.extractVideoMetadata(context, uri)
-                selectedVideoDurationMs = metadata.durationMs
-                selectedVideoThumbnailFile = metadata.thumbnailFile
-                selectedVideoThumbnailBytes = metadata.thumbnailBytes
+                // ق86: الاستخراج غير متزامن — إن استُبدل الفيديو أثناءه
+                // (رابط مباشر مثلاً) فلا تعيد كتابة مشتقات فيديو لم
+                // يعد مختاراً.
+                if (selectedVideoUri == uri) {
+                    selectedVideoDurationMs = metadata.durationMs
+                    selectedVideoThumbnailFile = metadata.thumbnailFile
+                    selectedVideoThumbnailBytes = metadata.thumbnailBytes
+                }
             }
         }
     }
@@ -173,17 +214,27 @@ fun ReelPublishScreen(
         }
     }
 
-    LaunchedEffect(isPublishing, uploadSentBytes, uploadTotalBytes) {
-        if (!isPublishing || uploadTotalBytes <= 0) return@LaunchedEffect
-        val prevBytes = uploadSentBytes
-        val prevTime = System.currentTimeMillis()
-        delay(1000L)
-        val deltaBytes = uploadSentBytes - prevBytes
-        val deltaTime = System.currentTimeMillis() - prevTime
-        if (deltaTime > 0 && deltaBytes > 0) {
-            uploadSpeedBps = deltaBytes * 1000 / deltaTime
-            val remaining = uploadTotalBytes - uploadSentBytes
-            uploadEtaSeconds = if (uploadSpeedBps > 0) remaining / uploadSpeedBps else 0L
+    // عيّنة سرعة/وقت متبقٍ: حلقة واحدة تعيّن كل ثانية. النسخة السابقة
+    // كانت LaunchedEffect(isPublishing, uploadSentBytes, uploadTotalBytes)
+    // فكل تحديث بايتات كان يعيد تشغيل الأثر ويعيد ضبط العينة — أي أن
+    // السرعة لم تُحسب أبداً أثناء رفع نشط، بل عند توقفه فقط.
+    LaunchedEffect(isPublishing) {
+        if (!isPublishing) return@LaunchedEffect
+        var prevBytes = uploadSentBytes
+        var prevTime = System.currentTimeMillis()
+        while (isPublishing) {
+            delay(1000L)
+            val now = System.currentTimeMillis()
+            val sent = uploadSentBytes
+            val deltaTime = now - prevTime
+            val deltaBytes = sent - prevBytes
+            if (deltaTime > 0 && deltaBytes > 0) {
+                uploadSpeedBps = deltaBytes * 1000 / deltaTime
+                val remaining = (uploadTotalBytes - sent).coerceAtLeast(0L)
+                uploadEtaSeconds = if (uploadSpeedBps > 0) remaining / uploadSpeedBps else 0L
+            }
+            prevBytes = sent
+            prevTime = now
         }
     }
 
@@ -207,7 +258,8 @@ fun ReelPublishScreen(
                 subtitle = if (isDeveloper) "صلاحيات المطور المعتمدة" else "مشاركة تلاوة أو موعظة لتكون صدقة جارية",
                 actions = {
                     IconButton(
-                        onClick = onDismiss,
+                        onClick = { requestDismiss() },
+                        enabled = !isPublishing,
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
@@ -472,7 +524,8 @@ fun ReelPublishScreen(
                                 value = directVideoUrl,
                                 onValueChange = {
                                     directVideoUrl = it
-                                    selectedVideoUri = null
+                                    // ق86: مسح الفيديو مع مشتقاته (لا الـ Uri وحده).
+                                    clearSelectedVideo()
                                     generalErrorMessage = null
                                 },
                                 label = { Text("رابط الفيديو المباشر (HTTPS / MP4)", fontFamily = CairoFont, fontSize = 12.sp) },
@@ -618,130 +671,49 @@ fun ReelPublishScreen(
 
                     AppleListRow(
                         title = "جدولة النشر",
-                        subtitle = publishAt ?: "يُنشر مباشرة فور إتمام الرفع",
-                        trailingText = publishScheduleLabel,
+                        subtitle = publishScheduleLabel,
                         icon = Icons.Default.Event,
                         iconBackground = theme.accent,
                         showChevron = true,
                         onClick = { showSchedulePickerDialog = true }
                     )
+
+                    AppleInsetDivider()
+
+                    // ق91: صف انتهاء العرض — كان بلا واجهة (ق57) فلا يمكن
+                    // ضبطه رغم أن تصفية الخلاصة تحترمه حين يُضبط.
+                    AppleListRow(
+                        title = "انتهاء العرض",
+                        subtitle = expiryLabel,
+                        icon = Icons.Default.Timer,
+                        iconBackground = theme.accent,
+                        showChevron = true,
+                        onClick = { showExpiryPickerDialog = true }
+                    )
                 }
             }
 
-            // 7. Pre-Publish Optimization
-            AppleGroupedSection(header = "تحسين الجودة والبيانات الوصفية") {
-                AppleListRow(
-                    title = "إعدادات ما قبل النشر",
-                    subtitle = "$targetResolution • ${if (isSmartCompressEnabled) "ضغط متوازن" else "بدون ضغط"}",
-                    icon = Icons.Default.HighQuality,
-                    iconBackground = theme.primary,
-                    showChevron = false,
-                    onClick = { isOptimizationExpanded = !isOptimizationExpanded },
-                    trailingContent = {
-                        Icon(
-                            imageVector = if (isOptimizationExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = null,
-                            tint = theme.textSecondary
-                        )
-                    }
-                )
-
-                AnimatedVisibility(
-                    visible = isOptimizationExpanded,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        AppleInsetDivider()
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            Text(
-                                text = "دقة العرض المستهدفة",
-                                fontFamily = CairoFont,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                color = theme.textPrimary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            AppleSegmentedControl(
-                                items = listOf("1080p" to "1080p Full HD", "720p" to "720p HD"),
-                                selectedItem = targetResolution,
-                                onSelect = { targetResolution = it }
-                            )
+            // 7. الوسوم الإيمانية — القسم الوحيد الباقي هنا: مفاتيح
+            // «التحسين» السابقة (ضغط/موازنة صوت/تقليم سكون/غلاف/دقة)
+            // كانت واجهة بلا أثر — لا تُمرَّر أصلاً إلى publishReelWithUpload
+            // ولا توجد معالجة فيديو خلفها — فحُذفت بدل وعد كاذب (§3).
+            AppleGroupedSection(header = "الوسوم الإيمانية") {
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    AppleSecondaryButton(
+                        text = "إضافة الوسوم الإيمانية إلى الوصف",
+                        icon = Icons.Default.AutoAwesome,
+                        onClick = {
+                            val smartTags = when (selectedCategory) {
+                                "قرآن كريم" -> "\n#خادم_المسلم_الإيماني #تلاوات_خاشعة #قرآن_كريم #تلاوة_مباركة"
+                                "أحاديث نبوية" -> "\n#خادم_المسلم_الإيماني #أحاديث_نبوية #سنة_نبوية #أخلاق_إسلامية"
+                                else -> "\n#خادم_المسلم_الإيماني #وعظة_إيمانية #ذكر_الله #صدقة_جارية"
+                            }
+                            if (!description.contains("#خادم_المسلم_الإيماني")) {
+                                description = (description.trim() + " " + smartTags).trim()
+                            }
+                            Toast.makeText(context, "تم إضافة الوسوم الإيمانية إلى الوصف", Toast.LENGTH_SHORT).show()
                         }
-
-                        AppleInsetDivider()
-                        AppleListRow(
-                            title = "الضغط التلقائي المتوازن",
-                            subtitle = "تقليل حجم الملف مع الحفاظ على نقاء الصورة",
-                            showChevron = false,
-                            onClick = { isSmartCompressEnabled = !isSmartCompressEnabled },
-                            trailingContent = {
-                                Switch(
-                                    checked = isSmartCompressEnabled,
-                                    onCheckedChange = { isSmartCompressEnabled = it }
-                                )
-                            }
-                        )
-
-                        AppleInsetDivider()
-                        AppleListRow(
-                            title = "موازنة حدة الصوت وتقليل الضوضاء",
-                            subtitle = "توحيد مستوى صوت التلاوة لمختلف السماعات",
-                            showChevron = false,
-                            onClick = { isAudioNormalizeEnabled = !isAudioNormalizeEnabled },
-                            trailingContent = {
-                                Switch(
-                                    checked = isAudioNormalizeEnabled,
-                                    onCheckedChange = { isAudioNormalizeEnabled = it }
-                                )
-                            }
-                        )
-
-                        AppleInsetDivider()
-                        AppleListRow(
-                            title = "تقليم السكون في البداية والنهاية",
-                            showChevron = false,
-                            onClick = { isSilenceTrimEnabled = !isSilenceTrimEnabled },
-                            trailingContent = {
-                                Switch(
-                                    checked = isSilenceTrimEnabled,
-                                    onCheckedChange = { isSilenceTrimEnabled = it }
-                                )
-                            }
-                        )
-
-                        AppleInsetDivider()
-                        AppleListRow(
-                            title = "التقاط غلاف مصغر تلقائي",
-                            showChevron = false,
-                            onClick = { isSmartThumbEnabled = !isSmartThumbEnabled },
-                            trailingContent = {
-                                Switch(
-                                    checked = isSmartThumbEnabled,
-                                    onCheckedChange = { isSmartThumbEnabled = it }
-                                )
-                            }
-                        )
-
-                        AppleInsetDivider()
-                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            AppleSecondaryButton(
-                                text = "إضافة الوسوم الإيمانية إلى الوصف",
-                                icon = Icons.Default.AutoAwesome,
-                                onClick = {
-                                    val smartTags = when (selectedCategory) {
-                                        "قرآن كريم" -> "\n#خادم_المسلم_الإيماني #تلاوات_خاشعة #قرآن_كريم #تلاوة_مباركة"
-                                        "أحاديث نبوية" -> "\n#خادم_المسلم_الإيماني #أحاديث_نبوية #سنة_نبوية #أخلاق_إسلامية"
-                                        else -> "\n#خادم_المسلم_الإيماني #وعظة_إيمانية #ذكر_الله #صدقة_جارية"
-                                    }
-                                    if (!description.contains("#خادم_المسلم_الإيماني")) {
-                                        description = (description.trim() + " " + smartTags).trim()
-                                    }
-                                    Toast.makeText(context, "تم إضافة الوسوم الإيمانية إلى الوصف", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    }
+                    )
                 }
             }
 
@@ -839,14 +811,38 @@ fun ReelPublishScreen(
                 }
             }
 
+            // ق91: الانتهاء يجب أن يكون بعد النشر — بلا حارس كان انتهاء
+            // قبل موعد مجدول يولد ريلز منتهياً قبل أن يظهر أبداً (الخلاصة
+            // تخفي المنتهي)؛ ومنتقي الانتهاء يبني خياراته من موعد النشر
+            // فلا يقع فيها عادة، وهذا حارس ضد أي حالة قديمة.
+            val effectivePublishInstant = publishAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: Instant.now()
+            val expiryInstant = expiryAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            val isExpiryBeforePublish = expiryInstant != null && !expiryInstant.isAfter(effectivePublishInstant)
+
+            if (isExpiryBeforePublish) {
+                AppleCard(containerColor = theme.destructive.copy(alpha = 0.12f)) {
+                    Text(
+                        text = "تاريخ انتهاء العرض يجب أن يكون بعد موعد النشر — أعد اختيار الانتهاء.",
+                        fontFamily = NotoSansFont,
+                        fontSize = 12.5.sp,
+                        color = theme.destructive,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+            }
+
             val canPublish = !isPublishing &&
                 spiritualViolationMessage == null &&
                 hasAcceptedPledge &&
                 title.isNotBlank() &&
                 (selectedVideoUri != null || directVideoUrl.isNotBlank()) &&
-                (isDeveloper || publishStatus is ReelPublishManager.PublishStatus.Allowed)
+                (isDeveloper || publishStatus is ReelPublishManager.PublishStatus.Allowed) &&
+                !isExpiryBeforePublish
 
             val doPublishAction: (Boolean) -> Unit = { asSilent ->
+                // ق109: نقرة مزدوجة قبل بدء المهمة كانت تطلق نشرين؛ والثاني
+                // يمحو مقبض الأول فيتعطل زر الإلغاء عن المهمة الجارية.
+                if (publishJob?.isActive == true) return@doPublishAction
                 val authState = SupabaseRepository.getInstance().authState.value
                 val authId = authState.authenticatedSessionSnapshot()?.userId
                 if (authId.isNullOrBlank()) {
@@ -861,28 +857,46 @@ fun ReelPublishScreen(
                     Toast.makeText(context, "تغيرت هوية الحساب؛ أعد فتح شاشة النشر.", Toast.LENGTH_LONG).show()
                     onDismiss()
                 } else {
-                    val validation = ReelPublishManager.validateContent(
-                        title = title,
-                        description = description,
-                        category = selectedCategory,
-                        videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
-                        hasAcceptedPledge = hasAcceptedPledge,
-                        isDeveloper = isDeveloper,
-                        durationSeconds = (selectedVideoDurationMs / 1000).toInt()
-                    )
-                    when (validation) {
-                        is ReelPublishManager.ValidationResult.Invalid -> {
-                            generalErrorMessage = validation.reason
+                    // القياس قبل التحقق داخل كوروتين واحد: مدة الرابط
+                    // المباشر لا تُقاس عند الإدخال، فكان التحقق يراها 0
+                    // فيتخطى حد المدة (90 ثانية) تماماً. والملف المحلي
+                    // نفسه: إن فشل استخراج بياناته عند الاختيار بقيت
+                    // مدته 0 فتجاوز الحد أيضاً — يُقاس هنا قبل التحقق.
+                    publishJob = scope.launch {
+                        var durationMs = selectedVideoDurationMs
+                        if (durationMs <= 0L) {
+                            durationMs = when {
+                                selectedVideoUri != null -> SpiritualSafetyGuard.measureVideoDurationMs(
+                                    context, selectedVideoUri!!
+                                )
+                                directVideoUrl.isNotBlank() -> SpiritualSafetyGuard.measureVideoDurationMs(
+                                    context, Uri.parse(directVideoUrl.trim())
+                                )
+                                else -> 0L
+                            }
+                            selectedVideoDurationMs = durationMs
                         }
-                        is ReelPublishManager.ValidationResult.Valid -> {
-                            isPublishing = true
-                            isSilentSeed = asSilent
-                            generalErrorMessage = null
-                            uploadSentBytes = 0L
-                            uploadTotalBytes = 0L
-                            uploadSpeedBps = 0L
-                            uploadEtaSeconds = 0L
-                            scope.launch {
+                        val validation = ReelPublishManager.validateContent(
+                            title = title,
+                            description = description,
+                            category = selectedCategory,
+                            videoUriOrUrl = selectedVideoUri?.toString() ?: directVideoUrl,
+                            hasAcceptedPledge = hasAcceptedPledge,
+                            isDeveloper = isDeveloper,
+                            durationSeconds = (durationMs / 1000).toInt()
+                        )
+                        when (validation) {
+                            is ReelPublishManager.ValidationResult.Invalid -> {
+                                generalErrorMessage = validation.reason
+                            }
+                            is ReelPublishManager.ValidationResult.Valid -> {
+                                isPublishing = true
+                                isSilentSeed = asSilent
+                                generalErrorMessage = null
+                                uploadSentBytes = 0L
+                                uploadTotalBytes = 0L
+                                uploadSpeedBps = 0L
+                                uploadEtaSeconds = 0L
                                 val result = ReelPublishManager.publishReelWithUpload(
                                     context = context,
                                     userId = authId,
@@ -913,6 +927,10 @@ fun ReelPublishScreen(
                                     is ReelPublishManager.PublishResult.Success -> {
                                         val toastMsg = if (asSilent) {
                                             "تم حقن مقطع الفيديو الصامت للأوفلاين بنجاح!"
+                                        } else if (publishAt != null) {
+                                            // ق91: المجدول ليس منشوراً بعد — التنبيه القديم
+                                            // كان يدّعي النشر الفوري فيظهر غداً.
+                                            "تمت جدولة المقطع — سيظهر في المجتمع $publishScheduleLabel"
                                         } else {
                                             "تم نشر المقطع للمجتمع بنجاح!"
                                         }
@@ -927,6 +945,15 @@ fun ReelPublishScreen(
                                 }
                             }
                         }
+                    }
+                    // ق109: إتمام المهمة بالإلغاء يحرّر الشاشة وينبّه المستخدم
+                    // بدل تركها عالقة على «جارٍ النشر...» بلا أي تفسير.
+                    publishJob?.invokeOnCompletion { cause ->
+                        if (cause is kotlinx.coroutines.CancellationException) {
+                            isPublishing = false
+                            generalErrorMessage = "تم إلغاء الرفع — لم يُنشر المقطع، ويمكنك إعادة المحاولة."
+                        }
+                        publishJob = null
                     }
                 }
             }
@@ -961,7 +988,10 @@ fun ReelPublishScreen(
                 )
             }
 
-            if (isPublishing && uploadTotalBytes > 0) {
+            // ق109: البطاقة كانت تظهر فقط بعد بدء تدفق البايتات — فمرحلتا
+            // التجهيز والحفظ بلا أي إلغاء، والمستخدم محبوس (المغادرة
+            // ممنوعة أثناء النشر). الآن تظهر طوال النشر مع زر إلغاء.
+            if (isPublishing) {
                 AppleCard {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -976,51 +1006,68 @@ fun ReelPublishScreen(
                                 fontSize = 13.sp,
                                 color = theme.textPrimary
                             )
-                            Text(
-                                text = "${(uploadSentBytes.toFloat() / uploadTotalBytes * 100).toInt()}%",
-                                fontFamily = RobotoMonoFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = theme.primary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            progress = { (uploadSentBytes.toFloat() / uploadTotalBytes).coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(CircleShape),
-                            color = theme.primary,
-                            trackColor = theme.separator.copy(alpha = 0.35f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "${StorageMetrics.formatBytes(uploadSentBytes)} / ${StorageMetrics.formatBytes(uploadTotalBytes)}",
-                                fontFamily = RobotoMonoFont,
-                                fontSize = 11.5.sp,
-                                color = theme.textSecondary
-                            )
-                            if (uploadSpeedBps > 0) {
+                            if (uploadTotalBytes > 0) {
                                 Text(
-                                    text = "${StorageMetrics.formatBytes(uploadSpeedBps)}/s",
+                                    text = "${(uploadSentBytes.toFloat() / uploadTotalBytes * 100).toInt()}%",
                                     fontFamily = RobotoMonoFont,
-                                    fontSize = 11.5.sp,
-                                    color = theme.success
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = theme.primary
                                 )
                             }
                         }
-                        if (uploadEtaSeconds > 0) {
-                            Spacer(modifier = Modifier.height(4.dp))
+                        if (uploadTotalBytes > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { (uploadSentBytes.toFloat() / uploadTotalBytes).coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(CircleShape),
+                                color = theme.primary,
+                                trackColor = theme.separator.copy(alpha = 0.35f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "${StorageMetrics.formatBytes(uploadSentBytes)} / ${StorageMetrics.formatBytes(uploadTotalBytes)}",
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 11.5.sp,
+                                    color = theme.textSecondary
+                                )
+                                if (uploadSpeedBps > 0) {
+                                    Text(
+                                        text = "${StorageMetrics.formatBytes(uploadSpeedBps)}/s",
+                                        fontFamily = RobotoMonoFont,
+                                        fontSize = 11.5.sp,
+                                        color = theme.success
+                                    )
+                                }
+                            }
+                            if (uploadEtaSeconds > 0) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "الوقت المتبقي: ${uploadEtaSeconds / 60}:${"%02d".format(uploadEtaSeconds % 60)}",
+                                    fontFamily = RobotoMonoFont,
+                                    fontSize = 11.5.sp,
+                                    color = theme.warning
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        TextButton(
+                            onClick = { publishJob?.cancel() },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
                             Text(
-                                text = "الوقت المتبقي: ${uploadEtaSeconds / 60}:${"%02d".format(uploadEtaSeconds % 60)}",
-                                fontFamily = RobotoMonoFont,
-                                fontSize = 11.5.sp,
-                                color = theme.warning
+                                text = "إلغاء الرفع",
+                                fontFamily = CairoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = theme.destructive
                             )
                         }
                     }
@@ -1059,8 +1106,24 @@ fun ReelPublishScreen(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // ق91: المجدول المخزن قد لا يطابق أي خيار طازج (الخيارات
+                    // تُحسب من الآن عند كل فتح) فيُعرض نصاً فلا يظن المستخدم
+                    // أن لا شيء مجدول.
+                    val storedSchedule = publishAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                    if (storedSchedule != null && options.none { it.first == publishAt }) {
+                        Text(
+                            text = "المجدول حالياً: ${formatReelLocalDateTime(storedSchedule, zone)}",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = theme.primary
+                        )
+                    }
                     options.forEach { (isoValue, label) ->
-                        val selected = (publishAt == null && isoValue == null) || publishScheduleLabel == label
+                        // ق91: المطابقة بالقيمة لا بالتسمية — الخيارات تُحسب
+                        // من جديد عند كل فتح فكانت التسمية تعلّم صفاً بقيمة
+                        // مختلفة عن المخزنة.
+                        val selected = publishAt == isoValue
                         Surface(
                             onClick = {
                                 publishAt = isoValue
@@ -1091,10 +1154,13 @@ fun ReelPublishScreen(
                                         color = theme.textPrimary
                                     )
                                     if (isoValue != null) {
+                                        // ق91: وقت محلي مقروء بدل ISO خام بـ UTC.
+                                        val localText = runCatching { Instant.parse(isoValue) }.getOrNull()
+                                            ?.let { formatReelLocalDateTime(it, zone) } ?: isoValue
                                         Text(
-                                            text = isoValue,
-                                            fontFamily = RobotoMonoFont,
-                                            fontSize = 10.sp,
+                                            text = localText,
+                                            fontFamily = CairoFont,
+                                            fontSize = 11.sp,
                                             color = theme.textSecondary
                                         )
                                     }
@@ -1113,6 +1179,154 @@ fun ReelPublishScreen(
                     modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Text("إغلاق", fontFamily = CairoFont, color = theme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // ق91: منتقي انتهاء العرض — بنية حوار الجدولة نفسها: خيارات
+    // تُبنى من موعد النشر الفعلي (أو الآن للنشر الفوري) فلا يمكن
+    // اختيار انتهاء قبل ظهور المقطع أبداً؛ والمطابقة بالقيمة،
+    // والوقت المعروض محلي مقروء لا ISO خام.
+    if (showExpiryPickerDialog) {
+        val zone = remember { ZoneId.systemDefault() }
+        val baseInstant = remember(publishAt) {
+            publishAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                ?.takeIf { it.isAfter(Instant.now()) } ?: Instant.now()
+        }
+        val expiryOptions = remember(baseInstant) {
+            listOf(
+                null to "بلا انتهاء (يعرض دائماً)",
+                baseInstant.plus(24, ChronoUnit.HOURS).toString() to "بعد 24 ساعة من النشر",
+                baseInstant.plus(7, ChronoUnit.DAYS).toString() to "بعد 7 أيام من النشر",
+                baseInstant.plus(30, ChronoUnit.DAYS).toString() to "بعد 30 يوماً من النشر"
+            )
+        }
+        AlertDialog(
+            onDismissRequest = { showExpiryPickerDialog = false },
+            containerColor = theme.cardSurface,
+            titleContentColor = theme.textPrimary,
+            textContentColor = theme.textSecondary,
+            title = {
+                Text(
+                    text = "انتهاء عرض المقطع",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val storedExpiry = expiryAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                    if (storedExpiry != null && expiryOptions.none { it.first == expiryAt }) {
+                        Text(
+                            text = "الانتهاء الحالي: ${formatReelLocalDateTime(storedExpiry, zone)}",
+                            fontFamily = CairoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = theme.primary
+                        )
+                    }
+                    expiryOptions.forEach { (isoValue, label) ->
+                        val selected = expiryAt == isoValue
+                        Surface(
+                            onClick = {
+                                expiryAt = isoValue
+                                expiryLabel = label
+                                showExpiryPickerDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) theme.primary.copy(alpha = 0.14f) else theme.secondarySurface,
+                            border = BorderStroke(
+                                width = if (selected) 1.dp else 0.5.dp,
+                                color = if (selected) theme.primary else theme.separator.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = label,
+                                        fontFamily = CairoFont,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 14.sp,
+                                        color = theme.textPrimary
+                                    )
+                                    if (isoValue != null) {
+                                        val localText = runCatching { Instant.parse(isoValue) }.getOrNull()
+                                            ?.let { formatReelLocalDateTime(it, zone) } ?: isoValue
+                                        Text(
+                                            text = localText,
+                                            fontFamily = CairoFont,
+                                            fontSize = 11.sp,
+                                            color = theme.textSecondary
+                                        )
+                                    }
+                                }
+                                if (selected) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.primary, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showExpiryPickerDialog = false },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("إغلاق", fontFamily = CairoFont, color = theme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // ق86: تأكيد التجاهل — بلا مسودات، المغادرة بنموذج معبأ كانت
+    // تُفقد العنوان والوصف والفيديو والجدولة بصمت.
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            containerColor = theme.cardSurface,
+            titleContentColor = theme.textPrimary,
+            textContentColor = theme.textSecondary,
+            title = {
+                Text(
+                    text = "تجاهل ما كتبته؟",
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "لديك عنوان أو وصف أو فيديو غير منشور — المغادرة الآن ستفقده، إذ لا تُحفظ مسودات النشر بعد.",
+                    fontFamily = NotoSansFont,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirm = false
+                        onDismiss()
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("تجاهل والمغادرة", fontFamily = CairoFont, color = theme.destructive, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDiscardConfirm = false },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("متابعة التحرير", fontFamily = CairoFont, color = theme.primary, fontWeight = FontWeight.Bold)
                 }
             }
         )

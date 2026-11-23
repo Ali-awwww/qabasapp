@@ -277,7 +277,7 @@ internal fun ProfileEditDialog(
 
     val activeAccountNumber = currentAccountNumber.takeIf { it.isNotBlank() }
         ?: UserIdentifierManager.getAccountNumber(context, userEmail).takeIf { it.isNotBlank() }
-        ?: UserIdentifierManager.peekNextAccountNumber(context)
+        ?: ""
 
     AlertDialog(
         onDismissRequest = { if (!isCheckingTag) onDismiss() },
@@ -313,15 +313,20 @@ internal fun ProfileEditDialog(
                             Icon(Icons.Default.Lock, contentDescription = null, tint = theme.warning, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                UserIdentifierManager.formatAccountNumber(activeAccountNumber),
+                                // بلا رقم بعد: يُعرض «بانتظار المزامنة...» بلا
+                                // شارة توثيق — كان العنوان النائب «يُنشأ بعد
+                                // التسجيل» يُعرض مع شارة «موثق» كأنه رقم موثق.
+                                if (activeAccountNumber.isBlank()) "بانتظار المزامنة..." else UserIdentifierManager.formatAccountNumber(activeAccountNumber),
                                 color = theme.warning,
                                 fontFamily = RobotoMonoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
                         }
-                        Surface(color = theme.success.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
-                            Text("موثق", color = theme.success, fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        if (activeAccountNumber.isNotBlank()) {
+                            Surface(color = theme.success.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
+                                Text("موثق", color = theme.success, fontSize = 10.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                            }
                         }
                     }
                 }
@@ -449,7 +454,10 @@ internal fun ProfileEditDialog(
                                 val bioSaved = SupabaseServices.UserSettings.saveUserBio(authUid, tempBio)
                                 val resolvedAccNumber = cloudUser.accountNumber?.takeIf { it.isNotBlank() }
                                     ?: UserIdentifierManager.getAccountNumber(context, activeEmail)
-                                    ?: "QBS-0001"
+                                    ?: ""
+                                // بلا رقم سحابي ولا محلي: يُترك فارغاً — لا
+                                // يُسند رقم أول حساب (QBS-0001) لمستخدم آخر
+                                // فيُحفظ له ويُعرض مع شارة «أول حساب مسجل».
 
                                 val finalName = cloudUser.name?.takeIf { it.isNotBlank() } ?: nextDisplayName
                                 val finalTag = UserIdentifierManager.formatDisplay(cloudUser.customId!!)
@@ -643,20 +651,23 @@ fun TournamentInfoBottomSheet(
             Text("كيف تجمع النقاط؟", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(modifier = Modifier.height(8.dp))
             PointRuleItem("إنشاء مشروع دعوي جديد", "50 نقطة")
-            PointRuleItem("نشر فيديو على منصات التواصل", "20 نقطة")
-            PointRuleItem("تحقيق 1000 مشاهدة", "100 نقطة")
-            PointRuleItem("التفاعل مع مجتمع خادم المسلم", "10 نقاط")
+            // القواعد الثلاث التالية بلا أي منح خلفها في الشيفرة (لا يوجد
+            // أي awardPoints بقيم 20/100/10) — كانت تُعرض كوعود نقاط
+            // لا تُصرف أبداً؛ تُوسم «قريباً» حتى تُنفَّذ فعلاً.
+            PointRuleItem("نشر فيديو على منصات التواصل", "قريباً")
+            PointRuleItem("تحقيق 1000 مشاهدة", "قريباً")
+            PointRuleItem("التفاعل مع مجتمع خادم المسلم", "قريباً")
 
             Spacer(modifier = Modifier.height(20.dp))
 
             Text("الرتب والمزايا", color = theme.primary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(modifier = Modifier.height(8.dp))
             TierInfoItem("البرونزية", "0 - 499 نقطة", "بداية الرحلة والظهور الأولي")
-            TierInfoItem("الفضية", "500 - 1499 نقطة", "مضاعف نقاط 1.2x وأولوية معالجة")
-            TierInfoItem("الذهبية", "1500 - 3499 نقطة", "إطار ذهبي ومضاعف 1.5x")
-            TierInfoItem("الماسية", "3500 - 6999 نقطة", "توليد فوري غير محدود للمشاهد")
-            TierInfoItem("السفير", "7000 - 11999 نقطة", "شارة توثيق ومزايا تجريبية")
-            TierInfoItem("الأسطورية", "12000+ نقطة", "تخليد في لوحة الشرف الخالدة")
+            TierInfoItem("الفضية", "500 - 1499 نقطة", "وسام فضي في ملفك الشخصي")
+            TierInfoItem("الذهبية", "1500 - 3499 نقطة", "وسام ذهبي في ملفك الشخصي")
+            TierInfoItem("الماسية", "3500 - 6999 نقطة", "وسام ماسي في ملفك الشخصي")
+            TierInfoItem("السفير", "7000 - 11999 نقطة", "وسام سفير في ملفك الشخصي")
+            TierInfoItem("الأسطورية", "12000+ نقطة", "وسام أسطوري في ملفك الشخصي")
 
             Spacer(modifier = Modifier.height(22.dp))
 
@@ -908,7 +919,7 @@ fun TournamentBadgeDetailDialog(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             if (badge.rankRequired != null) {
-                                Text("متطلب الترتيب: #${badge.rankRequired} أو أفضل (ترتيبك: #$userRank)", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
+                                Text("متطلب الترتيب: #${badge.rankRequired} أو أفضل (ترتيبك: ${if (userRank > 0) "#$userRank" else "غير مصنف"})", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                             } else {
                                 val remaining = (badge.pointsRequired - userPoints).coerceAtLeast(0)
                                 val fraction = (userPoints.toFloat() / badge.pointsRequired.coerceAtLeast(1).toFloat()).coerceIn(0.05f, 1f)

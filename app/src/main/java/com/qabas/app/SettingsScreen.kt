@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,13 +45,21 @@ private fun cacheBytes(context: Context): Long = sequenceOf(context.cacheDir, co
         root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }
 
+private const val UPDATES_DIRECTORY = "updates"
+
 private fun clearTemporaryCache(context: Context) {
     sequenceOf(context.cacheDir, context.externalCacheDir)
         .filterNotNull()
         .distinctBy { it.absolutePath }
         .forEach { root ->
             root.listFiles()?.forEach { child ->
-                if (child.name != VIDEO_CACHE_DIRECTORY) child.deleteRecursively()
+                // ق174: مجلد التحديثات ليس كاشاً عابراً — فيه تنزيل التحديث
+                // الجاري (.part) والحزمة المحققة بانتظار التثبيت؛ كان زر
+                // «مسح الكاش» يحذفه أثناء التنزيل فينكسر التحديث ويُعاد
+                // تنزيله كاملاً (~134 م.ب)، أو يُفقد بعد اكتماله قبل التثبيت.
+                // يُستثنى كما يُستثنى كاش الفيديو؛ وتنظيف القديم منه أصلاً
+                // بيد UpdateManager.reconcilePendingInstall بعد التثبيت.
+                if (child.name != VIDEO_CACHE_DIRECTORY && child.name != UPDATES_DIRECTORY) child.deleteRecursively()
             }
             root.mkdirs()
         }
@@ -141,8 +150,10 @@ fun SettingsScreen(
         )
     }
 
-    var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
-    var settingsSearchQuery by remember { mutableStateOf("") }
+    // ق104: حالة التنقل والبحث محفوظة عبر التدوير — كانت remember
+    // عادياً فالتدوير داخل شاشة فرعية يعيد الرئيسية ويمسح البحث.
+    var currentSubScreen by rememberSaveable { mutableStateOf(SettingsSubScreen.MAIN) }
+    var settingsSearchQuery by rememberSaveable { mutableStateOf("") }
 
     BackHandler(enabled = currentSubScreen != SettingsSubScreen.MAIN) {
         currentSubScreen = when (currentSubScreen) {
@@ -169,7 +180,7 @@ fun SettingsScreen(
     var selectedPresetAvatar by remember {
         mutableIntStateOf(accountPrefs?.getInt("user_preset_avatar", 0) ?: 0)
     }
-    var showAvatarPicker by remember { mutableStateOf(false) }
+    var showAvatarPicker by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(supabaseUserId) {
         val userId = supabaseUserId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
@@ -250,16 +261,17 @@ fun SettingsScreen(
     }
 
     var accountsList by remember { mutableStateOf(SocialAccountManager.getAccounts(context)) }
-    var linkDialogState by remember { mutableStateOf<String?>(null) }
+    // ق104: حالة الحوارات محفوظة عبر التدوير مع البحث والتنقل أعلاه.
+    var linkDialogState by rememberSaveable { mutableStateOf<String?>(null) }
     var isLinking by remember { mutableStateOf(false) }
 
     val selectedPlatform = remember(linkDialogState, accountsList) {
         accountsList.find { it.id == linkDialogState }
     }
-    var customHandle by remember(selectedPlatform) {
+    var customHandle by rememberSaveable(selectedPlatform) {
         mutableStateOf(selectedPlatform?.handle ?: "")
     }
-    var customToken by remember(selectedPlatform) {
+    var customToken by rememberSaveable(selectedPlatform) {
         mutableStateOf(if (selectedPlatform != null) SocialAccountManager.getAccessToken(context, selectedPlatform.id) else "")
     }
 
@@ -464,7 +476,10 @@ fun SettingsScreen(
                     ) {
                         ProfileSettingsCard(
                             savedDisplayName = savedDisplayName,
-                            userEmail = if (isGuest) "guest@qabas.studio" else userEmail,
+                            // ق104: كان يُمرَّر هنا المعرّف الداخلي
+                            // «guest@qabas.studio» كبريد للضيف؛ البطاقة
+                            // نفسها تعرض نصاً صادقاً عند isGuest.
+                            userEmail = userEmail,
                             avatarUriString = avatarUriString,
                             selectedPresetAvatar = selectedPresetAvatar,
                             isAdmin = isAdmin,
@@ -897,7 +912,9 @@ fun SettingsScreen(
                         onBack = { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
                     )
                 } else {
-                    currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT
+                    // ق104: كان إعادة التوجيه كتابة حالة أثناء التركيب
+                    // (تأثير جانبي في التركيب)؛ الآن في LaunchedEffect.
+                    LaunchedEffect(Unit) { currentSubScreen = SettingsSubScreen.COMMUNITY_SUPPORT }
                 }
             }
 
@@ -909,7 +926,8 @@ fun SettingsScreen(
 
             SettingsSubScreen.GITHUB_XDELTA_HUB -> {
                 if (!isDeveloperAccount) {
-                    currentSubScreen = SettingsSubScreen.MAIN
+                    // ق104: كتابة حالة أثناء التركيب — نُقلت إلى LaunchedEffect (كما في CRASH_LOGS أعلاه).
+                    LaunchedEffect(Unit) { currentSubScreen = SettingsSubScreen.MAIN }
                 } else {
                     GithubXdeltaHubScreen(
                         onBack = { currentSubScreen = SettingsSubScreen.MAIN }
