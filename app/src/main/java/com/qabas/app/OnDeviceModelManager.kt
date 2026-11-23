@@ -244,10 +244,16 @@ object OnDeviceModelManager {
     /**
      * متطلبات ذاكرة النموذج بالبايت، مستخلصة من الحقل التوضيحي (مثال "2.5 GB RAM").
      * تُستخدم للمقارنة مع ذاكرة الجهاز قبل البدء في الوضع المحلي.
+     *
+     * إصلاح (12.4): النسخة السابقة كانت تجمع الأرقام فقط
+     * (`filter { it.isDigit() }`) فحوّلت "1.2 GB" إلى 12.0 GB و"2.5 GB"
+     * إلى 25 GB — أي أن كل بوابة ذاكرة كانت تفشل دائماً. هنا يُحلل العدد
+     * العشري كاملاً عبر تعبير نمطي.
      */
     fun ramRequirementBytes(modelInfo: OnDeviceModelInfo): Long {
         val text = modelInfo.ramRequirement.uppercase()
-        val num = text.filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+        val num = Regex("""(\d+(?:\.\d+)?)""").find(text)
+            ?.groupValues?.getOrNull(1)?.toDoubleOrNull() ?: 0.0
         return when {
             text.contains("GB") -> (num * 1024L * 1024 * 1024).toLong()
             text.contains("MB") -> (num * 1024L * 1024).toLong()
@@ -432,7 +438,10 @@ object OnDeviceModelManager {
             var lastUpdateTime = startTime
 
             // الكتابة بعد الملف الجزئي فقط عند قبول الاستئناف؛ وإلا كتابة من الصفر.
-            val byteStream = body.byteStream()
+            // (ر21) مجرى الشبكة في use: كان يُترك مفتوحاً عند الإلغاء/الخطأ/
+            // الانقطاع فيُحبس اتصال OkHttp خارج المسبح — كل مواضع byteStream
+            // الأخرى في التطبيق تغلقه (DownloadsHubManager وUpdateManager).
+            body.byteStream().use { byteStream ->
             FileOutputStream(tempFile, appendMode).use { output ->
                 val buffer = ByteArray(256 * 1024) // 256KB buffer: fewer syscalls, faster writes
                 var bytesRead: Int
@@ -464,6 +473,7 @@ object OnDeviceModelManager {
                         lastUpdateTime = now
                     }
                 }
+            }
             }
 
             // مجرى منقطع قبل اكتمال الحجم المعلن: لا يُثبَّت ملف ناقص على أنه

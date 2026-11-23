@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -386,23 +385,33 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                     Log.e("AudioPlaybackService", "MediaPlayer error: what=$what, extra=$extra")
                     AudioPlaybackManager.updateState(isPlaying = false)
                     serviceScope.launch(Dispatchers.Main) {
-                        android.widget.Toast.makeText(
-                            applicationContext,
-                            "تعذر البث المباشر. جارٍ التوجيه لمشاهدة الدرس عبر يوتيوب 📺...",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                        val targetYt = if (!track.youtubeUrl.isNullOrBlank()) {
-                            track.youtubeUrl
+                        // دون اتصال لا يوجَّه ليوتيوب: يحتاج الاتصال نفسه المفقود،
+                        // فكان الوعد «جارٍ التوجيه» كاذباً وينتهي بصفحة خطأ في المتصفح.
+                        if (!NetworkUtils.isNetworkAvailable(applicationContext)) {
+                            android.widget.Toast.makeText(
+                                applicationContext,
+                                "لا يوجد اتصال بالإنترنت — لا يمكن تشغيل هذا الدرس الآن. نزّل الدرس مسبقاً للاستماع دون اتصال.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
                         } else {
-                            val query = android.net.Uri.encode("${track.title} ${track.artist}")
-                            "https://www.youtube.com/results?search_query=$query"
+                            android.widget.Toast.makeText(
+                                applicationContext,
+                                "تعذر البث المباشر. جارٍ التوجيه لمشاهدة الدرس عبر يوتيوب 📺...",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            val targetYt = if (!track.youtubeUrl.isNullOrBlank()) {
+                                track.youtubeUrl
+                            } else {
+                                val query = android.net.Uri.encode("${track.title} ${track.artist}")
+                                "https://www.youtube.com/results?search_query=$query"
+                            }
+                            val ytIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetYt)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            try {
+                                startActivity(ytIntent)
+                            } catch (_: Exception) {}
                         }
-                        val ytIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetYt)).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        try {
-                            startActivity(ytIntent)
-                        } catch (_: Exception) {}
                     }
                     true
                 }
@@ -410,7 +419,18 @@ class AudioPlaybackService : Service(), AudioManager.OnAudioFocusChangeListener 
                 prepareAsync()
             }
         } catch (e: Exception) {
+            // كان فشل الإعداد المتزامن (ملف محلي محذوف مثلاً) يُسجَّل فقط:
+            // زر التشغيل يبدو عاملاً ثم لا يحدث شيء ولا رسالة.
             Log.e("AudioPlaybackService", "Error playing track: ${e.message}", e)
+            AudioPlaybackManager.updateState(isPlaying = false)
+            serviceScope.launch(Dispatchers.Main) {
+                val msg = if (e is IllegalStateException && e.message?.contains("غير موجود") == true) {
+                    "الملف الصوتي غير موجود على الجهاز — أعد تنزيل الدرس."
+                } else {
+                    "تعذّر تشغيل هذا المقطع."
+                }
+                android.widget.Toast.makeText(applicationContext, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
         }
     }
 

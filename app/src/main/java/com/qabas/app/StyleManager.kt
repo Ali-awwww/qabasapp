@@ -95,23 +95,6 @@ data class MasterStyle(
         )
     }
 
-    fun toStyleObject(): StyleObject {
-        return StyleObject(
-            id = id,
-            name = name,
-            userId = "master_engine",
-            sourceVideoPathOrUrl = sourceStyleNames.joinToString(", "),
-            visualStyle = visualStyle,
-            motionRhythm = motionRhythm,
-            contentTone = contentTone,
-            overallScore = islamicAestheticComplianceScore,
-            analysisSummary = description.ifBlank { fusionSummary },
-            tags = listOf("MasterStyle", "CompositeProfile", aspectRatio) + visualStyle.visualTraits,
-            createdAt = createdAt,
-            isCloudSynced = isCloudSynced
-        )
-    }
-
     fun toMap(): Map<String, Any> = mapOf(
         "id" to id,
         "name" to name,
@@ -236,129 +219,6 @@ object StyleManager {
     }
 
     /**
-     * الدمج والتوليد الذكي لنمط ماستر مركب (Composite Master Style)
-     * بناءً على متطلبات المشروع المحددة والأنماط المخزنة في عقل خادم المسلم وسحابة Firestore.
-     */
-    suspend fun createCompositeMasterStyle(
-        context: Context,
-        requirements: ProjectStyleRequirements,
-        selectedCandidateStyleObjects: List<StyleObject> = emptyList(),
-        customProfileName: String? = null,
-        syncToCloud: Boolean = true
-    ): MasterStyle = withContext(Dispatchers.IO) {
-        // 1. تجميع الأنماط المرشحة (من المدخلات، أو الذاكرة التراكمية في StyleBrain، أو Firestore)
-        val availableStyles = if (selectedCandidateStyleObjects.isNotEmpty()) {
-            selectedCandidateStyleObjects
-        } else {
-            val localAbsorbed = StyleBrain.getAllAbsorbedStyles().map { StyleObject.fromAbsorbedStyle(it) }
-            val supabaseStyles = if (SupabaseServices.isSupabaseAvailable) {
-                try {
-                    SupabaseServices.Database.getStyleObjects().mapNotNull { row ->
-                        try {
-                            val payloadStr = row.payload.toString()
-                            val jsonMap = org.json.JSONObject(payloadStr)
-                            val map = mutableMapOf<String, Any?>()
-                            val keys = jsonMap.keys()
-                            while (keys.hasNext()) {
-                                val k = keys.next()
-                                map[k] = jsonMap.opt(k)
-                            }
-                            map["id"] = row.id
-                            map["name"] = row.name
-                            map["userId"] = row.userId ?: "creator"
-                            map["sourceVideoPathOrUrl"] = row.sourceVideo ?: ""
-                            map["overallScore"] = row.score
-                            StyleObject.fromMap(map)
-                        } catch (_: Exception) { null }
-                    }
-                } catch (e: Exception) { emptyList() }
-            } else emptyList()
-
-            val cloudStyles = if (supabaseStyles.isNotEmpty()) {
-                supabaseStyles
-            } else emptyList()
-
-            (localAbsorbed + cloudStyles).distinctBy { it.id }
-        }
-
-        // 2. تقييم وحساب أوزان الأنماط المرشحة وفق متطلبات المشروع
-        val weightedCandidates = evaluateAndWeightCandidates(availableStyles, requirements)
-
-        // 3. دمج السمات البصرية، إيقاع الحركة، ونبرة المحتوى
-        val mergedVisualStyle = blendVisualPatterns(weightedCandidates, requirements)
-        val mergedMotionRhythm = blendMotionPatterns(weightedCandidates, requirements)
-        val mergedContentTone = blendTonePatterns(weightedCandidates, requirements)
-
-        // 4. صياغة أوامر وفلاتر FFmpeg المخصصة
-        val ffmpegFilter = synthesizeFfmpegFilterDirective(mergedVisualStyle, mergedMotionRhythm, requirements)
-
-        // 5. حساب مؤشر التوافق مع المعايير الجمالية الإسلامية لخادم المسلم (Islamic Aesthetic Compliance Score)
-        val complianceScore = calculateIslamicComplianceScore(mergedVisualStyle, mergedMotionRhythm, mergedContentTone)
-
-        // 6. بناء ملف الماستر المركب
-        val sourceIds = weightedCandidates.map { it.first.id }
-        val sourceNames = weightedCandidates.map { it.first.name }
-        val generatedName = customProfileName?.ifBlank { null }
-            ?: "ماستر [${requirements.ideaOrTopic.take(16).ifBlank { "مشروع دعوي" }}] • ${requirements.desiredTone}"
-
-        val summaryText = "ملف ماستر مركب تم توليده بدمج ${weightedCandidates.size} أنماط فنية بنسب ذكية " +
-                "ليناسب فكرة (${requirements.ideaOrTopic}) بنبرة (${requirements.desiredTone}) ووتيرة (${requirements.pacingPreference})."
-
-        val masterProfile = MasterStyle(
-            id = "master_${UUID.randomUUID().toString().take(8)}",
-            name = generatedName,
-            description = summaryText,
-            sourceStyleIds = sourceIds,
-            sourceStyleNames = sourceNames,
-            visualStyle = mergedVisualStyle,
-            motionRhythm = mergedMotionRhythm,
-            contentTone = mergedContentTone,
-            ffmpegFilterDirective = ffmpegFilter,
-            islamicAestheticComplianceScore = complianceScore,
-            targetAudience = requirements.targetAudience,
-            aspectRatio = requirements.aspectRatio,
-            recommendedDurationSeconds = requirements.durationSeconds,
-            fusionSummary = summaryText,
-            confidenceScore = 0.94f,
-            createdAt = System.currentTimeMillis(),
-            isCloudSynced = syncToCloud && SupabaseServices.isSupabaseAvailable
-        )
-
-        // 7. حفظ محلياً وتعيين كنمط نشط
-        val currentList = _masterStyles.value.toMutableList()
-        currentList.removeAll { it.id == masterProfile.id }
-        currentList.add(0, masterProfile)
-        _masterStyles.value = currentList
-        _activeMasterStyle.value = masterProfile
-
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        saveLocalMasterStyles(prefs, currentList)
-        prefs.edit().putString(KEY_ACTIVE_MASTER_STYLE, masterProfile.id).apply()
-
-        // 8. حفظ في سحابة Supabase كأساس، وFirestore كنسخة إضافية
-        if (syncToCloud) {
-            if (SupabaseServices.isSupabaseAvailable) {
-                try {
-                    val payloadJson = masterStyleToJson(masterProfile).toString()
-                    SupabaseServices.Database.saveMasterStyle(
-                        id = masterProfile.id,
-                        name = masterProfile.name,
-                        description = masterProfile.description,
-                        userId = "creator",
-                        compliance = complianceScore,
-                        payloadJson = payloadJson
-                    )
-                } catch (e: Exception) {
-                    Log.w(TAG, "Could not sync master style to Supabase: ${e.message}")
-                }
-            }
-        }
-
-        Log.d(TAG, "MasterStyle synthesized successfully: ${masterProfile.name} with compliance score $complianceScore%")
-        return@withContext masterProfile
-    }
-
-    /**
      * حساب ومعاينة ملف النمط الرئيسي المركب بشكل فوري (Live Preview) دون حفظ
      */
     fun previewMerge(
@@ -454,65 +314,6 @@ object StyleManager {
         saveLocalMasterStyles(prefs, currentList)
 
         return@withContext master
-    }
-
-    /**
-     * تقييم الأنماط وحساب درجة توافقها (Affinity Scoring) مع المتطلبات
-     */
-    private fun evaluateAndWeightCandidates(
-        candidates: List<StyleObject>,
-        reqs: ProjectStyleRequirements
-    ): List<Pair<StyleObject, Float>> {
-        if (candidates.isEmpty()) {
-            val core = StyleBrain.getCoreStyle()
-            val defaultObj = StyleObject(
-                id = "core_default",
-                name = "هوية خادم المسلم الأساسية",
-                visualStyle = VisualStylePattern(visualTraits = core.visualTraits),
-                motionRhythm = MotionRhythmPattern(motionTraits = core.motionTraits),
-                contentTone = ContentTonePattern(textTraits = core.textTraits)
-            )
-            return listOf(defaultObj to 1.0f)
-        }
-
-        val scored = candidates.map { candidate ->
-            var score = 50f
-
-            // 1. تقارب النبرة
-            if (candidate.contentTone.tone.contains(reqs.desiredTone, ignoreCase = true) ||
-                reqs.desiredTone.contains(candidate.contentTone.tone, ignoreCase = true)) {
-                score += 25f
-            }
-
-            // 2. تقارب الفكرة والكلمات المفتاحية
-            val ideaWords = reqs.ideaOrTopic.split(" ").filter { it.length > 2 }
-            val matchedTags = candidate.tags.count { tag ->
-                ideaWords.any { tag.contains(it, ignoreCase = true) }
-            }
-            score += (matchedTags * 8f).coerceAtMost(20f)
-
-            // 3. تقارب وتيرة الحركة
-            if (candidate.motionRhythm.transitionSpeed.contains(reqs.pacingPreference, ignoreCase = true) ||
-                candidate.motionRhythm.overallRhythm.contains(reqs.pacingPreference, ignoreCase = true)) {
-                score += 15f
-            }
-
-            // 4. تقارب الجمهور المستهدف
-            if (candidate.contentTone.targetAudience.contains(reqs.targetAudience, ignoreCase = true)) {
-                score += 10f
-            }
-
-            // 5. تقييم الجودة الإجمالي لكائن النمط
-            score += (candidate.overallScore * 0.2f)
-
-            candidate to score
-        }
-
-        // أخذ أعلى 3 أنماط مطابقة وتطبيع أوزانها
-        val topCandidates = scored.sortedByDescending { it.second }.take(3)
-        val totalScore = topCandidates.sumOf { it.second.toDouble() }.toFloat().coerceAtLeast(1f)
-
-        return topCandidates.map { it.first to (it.second / totalScore) }
     }
 
     /**
@@ -720,18 +521,11 @@ object StyleManager {
             scope.launch {
                 try {
                     SupabaseServices.Database.deleteMasterStyle(masterStyleId)
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                     Log.e(TAG, "Error deleting master style from Supabase: ${e.message}")
                 }
             }
         }
-    }
-
-    /**
-     * استرجاع النمط النشط أو النمط الافتراضي
-     */
-    fun getActiveOrFallbackMasterStyle(): MasterStyle {
-        return _activeMasterStyle.value ?: _masterStyles.value.firstOrNull() ?: createDefaultQabasMasterStyle()
     }
 
     /**
@@ -761,7 +555,7 @@ object StyleManager {
                     saveLocalMasterStyles(prefs, localMasters)
                     return@withContext localMasters
                 }
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.w(TAG, "Supabase master style sync error: ${e.message}")
             }
         }
@@ -794,14 +588,14 @@ object StyleManager {
                         tags = styleObject.tags,
                         payloadJson = payloadJson
                     )
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                     Log.w(TAG, "Could not save StyleObject to Supabase: ${e.message}")
                 }
             }
 
             Log.d(TAG, "StyleObject registered successfully: ${styleObject.name}")
             true
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             Log.e(TAG, "Error registering StyleObject: ${e.message}", e)
             false
         }

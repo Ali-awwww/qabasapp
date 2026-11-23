@@ -248,7 +248,7 @@ class QabasBrainViewModel(
                 syncBrainMemory()
                 onSuccess?.invoke(extracted)
 
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Extraction failed: ${e.message}", e)
                 _absorptionState.value = _absorptionState.value.copy(
                     stage = StyleAbsorptionStage.FAILED,
@@ -280,7 +280,7 @@ class QabasBrainViewModel(
             try {
                 val history = repository.getDecisionHistory()
                 _decisionHistory.value = history
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Error loading decision history: ${e.message}")
             }
         }
@@ -343,7 +343,7 @@ class QabasBrainViewModel(
                     activeReferenceStyles = styles,
                     brainStrengthScore = brainStrength
                 )
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Error syncing brain memory: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     status = BrainStatus.IDLE,
@@ -444,7 +444,7 @@ class QabasBrainViewModel(
 
                 onSuccess?.invoke(decision)
 
-            } catch (e: Exception) {
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
                 Log.e(TAG, "Error in processIdeaWithBrain: ${e.message}", e)
                 val fallbackDecision = buildFallbackDecision(idea, tonePreference, targetAudience)
                 _uiState.value = _uiState.value.copy(

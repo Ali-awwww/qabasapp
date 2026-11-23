@@ -9,7 +9,6 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,18 +16,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qabas.app.ui.theme.*
@@ -106,7 +101,7 @@ fun AgencyMonetizationHub(context: Context) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardSurface),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, GoldPrimary),
+                border = BorderStroke(1.dp, PresetPrimary),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -118,7 +113,7 @@ fun AgencyMonetizationHub(context: Context) {
                         Column {
                             Text(
                                 "مركز أرباح المطور والوكالة الرقمية 💰",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -176,14 +171,14 @@ fun AgencyMonetizationHub(context: Context) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, ThemeSecondarySurface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = PresetPrimary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("حاسبة الدخل الشهري المستهدف 🎯", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("حاسبة الدخل الشهري المستهدف 🎯", color = TextPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -194,7 +189,7 @@ fun AgencyMonetizationHub(context: Context) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("الهدف الشهري:", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 14.sp)
-                            Text("$${monthlyTarget.toInt()} / شهرياً", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                            Text("$${monthlyTarget.toInt()} / شهرياً", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
                         }
 
                         Slider(
@@ -202,7 +197,7 @@ fun AgencyMonetizationHub(context: Context) {
                             onValueChange = { monthlyTarget = it },
                             valueRange = 500f..10000f,
                             steps = 19,
-                            colors = SliderDefaults.colors(thumbColor = GoldPrimary, activeTrackColor = GoldPrimary)
+                            colors = SliderDefaults.colors(thumbColor = PresetPrimary, activeTrackColor = PresetPrimary)
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -211,7 +206,7 @@ fun AgencyMonetizationHub(context: Context) {
                         val whiteLabelAppsNeeded = (monthlyTarget * 0.35 / 1500).toInt().coerceAtLeast(1)
                         val vipSubscriptionsNeeded = (monthlyTarget * 0.15 / 50).toInt().coerceAtLeast(2)
 
-                        Text("خريطة العمل المقترحة لتحقيق هذا الهدف سهلاً:", color = GoldPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("خريطة العمل المقترحة لتحقيق هذا الهدف سهلاً:", color = PresetPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(10.dp))
 
                         StrategyRequirementRow(
@@ -242,14 +237,14 @@ fun AgencyMonetizationHub(context: Context) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, ThemeSecondarySurface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = PresetPrimary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("مولد العروض والفواتير الاحترافية للعملاء 📄", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("مولد العروض والفواتير الاحترافية للعملاء 📄", color = TextPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -257,9 +252,9 @@ fun AgencyMonetizationHub(context: Context) {
                         OutlinedTextField(
                             value = clientName,
                             onValueChange = { clientName = it },
-                            label = { Text("اسم العميل أو الجهة (مثال: جمعية البر)", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("اسم العميل أو الجهة (مثال: جمعية البر)", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = ThemeSecondarySurface, focusedTextColor = TextPrimary),
                             shape = RoundedCornerShape(12.dp)
                         )
 
@@ -268,10 +263,10 @@ fun AgencyMonetizationHub(context: Context) {
                         OutlinedTextField(
                             value = packagePrice,
                             onValueChange = { packagePrice = it },
-                            label = { Text("السعر المترتب ($)", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("السعر المترتب ($)", color = TextTertiary, fontFamily = CairoFont) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = ThemeSecondarySurface, focusedTextColor = TextPrimary),
                             shape = RoundedCornerShape(12.dp)
                         )
 
@@ -297,7 +292,7 @@ fun AgencyMonetizationHub(context: Context) {
                                 """.trimIndent()
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DeepSlate)
@@ -308,13 +303,13 @@ fun AgencyMonetizationHub(context: Context) {
                         if (generatedQuoteText.isNotBlank()) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Surface(
-                                color = Color(0xFF0B0F19),
+                                color = DeepSlate,
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
-                                    Text(generatedQuoteText, color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 20.sp)
+                                    Text(generatedQuoteText, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 20.sp)
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(
@@ -325,11 +320,11 @@ fun AgencyMonetizationHub(context: Context) {
                                                 Toast.makeText(context, "تم نسخ العرض للحافظة بنجاح 📋", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.weight(1f),
-                                            border = BorderStroke(1.dp, GoldPrimary)
+                                            border = BorderStroke(1.dp, PresetPrimary)
                                         ) {
-                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("نسخ", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
+                                            Text("نسخ", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp)
                                         }
 
                                         Button(
@@ -341,7 +336,7 @@ fun AgencyMonetizationHub(context: Context) {
                                                 context.startActivity(Intent.createChooser(intent, "مشاركة الفاتورة عبر"))
                                             },
                                             modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                                         ) {
                                             Icon(Icons.Default.Share, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
@@ -364,9 +359,9 @@ fun AgencyMonetizationHub(context: Context) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("قائمة العقود والعملاء النشطين", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("قائمة العقود والعملاء النشطين", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     val totalMonthlyIncome = clientsList.sumOf { it.monthlyAmount }
-                    Text("الدخل الحالي: $${totalMonthlyIncome}", color = Color(0xFF10B981), fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("الدخل الحالي: $${totalMonthlyIncome}", color = ThemeSuccess, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
@@ -375,11 +370,11 @@ fun AgencyMonetizationHub(context: Context) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = CardSurface),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        border = BorderStroke(1.dp, ThemeSecondarySurface),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("لا توجد عقود مسجلة بعد", color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("لا توجد عقود مسجلة بعد", color = TextPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("أضف أول عميل من البطاقة بالأسفل — البيانات تُحفظ على جهازك حصرياً.", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
                         }
@@ -391,37 +386,37 @@ fun AgencyMonetizationHub(context: Context) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, ThemeSecondarySurface),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Text("إضافة عميل جديد", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("إضافة عميل جديد", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedTextField(
                             value = newClientName,
                             onValueChange = { newClientName = it },
-                            label = { Text("اسم العميل", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("اسم العميل", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = ThemeSecondarySurface, focusedTextColor = TextPrimary),
                             shape = RoundedCornerShape(12.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = newClientService,
                             onValueChange = { newClientService = it },
-                            label = { Text("نوع الخدمة", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("نوع الخدمة", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = ThemeSecondarySurface, focusedTextColor = TextPrimary),
                             shape = RoundedCornerShape(12.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = newClientAmount,
                             onValueChange = { newClientAmount = it },
-                            label = { Text("المبلغ الشهري بالدولار", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("المبلغ الشهري بالدولار", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = ThemeSecondarySurface, focusedTextColor = TextPrimary),
                             shape = RoundedCornerShape(12.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -447,9 +442,9 @@ fun AgencyMonetizationHub(context: Context) {
                             },
                             enabled = newClientName.isNotBlank() && newClientService.isNotBlank() && newClientAmount.isNotBlank(),
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                         ) {
-                            Text("إضافة العميل", color = Color(0xFF0B1120), fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            Text("إضافة العميل", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -459,7 +454,7 @@ fun AgencyMonetizationHub(context: Context) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, ThemeSecondarySurface),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -469,17 +464,17 @@ fun AgencyMonetizationHub(context: Context) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(client.clientName, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(client.clientName, color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 Text(client.serviceType, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("$${client.monthlyAmount}", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("$${client.monthlyAmount}", color = PresetPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 IconButton(onClick = {
                                     val updated = clientsList.filterNot { it.id == client.id }
                                     clientsList = updated
                                     prefs.edit().putString(CLIENTS_PREFS_KEY, encodeClientsPrefs(updated)).apply()
                                 }) {
-                                    Icon(Icons.Default.Close, contentDescription = "حذف العميل", tint = Color(0xFFE11D48), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Close, contentDescription = "حذف العميل", tint = ThemeDestructive, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -500,8 +495,8 @@ fun AgencyMonetizationHub(context: Context) {
                         LinearProgressIndicator(
                             progress = { client.deliveryProgress },
                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                            color = GoldPrimary,
-                            trackColor = Color(0xFF151B2B)
+                            color = PresetPrimary,
+                            trackColor = CardSurface
                         )
                     }
                 }
@@ -514,14 +509,14 @@ fun AgencyMonetizationHub(context: Context) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardSurface),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, ThemeSecondarySurface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = GoldPrimary)
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = PresetPrimary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("تجهيز التطبيق للعملاء (White-Label Injector) 🏷️", color = Color.White, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("تجهيز التطبيق للعملاء (White-Label Injector) 🏷️", color = TextPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -539,9 +534,9 @@ fun AgencyMonetizationHub(context: Context) {
                         OutlinedTextField(
                             value = clientLogoName,
                             onValueChange = { clientLogoName = it },
-                            label = { Text("نص الختم المائي للعميل (مثال: ✦ قناة البر الدعوية ✦)", color = Color.Gray, fontFamily = CairoFont) },
+                            label = { Text("نص الختم المائي للعميل (مثال: ✦ قناة البر الدعوية ✦)", color = TextTertiary, fontFamily = CairoFont) },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = ThemeSecondarySurface, focusedTextColor = TextPrimary),
                             shape = RoundedCornerShape(12.dp)
                         )
 
@@ -558,7 +553,7 @@ fun AgencyMonetizationHub(context: Context) {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = DeepSlate)
@@ -578,15 +573,15 @@ fun StrategyRequirementRow(icon: androidx.compose.ui.graphics.vector.ImageVector
         Box(
             modifier = Modifier
                 .size(32.dp)
-                .background(GoldPrimary.copy(alpha = 0.2f), CircleShape)
-                .border(1.dp, GoldPrimary, CircleShape),
+                .background(PresetPrimary.copy(alpha = 0.2f), CircleShape)
+                .border(1.dp, PresetPrimary, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
         }
         Spacer(modifier = Modifier.width(10.dp))
         Column {
-            Text(title, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(title, color = TextPrimary, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Text(subtitle, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 12.sp, lineHeight = 16.sp)
         }
     }

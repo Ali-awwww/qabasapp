@@ -2,14 +2,11 @@ package com.qabas.app
 
 import android.app.Application
 import android.content.Context
-import android.speech.tts.TextToSpeech
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.qabas.app.ui.theme.GoldPrimary
-import com.qabas.app.ui.theme.GoldSecondary
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import kotlinx.coroutines.delay
@@ -39,13 +36,6 @@ data class HasanatSectionItem(
     val route: AppState
 )
 
-@Immutable
-data class SpiritualPearl(
-    val typeKey: String,
-    val text: String,
-    val source: String,
-    val benefit: String
-)
 
 @Immutable
 data class QuranAyahWithTafsir(
@@ -64,7 +54,6 @@ data class PrayerTimeInfo(
 
 data class HijriDateInfo(
     val hijriStr: String = "",
-    val gregorianStr: String = ""
 )
 
 class HasanatHubViewModel(application: Application) : AndroidViewModel(application) {
@@ -74,8 +63,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
-    private val _selectedCategoryKey = MutableStateFlow("الكل")
-    val selectedCategoryKey = _selectedCategoryKey.asStateFlow()
 
     private val _isGridView = MutableStateFlow(true)
     val isGridView = _isGridView.asStateFlow()
@@ -133,19 +120,19 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     val muslimToolsList = listOf(
-        MuslimToolItem("qibla", "القبلة والمساجد", Icons.Default.Explore, Color(0xFF0EA5E9)),
-        MuslimToolItem("zakat", "حاسبة الزكاة", Icons.Default.Payments, Color(0xFF10B981)),
-        MuslimToolItem("fasting", "قضاء رمضان", Icons.Default.NightsStay, Color(0xFFF59E0B)),
-        MuslimToolItem("khatma", "مخطط الختمة", Icons.Default.AutoStories, Color(0xFF0EA5E9)),
-        MuslimToolItem("hajj", "الحج والعمرة", Icons.Default.DirectionsWalk, Color(0xFF8B5CF6)),
-        MuslimToolItem("hijri", "التقويم الهجري", Icons.Default.Event, Color(0xFFEC4899)),
-        MuslimToolItem("habits", "متابع العادات", Icons.Default.DoneAll, Color(0xFF14B8A6)),
-        MuslimToolItem("stats", "إحصائيات العبادة", Icons.Default.Analytics, Color(0xFFF97316)),
-        MuslimToolItem("share", "بطاقات النشر", Icons.Default.ColorLens, Color(0xFFF59E0B)),
-        MuslimToolItem("reward", "أجري بالنشر", Icons.Default.Stars, Color(0xFF14B8A6))
+        MuslimToolItem("qibla", "القبلة", "اتجاه القبلة ومواقيت الصلاة", Icons.Default.Explore, Color(0xFF0EA5E9)),
+        MuslimToolItem("zakat", "حاسبة الزكاة", "حساب 2.5% بنصاب الذهب", Icons.Default.Payments, Color(0xFF10B981)),
+        MuslimToolItem("fasting", "قضاء رمضان", "تتبع أيام قضاء الصيام", Icons.Default.NightsStay, Color(0xFFF59E0B)),
+        MuslimToolItem("khatma", "مخطط الختمة", "خطة ختمة بعدد الأيام", Icons.Default.AutoStories, Color(0xFF0EA5E9)),
+        MuslimToolItem("hajj", "الحج والعمرة", "دليل خطوات الحج والعمرة", Icons.Default.DirectionsWalk, Color(0xFF8B5CF6)),
+        MuslimToolItem("hijri", "التقويم الهجري", "تاريخ اليوم الهجري", Icons.Default.Event, Color(0xFFEC4899)),
+        MuslimToolItem("habits", "متابع العادات", "عادات يومية تتبعها", Icons.Default.DoneAll, Color(0xFF14B8A6)),
+        MuslimToolItem("stats", "إحصائيات العبادة", "إحصائيات عبادتك", Icons.Default.Analytics, Color(0xFFF97316)),
+        MuslimToolItem("share", "بطاقات النشر", "صمّم بطاقة حديث للنشر", Icons.Default.ColorLens, Color(0xFFF59E0B)),
+        MuslimToolItem("reward", "أجري بالنشر", "نقاطك ومكافآت النشر", Icons.Default.Stars, Color(0xFF14B8A6))
     )
 
-    data class MuslimToolItem(val id: String, val title: String, val icon: ImageVector, val color: Color)
+    data class MuslimToolItem(val id: String, val title: String, val desc: String, val icon: ImageVector, val color: Color)
 
     fun toggleWirdDone() {
         val newVal = !_isWirdDone.value
@@ -171,15 +158,13 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         prefs.edit().putBoolean("mishkat_vibrate_33", newVal).apply()
     }
 
-    private val _currentPearlIndex = MutableStateFlow(0)
-    val currentPearlIndex = _currentPearlIndex.asStateFlow()
 
     private val _currentTimeMillis = MutableStateFlow(System.currentTimeMillis())
     
     val prayerTimeInfo: StateFlow<PrayerTimeInfo> = _currentTimeMillis.map { time ->
         val selectedCity = PrayerCalculationHelper.getSavedCity(context)
         val cal = Calendar.getInstance().apply { timeInMillis = time }
-        val times = PrayerCalculationHelper.calculatePrayerTimes(cal, selectedCity, selectedCity.defaultMethod)
+        val times = PrayerCalculationHelper.calculatePrayerTimesForUser(context, cal, selectedCity)
         
         val nextName = times.nextPrayerName
         val nextTime = times.nextPrayerTimeFormatted
@@ -231,7 +216,7 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
             id = "azkar",
             titleKey = "الأذكار وحصن المسلم",
             subtitleKey = "أذكار الصباح والمساء واليوم",
-            descKey = "الأدعية المأثورة الموثقة مع عداد سبحة تفاعلي وتنبيهات أوقات الاستجابة.",
+            descKey = "الأدعية المأثورة الموثقة مع عداد سبحة تفاعلي.",
             badgeKey = "أذكار مأثورة",
             categoryKey = "العبادات والمواقيت",
             icon = Icons.Default.AutoAwesome,
@@ -298,8 +283,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _recentDesign = MutableStateFlow<HadithCardEntity?>(null)
     val recentDesign = _recentDesign.asStateFlow()
 
-    private val _latestChangelogs = MutableStateFlow<List<ChangelogEntity>>(emptyList())
-    val latestChangelogs = _latestChangelogs.asStateFlow()
 
     private fun updateDynamicStats() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -317,7 +300,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
 
             // Latest changelogs
             val logs = db.changelogDao().getAllChangelogs()
-            _latestChangelogs.value = logs.take(3)
 
             // سجل التحديث الذي أضفته (Record the update added)
             if (logs.none { it.versionName == "1.2.6" }) {
@@ -349,9 +331,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), sections)
 
-    val groupedSections = filteredSections.map { list ->
-        list.groupBy { it.categoryKey }.toList()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val curatedAyahs = listOf(
         QuranAyahWithTafsir(
@@ -449,14 +428,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
     private val _autoRotateProgress = MutableStateFlow(0f)
     val autoRotateProgress = _autoRotateProgress.asStateFlow()
 
-    val spiritualPearls = listOf(
-        SpiritualPearl(
-            typeKey = "آية قرآنية",
-            text = "إِنَّ هَٰذَا الْقُرْآنَ يَهْدِي لِلَّتِي هِيَ أَقْوَمُ وَيُبَشِّرُ الْمُؤْمِنِينَ الَّذِينَ يَعْمَلُونَ الصَّالِحَاتِ أَنَّ لَهُمْ أَجْرًا كَبِيرًا",
-            source = "سورة الإسراء • آية 9",
-            benefit = "القرآن هو البوصلة الإلهية الكاملة لتهذيب النفس ورشاد الحياة وبشارة الصالحين."
-        )
-    )
 
     init {
         viewModelScope.launch {
@@ -530,7 +501,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         }
 
         _currentAyah.value = next
-        _currentPearlIndex.value++
     }
 
     fun toggleAutoRotate() {
@@ -539,10 +509,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
-    }
-
-    fun updateCategoryFilter(categoryKey: String) {
-        _selectedCategoryKey.value = categoryKey
     }
 
     fun toggleViewMode() {
@@ -570,20 +536,8 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun setTasbeehCount(count: Int) {
-        val safe = count.coerceAtLeast(0)
-        _tasbeehCount.value = safe
-        prefs.edit().putInt("mishkat_tasbeeh_count", safe).apply()
-    }
-
-    fun nextPearl() {
-        _currentPearlIndex.value++
-    }
-
     private fun calculateHijriDate(timeMillis: Long): HijriDateInfo {
         val cal = Calendar.getInstance().apply { timeInMillis = timeMillis }
-        val gregorianFormat = SimpleDateFormat("d MMMM yyyy", Locale(Translator.currentLanguage))
-        val gregStr = gregorianFormat.format(cal.time)
 
         val day = cal.get(Calendar.DAY_OF_MONTH)
         val month = cal.get(Calendar.MONTH) + 1
@@ -617,6 +571,6 @@ class HasanatHubViewModel(application: Application) : AndroidViewModel(applicati
         val hMonthName = Translator.tr(hijriMonthsAr.getOrElse(hijriMonth - 1) { "رمضان" })
         val hijriStr = "$hijriDay $hMonthName $hijriYear ${Translator.tr("هـ")}"
 
-        return HijriDateInfo(hijriStr, gregStr)
+        return HijriDateInfo(hijriStr)
     }
 }

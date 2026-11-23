@@ -6,7 +6,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -114,12 +113,10 @@ fun WalletAndTasksTab(
                     !it.status.equals("DRAFT", ignoreCase = true) && !it.status.contains("مسودة")
                 }
             }
-        }.getOrDefault(0).coerceAtLeast(accountService.dailyVideoCount)
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrDefault(0).coerceAtLeast(accountService.dailyVideoCount)
         completedExportCount = count
     }
     var exportRewardClaimed by remember { mutableStateOf(prefs.getBoolean("reward_task_export_claimed", false)) }
-    var inviteCount by remember { mutableIntStateOf(prefs.getInt("reward_task_invite_count", 0)) }
-    var rateRewardClaimed by remember { mutableStateOf(prefs.getBoolean("reward_task_rate_claimed", false)) }
 
     LazyColumn(
         modifier = Modifier
@@ -252,17 +249,17 @@ fun WalletAndTasksTab(
         item {
             AppleGroupedSection(
                 header = "مهام الإنجاز",
-                footer = "تُحتسب المهام بناءً على نشاطك الفعلي في تصدير المقاطع ومشاركة التطبيق."
+                footer = "تُحتسب المهام بناءً على نشاطك الفعلي في إنشاء المقاطع وتسجيل الدخول اليومي؛ ولا تُمنح نقاط لأفعال لا يمكن التحقق منها كالمشاركة والتقييم."
             ) {
                 val exportReady = completedExportCount > 0 && !exportRewardClaimed
                 TaskRow(
-                    title = "تصدير فيديو نهائي",
+                    title = "إنشاء فيديو",
                     points = "+50",
                     icon = Icons.Default.MovieCreation,
                     status = when {
                         exportRewardClaimed -> "تم التحصيل ✓"
                         completedExportCount > 0 -> "جاهز للاستلام ($completedExportCount/1)"
-                        else -> "أنشئ وصدّر مقطعاً أولاً ($completedExportCount/1)"
+                        else -> "أنشئ مقطعاً أولاً ($completedExportCount/1)"
                     },
                     actionLabel = if (exportReady) "استلام" else null,
                     onClick = {
@@ -274,19 +271,22 @@ fun WalletAndTasksTab(
                             onBalanceChange(updated)
                             Toast.makeText(context, "تم إضافة 50 نقطة إلى رصيدك", Toast.LENGTH_SHORT).show()
                         } else if (!exportRewardClaimed) {
-                            Toast.makeText(context, "قم بتصدير مشروع واحد من الاستوديو أولاً", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "أنشئ مقطعاً من الاستوديو أولاً", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )
 
                 AppleInsetDivider()
 
+                // دعوة صديق: مشاركة بلا نقاط — فتح نافذة المشاركة لا يثبت
+                // دعوة أحد ولا تثبيته، فسكّ 20 نقطة على مجرد فتحها كان
+                // يمنح رصيداً قابلاً للصرف (100 نقطة بخمس نقرات) بلا فعل.
                 TaskRow(
                     title = "دعوة صديق لتطبيق خادم المسلم",
-                    points = "+20",
+                    points = "—",
                     icon = Icons.Default.PersonAdd,
-                    status = "تمت الدعوة ${inviteCount.coerceAtMost(5)}/5",
-                    actionLabel = if (inviteCount < 5) "دعوة" else null,
+                    status = "شارك التطبيق مع أصدقائك",
+                    actionLabel = "دعوة",
                     onClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
@@ -297,25 +297,20 @@ fun WalletAndTasksTab(
                         }
                         runCatching {
                             context.startActivity(Intent.createChooser(shareIntent, "دعوة صديق إلى خادم المسلم"))
-                            if (inviteCount < 5) {
-                                inviteCount += 1
-                                prefs.edit().putInt("reward_task_invite_count", inviteCount).apply()
-                                val updated = accountService.walletBalance + 20
-                                accountService.walletBalance = updated
-                                onBalanceChange(updated)
-                            }
                         }
                     }
                 )
 
                 AppleInsetDivider()
 
+                // تقييم المتجر: بلا نقاط أيضاً — فتح صفحة المتجر لا يثبت
+                // كتابة مراجعة (لا واجهة للتحقق)، فكان +100 نقطة على نقرة.
                 TaskRow(
                     title = "تقييم التطبيق على المتجر",
-                    points = "+100",
+                    points = "—",
                     icon = Icons.Default.Star,
-                    status = if (rateRewardClaimed) "شكراً لتقييمك خادم المسلم ✓" else "قيّم التطبيق في متجر Google Play",
-                    actionLabel = if (!rateRewardClaimed) "تقييم" else null,
+                    status = "قيّم التطبيق في متجر Google Play",
+                    actionLabel = "تقييم",
                     onClick = {
                         val uri = Uri.parse("market://details?id=${context.packageName}")
                         val webUri = Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}")
@@ -328,14 +323,7 @@ fun WalletAndTasksTab(
                                 true
                             }.getOrDefault(false)
                         }
-                        if (launched && !rateRewardClaimed) {
-                            prefs.edit().putBoolean("reward_task_rate_claimed", true).apply()
-                            rateRewardClaimed = true
-                            val updated = accountService.walletBalance + 100
-                            accountService.walletBalance = updated
-                            onBalanceChange(updated)
-                            Toast.makeText(context, "تم تسجيل المكافأة (+100 نقطة)", Toast.LENGTH_SHORT).show()
-                        } else if (!launched) {
+                        if (!launched) {
                             Toast.makeText(context, "تعذر فتح متجر التطبيقات على هذا الجهاز", Toast.LENGTH_SHORT).show()
                         }
                     }

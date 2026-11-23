@@ -4,17 +4,13 @@ import android.content.Context
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
  * مصدر وتوثيق مفتاح الـ API النشط
  */
 enum class KeySource(val label: String, val color: Color) {
-    BUILD_CONFIG("بيئة النظام (BuildConfig)", Color(0xFF38BDF8)),
     KEY_VAULT("التخزين المحلي (Prefs)", Color(0xFF10B981)),
     USER_INPUT("مدخل يدوي نشط", Color(0xFFE5B842)),
     NONE("غير متصل - يلزم إدخال المفتاح", Color(0xFFEF4444))
@@ -554,7 +550,10 @@ object AgentConnectivityEngine {
         architecturalPlan: String,
         model: String? = null,
         stream: Boolean = false,
-        onPartial: ((String) -> Unit)? = null
+        onPartial: ((String) -> Unit)? = null,
+        // (12.14) تتبع التكلفة + إيقاف عند الحد (يُمرَّر للتجاوز).
+        context: Context? = null,
+        missionTitle: String? = null
     ): Result<RealAgentResponse> = withContext(Dispatchers.IO) {
         val synthesisInstruction = """
             أنت مهندس برمجيات متخصص في نظام Android (Kotlin + Jetpack Compose + Material 3).
@@ -575,7 +574,9 @@ object AgentConnectivityEngine {
             fallbackSingleKey = apiKey,
             model = model,
             stream = stream,
-            onPartial = onPartial
+            onPartial = onPartial,
+            context = context,
+            missionTitle = missionTitle
         )
     }
 }

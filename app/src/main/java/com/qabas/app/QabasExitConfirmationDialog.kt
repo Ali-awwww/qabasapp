@@ -2,7 +2,6 @@ package com.qabas.app
 
 import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
@@ -12,7 +11,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -133,7 +130,7 @@ fun QabasExitConfirmationDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF020617).copy(alpha = 0.82f))
+                .background(DeepSlate.copy(alpha = 0.82f))
                 .padding(18.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -141,10 +138,10 @@ fun QabasExitConfirmationDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .widthIn(max = 430.dp)
-                    .shadow(24.dp, RoundedCornerShape(26.dp), spotColor = GoldPrimary.copy(alpha = 0.35f)),
+                    .shadow(24.dp, RoundedCornerShape(26.dp), spotColor = PresetPrimary.copy(alpha = 0.35f)),
                 shape = RoundedCornerShape(26.dp),
-                backgroundColor = Color(0xFF090E1D).copy(alpha = 0.96f),
-                borderColor = GoldPrimary.copy(alpha = borderGlow * 0.7f)
+                backgroundColor = DeepSlate.copy(alpha = 0.96f),
+                borderColor = PresetPrimary.copy(alpha = borderGlow * 0.7f)
             ) {
                 Column(
                     modifier = Modifier
@@ -166,16 +163,16 @@ fun QabasExitConfirmationDialog(
                                     .clip(CircleShape)
                                     .background(
                                         Brush.radialGradient(
-                                            listOf(GoldPrimary.copy(alpha = 0.25f), Color(0xFF0B132B))
+                                            listOf(PresetPrimary.copy(alpha = 0.25f), DeepSlate)
                                         )
                                     )
-                                    .border(1.5.dp, GoldPrimary.copy(alpha = 0.6f), CircleShape),
+                                    .border(1.5.dp, PresetPrimary.copy(alpha = 0.6f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Default.PowerSettingsNew,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -183,14 +180,14 @@ fun QabasExitConfirmationDialog(
                             Column {
                                 Text(
                                     "إيقاف تشغيل مصفوفة خادم المسلم",
-                                    color = Color.White,
+                                    color = TextPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Black,
                                     fontSize = 16.sp
                                 )
                                 Text(
                                     "﴿ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ ﴾",
-                                    color = GoldPrimary,
+                                    color = PresetPrimary,
                                     fontFamily = AmiriFont,
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold
@@ -203,7 +200,7 @@ fun QabasExitConfirmationDialog(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF1E293B).copy(alpha = 0.6f))
+                                .background(ThemeSecondarySurface.copy(alpha = 0.6f))
                         ) {
                             Icon(
                                 Icons.Default.Close,
@@ -214,20 +211,20 @@ fun QabasExitConfirmationDialog(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                    HorizontalDivider(color = ThemeSecondarySurface, thickness = 1.dp)
 
                     // ── 2. بطاقة الذكر النورانية التفاعلية ──
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(18.dp),
-                        color = Color(0xFF030712),
+                        color = DeepSlate,
                         border = BorderStroke(
                             1.dp,
                             Brush.linearGradient(
                                 listOf(
-                                    GoldPrimary.copy(alpha = borderGlow * 0.7f),
-                                    Color(0xFF00E5FF).copy(alpha = 0.4f),
-                                    Color(0xFF10B981).copy(alpha = 0.5f)
+                                    PresetPrimary.copy(alpha = borderGlow * 0.7f),
+                                    PresetPrimary.copy(alpha = 0.4f),
+                                    ThemeSuccess.copy(alpha = 0.5f)
                                 )
                             )
                         )
@@ -244,9 +241,9 @@ fun QabasExitConfirmationDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
-                                    color = GoldPrimary.copy(alpha = 0.15f),
+                                    color = PresetPrimary.copy(alpha = 0.15f),
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.35f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -254,7 +251,7 @@ fun QabasExitConfirmationDialog(
                                     ) {
                                         Text(
                                             "✨ ${currentItem.title}",
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 11.sp
@@ -272,13 +269,13 @@ fun QabasExitConfirmationDialog(
                                     Icon(
                                         Icons.Default.Refresh,
                                         contentDescription = null,
-                                        tint = Color(0xFF00E5FF),
+                                        tint = PresetPrimary,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         "ذكر آخر 🔄",
-                                        color = Color(0xFF00E5FF),
+                                        color = PresetPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
@@ -297,7 +294,7 @@ fun QabasExitConfirmationDialog(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         text = "« ${item.text} »",
-                                        color = Color(0xFFF8FAFC),
+                                        color = TextPrimary,
                                         fontFamily = AmiriFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 17.sp,
@@ -308,7 +305,7 @@ fun QabasExitConfirmationDialog(
                                     if (item.fadl.isNotBlank()) {
                                         Text(
                                             text = "فضلُه: ${item.fadl}",
-                                            color = Color(0xFF10B981),
+                                            color = ThemeSuccess,
                                             fontFamily = CairoFont,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium,
@@ -333,7 +330,7 @@ fun QabasExitConfirmationDialog(
                                         Toast.makeText(context, "تم نسخ الذكر المبارك 📋 نفعك الله به", Toast.LENGTH_SHORT).show()
                                     },
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    border = BorderStroke(1.dp, ThemeSeparator),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                     modifier = Modifier.height(34.dp)
                                 ) {
@@ -363,10 +360,10 @@ fun QabasExitConfirmationDialog(
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF10B981).copy(alpha = 0.2f)
+                                        containerColor = ThemeSuccess.copy(alpha = 0.2f)
                                     ),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
+                                    border = BorderStroke(1.dp, ThemeSuccess.copy(alpha = 0.6f)),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                                     modifier = Modifier
                                         .height(34.dp)
@@ -379,7 +376,7 @@ fun QabasExitConfirmationDialog(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         if (tasbeehCount > 0) "سبّحت $tasbeehCount مرّات" else "تسبيحة سريعة 📿",
-                                        color = Color(0xFF10B981),
+                                        color = ThemeSuccess,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.5.sp
@@ -414,7 +411,7 @@ fun QabasExitConfirmationDialog(
                                 .testTag("dismiss_exit_dialog"),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = GoldPrimary
+                                containerColor = PresetPrimary
                             ),
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
                         ) {
@@ -446,20 +443,20 @@ fun QabasExitConfirmationDialog(
                                 .testTag("exit_app_button"),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFDC2626).copy(alpha = 0.22f)
+                                containerColor = ThemeDestructive.copy(alpha = 0.22f)
                             ),
-                            border = BorderStroke(1.2.dp, Color(0xFFEF4444).copy(alpha = 0.75f))
+                            border = BorderStroke(1.2.dp, ThemeDestructive.copy(alpha = 0.75f))
                         ) {
                             Icon(
                                 Icons.Default.PowerSettingsNew,
                                 contentDescription = null,
-                                tint = Color(0xFFEF4444),
+                                tint = ThemeDestructive,
                                 modifier = Modifier.size(17.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "إغلاق التطبيق نهائياً 🛑",
-                                color = Color(0xFFEF4444),
+                                color = ThemeDestructive,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp

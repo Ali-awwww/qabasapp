@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,15 +32,23 @@ import java.util.Locale
 import java.text.SimpleDateFormat
 
 
-private enum class TaskHistoryFilter(val label: String, val color: Color) {
-    ALL("الكل", GoldPrimary),
-    COMPLETED("تم بنجاح ✓", Color(0xFF10B981)),
-    FAILED("فشل ✗", Color(0xFFEF4444))
+private enum class TaskHistoryFilter(val label: String) {
+    ALL("الكل"),
+    COMPLETED("تم بنجاح ✓"),
+    FAILED("فشل ✗");
+
+    @Composable
+    fun color(): Color = when (this) {
+        ALL -> PresetPrimary
+        COMPLETED -> QabasTheme.current.success
+        FAILED -> QabasTheme.current.destructive
+    }
 }
 
 @Composable
 internal fun TaskHistoryLogTab(context: Context) {
     val clipboard = LocalClipboardManager.current
+    val theme = QabasTheme.current
     var runs by remember { mutableStateOf(AgentRunLog.load(context)) }
     var expandedTime by remember { mutableStateOf<Long?>(null) }
     var selectedFilter by remember { mutableStateOf(TaskHistoryFilter.ALL) }
@@ -87,15 +94,15 @@ internal fun TaskHistoryLogTab(context: Context) {
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xEE090F1F),
+                color = theme.background.copy(alpha = 0.93f),
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(
                     1.dp,
                     Brush.horizontalGradient(
                         listOf(
-                            Color(0xFF00F0FF).copy(alpha = 0.6f),
-                            Color(0xFF10B981).copy(alpha = 0.4f),
-                            Color(0xFF1E2D4A).copy(alpha = 0.5f)
+                            theme.primary.copy(alpha = 0.6f),
+                            theme.success.copy(alpha = 0.4f),
+                            theme.secondarySurface.copy(alpha = 0.5f)
                         )
                     )
                 )
@@ -112,12 +119,12 @@ internal fun TaskHistoryLogTab(context: Context) {
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF00F0FF))
+                                        .background(theme.primary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     "MISSION TELEMETRY LOG",
-                                    color = Color(0xFF00F0FF),
+                                    color = theme.primary,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -127,7 +134,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "سجل العمليات والمهام البرمجية المستقلة",
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.5.sp
@@ -144,7 +151,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = "مسح السجل", tint = Color(0xFFEF4444))
+                                Icon(Icons.Default.DeleteSweep, contentDescription = "مسح السجل", tint = theme.destructive)
                             }
                         }
                     }
@@ -163,9 +170,9 @@ internal fun TaskHistoryLogTab(context: Context) {
                             // كبسولة 1: تم بنجاح (COMPLETED)
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF041B13),
+                                color = theme.success.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, theme.success.copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -174,22 +181,22 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 ) {
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(theme.success))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("تم بنجاح", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("تم بنجاح", color = theme.success, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text("$okCount مهمة", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text("$okCount مهمة", color = theme.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = theme.success, modifier = Modifier.size(20.dp))
                                 }
                             }
 
                             // كبسولة 2: إجمالي العمليات المسجلة
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF05182C),
+                                color = theme.primary.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -198,13 +205,13 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 ) {
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(theme.primary))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("إجمالي العمليات", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("إجمالي العمليات", color = theme.primary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text("$totalCount عملية", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text("$totalCount عملية", color = theme.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.History, contentDescription = null, tint = theme.primary, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -217,9 +224,9 @@ internal fun TaskHistoryLogTab(context: Context) {
                             // كبسولة 3: أخطاء (FAILED)
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF22080D),
+                                color = theme.destructive.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -228,22 +235,22 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 ) {
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFEF4444)))
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(theme.destructive))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("أخطاء", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("أخطاء", color = theme.destructive, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text("$failCount خطأ", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        Text("$failCount خطأ", color = theme.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(20.dp))
                                 }
                             }
 
                             // كبسولة 4: معدل الإنجاز (SUCCESS RATE)
                             Surface(
                                 modifier = Modifier.weight(1f),
-                                color = Color(0xFF1A1505),
+                                color = theme.gold.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
+                                border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -252,13 +259,13 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 ) {
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(GoldPrimary))
+                                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(PresetPrimary))
                                             Spacer(modifier = Modifier.width(5.dp))
-                                            Text("نسبة الإنجاز", color = GoldPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("نسبة الإنجاز", color = PresetPrimary, fontFamily = CairoFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
-                                        Text(successRate, color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("agent_history_success_rate"))
+                                        Text(successRate, color = theme.textPrimary, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("agent_history_success_rate"))
                                     }
-                                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.TrendingUp, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -276,21 +283,21 @@ internal fun TaskHistoryLogTab(context: Context) {
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("ابحث في سجل المهام أو الأدوات...", color = Color(0xFF64748B), fontSize = 12.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp)) },
+                    placeholder = { Text("ابحث في سجل المهام أو الأدوات...", color = theme.textTertiary, fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp)) },
                     trailingIcon = {
                         if (searchQuery.isNotBlank()) {
                             IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Close, contentDescription = null, tint = theme.textSecondary, modifier = Modifier.size(14.dp))
                             }
                         }
                     },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 12.sp, color = Color.White),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = CairoFont, fontSize = 12.sp, color = theme.textPrimary),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF060B16),
-                        unfocusedContainerColor = Color(0xFF060B16),
-                        focusedBorderColor = Color(0xFF00F0FF),
-                        unfocusedBorderColor = Color(0xFF1E2D4A)
+                        focusedContainerColor = theme.background,
+                        unfocusedContainerColor = theme.background,
+                        focusedBorderColor = theme.primary,
+                        unfocusedBorderColor = theme.secondarySurface
                     ),
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true
@@ -309,21 +316,21 @@ internal fun TaskHistoryLogTab(context: Context) {
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { selectedFilter = filter },
-                            color = if (isSelected) filter.color.copy(alpha = 0.18f) else Color(0xFF060B16),
+                            color = if (isSelected) filter.color().copy(alpha = 0.18f) else theme.background,
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, if (isSelected) filter.color else Color(0xFF1E2D4A))
+                            border = BorderStroke(1.dp, if (isSelected) filter.color() else theme.secondarySurface)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (isSelected) {
-                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(filter.color))
+                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(filter.color()))
                                     Spacer(modifier = Modifier.width(5.dp))
                                 }
                                 Text(
                                     filter.label,
-                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                    color = if (isSelected) theme.textPrimary else theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 12.sp
@@ -341,21 +348,21 @@ internal fun TaskHistoryLogTab(context: Context) {
         if (filteredRuns.isEmpty()) {
             item {
                 Surface(
-                    color = Color(0xDD080E1C),
+                    color = theme.background.copy(alpha = 0.87f),
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                    border = BorderStroke(1.dp, theme.secondarySurface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Default.AssignmentLate, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(36.dp))
+                        Icon(Icons.Default.AssignmentLate, contentDescription = null, tint = theme.textTertiary, modifier = Modifier.size(36.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             if (runs.isEmpty()) "لا توجد مهام مسجلة حتى الآن."
                             else "لا توجد نتائج تطابق خيارات التصفية والبحث الحالية.",
-                            color = Color(0xFFCBD5E1),
+                            color = theme.textPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.5.sp,
@@ -364,7 +371,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "يمكنك تشغيل مهمة جديدة من تبويب «[01] ⚡ التشغيل المباشر» لتسجيلها ومتابعتها هنا تلقائياً.",
-                            color = Color(0xFF64748B),
+                            color = theme.textTertiary,
                             fontFamily = CairoFont,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -376,8 +383,8 @@ internal fun TaskHistoryLogTab(context: Context) {
         } else {
             items(filteredRuns) { run ->
                 val isOk = run.ok
-                val statusColor = if (isOk) Color(0xFF10B981) else Color(0xFFEF4444)
-                val statusBg = if (isOk) Color(0xFF041610) else Color(0xFF1D060A)
+                val statusColor = if (isOk) theme.success else theme.destructive
+                val statusBg = if (isOk) theme.success.copy(alpha = 0.12f) else theme.destructive.copy(alpha = 0.12f)
                 val statusLabel = if (isOk) "مكتمل ✓" else "فشل ✗"
                 val statusIcon = if (isOk) Icons.Default.CheckCircle else Icons.Default.ErrorOutline
                 val isExpanded = expandedTime == run.time
@@ -413,7 +420,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 Column {
                                     Text(
                                         run.title,
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.5.sp,
@@ -422,7 +429,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                     )
                                     Text(
                                         SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.US).format(Date(run.time)),
-                                        color = Color(0xFF64748B),
+                                        color = theme.textTertiary,
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 12.sp
                                     )
@@ -461,7 +468,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                     Icon(
                                         Icons.Default.DeleteOutline,
                                         contentDescription = "حذف هذه الجولة",
-                                        tint = Color(0xFFEF4444).copy(alpha = 0.8f),
+                                        tint = theme.destructive.copy(alpha = 0.8f),
                                         modifier = Modifier.size(15.dp)
                                     )
                                 }
@@ -469,7 +476,7 @@ internal fun TaskHistoryLogTab(context: Context) {
                                 Icon(
                                     if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                     contentDescription = null,
-                                    tint = GoldPrimary,
+                                    tint = PresetPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -486,13 +493,13 @@ internal fun TaskHistoryLogTab(context: Context) {
                             ) {
                                 run.tools.forEach { t ->
                                     Surface(
-                                        color = Color(0xFF0D1527),
+                                        color = theme.secondarySurface,
                                         shape = RoundedCornerShape(4.dp),
-                                        border = BorderStroke(0.5.dp, Color(0xFF1E2D4A))
+                                        border = BorderStroke(0.5.dp, theme.secondarySurface)
                                     ) {
                                         Text(
                                             t,
-                                            color = Color(0xFF94A3B8),
+                                            color = theme.textSecondary,
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 12.sp,
                                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
@@ -505,20 +512,20 @@ internal fun TaskHistoryLogTab(context: Context) {
                         // التفاصيل الموسعة عند الضغط على البطاقة
                         if (isExpanded) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(color = Color(0xFF1E2D4A).copy(alpha = 0.6f))
+                            HorizontalDivider(color = theme.secondarySurface.copy(alpha = 0.6f))
                             Spacer(modifier = Modifier.height(8.dp))
 
                             if (run.summary.isNotBlank()) {
-                                Text("ملخص نتيجة العملية:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("ملخص نتيجة العملية:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Surface(
-                                    color = Color(0xFF030712),
+                                    color = theme.background,
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         run.summary,
-                                        color = Color(0xFFCBD5E1),
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 12.sp,
                                         lineHeight = 16.sp,
@@ -529,17 +536,17 @@ internal fun TaskHistoryLogTab(context: Context) {
 
                             if (!run.ok && run.error.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("نص الخطأ التشخيصي (Diagnostic Error):", color = Color(0xFFEF4444), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("نص الخطأ التشخيصي (Diagnostic Error):", color = theme.destructive, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Surface(
-                                    color = Color(0xFF030712),
+                                    color = theme.background,
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                    border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.5f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         run.error,
-                                        color = Color(0xFFFCA5A5),
+                                        color = theme.destructive,
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 12.sp,
                                         modifier = Modifier.padding(8.dp)
@@ -567,15 +574,15 @@ internal fun TaskHistoryLogTab(context: Context) {
                                         clipboard.setText(AnnotatedString(text))
                                         Toast.makeText(context, "تم نسخ تقرير المهمة إلى الحافظة 📋", Toast.LENGTH_SHORT).show()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF152238)),
-                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.secondarySurface),
+                                    border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                     modifier = Modifier.height(30.dp)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("نسخ التقرير 📋", color = Color.White, fontFamily = CairoFont, fontSize = 12.sp)
+                                    Text("نسخ التقرير 📋", color = theme.textPrimary, fontFamily = CairoFont, fontSize = 12.sp)
                                 }
                             }
                         }

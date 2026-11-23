@@ -362,7 +362,7 @@ object ReelPublishManager {
                             ) { sent, total -> onBytesProgress(sent, total, UploadPhase.THUMB) }
                         tmpThumb.delete()
                         url
-                    }.getOrNull()?.let { finalThumbUrl = it }
+                    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()?.let { finalThumbUrl = it }
                     // فشل الغلاف لا يُسقط النشر — يُكمل بدونه
                 }
             }
@@ -431,7 +431,7 @@ object ReelPublishManager {
                 publishType = if (publishAsSilentSeed) "injection" else "normal",
                 aspectRatio = aspectRatio
             )
-        }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
 
         val savedReel = savedReelResult.getOrNull()
         if (savedReel == null) {
@@ -517,14 +517,6 @@ object ReelPublishManager {
     }
 
     /**
-     * [صلاحية خاصة للمطور] حذف أي مقطع من سحابة Supabase مباشرة
-     */
-    suspend fun deleteReelAsDev(context: Context, email: String?, reelId: String): Boolean {
-        if (!isDeveloperUser(context, email)) return false
-        return SupabaseServices.Profiles.deleteReel(reelId)
-    }
-
-    /**
      * تحليل الفيديو باستخدام Gemini لاستخراج عنوان ووصف تلقائي
      */
     suspend fun analyzeVideoWithAI(context: Context, videoUri: Uri): Pair<String, String>? = withContext(Dispatchers.IO) {
@@ -557,7 +549,7 @@ object ReelPublishManager {
             val jsonText = response?.text ?: return@runCatching null
             val json = org.json.JSONObject(jsonText)
             Pair(json.getString("title"), json.getString("description"))
-        }.onFailure { Log.e(TAG, "AI analysis failed: ${it.message}") }.getOrNull()
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.onFailure { Log.e(TAG, "AI analysis failed: ${it.message}") }.getOrNull()
     }
 
     /**

@@ -4,7 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,12 +28,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -110,7 +107,6 @@ fun CameraCaptureScreen(
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var isRecording by remember { mutableStateOf(false) }
     var recordingDurationSec by remember { mutableIntStateOf(0) }
-    val isFrontCamera by remember { derivedStateOf { lensFacing == CameraSelector.LENS_FACING_FRONT } }
     var showGridLines by remember { mutableStateOf(true) }
 
     // Pulse animation for recording HUD
@@ -217,12 +213,12 @@ fun CameraCaptureScreen(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(DeepSlate.copy(alpha = 0.75f))
-                    .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape)
+                    .border(1.dp, PresetPrimary.copy(alpha = 0.4f), CircleShape)
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "رجوع",
-                    tint = GoldPrimary
+                    tint = PresetPrimary
                 )
             }
 
@@ -237,7 +233,7 @@ fun CameraCaptureScreen(
                     .border(
                         1.dp,
                         if (isRecording) Color.White.copy(alpha = 0.7f)
-                        else GoldPrimary.copy(alpha = 0.5f),
+                        else PresetPrimary.copy(alpha = 0.5f),
                         RoundedCornerShape(20.dp)
                     )
                     .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -277,13 +273,13 @@ fun CameraCaptureScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(if (isTorchEnabled) GoldPrimary else DeepSlate.copy(alpha = 0.75f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape)
+                        .background(if (isTorchEnabled) PresetPrimary else DeepSlate.copy(alpha = 0.75f))
+                        .border(1.dp, PresetPrimary.copy(alpha = 0.4f), CircleShape)
                 ) {
                     Icon(
                         if (isTorchEnabled) Icons.Default.FlashOn else Icons.Default.FlashOff,
                         contentDescription = "الفلاش",
-                        tint = if (isTorchEnabled) DeepSlate else GoldPrimary
+                        tint = if (isTorchEnabled) DeepSlate else PresetPrimary
                     )
                 }
 
@@ -293,13 +289,13 @@ fun CameraCaptureScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(if (showGridLines) GoldPrimary.copy(alpha = 0.2f) else DeepSlate.copy(alpha = 0.75f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape)
+                        .background(if (showGridLines) PresetPrimary.copy(alpha = 0.2f) else DeepSlate.copy(alpha = 0.75f))
+                        .border(1.dp, PresetPrimary.copy(alpha = 0.4f), CircleShape)
                 ) {
                     Icon(
                         Icons.Default.GridOn,
                         contentDescription = "الشبكة",
-                        tint = if (showGridLines) GoldPrimary else Color.White.copy(alpha = 0.7f)
+                        tint = if (showGridLines) PresetPrimary else Color.White.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -320,7 +316,7 @@ fun CameraCaptureScreen(
                 modifier = Modifier
                     .clip(RoundedCornerShape(24.dp))
                     .background(DeepSlate.copy(alpha = 0.8f))
-                    .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+                    .border(1.dp, PresetPrimary.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -360,12 +356,12 @@ fun CameraCaptureScreen(
                         .size(52.dp)
                         .clip(CircleShape)
                         .background(DeepSlate.copy(alpha = 0.85f))
-                        .border(1.2.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
+                        .border(1.2.dp, PresetPrimary.copy(alpha = 0.5f), CircleShape)
                 ) {
                     Icon(
                         Icons.Default.FlipCameraAndroid,
                         contentDescription = "قلب الكاميرا",
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(26.dp)
                     )
                 }
@@ -378,7 +374,7 @@ fun CameraCaptureScreen(
                         .background(
                             Brush.sweepGradient(
                                 if (isRecording) listOf(Color.Red, Color(0xFFEF4444), Color.Red)
-                                else listOf(GoldPrimary, Color(0xFF00E5FF), GoldPrimary)
+                                else listOf(PresetPrimary, Color(0xFF00E5FF), PresetPrimary)
                             )
                         )
                         .padding(4.dp)
@@ -389,7 +385,7 @@ fun CameraCaptureScreen(
                         .background(
                             if (isRecording) Color.Red
                             else if (captureMode == "PHOTO") Color.White
-                            else GoldPrimary
+                            else PresetPrimary
                         )
                         .clickable {
                             AppSoundManager.playClick()
@@ -464,12 +460,12 @@ fun CameraCaptureScreen(
                         .size(52.dp)
                         .clip(CircleShape)
                         .background(DeepSlate.copy(alpha = 0.85f))
-                        .border(1.2.dp, GoldPrimary.copy(alpha = 0.5f), CircleShape)
+                        .border(1.2.dp, PresetPrimary.copy(alpha = 0.5f), CircleShape)
                 ) {
                     Icon(
                         Icons.Default.Check,
                         contentDescription = "إتمام",
-                        tint = GoldPrimary,
+                        tint = PresetPrimary,
                         modifier = Modifier.size(26.dp)
                     )
                 }
@@ -487,7 +483,7 @@ private fun CameraModeTab(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) GoldPrimary else Color.Transparent)
+            .background(if (isSelected) PresetPrimary else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
@@ -541,39 +537,39 @@ private fun CameraPermissionDeniedView(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(GoldPrimary.copy(alpha = 0.15f))
-                    .border(1.5.dp, GoldPrimary, CircleShape),
+                    .background(PresetPrimary.copy(alpha = 0.15f))
+                    .border(1.5.dp, PresetPrimary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.CameraAlt,
                     contentDescription = null,
-                    tint = GoldPrimary,
+                    tint = PresetPrimary,
                     modifier = Modifier.size(40.dp)
                 )
             }
             Text(
                 "يلزم إذن الكاميرا للتصوير",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = CairoFont
             )
             Text(
                 "استوديو خادم المسلم يحتاج للوصول إلى الكاميرا لتسجيل الريلز الإيمانية والتقاط الصور للمصغرات.",
-                color = Color.White.copy(alpha = 0.7f),
+                color = TextSecondary,
                 fontSize = 14.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 fontFamily = NotoSansFont
             )
             Button(
                 onClick = onRequestPermission,
-                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
             ) {
                 Text("منح إذن الكاميرا ⚡", color = DeepSlate, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
             }
             TextButton(onClick = onBack) {
-                Text("العودة للخلف", color = Color.White.copy(alpha = 0.6f))
+                Text("العودة للخلف", color = TextTertiary)
             }
         }
     }

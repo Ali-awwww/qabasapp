@@ -87,7 +87,7 @@ fun UpdateNotificationDialog(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             shape = RoundedCornerShape(32.dp),
             backgroundColor = CardSurface.copy(alpha = 0.85f),
-            borderColor = if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.7f) else GoldPrimary.copy(alpha = 0.6f)
+            borderColor = if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.7f) else PresetPrimary.copy(alpha = 0.6f)
         ) {
             Column(
                 modifier = Modifier
@@ -106,12 +106,12 @@ fun UpdateNotificationDialog(
                             Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(if (update.isForce) Color(0xFFEF4444).copy(alpha = pulse) else GoldPrimary.copy(alpha = pulse))
+                                .background(if (update.isForce) Color(0xFFEF4444).copy(alpha = pulse) else PresetPrimary.copy(alpha = pulse))
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             if (update.isForce) "// تحديث إجباري مطلوب" else "// تحديث النظام متاح",
-                            color = if (update.isForce) Color(0xFFEF4444) else GoldPrimary.copy(alpha = 0.9f),
+                            color = if (update.isForce) Color(0xFFEF4444) else PresetPrimary.copy(alpha = 0.9f),
                             fontSize = 10.sp,
                             fontFamily = RobotoMonoFont,
                             fontWeight = FontWeight.Bold,
@@ -141,14 +141,14 @@ fun UpdateNotificationDialog(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.15f) else GoldPrimary.copy(alpha = 0.15f))
-                        .border(1.5.dp, if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.5f) else GoldPrimary.copy(alpha = 0.5f), CircleShape),
+                        .background(if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.15f) else PresetPrimary.copy(alpha = 0.15f))
+                        .border(1.5.dp, if (update.isForce) Color(0xFFEF4444).copy(alpha = 0.5f) else PresetPrimary.copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.SystemUpdate,
                         contentDescription = null,
-                        tint = if (update.isForce) Color(0xFFEF4444) else GoldPrimary,
+                        tint = if (update.isForce) Color(0xFFEF4444) else PresetPrimary,
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -156,7 +156,7 @@ fun UpdateNotificationDialog(
                 // Title & Description
                 Text(
                     if (update.isForce) "تحديث أمني هامة" else "إصدار جديد متوفر",
-                    color = if (update.isForce) Color(0xFFEF4444) else GoldPrimary,
+                    color = if (update.isForce) Color(0xFFEF4444) else PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
@@ -188,7 +188,7 @@ fun UpdateNotificationDialog(
                     ) {
                         Text(
                             "ما الجديد في هذا الإصدار:",
-                            color = GoldSecondary,
+                            color = PresetAccent,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CairoFont
@@ -210,7 +210,7 @@ fun UpdateNotificationDialog(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White.copy(alpha = 0.045f))
-                        .border(1.dp, GoldPrimary.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
+                        .border(1.dp, PresetPrimary.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
                         .clickable { buildDetailsExpanded = !buildDetailsExpanded }
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -223,7 +223,7 @@ fun UpdateNotificationDialog(
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 "تفاصيل الإصدار",
-                                color = GoldSecondary,
+                                color = PresetAccent,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -237,7 +237,7 @@ fun UpdateNotificationDialog(
                         }
                         Text(
                             if (buildDetailsExpanded) "إخفاء ▲" else "عرض التفاصيل ▼",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -266,7 +266,7 @@ fun UpdateNotificationDialog(
                                     },
                                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                 ) {
-                                    Text("فتح تفاصيل الـ Commit ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                    Text("فتح تفاصيل الـ Commit ↗", color = PresetPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                                 }
                             }
                             Row(
@@ -278,9 +278,9 @@ fun UpdateNotificationDialog(
                                         onClick = { openBuildLink(update.workflowRunUrl) },
                                         modifier = Modifier.weight(1f),
                                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                                     ) {
-                                        Text("سجل البناء ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                        Text("سجل البناء ↗", color = PresetPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                                     }
                                 }
                                 if (update.releaseUrl != null) {
@@ -288,9 +288,9 @@ fun UpdateNotificationDialog(
                                         onClick = { openBuildLink(update.releaseUrl) },
                                         modifier = Modifier.weight(1f),
                                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.4f))
                                     ) {
-                                        Text("صفحة الإصدار ↗", color = GoldPrimary, fontFamily = CairoFont, fontSize = 10.sp)
+                                        Text("صفحة الإصدار ↗", color = PresetPrimary, fontFamily = CairoFont, fontSize = 10.sp)
                                     }
                                 }
                             }
@@ -320,7 +320,7 @@ fun UpdateNotificationDialog(
                             onClick = onInstallDelta,
                             modifier = Modifier.fillMaxWidth().height(54.dp),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary)
                         ) {
                             Icon(Icons.Default.CloudDownload, contentDescription = null, tint = DeepSlate)
                             Spacer(Modifier.width(8.dp))
@@ -363,7 +363,7 @@ fun UpdateNotificationDialog(
                                     .weight(1.5f)
                                     .height(50.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(Brush.horizontalGradient(listOf(GoldPrimary, GoldSecondary)))
+                                    .background(Brush.horizontalGradient(listOf(PresetPrimary, PresetAccent)))
                                     .clickable(onClick = onInstallFull),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -453,7 +453,7 @@ fun UpdateProgressSection(
         ) {
             Text(
                 phaseLabel,
-                color = if (isPatching) GoldSecondary else TextSecondary,
+                color = if (isPatching) PresetAccent else TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = CairoFont,
                 fontWeight = if (isPatching) FontWeight.Bold else FontWeight.Normal,
@@ -464,7 +464,7 @@ fun UpdateProgressSection(
             if (isDeterminate) {
                 Text(
                     "${progress?.percent}%",
-                    color = GoldPrimary,
+                    color = PresetPrimary,
                     fontSize = 12.sp,
                     fontFamily = RobotoMonoFont,
                     fontWeight = FontWeight.Bold
@@ -499,7 +499,7 @@ fun UpdateProgressSection(
                         .align(Alignment.CenterStart)
                         .offset(x = 300.dp * offset)
                         .clip(CircleShape)
-                        .background(Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary, GoldSecondary)))
+                        .background(Brush.horizontalGradient(listOf(PresetAccent, PresetPrimary, PresetAccent)))
                 )
             } else if (progress != null) {
                 Box(
@@ -507,7 +507,7 @@ fun UpdateProgressSection(
                         .fillMaxWidth((progress.percent / 100f).coerceIn(0f, 1f))
                         .fillMaxHeight()
                         .clip(CircleShape)
-                        .background(Brush.horizontalGradient(listOf(GoldPrimary, GoldSecondary)))
+                        .background(Brush.horizontalGradient(listOf(PresetPrimary, PresetAccent)))
                 )
             }
         }
@@ -534,7 +534,7 @@ fun UpdateProgressSection(
                 ) {
                     Text(
                         "إخفاء والمتابعة في الخلفية ✕",
-                        color = GoldPrimary.copy(alpha = 0.85f),
+                        color = PresetPrimary.copy(alpha = 0.85f),
                         fontSize = 12.sp,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold

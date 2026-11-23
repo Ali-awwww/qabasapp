@@ -21,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -33,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import coil.size.Size
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -61,7 +59,6 @@ fun VideoSceneApprovalScreen(
     var playbackProgress by remember { mutableFloatStateOf(0f) }
     var currentSceneIndex by remember { mutableIntStateOf(0) }
     var isPlaying by remember { mutableStateOf(false) }
-    var isPreviewModeActive by remember { mutableStateOf(false) }
     var showTemplateDialog by remember { mutableStateOf(false) }
     var showAmbientDialog by remember { mutableStateOf(false) }
     var selectedTemplate by remember { mutableStateOf("الافتراضي") }
@@ -113,7 +110,7 @@ fun VideoSceneApprovalScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -147,18 +144,18 @@ fun VideoSceneApprovalScreen(
                         Translator.tr("عرض النتيجة"), 
                         fontFamily = CairoFont, 
                         fontWeight = FontWeight.Bold, 
-                        color = GoldPrimary, 
+                        color = PresetPrimary,
                         fontSize = 20.sp
                     ) 
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = PresetPrimary)
                     }
                 },
                 actions = {
                     IconButton(onClick = onAdvancedEdit) {
-                        Icon(Icons.Default.Tune, contentDescription = Translator.tr("تعديل متقدم"), tint = GoldPrimary)
+                        Icon(Icons.Default.Tune, contentDescription = Translator.tr("تعديل متقدم"), tint = PresetPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
@@ -208,7 +205,7 @@ fun VideoSceneApprovalScreen(
             if (showAmbientDialog) {
                 AlertDialog(
                     onDismissRequest = { showAmbientDialog = false },
-                    title = { Text(Translator.tr("الصوت المحيطي"), fontFamily = CairoFont, color = GoldPrimary) },
+                    title = { Text(Translator.tr("الصوت المحيطي"), fontFamily = CairoFont, color = PresetPrimary) },
                     text = {
                         Column {
                             listOf("بدون", "طبيعة وهدوء", "أجواء سينمائية", "نشاط وحيوية").forEach { sound ->
@@ -223,7 +220,7 @@ fun VideoSceneApprovalScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(sound, color = if (ambientSound == sound) GoldPrimary else TextPrimary, fontFamily = CairoFont)
+                                    Text(sound, color = if (ambientSound == sound) PresetPrimary else TextPrimary, fontFamily = CairoFont)
                                 }
                             }
                         }
@@ -246,7 +243,7 @@ fun VideoSceneApprovalScreen(
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         modifier = Modifier.tabIndicatorOffset(tabPositions[scenesByVariant.keys.indexOf(selectedVariant).coerceAtLeast(0)]),
-                        color = GoldPrimary,
+                        color = PresetPrimary,
                         height = 3.dp
                     )
                 }
@@ -263,7 +260,7 @@ fun VideoSceneApprovalScreen(
                         text = { 
                             Text(
                                 title, 
-                                color = if (selectedVariant == title) GoldPrimary else TextSecondary, 
+                                color = if (selectedVariant == title) PresetPrimary else TextSecondary,
                                 fontFamily = CairoFont, 
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -359,30 +356,30 @@ fun VideoSceneApprovalScreen(
                         OutlinedButton(
                             onClick = { showTemplateDialog = true },
                             modifier = Modifier.fillMaxSize(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                             shape = CutCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.Palette, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(Translator.tr("القالب"), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                         }
-                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.15f))
+                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.15f))
                     }
 
                     Box(modifier = Modifier.weight(1f).height(52.dp)) {
                         OutlinedButton(
                             onClick = { showAmbientDialog = true },
                             modifier = Modifier.fillMaxSize(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPrimary),
-                            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PresetPrimary),
+                            border = BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.5f)),
                             shape = CutCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(Translator.tr("الصوت"), fontFamily = CairoFont, fontWeight = FontWeight.SemiBold)
                         }
-                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.15f))
+                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.15f))
                     }
                 }
 
@@ -396,7 +393,7 @@ fun VideoSceneApprovalScreen(
                     contentPadding = PaddingValues(0.dp),
                     shape = CutCornerShape(12.dp)
                 ) {
-                    val goldGradient = Brush.horizontalGradient(listOf(GoldSecondary, GoldPrimary))
+                    val goldGradient = Brush.horizontalGradient(listOf(PresetAccent, PresetPrimary))
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -442,7 +439,7 @@ fun VideoPlayerView(
             .aspectRatio(16f / 9f)
             .clip(CutCornerShape(12.dp))
             .background(Color.Black)
-            .border(2.dp, GoldPrimary.copy(alpha = 0.5f), CutCornerShape(12.dp))
+            .border(2.dp, PresetPrimary.copy(alpha = 0.5f), CutCornerShape(12.dp))
     ) {
         if (activeScene != null) {
             AnimatedContent(
@@ -457,7 +454,9 @@ fun VideoPlayerView(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(scene.mediaUrl)
                             .crossfade(true)
-                            .size(Size.ORIGINAL)
+                            // بلا Size.ORIGINAL: كان يُفك ترميز الصورة بدقتها
+                            // الكاملة (قد تكون 4K) لمعاينة 16:9 صغيرة؛ الافتراضي
+                            // يحجّم Coil لقيود العرض الفعلي.
                             .build(),
                         contentDescription = "Scene Background",
                         modifier = Modifier
@@ -487,7 +486,7 @@ fun VideoPlayerView(
                     ) {
                         Text(
                             text = scene.title,
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontSize = 18.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
@@ -527,8 +526,8 @@ fun VideoPlayerView(
                     onValueChange = onSeek,
                     valueRange = 0f..(if (totalDuration > 0) totalDuration else 1f),
                     colors = SliderDefaults.colors(
-                        thumbColor = GoldPrimary,
-                        activeTrackColor = GoldPrimary,
+                        thumbColor = PresetPrimary,
+                        activeTrackColor = PresetPrimary,
                         inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                     ),
                     modifier = Modifier
@@ -559,12 +558,12 @@ fun VideoPlayerView(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
-                                .background(GoldPrimary.copy(alpha = 0.2f))
+                                .background(PresetPrimary.copy(alpha = 0.2f))
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (isPlaying) Translator.tr("إيقاف مؤقت") else Translator.tr("تشغيل"),
-                                tint = GoldPrimary,
+                                tint = PresetPrimary,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -618,7 +617,7 @@ fun ScenesTimeline(
                         .clip(CutCornerShape(8.dp))
                         .border(
                             2.dp,
-                            if (isSelected) GoldPrimary else Color.Transparent,
+                            if (isSelected) PresetPrimary else Color.Transparent,
                             CutCornerShape(8.dp)
                         )
                         .clickable { onSceneSelected(index) }
@@ -671,7 +670,7 @@ fun TasteFeedbackSection(
         backgroundColor = CardSurface.copy(alpha = 0.85f),
         borderColor = Color(0xFF1E293B)
     ) {
-        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.1f))
+        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.1f))
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -681,7 +680,7 @@ fun TasteFeedbackSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     Translator.tr("ما رأيك في النتيجة؟"), 

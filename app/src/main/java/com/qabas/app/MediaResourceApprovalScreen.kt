@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -78,8 +77,9 @@ fun MediaResourceApprovalScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val goldGradient = Brush.horizontalGradient(colors = listOf(GoldSecondary, GoldPrimary))
-    val glassGradient = Brush.verticalGradient(colors = listOf(Color(0xFF1A2233), Color(0xFF0D1320)))
+    val theme = QabasTheme.current
+    val goldGradient = Brush.horizontalGradient(colors = listOf(PresetAccent, PresetPrimary))
+    val glassGradient = Brush.verticalGradient(colors = listOf(theme.cardSurface, theme.background))
 
     var fetchedBRoll by remember { mutableStateOf<List<FetchedMedia>>(emptyList()) }
     var isFetching by remember { mutableStateOf(false) }
@@ -163,11 +163,11 @@ fun MediaResourceApprovalScreen(
                             )
                         )
                     }
-                } catch (_: Exception) {}
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
             }
             fetchedBRoll = results
             acceptedIds = results.map { it.id }.toSet()
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             fetchError = e.message
         } finally {
             isFetching = false
@@ -176,10 +176,10 @@ fun MediaResourceApprovalScreen(
     }
 
     fun sourceColor(source: String): Color = when (source) {
-        "Pexels" -> Color(0xFF34D399)
-        "Pixabay" -> Color(0xFF38BDF8)
-        "Mixkit" -> Color(0xFFA78BFA)
-        else -> GoldPrimary
+        "Pexels" -> theme.success
+        "Pixabay" -> theme.primary
+        "Mixkit" -> theme.accent
+        else -> PresetPrimary
     }
 
     fun commitAcceptedAndNext() {
@@ -203,7 +203,7 @@ fun MediaResourceApprovalScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // Spatial HUD Background
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryColor = GoldPrimary
+            val primaryColor = PresetPrimary
             val stepX = 50.dp.toPx()
             val stepY = 50.dp.toPx()
             val w = size.width
@@ -236,7 +236,7 @@ fun MediaResourceApprovalScreen(
                     Column {
                         Text(
                             Translator.tr("مراجعة الموارد"),
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold
                         )
@@ -253,19 +253,19 @@ fun MediaResourceApprovalScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = PresetPrimary)
                     }
                 },
                 actions = {
                     if (fetchedBRoll.isNotEmpty()) {
                         Surface(
-                            color = Color(0xFF0A1F12),
+                            color = theme.success.copy(alpha = 0.15f),
                             shape = CutCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34D399).copy(alpha = 0.5f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.success.copy(alpha = 0.5f))
                         ) {
                             Text(
                                 "${acceptedIds.size}/${fetchedBRoll.size}",
-                                color = Color(0xFF34D399),
+                                color = theme.success,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -279,8 +279,8 @@ fun MediaResourceApprovalScreen(
         },
         bottomBar = {
             Surface(
-                color = Color(0xFF0B0F19).copy(alpha = 0.97f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.25f)),
+                color = theme.cardSurface.copy(alpha = 0.97f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PresetPrimary.copy(alpha = 0.25f)),
                 shape = CutCornerShape(topStart = 16.dp, topEnd = 16.dp)
             ) {
                 Column(
@@ -296,14 +296,14 @@ fun MediaResourceApprovalScreen(
                         Icon(
                             if (totalAccepted > 0) Icons.Default.CheckCircle else Icons.Default.Info,
                             null,
-                            tint = if (totalAccepted > 0) Color(0xFF34D399) else TextSecondary,
+                            tint = if (totalAccepted > 0) theme.success else TextSecondary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             if (totalAccepted > 0) "${Translator.tr("جاهز")} • $totalAccepted ${Translator.tr("مورد")}"
                             else Translator.tr("اختر مورداً أو تابع بالمواد المحلية"),
-                            color = if (totalAccepted > 0) Color(0xFF34D399) else TextSecondary,
+                            color = if (totalAccepted > 0) theme.success else TextSecondary,
                             fontSize = 12.sp,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Medium
@@ -350,12 +350,12 @@ fun MediaResourceApprovalScreen(
             if (videoStyleAnalysis != null) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xEE081224),
+                    color = theme.cardSurface.copy(alpha = 0.93f),
                     shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00F0FF).copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, theme.primary.copy(alpha = 0.5f))
                 ) {
                     Box(modifier = Modifier.fillMaxWidth()) {
-                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = Color(0xFF00F0FF).copy(alpha = 0.2f))
+                        HudCornerDecor(modifier = Modifier.matchParentSize(), color = theme.primary.copy(alpha = 0.2f))
 
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(
@@ -364,11 +364,11 @@ fun MediaResourceApprovalScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = Color(0xFF00F0FF), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = theme.primary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         "الأسلوب المستنسخ الموجه للإنتاج:",
-                                        color = Color(0xFF00F0FF),
+                                        color = theme.primary,
                                         fontFamily = CairoFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
@@ -376,13 +376,13 @@ fun MediaResourceApprovalScreen(
                                 }
 
                                 Surface(
-                                    color = Color(0xFF0F3A2A),
+                                    color = theme.success.copy(alpha = 0.15f),
                                     shape = RoundedCornerShape(6.dp),
-                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, theme.success.copy(alpha = 0.6f))
                                 ) {
                                     Text(
                                         "مفعل للرندر ⚡",
-                                        color = Color(0xFF34D399),
+                                        color = theme.success,
                                         fontFamily = CairoFont,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
@@ -393,7 +393,7 @@ fun MediaResourceApprovalScreen(
 
                             Text(
                                 videoStyleAnalysis.detectedStyle.ifBlank { "أسلوب سينمائي مخصص" },
-                                color = Color.White,
+                                color = theme.textPrimary,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -401,13 +401,13 @@ fun MediaResourceApprovalScreen(
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Surface(
-                                    color = Color(0xFF131F33),
+                                    color = theme.cardSurface,
                                     shape = RoundedCornerShape(6.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text(
                                         "🎨 ${videoStyleAnalysis.dominantColors}",
-                                        color = Color(0xFFCBD5E1),
+                                        color = theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 9.5.sp,
                                         maxLines = 1,
@@ -417,13 +417,13 @@ fun MediaResourceApprovalScreen(
                                 }
 
                                 Surface(
-                                    color = Color(0xFF131F33),
+                                    color = theme.cardSurface,
                                     shape = RoundedCornerShape(6.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text(
                                         "⚡ ${videoStyleAnalysis.transitionSpeed}",
-                                        color = Color(0xFFCBD5E1),
+                                        color = theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 9.5.sp,
                                         maxLines = 1,
@@ -443,11 +443,11 @@ fun MediaResourceApprovalScreen(
                 title = Translator.tr("موارد من الإنترنت"),
                 trailing = {
                     when {
-                        isFetching -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = GoldPrimary)
+                        isFetching -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = PresetPrimary)
                         fetchedBRoll.isEmpty() -> null
                         else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             TextButton(onClick = { acceptedIds = fetchedBRoll.map { it.id }.toSet() }) {
-                                Text(Translator.tr("قبول الكل"), color = Color(0xFF34D399), fontSize = 12.sp)
+                                Text(Translator.tr("قبول الكل"), color = theme.success, fontSize = 12.sp)
                             }
                             TextButton(onClick = { acceptedIds = emptySet() }) {
                                 Text(Translator.tr("رفض الكل"), color = TextSecondary, fontSize = 12.sp)
@@ -468,7 +468,7 @@ fun MediaResourceApprovalScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(26.dp), strokeWidth = 2.5.dp, color = GoldPrimary)
+                        CircularProgressIndicator(modifier = Modifier.size(26.dp), strokeWidth = 2.5.dp, color = PresetPrimary)
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 Translator.tr("جارٍ جلب مواد مناسبة...") + " (${fetchedBRoll.size}/3)",
@@ -478,8 +478,8 @@ fun MediaResourceApprovalScreen(
                             )
                             LinearProgressIndicator(
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(CutCornerShape(4.dp)),
-                                color = GoldPrimary,
-                                trackColor = Color(0xFF1E293B)
+                                color = PresetPrimary,
+                                trackColor = theme.secondarySurface
                             )
                         }
                     }
@@ -487,11 +487,11 @@ fun MediaResourceApprovalScreen(
             }
 
             if (!isFetching && fetchError != null) {
-                GlassCard(borderColor = Color(0xFFF59E0B).copy(alpha = 0.4f)) {
+                GlassCard(borderColor = theme.warning.copy(alpha = 0.4f)) {
                     Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Warning, null, tint = theme.warning, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(Translator.tr("تعذر البحث — سيعمل التطبيق بمواد محلية"), color = Color(0xFFF59E0B), fontSize = 12.sp)
+                        Text(Translator.tr("تعذر البحث — سيعمل التطبيق بمواد محلية"), color = theme.warning, fontSize = 12.sp)
                     }
                 }
             }
@@ -529,9 +529,9 @@ fun MediaResourceApprovalScreen(
                         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                         border = androidx.compose.foundation.BorderStroke(
                             1.5.dp,
-                            if (isAccepted) Brush.horizontalGradient(listOf(Color(0xFF34D399), GoldPrimary))
-                                .let { Color(0xFF34D399).copy(alpha = 0.7f) }
-                            else Color(0xFF1E293B)
+                            if (isAccepted) Brush.horizontalGradient(listOf(theme.success, PresetPrimary))
+                                .let { theme.success.copy(alpha = 0.7f) }
+                            else theme.secondarySurface
                         ),
                         shape = CutCornerShape(12.dp)
                     ) {
@@ -544,7 +544,7 @@ fun MediaResourceApprovalScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Box(
-                                    modifier = Modifier.size(72.dp).clip(CutCornerShape(8.dp)).background(Color(0xFF1E293B)),
+                                    modifier = Modifier.size(72.dp).clip(CutCornerShape(8.dp)).background(theme.secondarySurface),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     AsyncImage(
@@ -554,13 +554,13 @@ fun MediaResourceApprovalScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                     Box(
-                                        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)),
+                                        modifier = Modifier.fillMaxSize().background(theme.background.copy(alpha = 0.25f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             Icons.Default.PlayCircle,
                                             null,
-                                            tint = Color.White.copy(alpha = 0.9f),
+                                            tint = theme.textPrimary.copy(alpha = 0.9f),
                                             modifier = Modifier.size(28.dp)
                                         )
                                     }
@@ -594,7 +594,7 @@ fun MediaResourceApprovalScreen(
                                         acceptedIds = if (checked) acceptedIds + media.id else acceptedIds - media.id
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF34D399),
+                                        checkedColor = theme.success,
                                         uncheckedColor = TextSecondary
                                     )
                                 )
@@ -604,7 +604,7 @@ fun MediaResourceApprovalScreen(
                 }
             }
 
-            HorizontalDivider(color = Color(0xFF1E293B))
+            HorizontalDivider(color = theme.secondarySurface)
 
             // ═══ مواردي ═══
             SectionHeader(
@@ -614,7 +614,7 @@ fun MediaResourceApprovalScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalButton(
                             onClick = { videoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = GoldPrimary.copy(alpha = 0.15f), contentColor = GoldPrimary)
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = PresetPrimary.copy(alpha = 0.15f), contentColor = PresetPrimary)
                         ) {
                             Icon(Icons.Default.Movie, null, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -622,7 +622,7 @@ fun MediaResourceApprovalScreen(
                         }
                         FilledTonalButton(
                             onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = GoldPrimary.copy(alpha = 0.15f), contentColor = GoldPrimary)
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = PresetPrimary.copy(alpha = 0.15f), contentColor = PresetPrimary)
                         ) {
                             Icon(Icons.Default.Image, null, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -652,18 +652,18 @@ fun MediaResourceApprovalScreen(
                                     )
                                 } else {
                                     Box(
-                                        modifier = Modifier.fillMaxWidth().height(84.dp).background(Color(0xFF1E293B)),
+                                        modifier = Modifier.fillMaxWidth().height(84.dp).background(theme.secondarySurface),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(resource.icon, null, tint = GoldPrimary, modifier = Modifier.size(30.dp))
+                                        Icon(resource.icon, null, tint = PresetPrimary, modifier = Modifier.size(30.dp))
                                     }
                                 }
                                 IconButton(
                                     onClick = { onRemoveResource(resource.id) },
                                     modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(26.dp)
-                                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                        .background(theme.background.copy(alpha = 0.6f), CircleShape)
                                 ) {
-                                    Icon(Icons.Default.Close, null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.Close, null, tint = theme.destructive, modifier = Modifier.size(14.dp))
                                 }
                             }
                             Text(
@@ -679,7 +679,7 @@ fun MediaResourceApprovalScreen(
                 }
             }
 
-            HorizontalDivider(color = Color(0xFF1E293B))
+            HorizontalDivider(color = theme.secondarySurface)
 
             // ═══ إعدادات (أكورديون مطوي) ═══
             GlassCard {
@@ -689,9 +689,9 @@ fun MediaResourceApprovalScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Tune, null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Tune, null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(Translator.tr("إعدادات الإنتاج"), color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(Translator.tr("إعدادات الإنتاج"), color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                     Icon(
                         if (settingsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -730,9 +730,9 @@ private fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(title, color = GoldPrimary, fontSize = 16.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+            Text(title, color = PresetPrimary, fontSize = 16.sp, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
         }
         Row(verticalAlignment = Alignment.CenterVertically, content = trailing)
     }
@@ -740,16 +740,18 @@ private fun SectionHeader(
 
 @Composable
 private fun GlassCard(
-    borderColor: Color = Color(0xFF1E293B),
+    borderColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val theme = QabasTheme.current
+    val resolvedBorderColor = borderColor ?: theme.cardBorder
     GlassmorphicSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = CutCornerShape(12.dp),
-        backgroundColor = Color(0xFF121A2A).copy(alpha = 0.85f),
-        borderColor = borderColor
+        backgroundColor = theme.cardSurface.copy(alpha = 0.85f),
+        borderColor = resolvedBorderColor
     ) {
-        HudCornerDecor(modifier = Modifier.matchParentSize(), color = GoldPrimary.copy(alpha = 0.05f))
+        HudCornerDecor(modifier = Modifier.matchParentSize(), color = PresetPrimary.copy(alpha = 0.05f))
         Column(content = content)
     }
 }
@@ -761,7 +763,7 @@ private fun DashedHint(text: String) {
             .fillMaxWidth()
             .clip(CutCornerShape(8.dp))
             .background(CardSurface.copy(alpha = 0.5f))
-            .border(1.dp, GoldPrimary.copy(alpha = 0.2f), CutCornerShape(8.dp))
+            .border(1.dp, PresetPrimary.copy(alpha = 0.2f), CutCornerShape(8.dp))
             .padding(14.dp),
         contentAlignment = Alignment.Center
     ) {

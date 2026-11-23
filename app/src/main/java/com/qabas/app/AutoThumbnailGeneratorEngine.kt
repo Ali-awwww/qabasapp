@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,22 +30,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.qabas.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
-import java.io.OutputStream
 
 enum class ThumbnailAspectRatio(val label: String, val ratio: Float, val iconName: String) {
     SHORTS_9_16("Reels / Shorts (9:16)", 9f / 16f, "📱"),
@@ -138,7 +133,7 @@ fun AutoThumbnailGeneratorDialog(
                 .heightIn(max = 720.dp),
             colors = CardDefaults.cardColors(containerColor = CardSurface),
             shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, GoldPrimary)
+            border = BorderStroke(1.dp, PresetPrimary)
         ) {
             Column(
                 modifier = Modifier
@@ -153,11 +148,11 @@ fun AutoThumbnailGeneratorDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Style, contentDescription = null, tint = GoldPrimary)
+                        Icon(Icons.Default.Style, contentDescription = null, tint = PresetPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "مولد أغلفة الفيديوهات والمصغرات 🎨",
-                            color = GoldPrimary,
+                            color = PresetPrimary,
                             fontFamily = CairoFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -165,7 +160,7 @@ fun AutoThumbnailGeneratorDialog(
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = TextSecondary)
                     }
                 }
 
@@ -280,7 +275,7 @@ fun AutoThumbnailGeneratorDialog(
                                 ) {
                                     Text(
                                         "✦ QABAS DEV MASTER ✦",
-                                        color = GoldPrimary,
+                                        color = PresetPrimary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 9.sp,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -309,7 +304,7 @@ fun AutoThumbnailGeneratorDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Aspect Ratio Selector
-                Text("أبعاد ومقاس الغلاف:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                Text("أبعاد ومقاس الغلاف:", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -322,10 +317,10 @@ fun AutoThumbnailGeneratorDialog(
                             onClick = { selectedRatio = ratio },
                             label = { Text("${ratio.iconName} ${ratio.label}", fontSize = 12.sp, fontFamily = NotoSansFont) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldPrimary,
+                                selectedContainerColor = PresetPrimary,
                                 selectedLabelColor = DeepSlate,
-                                containerColor = Color(0xFF151B2B),
-                                labelColor = Color.White
+                                containerColor = ThemeSecondarySurface,
+                                labelColor = TextPrimary
                             )
                         )
                     }
@@ -334,7 +329,7 @@ fun AutoThumbnailGeneratorDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Presets Gallery
-                Text("اختر خلفية ونمط القالب:", color = Color.White, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                Text("اختر خلفية ونمط القالب:", color = TextPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -348,7 +343,7 @@ fun AutoThumbnailGeneratorDialog(
                                 .clip(RoundedCornerShape(8.dp))
                                 .border(
                                     if (isSelected) 2.dp else 1.dp,
-                                    if (isSelected) GoldPrimary else Color(0xFF1E293B),
+                                    if (isSelected) PresetPrimary else TextTertiary,
                                     RoundedCornerShape(8.dp)
                                 )
                                 .clickable {
@@ -381,9 +376,9 @@ fun AutoThumbnailGeneratorDialog(
                 OutlinedTextField(
                     value = headlineText,
                     onValueChange = { headlineText = it },
-                    label = { Text("العنوان الرئيسي الجاذب (CTR)", color = Color.Gray, fontFamily = CairoFont) },
+                    label = { Text("العنوان الرئيسي الجاذب (CTR)", color = TextTertiary, fontFamily = CairoFont) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = TextTertiary, focusedTextColor = TextPrimary),
                     shape = RoundedCornerShape(12.dp)
                 )
 
@@ -392,9 +387,9 @@ fun AutoThumbnailGeneratorDialog(
                 OutlinedTextField(
                     value = sublineText,
                     onValueChange = { sublineText = it },
-                    label = { Text("العبارة الفرعية / الخطاف", color = Color.Gray, fontFamily = CairoFont) },
+                    label = { Text("العبارة الفرعية / الخطاف", color = TextTertiary, fontFamily = CairoFont) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = GoldPrimary, unfocusedBorderColor = Color(0xFF1E293B), focusedTextColor = Color.White),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PresetPrimary, unfocusedBorderColor = TextTertiary, focusedTextColor = TextPrimary),
                     shape = RoundedCornerShape(12.dp)
                 )
 
@@ -413,16 +408,16 @@ fun AutoThumbnailGeneratorDialog(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF151B2B)),
-                    border = BorderStroke(1.dp, GoldPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemeSecondarySurface),
+                    border = BorderStroke(1.dp, PresetPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isGeneratingTitles) {
-                        CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(20.dp))
+                        CircularProgressIndicator(color = PresetPrimary, modifier = Modifier.size(20.dp))
                     } else {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("توليد عنوان ذكي عالِي النقرات (AI CTR Title)", color = GoldPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("توليد عنوان ذكي عالِي النقرات (AI CTR Title)", color = PresetPrimary, fontFamily = NotoSansFont, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -456,7 +451,7 @@ fun AutoThumbnailGeneratorDialog(
                         },
                         enabled = !isExporting,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = PresetPrimary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         if (isExporting) {
@@ -483,12 +478,12 @@ fun AutoThumbnailGeneratorDialog(
                             }
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
-                        border = BorderStroke(1.dp, GoldPrimary),
+                        border = BorderStroke(1.dp, PresetPrimary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, tint = GoldPrimary)
+                        Icon(Icons.Default.Share, contentDescription = null, tint = PresetPrimary)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("مشاركة", color = GoldPrimary, fontFamily = CairoFont)
+                        Text("مشاركة", color = PresetPrimary, fontFamily = CairoFont)
                     }
                 }
             }

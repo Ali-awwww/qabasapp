@@ -21,8 +21,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -47,6 +45,7 @@ fun SpatialAiRemediationApprovalDialog(
     onApprovedAndExecuted: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val theme = QabasTheme.current
     val scope = rememberCoroutineScope()
 
     var isExecuting by remember { mutableStateOf(false) }
@@ -76,14 +75,14 @@ fun SpatialAiRemediationApprovalDialog(
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.88f)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF070B14))
+                .background(theme.background)
                 .border(
                     width = 1.2.dp,
                     brush = Brush.verticalGradient(
                         listOf(
-                            Color(0xFF06B6D4).copy(alpha = 0.8f),
-                            Color(0xFF10B981).copy(alpha = 0.5f),
-                            Color(0xFFF59E0B).copy(alpha = 0.6f)
+                            theme.primary.copy(alpha = 0.8f),
+                            theme.success.copy(alpha = 0.5f),
+                            theme.warning.copy(alpha = 0.6f)
                         )
                     ),
                     shape = RoundedCornerShape(24.dp)
@@ -91,7 +90,7 @@ fun SpatialAiRemediationApprovalDialog(
                 .drawBehind {
                     // خلفية الشبكة السيبرانية الفضائية
                     val step = 36.dp.toPx()
-                    val gridColor = Color(0xFF06B6D4).copy(alpha = 0.04f)
+                    val gridColor = theme.primary.copy(alpha = 0.04f)
                     var x = 0f
                     while (x < size.width) {
                         drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1f)
@@ -123,14 +122,14 @@ fun SpatialAiRemediationApprovalDialog(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF06B6D4).copy(alpha = 0.15f))
-                                    .border(1.dp, Color(0xFF06B6D4).copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
+                                    .background(theme.primary.copy(alpha = 0.15f))
+                                    .border(1.dp, theme.primary.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Default.AutoFixHigh,
                                     contentDescription = null,
-                                    tint = Color(0xFF06B6D4),
+                                    tint = theme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -138,14 +137,14 @@ fun SpatialAiRemediationApprovalDialog(
                             Column {
                                 Text(
                                     "AI_AUTONOMOUS_GATE // تفويض الإصلاح",
-                                    color = Color.White,
+                                    color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.5.sp
                                 )
                                 Text(
                                     "إشراف هندسي • موافقة صريحة مطلوبة قبل التنفيذ",
-                                    color = Color(0xFF94A3B8),
+                                    color = theme.textSecondary,
                                     fontFamily = CairoFont,
                                     fontSize = 10.sp
                                 )
@@ -163,9 +162,9 @@ fun SpatialAiRemediationApprovalDialog(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.05f))
+                                .background(theme.textPrimary.copy(alpha = 0.05f))
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = theme.textSecondary, modifier = Modifier.size(16.dp))
                         }
                     }
 
@@ -176,7 +175,7 @@ fun SpatialAiRemediationApprovalDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF0F172A).copy(alpha = 0.8f))
+                            .background(theme.cardSurface.copy(alpha = 0.8f))
                             .padding(3.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -188,9 +187,9 @@ fun SpatialAiRemediationApprovalDialog(
                         tabs.forEach { (index, label, icon) ->
                             val isSelected = selectedTab == index
                             Surface(
-                                color = if (isSelected) Color(0xFF06B6D4).copy(alpha = 0.2f) else Color.Transparent,
+                                color = if (isSelected) theme.primary.copy(alpha = 0.2f) else Color.Transparent,
                                 shape = RoundedCornerShape(8.dp),
-                                border = if (isSelected) BorderStroke(1.dp, Color(0xFF06B6D4).copy(alpha = 0.6f)) else null,
+                                border = if (isSelected) BorderStroke(1.dp, theme.primary.copy(alpha = 0.6f)) else null,
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
@@ -206,13 +205,13 @@ fun SpatialAiRemediationApprovalDialog(
                                     Icon(
                                         icon,
                                         contentDescription = null,
-                                        tint = if (isSelected) Color(0xFF06B6D4) else Color(0xFF64748B),
+                                        tint = if (isSelected) theme.primary else theme.textTertiary,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         label,
-                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        color = if (isSelected) theme.textPrimary else theme.textSecondary,
                                         fontFamily = CairoFont,
                                         fontSize = 10.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -241,20 +240,20 @@ fun SpatialAiRemediationApprovalDialog(
                             GlassmorphicSurface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp),
-                                backgroundColor = Color(0xFF0F172A).copy(alpha = 0.75f),
-                                borderColor = Color(0xFF06B6D4).copy(alpha = 0.35f),
+                                backgroundColor = theme.cardSurface.copy(alpha = 0.75f),
+                                borderColor = theme.primary.copy(alpha = 0.35f),
                                 borderWidth = 1.dp
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.BugReport, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.BugReport, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("البلاغ الأصلي:", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                                        Text("البلاغ الأصلي:", color = PresetPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         proposal.originalReport.ifBlank { proposal.issueTitle },
-                                        color = Color.White,
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         lineHeight = 16.sp
@@ -266,8 +265,8 @@ fun SpatialAiRemediationApprovalDialog(
                             GlassmorphicSurface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp),
-                                backgroundColor = Color(0xFF0F172A).copy(alpha = 0.75f),
-                                borderColor = Color(0xFF10B981).copy(alpha = 0.45f),
+                                backgroundColor = theme.cardSurface.copy(alpha = 0.75f),
+                                borderColor = theme.success.copy(alpha = 0.45f),
                                 borderWidth = 1.dp
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
@@ -276,12 +275,12 @@ fun SpatialAiRemediationApprovalDialog(
                                             modifier = Modifier
                                                 .size(8.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF10B981))
+                                                .background(theme.success)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "تشخيص مهندس الذكاء الاصطناعي (Gemini Core):",
-                                            color = Color(0xFF10B981),
+                                            color = theme.success,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 11.5.sp
@@ -290,7 +289,7 @@ fun SpatialAiRemediationApprovalDialog(
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         proposal.aiDiagnosis,
-                                        color = Color(0xFFE2E8F0),
+                                        color = theme.textPrimary,
                                         fontFamily = CairoFont,
                                         fontSize = 11.sp,
                                         lineHeight = 17.sp
@@ -300,9 +299,9 @@ fun SpatialAiRemediationApprovalDialog(
 
                             // الملف المستهدف والوحدة
                             Surface(
-                                color = Color(0xFF070B14),
+                                color = theme.background,
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Color(0xFF06B6D4).copy(alpha = 0.3f)),
+                                border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -311,23 +310,23 @@ fun SpatialAiRemediationApprovalDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("الملف المتأثر:", color = Color(0xFF64748B), fontSize = 9.sp, fontFamily = CairoFont)
+                                        Text("الملف المتأثر:", color = theme.textTertiary, fontSize = 9.sp, fontFamily = CairoFont)
                                         Text(
                                             proposal.targetFilePath,
-                                            color = Color(0xFF22D3EE),
+                                            color = theme.primary,
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
                                     Surface(
-                                        color = Color(0xFFF59E0B).copy(alpha = 0.15f),
+                                        color = theme.warning.copy(alpha = 0.15f),
                                         shape = RoundedCornerShape(6.dp),
-                                        border = BorderStroke(0.8.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                                        border = BorderStroke(0.8.dp, theme.warning.copy(alpha = 0.5f))
                                     ) {
                                         Text(
                                             proposal.affectedModule,
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontSize = 9.sp,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
@@ -341,9 +340,9 @@ fun SpatialAiRemediationApprovalDialog(
                         1 -> {
                             // تبويب 1: الكود المقترح
                             Surface(
-                                color = Color(0xFF050811),
+                                color = theme.background,
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFF06B6D4).copy(alpha = 0.4f)),
+                                border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.4f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
@@ -354,7 +353,7 @@ fun SpatialAiRemediationApprovalDialog(
                                     ) {
                                         Text(
                                             "PROPOSED_PATCH // KOTLIN_DIFF",
-                                            color = Color(0xFF06B6D4),
+                                            color = theme.primary,
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Bold
@@ -368,13 +367,13 @@ fun SpatialAiRemediationApprovalDialog(
                                             },
                                             modifier = Modifier.size(24.dp)
                                         ) {
-                                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = Color(0xFF06B6D4), modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = theme.primary, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         proposal.proposedCodeAfter.ifBlank { "// لم يتطلب التعديل استبدال كود مباشر، سيتم إنشاء قضية متابعة." },
-                                        color = Color(0xFF86EFAC),
+                                        color = theme.success,
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 10.5.sp,
                                         lineHeight = 15.sp
@@ -389,12 +388,12 @@ fun SpatialAiRemediationApprovalDialog(
                                 GlassmorphicSurface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
-                                    backgroundColor = Color(0xFF0F172A).copy(alpha = 0.8f),
-                                    borderColor = Color(0xFFF59E0B).copy(alpha = 0.35f),
+                                    backgroundColor = theme.cardSurface.copy(alpha = 0.8f),
+                                    borderColor = theme.warning.copy(alpha = 0.35f),
                                     borderWidth = 1.dp
                                 ) {
                                     Column(modifier = Modifier.padding(10.dp)) {
-                                        Text("نوع الإجراء المحدد:", color = Color(0xFF94A3B8), fontSize = 9.5.sp, fontFamily = CairoFont)
+                                        Text("نوع الإجراء المحدد:", color = theme.textSecondary, fontSize = 9.5.sp, fontFamily = CairoFont)
                                         Text(
                                             when (proposal.actionType) {
                                                 AiAutonomousRemediationEngine.RemediationActionType.CREATE_PULL_REQUEST -> "🐙 فتح سحب تعديل جديد (Pull Request)"
@@ -402,16 +401,16 @@ fun SpatialAiRemediationApprovalDialog(
                                                 AiAutonomousRemediationEngine.RemediationActionType.COMMIT_FILE_FIX -> "⚡ تعديل الملف المباشر (Direct Commit)"
                                                 AiAutonomousRemediationEngine.RemediationActionType.LOCAL_CONFIG_PATCH -> "💾 تطبيق الباتش على الإعدادات المحلية"
                                             },
-                                            color = GoldPrimary,
+                                            color = PresetPrimary,
                                             fontFamily = CairoFont,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 11.5.sp
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
-                                        Text("رسالة الـ Commit:", color = Color(0xFF94A3B8), fontSize = 9.5.sp, fontFamily = CairoFont)
+                                        Text("رسالة الـ Commit:", color = theme.textSecondary, fontSize = 9.5.sp, fontFamily = CairoFont)
                                         Text(
                                             proposal.commitMessage,
-                                            color = Color(0xFF22D3EE),
+                                            color = theme.primary,
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 10.5.sp
                                         )
@@ -419,17 +418,17 @@ fun SpatialAiRemediationApprovalDialog(
                                 }
 
                                 Surface(
-                                    color = Color(0xFF070B14),
+                                    color = theme.background,
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                                    border = BorderStroke(1.dp, theme.textPrimary.copy(alpha = 0.1f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(10.dp)) {
-                                        Text("عنوان المقترح (PR / Issue Title):", color = Color(0xFF94A3B8), fontSize = 9.5.sp, fontFamily = CairoFont)
-                                        Text(proposal.pullRequestTitle, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                        Text("عنوان المقترح (PR / Issue Title):", color = theme.textSecondary, fontSize = 9.5.sp, fontFamily = CairoFont)
+                                        Text(proposal.pullRequestTitle, color = theme.textPrimary, fontFamily = CairoFont, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        Text("الوصف المرفق:", color = Color(0xFF94A3B8), fontSize = 9.5.sp, fontFamily = CairoFont)
-                                        Text(proposal.pullRequestBody, color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                                        Text("الوصف المرفق:", color = theme.textSecondary, fontSize = 9.5.sp, fontFamily = CairoFont)
+                                        Text(proposal.pullRequestBody, color = theme.textSecondary, fontFamily = CairoFont, fontSize = 10.sp)
                                     }
                                 }
                             }
@@ -439,18 +438,18 @@ fun SpatialAiRemediationApprovalDialog(
                     // رسائل الخطأ أو الحالة التنفيذية إن وجدت
                     if (executionError != null) {
                         Surface(
-                            color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                            color = theme.destructive.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier.padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = theme.destructive, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(executionError ?: "", color = Color(0xFFFCA5A5), fontSize = 10.5.sp, fontFamily = CairoFont)
+                                Text(executionError ?: "", color = theme.destructive, fontSize = 10.5.sp, fontFamily = CairoFont)
                             }
                         }
                     }
@@ -460,19 +459,19 @@ fun SpatialAiRemediationApprovalDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF06B6D4).copy(alpha = 0.12f))
+                                .background(theme.primary.copy(alpha = 0.12f))
                                 .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(14.dp),
-                                color = Color(0xFF06B6D4),
+                                color = theme.primary,
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 executionStatusText.ifBlank { "جارٍ التواصل مع GitHub وتنفيذ الإجراء المعتمد..." },
-                                color = Color(0xFF22D3EE),
+                                color = theme.primary,
                                 fontFamily = CairoFont,
                                 fontSize = 10.5.sp
                             )
@@ -491,20 +490,20 @@ fun SpatialAiRemediationApprovalDialog(
                 ) {
                     // شريط التحذير الصارم والتأكيد على الشفافية
                     Surface(
-                        color = Color(0xFFF59E0B).copy(alpha = 0.10f),
+                        color = theme.warning.copy(alpha = 0.10f),
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(0.8.dp, Color(0xFFF59E0B).copy(alpha = 0.4f)),
+                        border = BorderStroke(0.8.dp, theme.warning.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Security, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Security, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "بوابة الأمان: لن يتم إرسال أو تعديل أي شيء على مستودعك دون موافقتك الصريحة.",
-                                color = GoldPrimary,
+                                color = PresetPrimary,
                                 fontFamily = CairoFont,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Medium
@@ -526,8 +525,8 @@ fun SpatialAiRemediationApprovalDialog(
                             },
                             enabled = !isExecuting,
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                            border = BorderStroke(1.dp, theme.destructive.copy(alpha = 0.6f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.destructive),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(44.dp)
@@ -566,7 +565,7 @@ fun SpatialAiRemediationApprovalDialog(
                             enabled = !isExecuting,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF10B981),
+                                containerColor = theme.success,
                                 contentColor = DeepSlate
                             ),
                             modifier = Modifier

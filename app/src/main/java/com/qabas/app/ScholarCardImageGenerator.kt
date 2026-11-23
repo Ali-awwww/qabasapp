@@ -174,17 +174,7 @@ object ScholarCardImageGenerator {
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         }
 
-        val paintTitle = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = themeColors.primaryText
-            textSize = 42f
-            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
-        }
 
-        val paintHeaderGold = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = themeColors.goldAccent
-            textSize = 24f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        }
 
         val paintQuote = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = themeColors.goldAccent

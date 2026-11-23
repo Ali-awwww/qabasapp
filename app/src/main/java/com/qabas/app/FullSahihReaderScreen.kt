@@ -85,11 +85,18 @@ fun FullSahihReaderScreen(
     LaunchedEffect(bookType) {
         isLoading = true
         chapters = FullSahihHadithRepository.getChapters(context, bookType)
+        // استئناف آخر باب فُتح (قبل هذه الجولة كان القارئ الكامل يبدأ
+        // من قائمة الأبواب كل مرة بلا حفظ، خلاف قارئ المقتطفات).
+        val savedChapterId = LibraryReadingStateStore.getSahihChapterId(context, bookType.id)
+        if (savedChapterId != null && chapters.any { it.id == savedChapterId }) {
+            selectedChapterId = savedChapterId
+        }
         isLoading = false
     }
 
     LaunchedEffect(selectedChapterId) {
         val chId = selectedChapterId ?: return@LaunchedEffect
+        LibraryReadingStateStore.saveSahihChapterId(context, bookType.id, chId)
         isLoadingHadiths = true
         hadiths = FullSahihHadithRepository.getHadithsForChapter(context, bookType, chId)
         isLoadingHadiths = false

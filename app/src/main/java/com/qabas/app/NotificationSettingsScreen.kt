@@ -60,7 +60,6 @@ fun NotificationSettingsScreen(
     val morningAthkarEnabled by NotificationPreferencesManager.morningAthkarEnabled.collectAsState()
     val eveningAthkarEnabled by NotificationPreferencesManager.eveningAthkarEnabled.collectAsState()
     val trendAlertsEnabled by NotificationPreferencesManager.trendAlertsEnabled.collectAsState()
-    val devChatAlertsEnabled by NotificationPreferencesManager.devChatAlertsEnabled.collectAsState()
     val soundEnabled by NotificationPreferencesManager.soundEnabled.collectAsState()
     val vibrationEnabled by NotificationPreferencesManager.vibrationEnabled.collectAsState()
     val suhurTime by NotificationPreferencesManager.suhurTime.collectAsState()
@@ -291,7 +290,7 @@ fun NotificationSettingsScreen(
                         title = "تنبيه وقت السحر والاستغفار",
                         subtitle = "تذكير بآيات الاستغفار والقيام مع زر استماع لتلاوة هادئة",
                         icon = Icons.Default.NightlightRound,
-                        iconTint = GoldSecondary,
+                        iconTint = PresetAccent,
                         checked = suhurReminderEnabled && masterEnabled,
                         enabled = masterEnabled,
                         onCheckedChange = {
@@ -407,7 +406,7 @@ fun NotificationSettingsScreen(
                         title = "أذكار المساء",
                         subtitle = "تذكير يومي بأذكار المساء قبل الغروب",
                         icon = Icons.Default.Brightness4,
-                        iconTint = GoldSecondary,
+                        iconTint = PresetAccent,
                         checked = eveningAthkarEnabled && masterEnabled,
                         enabled = masterEnabled,
                         onCheckedChange = {
@@ -429,22 +428,15 @@ fun NotificationSettingsScreen(
                 }
             }
 
+            // review-r12: حُذف صف «ردود المطور» فقط — مفتاح يحفظ قيمة لا
+            // يقرأها أي مستدعٍ: لا يوجد دفع فوري لردود المطور، فكان يعد
+            // بإشعار لا يمكن أن يصل أبداً (الدستور §3). أما صف «مرصد الثغور»
+            // فأُبقي: له مستهلِك حي — AppNotificationService يمنع إشعارات
+            // الترند عند إيقافه، ويرسلها ContentGuard وSocialAccountManager.
+
             // Community & Support
             item {
                 AppleGroupedSection(header = "مرصد الثغور والدعم") {
-                    NotificationSwitchRow(
-                        title = "ردود المطور والدعم",
-                        subtitle = "إشعار فوري عند رد المطور على رسائلك أو بلاغاتك",
-                        icon = Icons.Default.SupportAgent,
-                        iconTint = theme.primary,
-                        checked = devChatAlertsEnabled && masterEnabled,
-                        enabled = masterEnabled,
-                        onCheckedChange = {
-                            AppSoundManager.playToggle()
-                            NotificationPreferencesManager.setDevChatAlertsEnabled(context, it)
-                        }
-                    )
-                    AppleInsetDivider()
                     NotificationSwitchRow(
                         title = "مرصد الثغور والتريندات",
                         subtitle = "تنبيهات عند رصد موضوعات تحتاج مساهمة ونشر مقاطع دعوية",
