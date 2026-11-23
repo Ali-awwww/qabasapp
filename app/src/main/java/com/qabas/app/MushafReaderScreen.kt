@@ -1942,7 +1942,7 @@ fun MushafReaderScreen(
                                                             }
                                                             isLoadingAudio = false
                                                             if (ayahs.isEmpty()) {
-                                                                audioMessage = \"تعذّر تحميل تلاوة هذا القارئ.\"
+                                                                audioMessage = "تعذّر تحميل تلاوة هذا القارئ."
                                                             } else {
                                                                 startPlayback(
                                                                     ayahs,
