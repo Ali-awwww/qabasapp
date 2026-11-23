@@ -193,7 +193,7 @@ QABAS_KEY_VAULT_SECRET
 - [x] إضافة فرع `AppState.VIBE_CODING` إلى `AppNavigation`.
 - [x] إضافة فرع `SettingsItemAction.OpenKeysAndModels` إلى قائمة الإعدادات الرئيسية.
 - [x] تنفيذ فحوص ساكنة محلية: `git diff --check`، علامات التعارض، توازن الأقواس، وتغطية قيم `AppState`.
-- [ ] دفع commit الجولة وانتظار Build وCodeQL وSecret Scan على GitHub Actions.
+- [x] دفع الإصلاحات وانتظار Build وCodeQL وSecret Scan على GitHub Actions؛ نجحت الفحوص للرأس `fb5b4bb3`.
 - [ ] اختبار الجهاز الفعلي لمسارات Studio والتحديثات وxdelta؛ لم تُنفذ هذه الجولة على جهاز Android.
 - [ ] مراجعة تكامل Mintlify الخارجي من إعدادات GitHub/Mintlify؛ لا توجد إعدادات له داخل المستودع.
 
@@ -206,5 +206,6 @@ QABAS_KEY_VAULT_SECRET
 - [x] تحديث `AgentQualityTest.kt` من عقدة Studio Agent القديمة (`initialTab` و`deck_module_*`) إلى testTags الواجهة الحالية (`agent_chat_*` و`agent_new_chat_btn`).
 - [x] إصلاح الاختبار ليكشف لوحة الجلسات قبل التحقق من زر `agent_new_chat_btn` بعد ظهور فشل اختبار واحد في Build للرأس `37910dd8`.
 - [x] إزالة التحقق المكرر من زر `agent_new_chat_btn` في اختبار الشاشة الأساسية بعد فشل اختبار واحد في Build للرأس `483e1f8a`.
-- [ ] إنشاء commit الجولة الخامسة ودفعه باستخدام `--force-with-lease` على الرأس البعيد الحالي.
-- [ ] انتظار Build وCodeQL الجديدين وتسجيل نتيجتهما الفعلية.
+- [x] إنشاء commit الجولة الخامسة `fb5b4bb3` ودفعه باستخدام `--force-with-lease` بعد مقارنة الرأس البعيد.
+- [x] اكتمال Build وCodeQL وSecret Scan للرأس `fb5b4bb3` بنتيجة نجاح.
+- [ ] دمج PR #89؛ لم يُنفذ الدمج تلقائياً.
