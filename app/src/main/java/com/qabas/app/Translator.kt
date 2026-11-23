@@ -625,6 +625,7 @@ object Translator {
         "جارٍ تحميل البلاغة…" to "Loading rhetoric…",
         "جارٍ تحميل الترجمة الإنجليزية…" to "Loading English translation…",
         "جارٍ تحميل الترجمة…" to "Loading translation…",
+        "جارٍ تحميل ترجمة {0}…" to "Loading {0} translation…",
         "جارٍ تحميل التفسير…" to "Loading Tafsir…",
         "جارٍ تحميل الكتاب…" to "Loading book…",
         "جارٍ تحميل الكلمات…" to "Loading words…",
