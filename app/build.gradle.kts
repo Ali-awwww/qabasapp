@@ -150,6 +150,10 @@ secrets {
   ignoreList.add("PIXABAY_API_KEY")
   ignoreList.add("QF_CLIENT_ID")
   ignoreList.add("QF_CLIENT_SECRET")
+  // ONESIGNAL_APP_ID له buildConfigField يدوي مُقتبس أعلاه؛ إن لم يُتجاهل هنا
+  // يولّد Secrets Plugin حقلاً ثانياً من .env.example الفارغ بلا علامتي تنصيص
+  // (القيم الفارغة تمرّ كما هي) فيكسر تجميع BuildConfig بـ "= ;".
+  ignoreList.add("ONESIGNAL_APP_ID")
 }
 
 // Ensure google-services.json always exists before GoogleServices tasks run
