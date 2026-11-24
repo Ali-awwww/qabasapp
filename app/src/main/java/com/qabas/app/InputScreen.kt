@@ -298,7 +298,7 @@ fun InputScreen(
                             fontSize = 18.sp
                         )
                         Text(
-                            Translator.tr("استوديو خادم المسلم الذكي لإنتاج الفيديوهات"),
+                            Translator.tr("استوديو مساعد المسلم الذكي لإنتاج الفيديوهات"),
                             color = TextSecondary,
                             fontFamily = NotoSansFont,
                             fontSize = 11.sp
@@ -429,7 +429,7 @@ fun InputScreen(
                                         fontSize = 16.sp
                                     )
                                     Text(
-                                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب خادم المسلم"),
+                                        Translator.tr("إعادة المونتاج، تفريغ الصوت، وتطبيق قوالب مساعد المسلم"),
                                         color = TextSecondary,
                                         fontFamily = NotoSansFont,
                                         fontSize = 12.sp
@@ -807,7 +807,7 @@ fun InputScreen(
                                             Icon(Icons.Default.GraphicEq, contentDescription = null, tint = PresetPrimary, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                Translator.tr("مكتبة خادم المسلم 🎙️"),
+                                                Translator.tr("مكتبة مساعد المسلم 🎙️"),
                                                 color = PresetPrimary,
                                                 fontFamily = CairoFont,
                                                 fontWeight = FontWeight.Bold,
