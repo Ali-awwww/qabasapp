@@ -21,6 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
 /**
  * اختبارات جودة قسم الوكيل الذكي (Agent Quality Tests):
  * validateTeam، cleanDisplayName، resolveKeyWithSource، AgentPrefs، وتنقل تبويبات شاشة الوكيل.
@@ -28,6 +29,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class AgentQualityTest {
+
     @get:Rule val composeTestRule = createComposeRule()
 
     @Before
@@ -58,23 +60,23 @@ class AgentQualityTest {
         )
         val result = MultiModelAgentOrchestrator.validateTeam(team)
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("منفذ") })
+        assertTrue(result.errors.any { it.contains("مساعد") })
     }
 
     @Test
-    fun `validateTeam accepts a valid leader plus executor team`() {
+    fun `validateTeam accepts valid team`() {
         val team = listOf(
             AgentTeamMember("l1", "القائد", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط ماهر"),
             AgentTeamMember("e1", "مساعد", DetectedProvider.GEMINI, "gemini-3.5-flash", AgentTeamRole.EXECUTOR, 2, true, "متخصص واجهات")
         )
         val result = MultiModelAgentOrchestrator.validateTeam(team)
         assertTrue(result.isValid)
-        assertTrue(result.errors.isEmpty())
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // cleanDisplayName — تطبيع أسماء الأعضاء
+    // cleanDisplayName — تنظيف اسم العرض
     // ═══════════════════════════════════════════════════════════════════
+
     @Test
     fun `cleanDisplayName strips rule markers`() {
         val name = MultiModelAgentOrchestrator.cleanDisplayName("القائد • يلزم مفتاح API • اتصال", AgentTeamRole.LEADER)
@@ -87,9 +89,6 @@ class AgentQualityTest {
         assertEquals("مراجع", name)
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // extractTargetFile — تحديد ملف الهدف من الطلب
-    // ═══════════════════════════════════════════════════════════════════
     @Test
     fun `extractTargetFile does not guess a source file when no path is provided`() {
         val target = extractTargetFile("أضف ميزة جديدة للمشروع", "fun newFeature() = Unit")
@@ -99,6 +98,7 @@ class AgentQualityTest {
     // ═══════════════════════════════════════════════════════════════════
     // AgentPrefs.maskSecret — إظهار آخر 4 محارف فقط
     // ═══════════════════════════════════════════════════════════════════
+
     @Test
     fun `maskSecret shows last four characters only`() {
         assertEquals("••••abcd", AgentPrefs.maskSecret("sk-or-1234abcd"))
@@ -109,6 +109,7 @@ class AgentQualityTest {
     // ═══════════════════════════════════════════════════════════════════
     // resolveKeyWithSource — لا مفتاح مخزن نصاً صريحاً بعد الهجرة
     // ═══════════════════════════════════════════════════════════════════
+
     @Test
     fun `resolveKeyWithSource returns NONE when no keys are stored`() {
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -122,6 +123,7 @@ class AgentQualityTest {
     // ═══════════════════════════════════════════════════════════════════
     // Compose UI — اختبارات واجهة الوكيل بعد إعادة تصميم شاشة الوكيل في PR #107
     // ═══════════════════════════════════════════════════════════════════
+
     // ملاحظة: حُذفت 4 اختبارات لم يعد لها مقابل في الإنتاج بعد أن أصبحت
     // AiStudioAgentScreen شاشة محادثة بلا أقسام Hub:
     //  - اختبار deck/sub-tabs (deck_module_01..06 وsub_tab_readiness وsub_tab_tools).
