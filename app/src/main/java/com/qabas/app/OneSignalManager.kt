@@ -3,6 +3,10 @@ package com.qabas.app
 import android.content.Context
 import android.util.Log
 import com.onesignal.OneSignal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * OneSignal — قناة الإشعارات الجديدة لتطبيق مساعد المسلم.
@@ -24,6 +28,9 @@ import com.onesignal.OneSignal
 object OneSignalManager {
     private const val TAG = "OneSignalManager"
 
+    /** نطاق لطلب إذن الإشعارات (دالة suspend) دون جعل init دالة suspend. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     /** true فقط عندما يملك التطبيق معرّف OneSignal صالحاً. */
     val isConfigured: Boolean
         get() = BuildConfig.ONESIGNAL_APP_ID.isNotBlank()
@@ -37,7 +44,7 @@ object OneSignalManager {
         runCatching {
             OneSignal.initWithContext(context, BuildConfig.ONESIGNAL_APP_ID)
             // طلب إذن الإشعارات من النظام (Android 13+) عند أول إقلاع بعد التهيئة.
-            OneSignal.Notifications.requestPermission(false)
+            scope.launch { OneSignal.Notifications.requestPermission(false) }
             Log.d(TAG, "OneSignal initialized")
         }.onFailure { Log.w(TAG, "OneSignal init failed: ${it.message}") }
     }

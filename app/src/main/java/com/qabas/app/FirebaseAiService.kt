@@ -109,7 +109,7 @@ object FirebaseAiService : AiTextProvider {
     /**
      * Generate text with realistic coroutine timeout (60s) and transparent error reporting
      */
-    override suspend fun generateText(prompt: String, systemInstruction: String? = null): String = withContext(Dispatchers.IO) {
+    override suspend fun generateText(prompt: String, systemInstruction: String?): String = withContext(Dispatchers.IO) {
         val fullPrompt = if (systemInstruction.isNullOrBlank()) {
             prompt
         } else {
@@ -140,7 +140,7 @@ object FirebaseAiService : AiTextProvider {
     /**
      * Stream text chunks to minimize Time-to-First-Token (TTFT)
      */
-    override fun generateContentStream(prompt: String, systemInstruction: String? = null): Flow<String> = flow {
+    override fun generateContentStream(prompt: String, systemInstruction: String?): Flow<String> = flow {
         val fullPrompt = if (systemInstruction.isNullOrBlank()) {
             prompt
         } else {
@@ -162,7 +162,7 @@ object FirebaseAiService : AiTextProvider {
      */
     override suspend fun chat(
         messages: List<Pair<Boolean, String>>,
-        systemInstruction: String? = null
+        systemInstruction: String?
     ): String = withContext(Dispatchers.IO) {
         val sb = StringBuilder()
         if (!systemInstruction.isNullOrBlank()) {
