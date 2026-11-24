@@ -48,6 +48,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -107,6 +108,16 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
     var exportSource by remember { mutableStateOf<File?>(null) }
     var isExporting by remember { mutableStateOf(false) }
 
+    // تنظيف ملفات مصدر الصور المؤقتة عند استبدال الصورة أو مغادرة الشاشة.
+    DisposableEffect(selectedImage) {
+        val imageToCleanup = selectedImage
+        onDispose {
+            imageToCleanup
+                ?.takeIf { it.name.startsWith("higgsfield_source_") }
+                ?.delete()
+        }
+    }
+
     val handleBack: () -> Unit = {
         if (isGenerating) {
             generationJob?.cancel()
@@ -143,19 +154,27 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
 
     BackHandler(onBack = handleBack)
 
-    val activeMode = HiggsfieldMode.valueOf(mode)
+    // Saved state قديم أو تالف لا ينبغي أن يسقط الشاشة قبل أن يستطيع المستخدم العودة.
+    val activeMode = runCatching { HiggsfieldMode.valueOf(mode) }
+        .getOrDefault(HiggsfieldMode.TEXT_TO_VIDEO)
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
                 isPreparingImage = true
                 selectedImage = withContext(Dispatchers.IO) {
-                    runCatching {
-                        val output = File(context.cacheDir, "higgsfield_source_${System.currentTimeMillis()}.img")
+                    val output = File(context.cacheDir, "higgsfield_source_${System.currentTimeMillis()}.img")
+                    try {
                         context.contentResolver.openInputStream(uri)?.use { input ->
                             output.outputStream().use { target -> input.copyTo(target) }
-                        } ?: return@runCatching null
-                        output.takeIf { it.exists() && it.length() > 0L }
-                    }.getOrNull()
+                        } ?: return@withContext null
+                        output.takeIf { it.exists() && it.length() > 0L } ?: run {
+                            output.delete()
+                            null
+                        }
+                    } catch (_: Exception) {
+                        output.delete()
+                        null
+                    }
                 }
                 isPreparingImage = false
             }
