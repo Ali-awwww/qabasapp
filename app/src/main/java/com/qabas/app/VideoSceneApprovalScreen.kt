@@ -330,7 +330,7 @@ fun VideoSceneApprovalScreen(
                             styleVariantOrName = activeStyleName,
                             isPositive = true
                         )
-                        snackbarHostState.showSnackbar(Translator.tr("شكراً لتقييمك! تم تعزيز وتطوير عقل خادم المسلم الإخراجي."))
+                        snackbarHostState.showSnackbar(Translator.tr("شكراً لتقييمك! تم تعزيز وتطوير عقل مساعد المسلم الإخراجي."))
                     }
                 },
                 onDislike = {

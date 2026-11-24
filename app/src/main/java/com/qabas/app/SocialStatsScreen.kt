@@ -431,7 +431,7 @@ fun AiGrowthSuggestions() {
                 Icon(Icons.Default.AutoAwesome, null, tint = PresetPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = Translator.tr("اقتراحات خادم المسلم الذكية للنمو"),
+                    text = Translator.tr("اقتراحات مساعد المسلم الذكية للنمو"),
                     color = PresetPrimary,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,

@@ -17,6 +17,9 @@ class QabasApplication : Application() {
 
         // Make the application context available before crash upload or Supabase clients initialize.
         AppServices.appContext = this
+        // OneSignal (new push channel): init early; stays a no-op while
+        // ONESIGNAL_APP_ID is empty, so FCM keeps working until it is configured.
+        runCatching { OneSignalManager.init(this) }
         QabasCrashGuard.install(this)
         QabasCrashGuard.markStartupStage(this, "QabasApplication.onCreate")
         QabasCrashGuard.schedulePendingUploads(this)
@@ -100,6 +103,13 @@ class QabasApplication : Application() {
             QabasCrashGuard.markStartupStage(this@QabasApplication, "PushTokenManager.captureAndSync")
             runCatching { PushTokenManager.captureAndSync(this@QabasApplication) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
                 .onFailure { recordStartupFailure("PushTokenManager.captureAndSync", it) }
+
+            QabasCrashGuard.markStartupStage(this@QabasApplication, "OneSignalManager.login")
+            runCatching {
+                val userId = SupabaseServices.Auth.getCurrentUserId()
+                if (!userId.isNullOrBlank()) OneSignalManager.login(userId)
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .onFailure { recordStartupFailure("OneSignalManager.login", it) }
 
             QabasCrashGuard.markStartupStage(this@QabasApplication, "RemoteNotificationsManager.startInbox")
             runCatching { RemoteNotificationsManager.startInbox(this@QabasApplication) }

@@ -1,28 +1,39 @@
 project_id = "egkgygbvoeevakwkbvfu"
 
+# المرحلة 1 — الأمان: verify_jwt = true لكل دالة تتحقق من توكن مستخدم عبر
+# admin.auth.getUser، لأن بوابة Supabase ترفض عندها أي طلب بلا JWT صالح قبل
+# وصوله للدالة أصلاً. الدوال الثلاث التي بقيت false موثقة أدناه — كل منها
+# يصادق بطريقة غير JWT، وتفعيل JWT عليها يكسرها.
+
+[functions.delete-account]
+verify_jwt = true
+
 [functions.qabas-auth-identifier-login]
+# تسجيل دخول بلا توكن: يبقى false حتماً، وإلا استحال تسجيل الدخول.
 verify_jwt = false
 
 [functions.qabas-gateway]
-verify_jwt = false
+verify_jwt = true
 
 [functions.qabas-xdelta-request]
-verify_jwt = false
+verify_jwt = true
 
 [functions.qabas-xdelta-status]
-verify_jwt = false
+verify_jwt = true
 
 [functions.qabas-xdelta-callback]
+# رد GitHub Actions: يحمل Bearer = XDELTA_CALLBACK_SECRET لا JWT، فيبقى false.
 verify_jwt = false
 
 [functions.qabas-xdelta-admin-dispatch]
-verify_jwt = false
+verify_jwt = true
 
 [functions.qabas-xdelta-token-admin]
-verify_jwt = false
+verify_jwt = true
 
 [functions.qabas-key-vault]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-developer-reply-push]
+# Webhook قاعدة بيانات: يصادق عبر x-qabas-webhook-secret لا JWT، فيبقى false.
 verify_jwt = false

@@ -1296,7 +1296,7 @@ private fun StoryboardPreviewUI(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = Translator.tr("لوحة قصة خادم المسلم (Storyboard)"),
+                    text = Translator.tr("لوحة قصة مساعد المسلم (Storyboard)"),
                     color = PresetPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,

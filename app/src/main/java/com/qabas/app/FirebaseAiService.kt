@@ -23,7 +23,7 @@ private const val TIMEOUT_MS = 60_000L
  * Routes all generation and multimodal inference through Firebase.ai
  * secured by Firebase App Check attestation without requiring client-side API keys.
  */
-object FirebaseAiService {
+object FirebaseAiService : AiTextProvider {
 
     // Lazy model initialization adhering to Firebase AI Logic skill guidelines (gemini-3.8-flash)
     private val standardModel by lazy {
@@ -109,7 +109,7 @@ object FirebaseAiService {
     /**
      * Generate text with realistic coroutine timeout (60s) and transparent error reporting
      */
-    suspend fun generateText(prompt: String, systemInstruction: String? = null): String = withContext(Dispatchers.IO) {
+    override suspend fun generateText(prompt: String, systemInstruction: String?): String = withContext(Dispatchers.IO) {
         val fullPrompt = if (systemInstruction.isNullOrBlank()) {
             prompt
         } else {
@@ -140,7 +140,7 @@ object FirebaseAiService {
     /**
      * Stream text chunks to minimize Time-to-First-Token (TTFT)
      */
-    fun generateContentStream(prompt: String, systemInstruction: String? = null): Flow<String> = flow {
+    override fun generateContentStream(prompt: String, systemInstruction: String?): Flow<String> = flow {
         val fullPrompt = if (systemInstruction.isNullOrBlank()) {
             prompt
         } else {
@@ -160,9 +160,9 @@ object FirebaseAiService {
     /**
      * Multi-turn chat conversation powered by Gemini 3.8 Flash
      */
-    suspend fun chat(
+    override suspend fun chat(
         messages: List<Pair<Boolean, String>>,
-        systemInstruction: String? = null
+        systemInstruction: String?
     ): String = withContext(Dispatchers.IO) {
         val sb = StringBuilder()
         if (!systemInstruction.isNullOrBlank()) {

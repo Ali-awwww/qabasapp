@@ -661,7 +661,7 @@ fun ProfileSettingsCard(
                                     isAdmin -> Translator.tr("مطور النظام")
                                     isRelative -> Translator.tr("حساب الاكتفاء الذاتي")
                                     isGuest -> Translator.tr("زائر")
-                                    else -> Translator.tr("عضو خادم المسلم")
+                                    else -> Translator.tr("عضو مساعد المسلم")
                                 },
                                 color = if (isAdmin || isRelative) theme.warning else theme.textSecondary,
                                 fontFamily = CairoFont,

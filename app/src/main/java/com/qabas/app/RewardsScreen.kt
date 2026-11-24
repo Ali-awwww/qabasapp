@@ -54,7 +54,7 @@ fun RewardsScreen(onBack: () -> Unit) {
         topBar = {
             Column(modifier = Modifier.background(theme.background)) {
                 AppleTopBar(
-                    title = Translator.tr("مركز مكافآت خادم المسلم"),
+                    title = Translator.tr("مركز مكافآت مساعد المسلم"),
                     subtitle = "$balance نقطة متاحة",
                     onBack = onBack
                 )

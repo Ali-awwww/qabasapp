@@ -592,7 +592,7 @@ fun ConnectorsSection(
                     val latency = System.currentTimeMillis() - startTime
                     if (failuresResult.isSuccess) {
                         val count = failuresResult.getOrNull()?.size ?: 0
-                        set("delta_telemetry", true, "سحابة Firestore متصلة — رصد $count نمط خطأ مسجل في update_failures", latency)
+                        set("delta_telemetry", true, "رصد $count نمط خطأ مسجل (محلي + Supabase bug_reports) — لم تعد Firestore مستخدمة", latency)
                     } else {
                         // كان فشل الجلب يُسجَّل متصلاً بمجرد وجود معرّف قاعدة
                         // في الإعدادات — وجود الإعداد ليس اتصالاً.

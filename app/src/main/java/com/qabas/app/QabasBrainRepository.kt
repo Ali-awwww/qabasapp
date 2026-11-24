@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * طبقة البيانات المركزية لربط 'العقل' (Qabas Brain) بقاعدة بيانات Firestore
+ * طبقة البيانات المركزية لربط 'العقل' (Qabas Brain) بـ Supabase (جدولا styles/master_styles) والمخزن المحلي
  * مسؤولة عن استرجاع كائنات الأنماط (Style Objects) المحفوظة،
  * تحويلها لذاكرة مرجعية ديناميكية (Dynamic Few-Shot Reference Memory)،
  * وحقنها في ردود وقرارات الذكاء الاصطناعي (Gemini).
@@ -29,7 +29,7 @@ class QabasBrainRepository(private val context: Context) {
     }
 
     /**
-     * استرجاع كائنات الأنماط المخزنة للمستخدم والمجتمع من Firestore
+     * استرجاع كائنات الأنماط المخزنة للمستخدم والمجتمع من Supabase
      * مع التدهور الأنيق للذاكرة التراكمية المحلية إذا لم تتوفر السحابة
      */
     suspend fun getReferenceStyleObjects(userId: String? = null): List<StyleObject> = withContext(Dispatchers.IO) {
@@ -37,7 +37,7 @@ class QabasBrainRepository(private val context: Context) {
             try {
                 CloudServices.Database.getCloudStyleObjects(userId)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-                Log.w(TAG, "Error fetching from Firestore, falling back to local: ${e.message}")
+                Log.w(TAG, "Error fetching from Supabase, falling back to local: ${e.message}")
                 emptyList()
             }
         } else {
@@ -54,7 +54,7 @@ class QabasBrainRepository(private val context: Context) {
     }
 
     /**
-     * حفظ كائن نمط فني في سحابة Firestore وتحديث الذاكرة التراكمية للعقل
+     * حفظ كائن نمط فني في Supabase وتحديث الذاكرة التراكمية للعقل
      */
     suspend fun saveStyleObject(styleObject: StyleObject): Boolean = withContext(Dispatchers.IO) {
         var cloudSaved = false
@@ -120,7 +120,7 @@ class QabasBrainRepository(private val context: Context) {
     }
 
     /**
-     * تحديث أوزان النمط في Firestore بناءً على تغذية المستخدم الراجعة (Reinforcement)
+     * تحديث أوزان النمط في Supabase بناءً على تغذية المستخدم الراجعة (Reinforcement)
      */
     suspend fun recordStyleFeedback(styleNameOrId: String, isPositive: Boolean): Unit = withContext(Dispatchers.IO) {
         try {

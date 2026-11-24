@@ -59,6 +59,11 @@ android {
     // file (see `.env.example`: GOOGLE_WEB_CLIENT_ID). Empty until the owner
     // creates a Web-application OAuth client in Google Cloud and pastes its id.
     buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${resolveSecret("GOOGLE_WEB_CLIENT_ID")}\"")
+    // OneSignal App ID (36-char UUID from OneSignal Dashboard > Settings > Keys & IDs).
+    // Empty until the owner creates the OneSignal app and pastes its id in .env
+    // (ONESIGNAL_APP_ID) or a Gradle property; OneSignalManager stays disabled
+    // while empty and FCM keeps working as the fallback push channel.
+    buildConfigField("String", "ONESIGNAL_APP_ID", "\"${resolveSecret("ONESIGNAL_APP_ID")}\"")
   }
 
   signingConfigs {
@@ -85,8 +90,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
-      isShrinkResources = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -145,6 +150,10 @@ secrets {
   ignoreList.add("PIXABAY_API_KEY")
   ignoreList.add("QF_CLIENT_ID")
   ignoreList.add("QF_CLIENT_SECRET")
+  // ONESIGNAL_APP_ID له buildConfigField يدوي مُقتبس أعلاه؛ إن لم يُتجاهل هنا
+  // يولّد Secrets Plugin حقلاً ثانياً من .env.example الفارغ بلا علامتي تنصيص
+  // (القيم الفارغة تمرّ كما هي) فيكسر تجميع BuildConfig بـ "= ;".
+  ignoreList.add("ONESIGNAL_APP_ID")
 }
 
 // Ensure google-services.json always exists before GoogleServices tasks run
@@ -185,7 +194,8 @@ tasks.matching { it.name.contains("GoogleServices", ignoreCase = true) && it.nam
 }
 
 tasks.withType<Test> {
-    failFast = true
+    // لا failFast: إظهار كل الاختبارات الفاشلة في التشغيل الواحد بدل التوقف عند الأول.
+    failFast = false
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
@@ -232,6 +242,11 @@ dependencies {
   implementation(libs.firebase.appcheck.debug)
   implementation(libs.firebase.appcheck.playintegrity)
   implementation(libs.firebase.messaging)
+  // OneSignal is the new push channel (SDK 5). firebase-messaging is KEPT:
+  // OneSignal delivers on Google Play devices through FCM, and the existing
+  // MyFirebaseMessagingService / PushTokenManager stay as fallback until
+  // OneSignal is configured and tested. Do not delete FCM yet.
+  implementation(libs.onesignal)
   implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
