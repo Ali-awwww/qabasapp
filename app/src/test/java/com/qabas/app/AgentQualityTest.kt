@@ -1,10 +1,14 @@
 package com.qabas.app
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.fetchSemanticsNodes
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.performClick
 import com.qabas.app.ui.theme.MyApplicationTheme
 import org.junit.Assert.assertEquals
@@ -17,7 +21,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-
 /**
  * اختبارات جودة قسم الوكيل الذكي (Agent Quality Tests):
  * validateTeam، cleanDisplayName، resolveKeyWithSource، AgentPrefs، وتنقل تبويبات شاشة الوكيل.
@@ -25,7 +28,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class AgentQualityTest {
-
     @get:Rule val composeTestRule = createComposeRule()
 
     @Before
@@ -56,23 +58,23 @@ class AgentQualityTest {
         )
         val result = MultiModelAgentOrchestrator.validateTeam(team)
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("مساعد") })
+        assertTrue(result.errors.any { it.contains("منفذ") })
     }
 
     @Test
-    fun `validateTeam accepts valid team`() {
+    fun `validateTeam accepts a valid leader plus executor team`() {
         val team = listOf(
-            AgentTeamMember("l1", "القائد", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط صارم"),
+            AgentTeamMember("l1", "القائد", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط ماهر"),
             AgentTeamMember("e1", "مساعد", DetectedProvider.GEMINI, "gemini-3.5-flash", AgentTeamRole.EXECUTOR, 2, true, "متخصص واجهات")
         )
         val result = MultiModelAgentOrchestrator.validateTeam(team)
         assertTrue(result.isValid)
+        assertTrue(result.errors.isEmpty())
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // cleanDisplayName — تنظيف اسم العرض
+    // cleanDisplayName — تطبيع أسماء الأعضاء
     // ═══════════════════════════════════════════════════════════════════
-
     @Test
     fun `cleanDisplayName strips rule markers`() {
         val name = MultiModelAgentOrchestrator.cleanDisplayName("القائد • يلزم مفتاح API • اتصال", AgentTeamRole.LEADER)
@@ -85,6 +87,9 @@ class AgentQualityTest {
         assertEquals("مراجع", name)
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // extractTargetFile — تحديد ملف الهدف من الطلب
+    // ═══════════════════════════════════════════════════════════════════
     @Test
     fun `extractTargetFile does not guess a source file when no path is provided`() {
         val target = extractTargetFile("أضف ميزة جديدة للمشروع", "fun newFeature() = Unit")
@@ -94,7 +99,6 @@ class AgentQualityTest {
     // ═══════════════════════════════════════════════════════════════════
     // AgentPrefs.maskSecret — إظهار آخر 4 محارف فقط
     // ═══════════════════════════════════════════════════════════════════
-
     @Test
     fun `maskSecret shows last four characters only`() {
         assertEquals("••••abcd", AgentPrefs.maskSecret("sk-or-1234abcd"))
@@ -105,7 +109,6 @@ class AgentQualityTest {
     // ═══════════════════════════════════════════════════════════════════
     // resolveKeyWithSource — لا مفتاح مخزن نصاً صريحاً بعد الهجرة
     // ═══════════════════════════════════════════════════════════════════
-
     @Test
     fun `resolveKeyWithSource returns NONE when no keys are stored`() {
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -117,87 +120,62 @@ class AgentQualityTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // Compose UI — تنقل تبويبات شاشة الوكيل (testTags)
+    // Compose UI — اختبارات واجهة الوكيل بعد إعادة تصميم شاشة الوكيل في PR #107
     // ═══════════════════════════════════════════════════════════════════
-
+    // ملاحظة: حُذفت 4 اختبارات لم يعد لها مقابل في الإنتاج بعد أن أصبحت
+    // AiStudioAgentScreen شاشة محادثة بلا أقسام Hub:
+    //  - اختبار deck/sub-tabs (deck_module_01..06 وsub_tab_readiness وsub_tab_tools).
+    //  - اختبار نظرة Hub (agent_hub_overview).
+    //  - اختبار مساحة العمل (agent_hub_page_02).
+    //  - اختبار الأدوات (agent_hub_page_06).
+    // وبقي قسم المشاريع في AgentHubProjectsSection (يُعرض من VibeCodingScreen)،
+    // وقسما الكونسول والسجل في AgentLiveConsoleTab وTaskHistoryLogTab،
+    // فأُعيد توجيه اختباراتها إلى تلك المكوّنات مباشرة بدل شاشة الوكيل.
     @Test
-    fun `agent screen renders deck modules and sub-tabs`() {
+    fun `projects section renders the saved repositories list`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
-            }
-        }
-
-        composeTestRule.onNodeWithTag("deck_module_01").assertExists()
-        composeTestRule.onNodeWithTag("deck_module_02").assertExists()
-        composeTestRule.onNodeWithTag("deck_module_03").assertExists()
-        composeTestRule.onNodeWithTag("deck_module_04").assertExists()
-        composeTestRule.onNodeWithTag("deck_module_05").assertExists()
-        composeTestRule.onNodeWithTag("deck_module_06").assertExists()
-        composeTestRule.onNodeWithTag("sub_tab_readiness").assertExists()
-        composeTestRule.onNodeWithTag("sub_tab_tools").assertExists()
-        composeTestRule.onNodeWithTag("sub_tab_readiness").performClick()
-        composeTestRule.onNodeWithTag("sub_tab_tools").performClick()
-    }
-
-    @Test
-    fun `agent screen opens on developer hub overview`() {
-        composeTestRule.setContent {
-            MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
-            }
-        }
-        composeTestRule.onNodeWithTag("agent_hub_overview").assertExists()
-    }
-
-    @Test
-    fun `agent screen opens on projects section`() {
-        composeTestRule.setContent {
-            MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
+                AgentHubProjectsSection(
+                    repositories = emptyList(),
+                    activeRepositoryId = null,
+                    onSelectRepository = {},
+                    onAddRepository = {}
+                )
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_projects").assertExists()
-    }
-
-    @Test
-    fun `workspace section uses the shared hub page header`() {
-        composeTestRule.setContent {
-            MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
-            }
-        }
-        composeTestRule.onNodeWithTag("agent_hub_page_02").assertExists()
+        composeTestRule.onNodeWithText("لا توجد مستودعات محفوظة").assertExists()
     }
 
     @Test
     fun `console section uses the shared hub page header`() {
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
+                AgentHubPageIntro(
+                    index = "03",
+                    title = "كونسول التنفيذ",
+                    description = "مراقبة الاتصال والطابور والخطوات والنتائج العملية",
+                    icon = Icons.Default.Terminal
+                )
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_page_03").assertExists()
+        composeTestRule.onNodeWithText("كونسول التنفيذ").assertExists()
     }
 
     @Test
-    fun `history section uses the shared hub page header`() {
+    fun `history section shows recorded runs`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        AgentRunLog.clear(context)
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
+                TaskHistoryLogTab(context)
             }
         }
         composeTestRule.onNodeWithTag("agent_hub_page_05").assertExists()
-    }
-
-    @Test
-    fun `tools section uses the shared hub page header`() {
-        composeTestRule.setContent {
-            MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
-            }
-        }
-        composeTestRule.onNodeWithTag("agent_hub_page_06").assertExists()
+        composeTestRule.onNodeWithText("إجمالي العمليات").assertExists()
+        composeTestRule.onNodeWithText("0 عملية").assertExists()
+        composeTestRule.onNodeWithTag("agent_history_success_rate").assertTextEquals("—")
     }
 
     @Test
@@ -206,7 +184,7 @@ class AgentQualityTest {
         AgentRunLog.clear(context)
         composeTestRule.setContent {
             MyApplicationTheme {
-                AiStudioAgentScreen(onBack = {})
+                TaskHistoryLogTab(context)
             }
         }
         composeTestRule.onNodeWithText("إجمالي العمليات").assertExists()
