@@ -85,8 +85,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
-      isShrinkResources = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -185,7 +185,8 @@ tasks.matching { it.name.contains("GoogleServices", ignoreCase = true) && it.nam
 }
 
 tasks.withType<Test> {
-    failFast = true
+    // لا failFast: إظهار كل الاختبارات الفاشلة في التشغيل الواحد بدل التوقف عند الأول.
+    failFast = false
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {

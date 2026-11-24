@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
  */
 enum class BrainStatus {
     IDLE,                      // جاهز للإنتاج
-    FETCHING_MEMORY,           // استرجاع كائنات الأنماط من Firestore
+    FETCHING_MEMORY,           // استرجاع كائنات الأنماط من Supabase / الذاكرة المحلية
     ANALYZING_IDEA,            // تحليل واستيعاب الفكرة والدلالات
     MATCHING_STYLE,            // مطابقة وصهر كائنات الأنماط المرجعية
     GEMINI_REASONING,          // تفكير وتوليد بالذكاء الاصطناعي مع ذاكرة الأنماط
@@ -103,7 +103,7 @@ data class StyleAbsorptionUiState(
 
 /**
  * الهيكل البرمجي المركزي (ViewModel) الذي يمثل 'العقل' (Brain)
- * المسؤول عن إدارة ومعالجة المدخلات، استدعاء ذاكرة كائنات الأنماط من Firestore،
+ * المسؤول عن إدارة ومعالجة المدخلات، استدعاء ذاكرة كائنات الأنماط من Supabase / الذاكرة المحلية،
  * والتواصل مع Gemini API لاتخاذ القرارات الإخراجية والمونتاجية بناءً على الأنماط المخزنة.
  */
 class QabasBrainViewModel(
@@ -323,7 +323,7 @@ class QabasBrainViewModel(
     }
 
     /**
-     * مزامنة واسترجاع كائنات الأنماط من سحابة Firestore لتحديث الذاكرة المرجعية للعقل
+     * مزامنة واسترجاع كائنات الأنماط من Supabase لتحديث الذاكرة المرجعية للعقل
      */
     fun syncBrainMemory() {
         viewModelScope.launch {
@@ -355,7 +355,7 @@ class QabasBrainViewModel(
     }
 
     /**
-     * معالجة الفكرة واتخاذ القرارات الإخراجية بناءً على كائنات الأنماط المسترجعة من Firestore
+     * معالجة الفكرة واتخاذ القرارات الإخراجية بناءً على كائنات الأنماط المسترجعة من Supabase / الذاكرة المحلية
      */
     fun processIdeaWithBrain(
         idea: String,
@@ -469,7 +469,7 @@ class QabasBrainViewModel(
     }
 
     /**
-     * تنفيذ طلب الاستدلال الإخراجي لـ Gemini مع حقن الذاكرة المرجعية المسترجعة من Firestore
+     * تنفيذ طلب الاستدلال الإخراجي لـ Gemini مع حقن الذاكرة المرجعية المسترجعة من Supabase / الذاكرة المحلية
      */
     private suspend fun executeGeminiDirectorialReasoning(
         idea: String,
