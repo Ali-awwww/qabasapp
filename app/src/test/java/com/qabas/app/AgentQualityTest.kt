@@ -66,7 +66,7 @@ class AgentQualityTest {
     @Test
     fun `validateTeam accepts valid team`() {
         val team = listOf(
-            AgentTeamMember("l1", "القائد", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط ماهر"),
+            AgentTeamMember("l1", "القائد", DetectedProvider.OPENROUTER, "anthropic/claude-sonnet-4.5", AgentTeamRole.LEADER, 1, true, "مخطط صارم"),
             AgentTeamMember("e1", "مساعد", DetectedProvider.GEMINI, "gemini-3.5-flash", AgentTeamRole.EXECUTOR, 2, true, "متخصص واجهات")
         )
         val result = MultiModelAgentOrchestrator.validateTeam(team)
