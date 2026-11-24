@@ -2,9 +2,7 @@ package com.qabas.app
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.fetchSemanticsNodes
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
