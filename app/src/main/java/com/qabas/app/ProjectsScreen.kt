@@ -414,7 +414,7 @@ private fun ProjectAppleCard(
             ) {
                 Text(
                     text = project.idea.ifBlank {
-                        Translator.tr("مشروع فيديو تم إنشاؤه عبر استوديو خادم المسلم.")
+                        Translator.tr("مشروع فيديو تم إنشاؤه عبر استوديو مساعد المسلم.")
                     },
                     color = theme.textSecondary,
                     fontFamily = NotoSansFont,
