@@ -18,7 +18,7 @@ feature/studio-route-organization (PR #89)
 
 ## الحالة الحالية
 
-تم تنفيذ دفعات الأداء والأمان والتوثيق وإصلاحات Studio على PR #89. أُصلحت محلياً أخطاء Kotlin المؤكدة في `AiStudioAgentScreen.kt` و`AppNavigation.kt` و`SettingsScreen.kt`. أظهر الرأس `c53f8ddc` فشل Build وCodeQL بسبب عدم توافق `AppNavigation.kt` مع توقيعات شاشات Studio بعد إعادة التأسيس؛ استُعيدت النسخة المتوافقة وأضيفت تغطية ساكنة لجميع قيم `AppState`. لم تُشغّل Gradle محلياً؛ الحسم التجميعي سيكون عبر GitHub Actions بعد الدفع. فحص Mintlify Deployment ما زال فاشلاً من تكامل خارجي غير موجود إعدادُه داخل المستودع.
+تم تنفيذ دفعات الأداء والأمان والتوثيق وإصلاحات Studio على PR #89. أظهر الرأس `c53f8ddc` فشل Build وCodeQL بسبب عدم توافق `AppNavigation.kt` مع توقيعات شاشات Studio بعد إعادة التأسيس؛ استُعيدت النسخة المتوافقة وأضيفت تغطية ساكنة لجميع قيم `AppState`. الرأس المصحح `b181c9f4` اجتاز Build & Sign APK وCodeQL وSecret Scan، وPR #89 مفتوح وقابل للدمج. لم تُشغّل Gradle محلياً؛ التحقق التجميعي تم عبر GitHub Actions. فحص Mintlify Deployment ما زال فاشلاً من تكامل خارجي غير موجود إعدادُه داخل المستودع.
 
 ## عناصر يمكن لـ Manus إكمالها لاحقًا
 
@@ -217,5 +217,5 @@ QABAS_KEY_VAULT_SECRET
 - [x] حذف الملف الجزئي عند فشل نسخ الصورة المختارة.
 - [x] استعادة توافق `AppNavigation.kt` مع توقيعات `StudioGatewayScreen` و`CentralMediaBrowserScreen` و`PhotoStudioScreen` بعد إعادة التأسيس.
 - [x] فحص ساكن لتغطية قيم `AppState` وعدم وجود علامات تعارض.
-- [ ] إنشاء commit ودفع الإصلاح ثم انتظار Build وCodeQL وSecret Scan للرأس الجديد.
+- [x] إنشاء commit `b181c9f4` ودفع الإصلاح وانتظار Build وCodeQL وSecret Scan؛ الفحوص الثلاثة ناجحة.
 - [ ] اختبار الجهاز الفعلي لمسارات Studio والتحديثات وxdelta؛ لم تُنفذ هذه الجولة على جهاز Android.
