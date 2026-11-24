@@ -275,7 +275,7 @@ fun LeaderboardScreen(
         topBar = {
             Column(modifier = Modifier.background(theme.background)) {
                 AppleTopBar(
-                    title = Translator.tr("مجتمع خادم المسلم ولوحة الشرف"),
+                    title = Translator.tr("مجتمع مساعد المسلم ولوحة الشرف"),
                     onBack = onBack,
                     actions = {
                         CloudSyncIndicator(isSyncing = isRefreshing || isLoading)
@@ -422,7 +422,7 @@ private fun LeaderboardTab(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = Translator.tr("دوري خادم المسلم الأسبوعي"),
+                                    text = Translator.tr("دوري مساعد المسلم الأسبوعي"),
                                     color = theme.textPrimary,
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
