@@ -188,7 +188,7 @@ fun HasanatHubScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        Translator.tr("مِشكاة الهُدى هو ركنك الإيماني المتكامل ضمن تطبيق خادم المسلم، يهدف إلى تيسير الوصول إلى كنوز الوحيين الشريفين وعلوم سلف الأمة."),
+                        Translator.tr("مِشكاة الهُدى هو ركنك الإيماني المتكامل ضمن تطبيق مساعد المسلم، يهدف إلى تيسير الوصول إلى كنوز الوحيين الشريفين وعلوم سلف الأمة."),
                         color = theme.textPrimary,
                         fontFamily = CairoFont,
                         fontSize = 13.5.sp,
