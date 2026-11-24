@@ -54,6 +54,21 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
           gradle-home-cache-cleanup: true
 
+      - name: Cache Robolectric android-all artifacts
+        uses: actions/cache@v4
+        with:
+          # Robolectric downloads the android-all framework jar for the test
+          # SDK from Maven Central at test runtime (outside Gradle's cache).
+          # Maven Central rate-limits GitHub-hosted runners (HTTP 429), which
+          # used to fail the first Robolectric test class with
+          # "Failed to fetch maven artifact ... android-all-instrumented".
+          # Caching ~/.m2/repository/org/robolectric means a successful run
+          # populates the cache and later runs never hit Maven Central.
+          # The key follows gradle/libs.versions.toml: bump the Robolectric
+          # version there and this key changes automatically.
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-android-all-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+
       - name: Setup Android SDK
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
@@ -252,13 +267,43 @@ jobs:
           VERSION_CODE: ${{ env.VERSION_CODE }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvmargs=\"-Xmx1536m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
         run: |
-          ./gradlew testDebugUnitTest \
+          # Robolectric fetches the android-all framework jar from Maven
+          # Central at test runtime. Maven Central rate-limits GitHub-hosted
+          # runners (HTTP 429 / connection reset), which fails the first
+          # Robolectric test class with "Failed to fetch maven artifact"
+          # even though no test or production code is wrong (see #1350).
+          # Retry the test task only for that transient fetch failure
+          # (up to 3 attempts); any other failure aborts immediately so a
+          # real test regression is never masked by retries.
+          set +e
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            echo "Unit tests - attempt $attempt/3"
+            ./gradlew testDebugUnitTest \
             --stacktrace \
             --no-daemon \
             --max-workers=2 \
             -PappVersionName="$VERSION_NAME" \
             -PappVersionCode="$VERSION_CODE" \
-            -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
+              -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC" \
+              2>&1 | tee test-output.log
+            status=${PIPESTATUS[0]}
+            if [ "$status" -eq 0 ]; then
+              echo "Unit tests passed on attempt $attempt"
+              exit 0
+            fi
+            if grep -q "Failed to fetch maven artifact" test-output.log || grep -q "MavenArtifactFetcher" test-output.log; then
+              echo "Robolectric could not fetch android-all from Maven Central (transient network/rate-limit). Removing any partial download and retrying in 60s..."
+              rm -rf ~/.m2/repository/org/robolectric/android-all-instrumented
+              attempt=$((attempt + 1))
+              sleep 60
+              continue
+            fi
+            echo "Unit tests failed for a non-transient reason; not retrying."
+            exit "$status"
+          done
+          echo "Unit tests failed after 3 attempts."
+          exit 1
 
       - name: Assemble Debug APK
         env:
