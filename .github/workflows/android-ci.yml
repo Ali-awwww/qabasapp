@@ -185,7 +185,8 @@ jobs:
           AZURE_SPEECH_REGION="ci-placeholder"
           COVERR_API_KEY="ci-placeholder"
           ELEVENLABS_API_KEY="ci-placeholder"
-          GOOGLE_WEB_CLIENT_ID="ci-placeholder"
+          GOOGLE_WEB_CLIENT_ID="ci-placeholder" 
+          ONESIGNAL_APP_ID="${{ secrets.ONESIGNAL_APP_ID }}"
           GROQ_API_KEY="ci-placeholder"
           HUGGINGFACE_API_KEY="ci-placeholder"
           OPENAI_API_KEY="ci-placeholder"
@@ -207,6 +208,7 @@ jobs:
           QF_CLIENT_ID: ${{ secrets.QF_CLIENT_ID }}
           QF_CLIENT_SECRET: ${{ secrets.QF_CLIENT_SECRET }}
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
         run: |
           mkdir -p app
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
@@ -220,6 +222,7 @@ jobs:
             echo "COVERR_API_KEY=\"your_key\""
             echo "ELEVENLABS_API_KEY=\"your_key\""
             echo "GOOGLE_WEB_CLIENT_ID=\"${GOOGLE_WEB_CLIENT_ID:-your_key}\""
+            echo "ONESIGNAL_APP_ID=\"${ONESIGNAL_APP_ID:-}\""
             echo "GROQ_API_KEY=\"your_key\""
             echo "HUGGINGFACE_API_KEY=\"your_key\""
             echo "OPENAI_API_KEY=\"your_key\""
