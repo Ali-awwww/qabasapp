@@ -233,12 +233,23 @@ object ReelSafetyGuardrails {
         circuitBreakerUntilMs = 0L
     }
 
-    fun recordNetworkFailure() {
+    fun recordNetworkFailure(isRetryable: Boolean = true) {
+        // الأخطاء غير القابلة لإعادة المحاولة لا تغلق القاطع.
+        if (!isRetryable) return
+        val now = System.currentTimeMillis()
+        // انتهت التهدئة السابقة: نافذة عد جديدة.
+        if (now >= circuitBreakerUntilMs) {
+            consecutiveetworkFailures = 0
+    }
         consecutiveNetworkFailures++
         if (consecutiveNetworkFailures >= FAILURE_THRESHOLD) {
-            circuitBreakerUntilMs = System.currentTimeMillis() + CIRCUIT_COOLDOWN_MS
+            circuitBreakerUntilMs = now + CIRCUIT_COOLDOWN_MS
             Log.w(TAG, "Circuit breaker tripped: reels network paused for ${CIRCUIT_COOLDOWN_MS / 1000}s")
         }
+    }
+    // خطاف اختبار فقط: يُنهي التهدئة دون تصفير العدّاد.
+    internal fun expireCooldownForTest() {
+        circuitBreakerUntilMs = 0L
     }
 
     /**
