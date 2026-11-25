@@ -136,11 +136,19 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
             resultMessage = "جارٍ حفظ الفيديو في الموقع الذي اخترته..."
             resultMessageIsError = false
             val copied = withContext(Dispatchers.IO) {
-                runCatching {
+                try {
                     context.contentResolver.openOutputStream(destination)?.use { output ->
                         source.inputStream().use { input -> input.copyTo(output) }
                     } ?: error("تعذر فتح ملف التصدير")
-                }.isSuccess
+                    true
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // CreateDocument may leave a partially written document.
+                    // Remove it so a failed export is not mistaken for a valid video.
+                    runCatching { context.contentResolver.delete(destination, null, null) }
+                    false
+                }
             }
             isExporting = false
             resultMessageIsError = !copied
@@ -171,6 +179,9 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
                             output.delete()
                             null
                         }
+                    } catch (error: CancellationException) {
+                        output.delete()
+                        throw error
                     } catch (_: Exception) {
                         output.delete()
                         null
