@@ -1,6 +1,5 @@
 package com.qabas.app
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -44,13 +43,7 @@ fun QabasApp() {
     val viewModel: ProjectViewModel = viewModel(factory = ProjectViewModelFactory(context))
     val state by viewModel.state.collectAsState()
 
-    val activeAnimation by AppAnimationManager.currentAnimation.collectAsState()
-    val activeSpeed by AppAnimationManager.currentSpeed.collectAsState()
-    val reducedMotion by UserPreferencesManager.reducedMotion.collectAsState()
 
-    val bottomNav = @Composable {
-        QabasBottomNavigation(
-            modifier = Modifier.testTag("bottom_navigation"),
             currentRoute = state.appState,
             onNavigate = { newState ->
                 // ق103: صوت النقرة يأتي من playTabRouteSound داخل عنصر
@@ -105,43 +98,18 @@ fun QabasApp() {
         }
     }
 
-    val creationStepsOrder = remember {
-        listOf(
-            AppState.HOME,
-            AppState.INPUT,
-            AppState.UNDERSTANDING,
-            AppState.PROCESSING,
-            AppState.REVIEW,
-            AppState.PAYMENT,
-            AppState.ADVANCED_EDIT,
-            AppState.SAVE_SHARE
-        )
-    }
 
     val theme = QabasTheme.current
-    AnimatedContent(
-        targetState = state.appState,
-        transitionSpec = {
-            AppAnimationManager.createTransitionSpec(
-                initialState = initialState,
-                targetState = targetState,
-                creationStepsOrder = creationStepsOrder,
-                reducedMotion = reducedMotion
-            )
-        },
-        label = "QabasRootScreenTransition_${activeAnimation.id}_${activeSpeed.id}"
-    ) { targetAppState ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(theme.background)
-        ) {
-            AppNavigation(
-                state = state.copy(appState = targetAppState),
-                viewModel = viewModel,
-                context = context,
-                bottomNav = bottomNav
-            )
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(theme.background)
+    ) {
+        AppNavigation(
+            state = state,
+            viewModel = viewModel,
+            context = context,
+            bottomNav = bottomNav
+        )
     }
 }
