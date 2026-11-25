@@ -28,7 +28,7 @@ jobs:
   build:
     name: Build Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write
       actions: write
@@ -321,6 +321,82 @@ jobs:
             -PappVersionCode="$VERSION_CODE" \
             -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
 
+      # Release signing: the fixed production keystore (alias "upload") lives in
+      # the ANDROID_RELEASE_KEYSTORE_BASE64 / ANDROID_RELEASE_KEYSTORE_PASSWORD /
+      # ANDROID_RELEASE_KEY_ALIAS / ANDROID_RELEASE_KEY_PASSWORD secrets.
+      # The release APK is built alongside the debug APK on main/master and
+      # uploaded as an artifact; it is NOT attached to the GitHub Release and
+      # NOT published to Supabase yet — that cutover changes the signature
+      # users receive, so it needs the owner's decision first.
+      # app/build.gradle.kts already reads RELEASE_KEYSTORE_PATH /
+      # RELEASE_KEYSTORE_PASSWORD / RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD
+      # for the release signing config (no build file change needed).
+      - name: Restore Release Signing Keystore
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_RELEASE_KEYSTORE_BASE64" ]; then
+            echo "Release signing secrets are not configured; skipping release build."
+            echo "RELEASE_BUILD_ENABLED=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          test -n "$ANDROID_RELEASE_KEYSTORE_PASSWORD" || { echo "::error::ANDROID_RELEASE_KEYSTORE_PASSWORD is not set."; exit 1; }
+          test -n "$ANDROID_RELEASE_KEY_PASSWORD" || { echo "::error::ANDROID_RELEASE_KEY_PASSWORD is not set."; exit 1; }
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          test -s "$RUNNER_TEMP/release.keystore"
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$ANDROID_RELEASE_KEYSTORE_PASSWORD" -alias "${ANDROID_RELEASE_KEY_ALIAS:-upload}" >/dev/null
+          {
+            echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore"
+            echo "RELEASE_KEYSTORE_PASSWORD=${ANDROID_RELEASE_KEYSTORE_PASSWORD}"
+            echo "RELEASE_KEY_ALIAS=${ANDROID_RELEASE_KEY_ALIAS:-upload}"
+            echo "RELEASE_KEY_PASSWORD=${ANDROID_RELEASE_KEY_PASSWORD}"
+            echo "RELEASE_BUILD_ENABLED=true"
+          } >> "$GITHUB_ENV"
+          echo "Release keystore restored and validated."
+
+      - name: Assemble Release APK
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.RELEASE_BUILD_ENABLED == 'true'
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvmargs=\"-Xmx1536m -XX:+UseG1GC\" -XX:+UseG1GC -Dfile.encoding=UTF-8"
+        run: |
+          ./gradlew assembleRelease \
+            --stacktrace \
+            --no-daemon \
+            --max-workers=2 \
+            --no-build-cache \
+            -PappVersionName="$VERSION_NAME" \
+            -PappVersionCode="$VERSION_CODE" \
+            -Dkotlin.daemon.jvmargs="-Xmx1536m -XX:+UseG1GC"
+
+      - name: Verify Release APK Signature
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.RELEASE_BUILD_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          APK_FILE=$(find app/build/outputs/apk/release -maxdepth 1 -name "*.apk" -print -quit)
+          test -n "$APK_FILE"
+          echo "APK: $APK_FILE"
+          APKSIGNER=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -name apksigner 2>/dev/null | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK_FILE"
+          sha256sum "$APK_FILE"
+
+      - name: Upload Release APK artifact
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.RELEASE_BUILD_ENABLED == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: muslim-assistant-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Verify xdelta JNI is packaged
         shell: bash
         run: |
@@ -600,6 +676,10 @@ jobs:
           else
             echo "⚠️ Failed to dispatch xdelta workflow — run it manually (non-fatal)"
           fi
+
+      - name: Clean Up Release Keystore
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/release.keystore"
 
       - name: On failure — print Kotlin errors hint
         if: failure()
