@@ -185,7 +185,7 @@ jobs:
           AZURE_SPEECH_REGION="ci-placeholder"
           COVERR_API_KEY="ci-placeholder"
           ELEVENLABS_API_KEY="ci-placeholder"
-          GOOGLE_WEB_CLIENT_ID="ci-placeholder" 
+          GOOGLE_WEB_CLIENT_ID="ci-placeholder"
           ONESIGNAL_APP_ID="${{ secrets.ONESIGNAL_APP_ID }}"
           GROQ_API_KEY="ci-placeholder"
           HUGGINGFACE_API_KEY="ci-placeholder"
