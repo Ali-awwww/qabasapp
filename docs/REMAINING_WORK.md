@@ -224,4 +224,4 @@ QABAS_KEY_VAULT_SECRET
 
 - [x] حذف مستند `CreateDocument` الجزئي عند فشل نسخ الفيديو.
 - [x] عدم ابتلاع `CancellationException` أثناء نسخ الصورة المؤقتة.
-- [ ] انتظار Build وCodeQL وSecret Scan للرأس الجديد بعد الدفع.
+- [x] انتظار Build وCodeQL وSecret Scan للرأس `e82a1629`؛ الفحوص الثلاثة ناجحة.
