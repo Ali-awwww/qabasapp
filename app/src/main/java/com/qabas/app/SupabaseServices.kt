@@ -2349,7 +2349,7 @@ object SupabaseServices {
                 throw e
             } catch (t: Throwable) {
                 val latency = (System.currentTimeMillis() - startTime).coerceAtLeast(1L)
-                ReelSafetyGuardrails.recordNetworkFailure()
+                // يُسجَّل الإخفاق بعد التصنيف أدناه، وعلى الأخطاء القابلة لإعادة المحاولة فقط.
                 Log.e(TAG, "getActiveReelsDiagnosed failed after ${latency}ms: ${t.javaClass.simpleName}: ${t.message}", t)
 
                 val msg = t.message.orEmpty()
@@ -2363,8 +2363,10 @@ object SupabaseServices {
                 val isSerialization = t is kotlinx.serialization.SerializationException ||
                         msg.contains("SerializationException") ||
                         msg.contains("UnknownKey")
+						val isRateLimited = msg.contains("429") || msg.contains("Too Many Requests", ignoreCase = true)
 
                 val code = when {
+					isRateLimited -> 429
                     isAuth -> 401
                     isTimeout -> 408
                     msg.contains("403") -> 403
@@ -2375,11 +2377,16 @@ object SupabaseServices {
                 }
 
                 val stage = when {
+					isRateLimited -> "RATE_LIMITED"
                     isSerialization -> "SERIALIZATION"
                     isAuth -> "AUTH"
                     isTimeout -> "TIMEOUT"
                     else -> "NETWORK"
                 }
+				// القاطع يُغلَق فقط على الأخطاء العابرة القابلة لإعادة المحاولة (429/مهلة/5xx/شبكة)؛
+				// أخطاء المصادقة والتسلسل لا تُغلقه.
+				val isRetryable = !isAuth && !isSerialization && (isRateLimited || isTimeout || code == 500 || code == 503 || code == 0)
+				ReelSafetyGuardrails.recordNetworkFailure(isRetryable = isRetryable)
 
                 val sanitizedMsg = msg
                     .replace(Regex("https?://[^\\s'\"]+"), "[🔒 مسار السحابة محمي]")
@@ -2390,6 +2397,7 @@ object SupabaseServices {
                     "SERIALIZATION" -> "خطأ في بنية حقول البيانات (Serialization)"
                     "AUTH" -> "خطأ في صلاحيات مفتاح السحابة (HTTP 401/403)"
                     "TIMEOUT" -> "انتهت مهلة استجابة السحابة (${latency}ms)"
+					"RATE_LIMITED" -> "بلغت الريلز حد معدل طلبات السحابة (HTTP 429)، وستعاد المحاولة بعد التهدئة"
                     else -> if (sanitizedMsg.isNotBlank()) "تعذر الاتصال بالسحابة: $sanitizedMsg" else "تعذر الاتصال بالسحابة (تحقق من الإنترنت)"
                 }
 
