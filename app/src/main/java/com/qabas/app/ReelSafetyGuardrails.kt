@@ -239,7 +239,7 @@ object ReelSafetyGuardrails {
         val now = System.currentTimeMillis()
         // انتهت التهدئة السابقة: نافذة عد جديدة.
         if (now >= circuitBreakerUntilMs) {
-            consecutiveetworkFailures = 0
+            consecutiveNetworkFailures = 0
     }
         consecutiveNetworkFailures++
         if (consecutiveNetworkFailures >= FAILURE_THRESHOLD) {
