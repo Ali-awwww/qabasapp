@@ -43,7 +43,9 @@ fun QabasApp() {
     val viewModel: ProjectViewModel = viewModel(factory = ProjectViewModelFactory(context))
     val state by viewModel.state.collectAsState()
 
-
+    val bottomNav = @Composable {
+        QabasBottomNavigation(
+            modifier = Modifier.testTag("bottom_navigation"),
             currentRoute = state.appState,
             onNavigate = { newState ->
                 // ق103: صوت النقرة يأتي من playTabRouteSound داخل عنصر
