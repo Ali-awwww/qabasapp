@@ -604,7 +604,7 @@ fun ReelsScreen(
                 // فشل الطلب لا يغيّر التبويب؛ وضع الأثر يُحدّد من حالة الاتصال المركزية فقط.
                 isOfflineMode = false
                 isAlAtharMode = selectedTab == 2
-                cached
+                cached.ifEmpty { AUTHENTIC_STARTER_REELS }
             } else {
                 val cached = ReelPreferencesManager.getCachedReels(context)
                 isOfflineMode = false
@@ -914,7 +914,7 @@ fun ReelsScreen(
                 if (isLoading) {
                     ReelsInteractiveLoadingView(
                         progress = loadingProgress,
-                        onRetry = { loadReels() }
+                        onRetry = { loadReels(isManualRetry = true) }
                     )
                 } else if (loadError && allReels.isEmpty() && isDeveloper) {
                     // فشل التحميل الصريح: يظهر فقط للمطور مع تشخيص دقيق وزر المثلث التفاعلي
