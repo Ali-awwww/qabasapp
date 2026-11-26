@@ -524,6 +524,9 @@ fun HiggsfieldStudioScreen(onBack: () -> Unit) {
     }
 
     if (showKeyDialog) {
-        ApiKeyManagerDialog(onDismiss = { showKeyDialog = false })
+        ApiKeyManagerDialog(
+            onDismiss = { showKeyDialog = false },
+            onHiggsfieldConfiguredChanged = { configured -> isConfigured = configured }
+        )
     }
 }

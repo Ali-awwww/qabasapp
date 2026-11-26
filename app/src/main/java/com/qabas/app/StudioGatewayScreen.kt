@@ -413,7 +413,10 @@ fun StudioGatewayScreen(
 }
 
 @Composable
-fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
+fun ApiKeyManagerDialog(
+    onDismiss: () -> Unit,
+    onHiggsfieldConfiguredChanged: (Boolean) -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
@@ -855,6 +858,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                                                 isSavingHiggsfield = true
                                                 val removed = PlatformGatewayClient.removeProviderKeySuspend("higgsfield")
                                                 isHiggsfieldConfigured = !removed && isHiggsfieldConfigured
+                                                onHiggsfieldConfiguredChanged(isHiggsfieldConfigured)
                                                 higgsfieldTestResult = (removed to if (removed) "تم حذف المفتاح من الخادم." else "تعذر حذف المفتاح من الخادم.")
                                                 isSavingHiggsfield = false
                                             }
@@ -944,6 +948,7 @@ fun ApiKeyManagerDialog(onDismiss: () -> Unit) {
                             if (higgsfieldSaved) {
                                 ApiKeyManager.saveLeonardoKey(context, leonardoKey)
                                 if (keyToSave.isNotBlank()) isHiggsfieldConfigured = true
+                                onHiggsfieldConfiguredChanged(isHiggsfieldConfigured)
                                 higgsfieldKey = ""
                                 Toast.makeText(context, "تم حفظ إعدادات Leonardo ومفتاح Higgsfield على الخادم الآمن ✓", Toast.LENGTH_LONG).show()
                                 onDismiss()
