@@ -83,6 +83,10 @@ val PresetAccent: Color
 val QabasGold: Color
     get() = if (ThemeManager.isDarkState) AppleDarkGold else AppleLightGold
 
+/** توافق مع شاشات الإنتاج القديمة؛ اللون الذهبي الموحد هو QabasGold. */
+val GoldPrimary: Color
+    get() = QabasGold
+
 val ThemeSuccess: Color
     get() = if (ThemeManager.activePreset == AppThemePreset.CYBER_HUD_BLUE) CyberDarkGreen else if (ThemeManager.isDarkState) AppleDarkGreen else AppleLightGreen
 

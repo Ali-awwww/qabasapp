@@ -9,6 +9,13 @@ package com.qabas.app
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -47,54 +54,34 @@ fun AppNavigation(
             authScope.launch {
                 try {
                     val userId = SupabaseRepository.getInstance().ensureAuthenticatedSession()
-                    if (userId.isNullOrBlank() &&
-                        SupabaseRepository.getInstance().getCurrentSession() != null
-                    ) {
-                        // ق51: غياب المعرّف لا يعني غياب الجلسة. فشل التحقق
-                        // العابر (شبكة/ملف) مع بقاء كائن الجلسة المخزنة
-                        // يعني أن رمز التحديث سليم وسيستعيد نفسه عند عودة
-                        // الشبكة؛ والمسار القديم كان يعاملها «لا جلسة»
-                        // فينهي الجلسة المحلية (تسجيل خروج يحذف رمز
-                        // التحديث) فيتحول انقطاع عابر إلى مطالبة بكلمة
-                        // المرور. هنا: لا إنهاء جلسة ولا حظر تنقل، فيبقى
-                        // المستخدم على شاشة الدخول وتستعيده الجلسة
-                        // تلقائياً عبر تدفق الحالة عند عودة الاتصال.
-                        Toast.makeText(
-                            context,
-                            "تعذّر التحقق من جلستك — تحقق من الاتصال، وستُستعاد الجلسة تلقائياً عند عودته.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        viewModel.updateState { copy(appState = AppState.LOGIN) }
+                    val result = if (userId.isNullOrBlank()) {
+                        ActiveSessionClaimResult.UNAVAILABLE
                     } else {
-                        val result = if (userId.isNullOrBlank()) {
-                            ActiveSessionClaimResult.UNAVAILABLE
-                        } else {
-                            ActiveSessionManager.claim(context, userId)
-                        }
+                        ActiveSessionManager.claim(context, userId)
+                    }
 
-                        when (result) {
-                            ActiveSessionClaimResult.CLAIMED -> {
-                                SupabaseRepository.getInstance().completeInteractiveAuthFlow(accepted = true)
-                                viewModel.updateState { copy(appState = destination) }
-                            }
-                            ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
-                                SupabaseRepository.getInstance().blockAuthenticatedNavigation()
-                                withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                                Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
-                                viewModel.updateState { copy(appState = AppState.LOGIN) }
-                            }
-                            ActiveSessionClaimResult.PROFILE_MISSING -> {
-                                SupabaseRepository.getInstance().blockAuthenticatedNavigation()
-                                withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                                Toast.makeText(context, "ملف الحساب غير موجود في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم.", Toast.LENGTH_LONG).show()
-                                viewModel.updateState { copy(appState = AppState.LOGIN) }
-                            }
-                            ActiveSessionClaimResult.UNAVAILABLE -> {
-                                SupabaseRepository.getInstance().blockAuthenticatedNavigation()
-                                withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
-                                Toast.makeText(context, "تعذر التحقق من جلستك. تحقق من الاتصال ثم سجّل الدخول مجددًا.", Toast.LENGTH_LONG).show()
-                                viewModel.updateState { copy(appState = AppState.LOGIN) }
-                            }
+                    when (result) {
+                        ActiveSessionClaimResult.CLAIMED -> {
+                            SupabaseRepository.getInstance().completeInteractiveAuthFlow(accepted = true)
+                            viewModel.updateState { copy(appState = destination) }
+                        }
+                        ActiveSessionClaimResult.ACTIVE_ELSEWHERE -> {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "هذا الحساب نشط على جهاز آخر. سجّل الخروج منه ثم أعد المحاولة.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                        }
+                        ActiveSessionClaimResult.PROFILE_MISSING -> {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "ملف الحساب غير موجود في السحابة. أعد المحاولة لاحقًا أو تواصل مع الدعم.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
+                        }
+                        ActiveSessionClaimResult.UNAVAILABLE -> {
+                            SupabaseRepository.getInstance().blockAuthenticatedNavigation()
+                            withContext(Dispatchers.IO) { ActiveSessionManager.endLocalSession(context) }
+                            Toast.makeText(context, "تعذر التحقق من جلستك. تحقق من الاتصال ثم سجّل الدخول مجددًا.", Toast.LENGTH_LONG).show()
+                            viewModel.updateState { copy(appState = AppState.LOGIN) }
                         }
                     }
                 } finally {
@@ -103,6 +90,9 @@ fun AppNavigation(
             }
         }
     }
+    var mediaBrowserReturnState by remember { mutableStateOf(AppState.HOME) }
+    var photoStudioReturnState by remember { mutableStateOf(AppState.HOME) }
+    var photoStudioInitialImagePath by remember { mutableStateOf<String?>(null) }
 
     // Reactive Auth state observer broadcasting from SupabaseRepository
     ReactiveAuthNavigationObserver(
@@ -202,6 +192,17 @@ fun AppNavigation(
     var rulesReturnToSettings by remember { mutableStateOf(false) }
     var updateHistoryReturnToSettings by remember { mutableStateOf(false) }
 
+    val restrictedProductionStates = remember {
+        setOf(
+            AppState.STUDIO_GATEWAY, AppState.HIGGSFIELD_STUDIO, AppState.INPUT, AppState.UNDERSTANDING, AppState.RESOURCES,
+            AppState.PROCESSING, AppState.REVIEW, AppState.ADVANCED_EDIT, AppState.TRANSCRIPT_EDIT,
+            AppState.PRO_EDITOR, AppState.MONEY_PRINTER_TURBO, AppState.VOICE_STUDIO,
+            AppState.PHOTO_STUDIO, AppState.YOUTUBE_STUDIO, AppState.SMART_DIRECTOR,
+            AppState.VIDEO_STYLE_CLONER, AppState.UNIFIED_MASTER_STUDIO, AppState.DIRECTOR_CHAT,
+            AppState.QASAS, AppState.CLIP_EXTRACTOR, AppState.STYLE_SELECTION, AppState.CREATE_STYLE_OBJECT,
+            AppState.TASTE_PROFILE, AppState.TELEPROMPTER, AppState.HADITH_STUDIO, AppState.AI_ASSISTANT
+        )
+    }
     // معالجة موحّدة لزر الرجوع في النظام: ترجع للشاشة الأب بدل إغلاق التطبيق.
     // الشاشات التي تعرّف BackHandler خاصاً بها تتقدّم تلقائياً لأنها تُسجّل لاحقاً.
     val rootBackStates = remember {
@@ -220,27 +221,7 @@ fun AppNavigation(
             AppState.UPDATE_HISTORY to AppState.ABOUT_US,
             AppState.ABOUT_US to AppState.SETTINGS,
             AppState.PERMISSIONS_HUB to AppState.SETTINGS,
-            AppState.CRASH_LOGS_HUB to AppState.SETTINGS,
-            // (r16) زر الرجوع في النظام كان يخالف زر الرجوع الظاهر في
-            // الشاشة نفسها: كل هذه الحالات تعرّف onBack/onExit إلى أبٍ
-            // محدد، لكن غيابها عن هذه الخريطة كان يرسل زر النظام إلى
-            // الرئيسية مباشرة — فيقفز المستخدم من «مفاتيحي» مثلاً إلى
-            // الرئيسية بدل بوابة الاستوديو التي جاء منها، ويخرج من
-            // مسار الإنشاء (RESOURCES/PAYMENT/المحرر) بدل الرجوع خطوة.
-            // القيم هنا مطابقة حرفياً لـ onBack/onExit الممرَّرة في
-            // فروع when أدناه، لا أب جديد مخترع.
-            AppState.MY_KEYS to AppState.STUDIO_GATEWAY,
-            AppState.STUDIO_AGENT to AppState.STUDIO_GATEWAY,
-            AppState.STUDIO_LIBRARY to AppState.STUDIO_GATEWAY,
-            AppState.SOCIAL_STATS to AppState.STUDIO_GATEWAY,
-            AppState.PRO_EDITOR to AppState.STUDIO_GATEWAY,
-            AppState.DEVELOPER_KEY_STATUS_HUB to AppState.DEVELOPER_DASHBOARD,
-            AppState.AGENT_TEAM_CONFIG to AppState.AI_STUDIO_AGENT,
-            AppState.SAVED_ITEMS to AppState.PROFILE,
-            AppState.RESOURCES to AppState.UNDERSTANDING,
-            AppState.PAYMENT to AppState.REVIEW,
-            AppState.TRANSCRIPT_EDIT to AppState.REVIEW,
-            AppState.ADVANCED_EDIT to AppState.REVIEW
+            AppState.CRASH_LOGS_HUB to AppState.SETTINGS
         )
     }
     BackHandler(enabled = appState !in rootBackStates) {
@@ -266,64 +247,23 @@ fun AppNavigation(
         viewModel.updateState { copy(appState = target) }
     }
 
-    // Silent startup: the init/progress screen was deleted on the user's
-    // order. The same init steps it ran, in the same order, now run here
-    // without any UI. Failures are only logged — routing proceeds
-    // regardless, so an offline start still reaches Home/Login instead of
-    // stranding the user on an error screen with a retry button.
-    var startupInitDone by remember { mutableStateOf(false) }
-    LaunchedEffect(appState) {
-        if (appState != AppState.DATA_LOADING || startupInitDone) return@LaunchedEffect
-        startupInitDone = true
-        val appContext = context.applicationContext
-        try {
-            withContext(Dispatchers.IO) {
-                AppServices.init(appContext)
-                BillingManager.getInstance(appContext)
-                StyleBrain.init(appContext)
-                StyleManager.init(appContext)
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            android.util.Log.e("StartupInit", "Local init failed: ${e.message}")
-        }
-        try {
-            withContext(Dispatchers.IO) {
-                CloudServices.tryInitFromSavedConfig(appContext)
-                if (SupabaseServices.isSupabaseAvailable) {
-                    CloudServices.syncAdminClaim(appContext)
-                    SupabaseServices.Auth.refreshVerifiedRole()
-                }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            android.util.Log.e("StartupInit", "Cloud init failed: ${e.message}")
-        }
-        try {
-            withContext(Dispatchers.IO) {
-                viewModel.loadProjectsSuspend()
-                if (SupabaseServices.isSupabaseAvailable) {
-                    SupabaseServices.Database.ping()
-                }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            android.util.Log.e("StartupInit", "Data load failed: ${e.message}")
-        }
-        val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
-        val isLoggedIn = prefs.getBoolean("is_logged_in", false)
-        val isGuest = prefs.getBoolean("is_guest", false)
-        val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
-        when {
-            !hasAcceptedCovenant -> viewModel.updateState { copy(appState = AppState.ONBOARDING) }
-            isLoggedIn -> verifySessionBeforeNavigation(AppState.HOME)
-            isGuest -> viewModel.updateState { copy(appState = AppState.HOME) }
-            else -> viewModel.updateState { copy(appState = AppState.LOGIN) }
-        }
-    }
-
     when (appState) {
-        // DATA_LOADING بلا شاشة عمداً — التهيئة صامتة في LaunchedEffect أعلاه
-        // وتنتقل مباشرة عند اكتمالها؛ الفرع فارغ لإكمال when الشامل فقط.
         AppState.DATA_LOADING -> {
-            // لا شاشة — التهيئة صامتة في LaunchedEffect أعلاه وتنتقل مباشرة.
+            DataLoadingScreen(
+                onLoadProjects = { viewModel.loadProjectsSuspend() },
+                onFinished = {
+                    val prefs = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+                    val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+                    val isGuest = prefs.getBoolean("is_guest", false)
+                    val hasAcceptedCovenant = prefs.getBoolean("has_accepted_covenant", false)
+                    when {
+                        !hasAcceptedCovenant -> viewModel.updateState { copy(appState = AppState.ONBOARDING) }
+                        isLoggedIn -> verifySessionBeforeNavigation(AppState.HOME)
+                        isGuest -> viewModel.updateState { copy(appState = AppState.HOME) }
+                        else -> viewModel.updateState { copy(appState = AppState.LOGIN) }
+                    }
+                }
+            )
         }
         AppState.ONBOARDING -> {
             OnboardingScreen(
@@ -348,7 +288,7 @@ fun AppNavigation(
                         UserPreferencesManager.cloudSyncEnabled.value
                     ) {
                         viewModel.viewModelScope.launch(Dispatchers.IO) {
-                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }
                                 .onFailure { android.util.Log.e("AppNavigation", "Post-login preferences restore failed: ${it.message}") }
                         }
                     }
@@ -370,7 +310,7 @@ fun AppNavigation(
                         UserPreferencesManager.cloudSyncEnabled.value
                     ) {
                         viewModel.viewModelScope.launch(Dispatchers.IO) {
-                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                            runCatching { UserPreferencesManager.fetchAndApplyFromSupabase(context.applicationContext) }
                                 .onFailure { android.util.Log.e("AppNavigation", "Post-registration preferences restore failed: ${it.message}") }
                         }
                     }
@@ -433,7 +373,11 @@ fun AppNavigation(
                 onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
                 onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
                 onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
-                onPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
+                onPhotoStudio = {
+                    photoStudioReturnState = AppState.HOME
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
+                },
                 onStyleSelection = { viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) } },
                 onIslamicLibrary = { viewModel.updateState { copy(appState = AppState.ISLAMIC_LIBRARY) } },
                 onAzkar = { viewModel.updateState { copy(appState = AppState.AZKAR) } },
@@ -442,13 +386,18 @@ fun AppNavigation(
                 onProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
                 onMoneyPrinterTurbo = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
                 onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
-                onMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
+                onMediaBrowser = {
+                    mediaBrowserReturnState = AppState.HOME
+                    viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) }
+                },
                 onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C): كل نتيجة
                 // تفتح موضعها لا قسمها فقط — الآية في القارئ، والحديث في
                 // قارئ الصحيحين داخل المكتبة، والكتاب في قارئه، والمقطع
                 // بقفزة jumpToReel، والصانع في بطاقة ملفه داخل الريلز.
-                // تُمرَّر هذه الدوال إلى HomeGlobalSearch في الرئيسية.
+                // (على أساس main الحالي لا واجهة بحث تستدعيها بعد — واجهة
+                // البحث العام من الدفعة 3 فُقدت مع فروعها؛ عند استعادتها
+                // تُمرَّر هذه الدوال نفسها إلى HomeGlobalSearch.)
                 onOpenQuranVerse = { surah, ayah ->
                     viewModel.updateState {
                         copy(
@@ -507,18 +456,6 @@ fun AppNavigation(
                         )
                     }
                 },
-                // ق103: فتح المصحف من الدرج بلا موضع — القيم null تعني
-                // استئناف آخر قراءة محفوظة (تعليق فرع MUSHAF_READER).
-                onMushafReader = {
-                    viewModel.updateState {
-                        copy(
-                            appState = AppState.MUSHAF_READER,
-                            mushafInitialSurah = null,
-                            mushafInitialAyah = null,
-                            mushafInitialPage = null
-                        )
-                    }
-                },
                 onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
                 onRules = {
                     rulesReturnToSettings = false
@@ -529,11 +466,25 @@ fun AppNavigation(
                 bottomBar = bottomNav
             )
         }
-        AppState.PHOTO_STUDIO -> {
-            PhotoStudioScreen(
+        AppState.VIBE_CODING -> {
+            VibeCodingScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
+                onOpenLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
+                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                bottomBar = bottomNav
+            )
+        }
+        AppState.PHOTO_STUDIO -> {
+            PhotoStudioScreen(
+                onBack = {
+                    val returnState = photoStudioReturnState
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = returnState) }
+                },
+                initialImagePath = photoStudioInitialImagePath,
                 onNavigateToAdvancedEdit = { videoPath ->
+                    photoStudioInitialImagePath = null
                     viewModel.updateState {
                         copy(
                             libraryScenes = listOf(Scene("فيديو استوديو الصور", "فيديو جاهز", 15, mediaUrl = videoPath)),
@@ -557,6 +508,7 @@ fun AppNavigation(
                     }
                 },
                 onSaveProject = { videoPath ->
+                    photoStudioInitialImagePath = null
                     viewModel.createProject("استوديو الصور - فيديو سريع")
                     viewModel.updateState {
                         copy(
@@ -645,27 +597,22 @@ fun AppNavigation(
                 viewModel.updateState { copy(appState = AppState.SCHOLAR_BIOGRAPHIES) }
             }
         }
-        AppState.VIBE_CODING -> {
-            // قسم «فايب كودينج» الموحد (12.2): محادثة واحدة بمساري برمجة/محتوى.
-            // بوابة المحتوى (STUDIO_GATEWAY) تبقى reachable من مسار المحتوى.
-            VibeCodingScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
-                onOpenLibrary = { viewModel.updateState { copy(appState = AppState.STUDIO_LIBRARY) } },
-                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
-                onOpenProject = { project -> viewModel.openProject(project) },
-                bottomBar = bottomNav
-            )
-        }
         AppState.STUDIO_GATEWAY -> {
             StudioGatewayScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onNavigateToMasterStudio = { viewModel.updateState { copy(appState = AppState.UNIFIED_MASTER_STUDIO) } },
-                onNavigateToMediaBrowser = { viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) } },
+                onNavigateToHiggsfield = { viewModel.updateState { copy(appState = AppState.HIGGSFIELD_STUDIO) } },
+                onNavigateToMediaBrowser = {
+                    mediaBrowserReturnState = AppState.STUDIO_GATEWAY
+                    viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) }
+                },
                 onNavigateToAiStudio = { viewModel.updateState { copy(appState = AppState.INPUT) } },
                 onNavigateToProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
                 onNavigateToMoneyPrinter = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
-                onNavigateToPhotoStudio = { viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) } },
+                onNavigateToPhotoStudio = {
+                    photoStudioReturnState = AppState.STUDIO_GATEWAY
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
+                },
                 onNavigateToVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
                 onNavigateToYouTubeStudio = { viewModel.updateState { copy(appState = AppState.YOUTUBE_STUDIO) } },
                 onNavigateToTeleprompter = { viewModel.updateState { copy(appState = AppState.TELEPROMPTER) } },
@@ -686,7 +633,6 @@ fun AppNavigation(
                 onOpenKeys = { viewModel.updateState { copy(appState = AppState.MY_KEYS) } },
                 onOpenProject = { project -> viewModel.openProject(project) },
                 initialBrief = studioAgentInitialBrief,
-                onBriefConsumed = { studioAgentInitialBrief = null },
                 bottomBar = bottomNav
             )
         }
@@ -705,6 +651,11 @@ fun AppNavigation(
                     viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) }
                 },
                 bottomBar = bottomNav
+            )
+        }
+        AppState.HIGGSFIELD_STUDIO -> {
+            HiggsfieldStudioScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } }
             )
         }
         AppState.PRO_EDITOR -> {
@@ -859,15 +810,20 @@ fun AppNavigation(
             )
         }
         AppState.AI_STUDIO_AGENT -> {
-            // (12.2) أُزيلت بوابة AdminGuard عن دخول محادثة البرمجة: كانت تحجب
-            // توحيد القسم، والأمان يُستعاض عنه بتأكيدات 12.16 + إيقاف الاستقلالية
-            // افتراضياً (12.9). شاشة القفل DeveloperModeLockedScreen حُذفت
-            // مع البوابة (بلا مستدعٍ).
-            AiStudioAgentScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
-                onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
-                bottomBar = bottomNav
-            )
+            // وكيل البرمجة خلف بوابة المطوّر (رتبة سحابية من app_metadata فقط).
+            // من لا يملك الرتبة يرى شاشة القفل — وكيل المحتوى (STUDIO_AGENT) غير مقيّد.
+            if (AdminGuard.isDashboardAccessAllowed(context)) {
+                AiStudioAgentScreen(
+                    onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
+                    onOpenTeamConfig = { viewModel.updateState { copy(appState = AppState.AGENT_TEAM_CONFIG) } },
+                    bottomBar = bottomNav
+                )
+            } else {
+                DeveloperModeLockedScreen(
+                    onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                    onOpenStudioAgent = { viewModel.updateState { copy(appState = AppState.STUDIO_AGENT) } }
+                )
+            }
         }
         AppState.AGENT_TEAM_CONFIG -> {
             AgentTeamConfigScreen(
@@ -1040,7 +996,6 @@ fun AppNavigation(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
                 onOpenReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
                 onOpenAiAssistant = { viewModel.updateState { copy(appState = AppState.AI_ASSISTANT) } },
-                onOpenAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
                 bottomBar = bottomNav
             )
         }
@@ -1747,25 +1702,14 @@ fun AppNavigation(
         }
         AppState.MEDIA_BROWSER -> {
             CentralMediaBrowserScreen(
-                onBack = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
-                onSelectAssetForProject = { asset ->
-                    if (asset.type == CentralMediaType.AUDIO) {
-                        viewModel.updateState { copy(voiceOver = asset.displayUrl, appState = AppState.INPUT) }
-                    } else if (asset.type == CentralMediaType.VIDEO) {
-                        viewModel.updateState {
-                            copy(
-                                libraryScenes = listOf(Scene(asset.title, "فيديو من مستودع الوسائط", 15, mediaUrl = asset.displayUrl)),
-                                appState = AppState.ADVANCED_EDIT
-                            )
-                        }
-                    } else {
-                        viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
-                    }
-                },
+                onBack = { viewModel.updateState { copy(appState = mediaBrowserReturnState) } },
                 onOpenInPhotoStudio = { path ->
+                    photoStudioReturnState = AppState.MEDIA_BROWSER
+                    photoStudioInitialImagePath = path
                     viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
                 },
                 onOpenInVideoEditor = { path ->
+                    photoStudioInitialImagePath = null
                     viewModel.updateState {
                         copy(
                             libraryScenes = listOf(Scene("مقطع وسائط", "من مستودع الوسائط", 15, mediaUrl = path)),
@@ -1773,6 +1717,123 @@ fun AppNavigation(
                         )
                     }
                 },
+                bottomBar = bottomNav
+            )
+        }
+        else -> {
+            HomeScreen(
+                recentProjects = state.projects,
+                onNewProject = { initialText ->
+                    viewModel.createProject(initialText ?: "")
+                },
+                onViewProjects = { viewModel.updateState { copy(appState = AppState.PROJECTS) } },
+                onViewSettings = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
+                onViewProfile = { viewModel.updateState { copy(appState = AppState.PROFILE) } },
+                onViewNotifications = { viewModel.updateState { copy(appState = AppState.NOTIFICATIONS) } },
+                onOpenProject = { project -> viewModel.openProject(project) },
+                onViewApiDocs = { viewModel.updateState { copy(appState = AppState.API_DOCS) } },
+                onTeleprompter = { viewModel.updateState { copy(appState = AppState.TELEPROMPTER) } },
+                onAudioLibrary = { viewModel.updateState { copy(appState = AppState.AUDIO_LIBRARY) } },
+                onAiAssistant = { viewModel.updateState { copy(appState = AppState.AI_ASSISTANT) } },
+                onYouTubeStudio = { viewModel.updateState { copy(appState = AppState.YOUTUBE_STUDIO) } },
+                onDeveloperDashboard = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
+                onLeaderboard = { viewModel.updateState { copy(appState = AppState.LEADERBOARD) } },
+                onNavigateToTasteProfile = {
+                    tasteProfileReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.TASTE_PROFILE) }
+                },
+                onStudioGateway = { viewModel.updateState { copy(appState = AppState.STUDIO_GATEWAY) } },
+                onPremiumUpgrade = { viewModel.updateState { copy(appState = AppState.PREMIUM_UPGRADE) } },
+                onRewards = { viewModel.updateState { copy(appState = AppState.REWARDS) } },
+                onKnowledgeHub = { viewModel.updateState { copy(appState = AppState.KNOWLEDGE_HUB) } },
+                onContentGuard = { viewModel.updateState { copy(appState = AppState.CONTENT_GUARD) } },
+                onMishkatHub = { viewModel.updateState { copy(appState = AppState.HASANAT_HUB) } },
+                onHadithStudio = { viewModel.updateState { copy(appState = AppState.HADITH_STUDIO) } },
+                onVideoStyleCloner = { viewModel.updateState { copy(appState = AppState.VIDEO_STYLE_CLONER) } },
+                onPhotoStudio = {
+                    photoStudioReturnState = AppState.HOME
+                    photoStudioInitialImagePath = null
+                    viewModel.updateState { copy(appState = AppState.PHOTO_STUDIO) }
+                },
+                onStyleSelection = { viewModel.updateState { copy(appState = AppState.STYLE_SELECTION) } },
+                onIslamicLibrary = { viewModel.updateState { copy(appState = AppState.ISLAMIC_LIBRARY) } },
+                onAzkar = { viewModel.updateState { copy(appState = AppState.AZKAR) } },
+                onPrayerTimes = { viewModel.updateState { copy(appState = AppState.PRAYER_TIMES) } },
+                onScholarBiographies = { viewModel.updateState { copy(appState = AppState.SCHOLAR_BIOGRAPHIES) } },
+                onProEditor = { viewModel.updateState { copy(appState = AppState.PRO_EDITOR) } },
+                onMoneyPrinterTurbo = { viewModel.updateState { copy(appState = AppState.MONEY_PRINTER_TURBO) } },
+                onVoiceStudio = { viewModel.updateState { copy(appState = AppState.VOICE_STUDIO) } },
+                onMediaBrowser = {
+                    mediaBrowserReturnState = AppState.HOME
+                    viewModel.updateState { copy(appState = AppState.MEDIA_BROWSER) }
+                },
+                onReels = { viewModel.updateState { copy(appState = AppState.REELS) } },
+                // روابط البحث العميقة الحقيقية (الدفعة 5 — الجزء C) — كما في
+                // فرع HOME أعلاه؛ فرع الاحتياط هذا يعرض الرئيسية أيضاً.
+                onOpenQuranVerse = { surah, ayah ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = null
+                        )
+                    }
+                },
+                onOpenHadith = { hadithId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialHadithId = hadithId,
+                            libraryInitialBookId = null
+                        )
+                    }
+                },
+                onOpenLibraryBook = { bookId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.ISLAMIC_LIBRARY,
+                            libraryInitialBookId = bookId,
+                            libraryInitialHadithId = null
+                        )
+                    }
+                },
+                onOpenReel = { reelId ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkReelId = reelId,
+                            deepLinkCreatorId = null,
+                            deepLinkCreatorName = null
+                        )
+                    }
+                },
+                onOpenCreator = { creatorId, creatorName ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.REELS,
+                            deepLinkCreatorId = creatorId,
+                            deepLinkCreatorName = creatorName,
+                            deepLinkReelId = null
+                        )
+                    }
+                },
+                onOpenMushaf = { surah, ayah, page ->
+                    viewModel.updateState {
+                        copy(
+                            appState = AppState.MUSHAF_READER,
+                            mushafInitialSurah = surah,
+                            mushafInitialAyah = ayah,
+                            mushafInitialPage = page
+                        )
+                    }
+                },
+                onRestoreWorkspaceDraft = { viewModel.restoreWorkspaceDraft() },
+                onRules = {
+                    rulesReturnToSettings = false
+                    viewModel.updateState { copy(appState = AppState.RULES) }
+                },
+                onAiStudioAgent = { viewModel.updateState { copy(appState = AppState.AI_STUDIO_AGENT) } },
                 bottomBar = bottomNav
             )
         }
